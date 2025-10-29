@@ -75,6 +75,7 @@ export default function App() {
   const [paidAmount, setPaidAmount] = useState<string>('')
   const [paidDate, setPaidDate] = useState<string>(new Date().toISOString().split('T')[0])
   const [successModal, setSuccessModal] = useState<null | {
+    claimId: string | null
     petName: string
     species: string
     amount: number | null
@@ -469,10 +470,16 @@ export default function App() {
     setIsProcessing(true)
     setErrorMessage(null)
     try {
+      // eslint-disable-next-line no-console
+      console.log('[extract] starting, file type:', selectedFile.file.type)
       let dataUrl: string
       if (selectedFile.file.type === 'application/pdf') {
+        // eslint-disable-next-line no-console
+        console.log('[extract] converting PDF to image data URL…')
         dataUrl = await pdfFileToPngDataUrl(selectedFile.file)
       } else {
+        // eslint-disable-next-line no-console
+        console.log('[extract] reading image as data URL…')
         dataUrl = await fileToDataUrl(selectedFile.file)
       }
 
@@ -490,6 +497,15 @@ export default function App() {
 
 Extract EVERY visible field from the image. Look carefully at the entire document. If a field is not clearly visible, use null. Return ONLY valid JSON, no markdown formatting.`
 
+      // Mobile networks can be slow; enforce a 90s timeout with AbortController
+      const controller = new AbortController()
+      const timeoutMs = 90_000
+      const timeoutId = setTimeout(() => {
+        try { controller.abort() } catch {}
+      }, timeoutMs)
+
+      // eslint-disable-next-line no-console
+      console.log('[extract] sending request to OpenAI… (timeout', timeoutMs, 'ms)')
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
@@ -503,7 +519,12 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
         ],
         temperature: 0,
         max_tokens: 2000,
-      })
+      }, { timeout: timeoutMs, signal: controller.signal })
+
+      clearTimeout(timeoutId)
+
+      // eslint-disable-next-line no-console
+      console.log('[extract] response received from OpenAI.')
 
       const content = completion.choices?.[0]?.message?.content ?? ''
       let parsed: any | null = null
@@ -547,7 +568,22 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
       setExtracted(normalized)
       setMultiExtracted(null)
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Failed to process. Please try again.')
+      // Classify error for clearer UX
+      const message = String(err?.message || '')
+      const name = String(err?.name || '')
+      const isAbort = name === 'AbortError' || /aborted|timeout/i.test(message)
+      const isNetwork = /NetworkError|Failed to fetch|TypeError: Failed to fetch/i.test(message)
+      const apiMsg = (err?.error && (err.error.message || err.error?.error?.message)) || message
+
+      if (isAbort) {
+        setErrorMessage('Extraction timed out. Mobile networks can be slow — please try again. We now wait up to 90 seconds.')
+      } else if (isNetwork) {
+        setErrorMessage('Network error during extraction. Please check your connection and try again.')
+      } else {
+        setErrorMessage(apiMsg || 'AI extraction failed. Please try again.')
+      }
+      // eslint-disable-next-line no-console
+      console.error('[extract] error:', { name: err?.name, message: err?.message, cause: err?.cause })
       // Fallback: open a blank editable claim form so the user can enter manually
       const blank: ExtractedBill = {
         clinicName: '',
@@ -1537,7 +1573,7 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                       setPetSelectError(true)
                       return
                     }
-                    // Save single-pet claim and store PDF
+                    // Save single-pet claim only (PDF will be generated on-demand when user clicks "View My Claim")
                     // Compute deadline based on service date and filing window
                     const filingDaysToUse = Number((selectedPet as any)?.filing_deadline_days) || 90
                     const svcDate = extracted.dateOfService ? new Date(extracted.dateOfService) : null
@@ -1547,7 +1583,7 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                     if (userId) {
                       try {
                         const totalNum = parseFloat(String(extracted.totalAmount).replace(/[^0-9.\-]/g, '')) || null
-                    row = await createClaim({
+                        row = await createClaim({
                           user_id: userId,
                           pet_id: selectedPet ? selectedPet.id : null,
                           service_date: extracted.dateOfService || null,
@@ -1566,14 +1602,9 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                         })
                       } catch (e) { console.error('[createClaim single] error', e) }
                     }
-                    const { filename, blob } = generateClaimPdf(extracted, selectedPet)
-                    if (userId && row?.id) {
-                      await uploadClaimPdf(userId, row.id, blob)
-                      listClaims(userId).then(setClaims).catch(() => {})
-                      setShowClaims(true)
-                    }
-                    // Show success modal with details BEFORE triggering the PDF download
+                    // Show success modal with details
                     setSuccessModal({
+                      claimId: row?.id || null,
                       petName: selectedPet?.name || 'Unknown',
                       species: selectedPet?.species || '',
                       amount: parseAmountToNumber(String(extracted.totalAmount || '')),
@@ -1582,25 +1613,7 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                       deadlineDate: (computedDeadlineDate ? computedDeadlineDate.toISOString().slice(0,10) : null),
                       deadlineDays: filingDaysToUse,
                     })
-
-                    // Then trigger the PDF download
-                    const url = URL.createObjectURL(blob)
-                    const a = document.createElement('a')
-                    a.href = url
-                    a.download = filename
-                    document.body.appendChild(a)
-                    a.click()
-                    a.remove()
-                    URL.revokeObjectURL(url)
-
-                    // Reset UI to allow immediate next upload
-                    setExtracted(null)
-                    setMultiExtracted(null)
-                    setSelectedFile(null)
-                    setErrorMessage(null)
-                    setVisitNotes('')
-                    setVisitTitle('')
-                    setExpenseCategory('insured')
+                    // Do not clear form here; wait for user action (Done / File Another)
                   }}
                 >
                   Looks Good
@@ -2159,7 +2172,7 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
             <div className="p-6 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800 flex flex-col items-center text-center">
               <div className="h-14 w-14 rounded-full bg-emerald-600 text-white flex items-center justify-center text-2xl shadow animate-pulse">✓</div>
               <div className="mt-3 text-lg font-semibold text-emerald-800 dark:text-emerald-200">Claim Saved Successfully!</div>
-              <div className="mt-1 text-xs text-emerald-900/80 dark:text-emerald-300/80">Your claim was saved and the PDF has been attached.</div>
+              <div className="mt-1 text-xs text-emerald-900/80 dark:text-emerald-300/80">Your claim was saved. You can generate the PDF now.</div>
             </div>
             <div className="p-6 text-sm">
               <div className="space-y-1">
@@ -2176,6 +2189,13 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                   onClick={() => {
                     // Reset for another claim
                     setSuccessModal(null)
+                    setExtracted(null)
+                    setMultiExtracted(null)
+                    setSelectedFile(null)
+                    setErrorMessage(null)
+                    setVisitNotes('')
+                    setVisitTitle('')
+                    setExpenseCategory('insured')
                     setShowClaims(false)
                   }}
                 >
@@ -2202,10 +2222,30 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                 <button
                   type="button"
                   className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs"
-                  onClick={() => {
-                    setSuccessModal(null)
-                    setShowClaims(true)
-                    claimsSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
+                  onClick={async () => {
+                    try {
+                      const claimId = successModal?.claimId || null
+                      if (!userId || !claimId || !extracted || !selectedPet) {
+                        setSuccessModal(null)
+                        setShowClaims(true)
+                        claimsSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
+                        return
+                      }
+                      const { filename, blob } = generateClaimPdf(extracted, selectedPet)
+                      const path = await uploadClaimPdf(userId, claimId, blob)
+                      if (path) {
+                        const { data } = await supabase.storage.from('claim-pdfs').createSignedUrl(path, 60)
+                        if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+                      }
+                      // Refresh claims list now that PDF is attached
+                      listClaims(userId).then(setClaims).catch(() => {})
+                    } catch (err) {
+                      console.error('[view my claim -> generate pdf] error', err)
+                    } finally {
+                      setSuccessModal(null)
+                      setShowClaims(true)
+                      claimsSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
+                    }
                   }}
                 >
                   View My Claim
