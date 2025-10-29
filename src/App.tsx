@@ -74,6 +74,7 @@ export default function App() {
   const [paidModalClaim, setPaidModalClaim] = useState<any | null>(null)
   const [paidAmount, setPaidAmount] = useState<string>('')
   const [paidDate, setPaidDate] = useState<string>(new Date().toISOString().split('T')[0])
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [successModal, setSuccessModal] = useState<null | {
     claimId: string | null
     petName: string
@@ -788,7 +789,8 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
           <img src="/pch-logo.png" alt="Pet Claim Helper" className="h-14 w-14 object-contain" />
             <span className="text-xl font-semibold tracking-tight">Pet Claim Helper</span>
           </div>
-          <div className="flex items-center gap-3">
+          {/* Desktop navigation */}
+          <div className="hidden md:flex items-center gap-3">
             {authView === 'app' && (
               <button
                 type="button"
@@ -835,8 +837,55 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
               <button onClick={handleLogout} className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-3 py-1.5 text-xs hover:shadow">Logout</button>
             )}
           </div>
+          {/* Mobile hamburger */}
+          <div className="md:hidden">
+            <button
+              type="button"
+              className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-3 py-2 text-sm"
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Open menu"
+            >
+              ☰
+            </button>
+          </div>
         </div>
       </header>
+
+      {/* Mobile slide-out menu */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileMenuOpen(false)} />
+          <div className="absolute right-0 top-0 h-full w-80 max-w-[85vw] bg-white dark:bg-slate-900 shadow-xl p-6 flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div className="text-lg font-semibold">Menu</div>
+              <button type="button" className="text-sm" onClick={() => setMobileMenuOpen(false)}>Close</button>
+            </div>
+            {authView === 'app' && (
+              <>
+                <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={() => { setMobileMenuOpen(false); claimsSectionRef.current?.scrollIntoView({ behavior: 'smooth' }) }}>Pet Claims</button>
+                <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={() => { setMobileMenuOpen(false); setActiveView(v => v === 'app' ? 'settings' : 'app') }}>Settings</button>
+                <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={async () => {
+                  try {
+                    const response = await fetch('http://localhost:8787/api/send-reminders', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+                    const data = await response.json()
+                    alert(`✅ ${data.message}\n\nEmails sent: ${data.sent}\nTotal expiring claims: ${data.totalClaims}`)
+                  } catch (error) {
+                    alert('❌ Error sending reminders: ' + (error as Error).message)
+                  } finally {
+                    setMobileMenuOpen(false)
+                  }
+                }}>Send Reminders</button>
+                {userEmail && (
+                  <div className="text-xs text-slate-600 dark:text-slate-300 mt-2">Logged in as: {userEmail}</div>
+                )}
+                {userEmail && (
+                  <button type="button" className="w-full h-12 rounded-lg bg-rose-600 hover:bg-rose-700 text-white" onClick={() => { setMobileMenuOpen(false); handleLogout() }}>Logout</button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       <main className="px-6">
         {authView === 'app' && activeView === 'settings' && (
@@ -972,26 +1021,26 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
             </div>
           )}
 
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {pets.length === 0 && (
               <div className="col-span-full text-sm text-slate-500 dark:text-slate-400">No pets saved yet. Click "+ Add Pet" to create one.</div>
             )}
             {pets.map(pet => (
-              <div key={pet.id} className={[ 'rounded-xl border p-4 text-left bg-white dark:bg-slate-900/60 shadow-sm relative', selectedPetId === pet.id ? 'border-emerald-400' : 'border-slate-200 dark:border-slate-800' ].join(' ')} style={{ border: `2px solid ${pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280')}` }}>
-                <div className="flex items-center justify-between">
+              <div key={pet.id} className={[ 'rounded-xl border p-6 text-left bg-white dark:bg-slate-900/60 shadow-sm relative', selectedPetId === pet.id ? 'border-emerald-400' : 'border-slate-200 dark:border-slate-800' ].join(' ')} style={{ border: `2px solid ${pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280')}` }}>
+                <div className="flex items-start justify-between">
                   <div>
-                    <div className="text-sm font-medium flex items-center gap-2">
+                    <div className="text-base font-semibold flex items-center gap-2">
                       <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280') }} />
                       {pet.name}
                     </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 capitalize">{pet.species}</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400 capitalize">{pet.species}</div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row items-stretch gap-3 w-32 sm:w-auto">
                     <button
                       type="button"
                       onClick={() => setSelectedPetId(pet.id)}
                       className={[
-                        'inline-flex items-center rounded-lg px-3 py-1.5 text-xs hover:shadow',
+                        'inline-flex items-center justify-center rounded-lg px-3 py-1.5 h-12 text-sm hover:shadow w-full sm:w-auto',
                         selectedPetId === pet.id
                           ? (pet.species === 'dog'
                               ? 'bg-blue-600 hover:bg-blue-700 text-white'
@@ -1001,14 +1050,14 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                     >
                       {selectedPetId === pet.id ? 'Selected' : 'Use This Pet'}
                     </button>
-                    <button type="button" onClick={() => startEditPet(pet)} className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-200">Edit</button>
+                    <button type="button" onClick={() => startEditPet(pet)} className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-200 w-full sm:w-auto px-3">Edit</button>
                   </div>
                 </div>
-                <div className="mt-3 text-xs text-slate-600 dark:text-slate-300">
+                <div className="mt-4 text-sm text-slate-700 dark:text-slate-300 space-y-1.5">
                   <div><span className="text-slate-500">Insurance:</span> {pet.insuranceCompany}</div>
                   <div><span className="text-slate-500">Policy #:</span> {pet.policyNumber || '—'}</div>
                   {(pet.ownerName || pet.ownerAddress || pet.ownerPhone) && (
-                    <div className="mt-2">
+                    <div className="mt-3 space-y-1.5">
                       <div><span className="text-slate-500">Owner:</span> {pet.ownerName || ''}</div>
                       <div><span className="text-slate-500">Address:</span> {pet.ownerAddress || ''}</div>
                       <div><span className="text-slate-500">Phone:</span> {pet.ownerPhone || ''}</div>
@@ -1113,12 +1162,12 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
 
         {/* Upload section */}
         {authView === 'app' && (
-        <section className="mx-auto max-w-3xl text-center mt-8">
+        <section className="mx-auto max-w-3xl text-center mt-8 px-2">
           <h2 className="text-2xl font-semibold">File Your Claim</h2>
           <div className="mt-4">
             <div
               className={[
-                'rounded-2xl border bg-white dark:bg-slate-900/60 shadow-sm p-5 sm:p-8 transition-colors',
+                'rounded-2xl border bg-white dark:bg-slate-900/60 shadow-sm p-6 sm:p-8 transition-colors',
                 isDragging
                   ? 'border-emerald-400 ring-2 ring-emerald-400/60 dark:ring-emerald-400/50 bg-emerald-50/40 dark:bg-emerald-900/10'
                   : 'border-slate-200 dark:border-slate-800'
@@ -1132,10 +1181,10 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                 <button
                   type="button"
                   onClick={handlePick}
-                  className="group relative w-full sm:w-auto rounded-xl border border-slate-300/70 dark:border-slate-700 bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 hover:from-white hover:to-white px-5 py-4 text-slate-800 dark:text-slate-100 shadow hover:shadow-lg transition"
+                  className="group relative w-full sm:w-auto h-16 rounded-xl border border-slate-300/70 dark:border-slate-700 bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 hover:from-white hover:to-white px-5 text-base sm:text-sm text-slate-800 dark:text-slate-100 shadow hover:shadow-lg transition"
                 >
                   <div className="flex items-center gap-3">
-                    <svg className="h-5 w-5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="h-6 w-6 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                       <polyline points="17 8 12 3 7 8" />
                       <line x1="12" x2="12" y1="3" y2="15" />
@@ -1179,10 +1228,10 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                         type="button"
                         onClick={handleProcess}
                         disabled={isProcessing}
-                        className="inline-flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="inline-flex items-center justify-center w-full h-14 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 text-base sm:text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {isProcessing && (
-                          <svg className="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <svg className="mr-2 h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <circle cx="12" cy="12" r="10" className="opacity-25" />
                             <path d="M4 12a8 8 0 018-8" className="opacity-75" />
                           </svg>
@@ -1771,7 +1820,7 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                   return { text: 'Maybe Insured', cls: 'bg-amber-50 text-amber-700 border border-amber-200' }
                 })()
                 return (
-                  <div key={c.id} className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 shadow-sm" style={{ border: `2px solid ${petColor}` }}>
+                  <div key={c.id} className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 shadow-sm min-h-[180px]" style={{ border: `2px solid ${petColor}` }}>
                     <div className="space-y-2">
                       <div className="flex items-start gap-2">
                         <div className="h-8 w-8 rounded-full flex items-center justify-center" style={{ backgroundColor: petColor + '20' }}>
@@ -2182,10 +2231,10 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                 <div><span className="text-slate-500 dark:text-slate-400">Insurance:</span> <span className="text-slate-900 dark:text-slate-100">{successModal.insurance || '—'}</span></div>
                 <div><span className="text-slate-500 dark:text-slate-400">Filing Deadline:</span> <span className="text-slate-900 dark:text-slate-100">{successModal.deadlineDate || '—'} ({successModal.deadlineDays} days)</span></div>
               </div>
-              <div className="mt-5 flex items-center justify-end gap-2">
+                  <div className="mt-5 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
                 <button
                   type="button"
-                  className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs"
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm w-full h-12 sm:w-auto sm:h-auto"
                   onClick={() => {
                     // Reset for another claim
                     setSuccessModal(null)
@@ -2203,7 +2252,7 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                 </button>
                 <button
                   type="button"
-                  className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs"
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm w-full h-12 sm:w-auto sm:h-auto"
                   onClick={() => {
                     // Close modal and clear form; stay on upload page
                     setSuccessModal(null)
@@ -2221,7 +2270,7 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                 </button>
                 <button
                   type="button"
-                  className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs"
+                      className="inline-flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-sm w-full h-12 sm:w-auto sm:h-auto"
                   onClick={async () => {
                     try {
                       const claimId = successModal?.claimId || null
