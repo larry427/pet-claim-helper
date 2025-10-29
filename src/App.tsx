@@ -1798,7 +1798,7 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
             </div>
 
             {/* Claims list */}
-            <div ref={claimsSectionRef} className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div ref={claimsSectionRef} className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full overflow-x-hidden" style={{ overscrollBehaviorX: 'none' }}>
               {sortedClaims.map((c) => {
                 const pet = c.pets || {}
                 const petColor = pet?.color || (pet?.species === 'cat' ? '#F97316' : pet?.species === 'dog' ? '#3B82F6' : '#6B7280')
@@ -1820,7 +1820,7 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                   return { text: 'Maybe Insured', cls: 'bg-amber-50 text-amber-700 border border-amber-200' }
                 })()
                 return (
-                  <div key={c.id} className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 shadow-sm min-h-[180px]" style={{ border: `2px solid ${petColor}` }}>
+                  <div key={c.id} className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 shadow-sm min-h-[180px] w-full" style={{ border: `2px solid ${petColor}`, touchAction: 'pan-y', overscrollBehaviorX: 'none' }}>
                     <div className="space-y-2">
                       <div className="flex items-start gap-2">
                         <div className="h-8 w-8 rounded-full flex items-center justify-center" style={{ backgroundColor: petColor + '20' }}>
