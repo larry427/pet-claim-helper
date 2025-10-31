@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { fileToDataUrl } from './lib/fileUtils'
-import { openai } from './lib/openaiClient'
 import type { ExtractedBill, LineItem, PetProfile, PetSpecies, InsuranceCompany, MultiPetExtracted, ExtractedPetGroup } from './types'
 import { pdfFileToPngDataUrl } from './lib/pdfToImage'
 import { dbLoadPets, dbUpsertPet, dbDeletePet, dbEnsureProfile } from './lib/petStorage'
@@ -503,82 +502,34 @@ export default function App() {
     setErrorMessage(null)
     try {
       // eslint-disable-next-line no-console
-      console.log('[extract] starting, file type:', selectedFile.file.type)
-      let dataUrl: string
-      if (selectedFile.file.type === 'application/pdf') {
-        // eslint-disable-next-line no-console
-        console.log('[extract] converting PDF to image data URL…')
-        dataUrl = await pdfFileToPngDataUrl(selectedFile.file)
-      } else {
-        // eslint-disable-next-line no-console
-        console.log('[extract] reading image as data URL…')
-        dataUrl = await fileToDataUrl(selectedFile.file)
-      }
-
-      const prompt = `Extract ALL fields from this veterinary invoice and return as JSON:
-{
-  \"clinic_name\": \"full clinic name\",
-  \"clinic_address\": \"complete address with city, state, zip\",
-  \"pet_name\": \"pet's name\",
-  \"service_date\": \"YYYY-MM-DD format\",
-  \"total_amount\": numeric value,
-  \"invoice_number\": \"invoice number if visible\",
-  \"diagnosis\": \"reason for visit or diagnosis\",
-  \"line_items\": [{\"description\": \"service name\", \"amount\": numeric value}]
-}
-
-Extract EVERY visible field from the image. Look carefully at the entire document. If a field is not clearly visible, use null. Return ONLY valid JSON, no markdown formatting.`
-
-      // Mobile networks can be slow; enforce a 90s timeout with AbortController
+      console.log('[extract] starting server-side extraction, file type:', selectedFile.file.type)
+      const apiBase = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000'
+      const form = new FormData()
+      form.append('file', selectedFile.file)
       const controller = new AbortController()
       const timeoutMs = 90_000
-      const timeoutId = setTimeout(() => {
-        try { controller.abort() } catch {}
-      }, timeoutMs)
-
-      // eslint-disable-next-line no-console
-      console.log('[extract] sending request to OpenAI… (timeout', timeoutMs, 'ms)')
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: dataUrl } },
-            ],
-          },
-        ],
-        temperature: 0,
-        max_tokens: 2000,
-      }, { timeout: timeoutMs, signal: controller.signal })
-
+      const timeoutId = setTimeout(() => { try { controller.abort() } catch {} }, timeoutMs)
+      const resp = await fetch(`${apiBase}/api/extract-pdf`, {
+        method: 'POST',
+        body: form,
+        signal: controller.signal,
+      })
       clearTimeout(timeoutId)
-
-      // eslint-disable-next-line no-console
-      console.log('[extract] response received from OpenAI.')
-
-      const content = completion.choices?.[0]?.message?.content ?? ''
-      let parsed: any | null = null
-      try {
-        let cleaned = content.trim()
-        // Strip markdown code fences if present
-        if (cleaned.startsWith('```')) {
-          cleaned = cleaned.replace(/^```json\s*/i, '')
-          cleaned = cleaned.replace(/^```\s*/i, '')
-          cleaned = cleaned.replace(/\s*```\s*$/, '')
-        }
-        parsed = JSON.parse(cleaned)
-      } catch {
-        const match = content.match(/\{[\s\S]*\}/)
-        if (match) {
-          try { parsed = JSON.parse(match[0]) } catch {}
-        }
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '')
+        throw new Error(text || `Server error (${resp.status})`)
       }
+      const json = await resp.json()
+      if (!json || json.ok !== true || !json.data) {
+        // eslint-disable-next-line no-console
+        console.error('[extract] bad response shape', json)
+        throw new Error('Invalid extraction response')
+      }
+      const parsed: any = json.data
       if (!parsed) {
         // eslint-disable-next-line no-console
-        console.error('[openai extraction] raw response could not be parsed:', content)
-        throw new Error('Could not parse JSON from AI response.')
+        console.error('[extract] empty parsed data from server response')
+        throw new Error('Could not parse JSON from server response.')
       }
 
       // Try multi-pet first

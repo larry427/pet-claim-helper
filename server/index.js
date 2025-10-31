@@ -8,6 +8,8 @@ import cors from 'cors'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { getReminderEmailHtml } from './emailTemplates.js'
+import multer from 'multer'
+import OpenAI from 'openai'
 import medicationRemindersRouter from './routes/medication-reminders.js'
 
 // Validate required env vars
@@ -26,6 +28,9 @@ const supabase = createClient(
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY)
+
+// Initialize OpenAI (server-side)
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 90_000 })
 
 const app = express()
 app.use(cors())
@@ -46,6 +51,78 @@ app.get('/api/health', (_req, res) => {
 // Dynamic import AFTER dotenv is configured
 const startServer = async () => {
  
+  // File upload (memory storage)
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } })
+
+  // PDF/Image extraction via OpenAI Vision (server-side)
+  app.post('/api/extract-pdf', upload.single('file'), async (req, res) => {
+    try {
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(500).json({ ok: false, error: 'OPENAI_API_KEY not configured' })
+      }
+      const file = req.file
+      if (!file) {
+        return res.status(400).json({ ok: false, error: 'No file provided. Use multipart/form-data with field name "file".' })
+      }
+      const mime = file.mimetype || 'application/octet-stream'
+      const base64 = file.buffer.toString('base64')
+      const dataUrl = `data:${mime};base64,${base64}`
+
+      const prompt = `Extract ALL fields from this veterinary invoice and return as JSON:\n{
+  "clinic_name": "full clinic name",
+  "clinic_address": "complete address with city, state, zip",
+  "pet_name": "pet's name",
+  "service_date": "YYYY-MM-DD format",
+  "total_amount": numeric value,
+  "invoice_number": "invoice number if visible",
+  "diagnosis": "reason for visit or diagnosis",
+  "line_items": [{"description": "service name", "amount": numeric value}]
+}\n\nExtract EVERY visible field from the image. If a field is not visible, use null. Return ONLY valid JSON.`
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+        temperature: 0,
+        max_tokens: 2000,
+      })
+
+      const content = completion.choices?.[0]?.message?.content ?? ''
+      let parsed = null
+      try {
+        let cleaned = content.trim()
+        if (cleaned.startsWith('```')) {
+          cleaned = cleaned.replace(/^```json\s*/i, '')
+          cleaned = cleaned.replace(/^```\s*/i, '')
+          cleaned = cleaned.replace(/\s*```\s*$/, '')
+        }
+        parsed = JSON.parse(cleaned)
+      } catch {
+        const match = content.match(/\{[\s\S]*\}/)
+        if (match) {
+          try { parsed = JSON.parse(match[0]) } catch {}
+        }
+      }
+      if (!parsed) {
+        // eslint-disable-next-line no-console
+        console.error('[extract-pdf] could not parse JSON from model response:', content)
+        return res.status(422).json({ ok: false, error: 'Could not parse JSON from AI response', raw: content })
+      }
+      return res.json({ ok: true, data: parsed })
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[extract-pdf] error', err)
+      return res.status(500).json({ ok: false, error: String(err?.message || err) })
+    }
+  })
+
 
   // Send reminder emails for expiring claims
   app.post('/api/send-reminders', async (req, res) => {
