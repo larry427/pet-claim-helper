@@ -30,6 +30,9 @@ export type PetProfile = {
   ownerPhone?: string
   filingDeadlineDays?: number
   filing_deadline_days?: number
+  monthly_premium?: number | null
+  deductible_per_claim?: number | null
+  coverage_start_date?: string | null
 }
 
 export type ExtractedPetGroup = {

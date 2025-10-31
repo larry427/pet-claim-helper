@@ -6,6 +6,10 @@ import { pdfFileToPngDataUrl } from './lib/pdfToImage'
 import { dbLoadPets, dbUpsertPet, dbDeletePet, dbEnsureProfile } from './lib/petStorage'
 import { supabase } from './lib/supabase'
 import { generateClaimPdf, generateClaimPdfForPet } from './lib/pdfClaim'
+import AddMedicationForm from './components/AddMedicationForm'
+import OnboardingModal from './components/OnboardingModal'
+import FinancialSummary from './components/FinancialSummary'
+import MedicationsDashboard from './components/MedicationsDashboard'
 import { createClaim, listClaims, updateClaim, deleteClaim as dbDeleteClaim } from './lib/claims'
 import React from 'react'
 
@@ -39,7 +43,19 @@ export default function App() {
     filing_deadline_days: ''
   })
   const [editingPetId, setEditingPetId] = useState<string | null>(null)
-  const [editPet, setEditPet] = useState<{ name: string; species: PetSpecies; insuranceCompany: InsuranceCompany; policyNumber: string; ownerName: string; ownerAddress: string; ownerPhone: string; filing_deadline_days?: number | '' } | null>(null)
+  const [editPet, setEditPet] = useState<{
+    name: string;
+    species: PetSpecies;
+    insuranceCompany: InsuranceCompany;
+    policyNumber: string;
+    ownerName: string;
+    ownerAddress: string;
+    ownerPhone: string;
+    filing_deadline_days?: number | '';
+    monthly_premium?: number | '';
+    deductible_per_claim?: number | '';
+    coverage_start_date?: string;
+  } | null>(null)
   const [newPetInsurer, setNewPetInsurer] = useState<'Trupanion' | 'Nationwide' | 'Healthy Paws' | 'Fetch' | 'Custom Insurance' | ''>('')
   const [editPetInsurer, setEditPetInsurer] = useState<'Trupanion' | 'Nationwide' | 'Healthy Paws' | 'Fetch' | 'Custom Insurance' | ''>('')
   const [customInsurerNameNew, setCustomInsurerNameNew] = useState('')
@@ -61,7 +77,7 @@ export default function App() {
   const [showClaims, setShowClaims] = useState(false)
   const [claimsSort, setClaimsSort] = useState<'urgent' | 'date_newest' | 'date_oldest' | 'amount_high' | 'amount_low' | 'pet' | 'status'>('urgent')
   const [finPeriod, setFinPeriod] = useState<'all' | '2025' | '2024' | 'last12'>('all')
-  const [activeView, setActiveView] = useState<'app' | 'settings'>('app')
+  const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications'>('app')
   const [editingClaim, setEditingClaim] = useState<any | null>(null)
   const [editPetId, setEditPetId] = useState<string | null>(null)
   const [editServiceDate, setEditServiceDate] = useState('')
@@ -75,6 +91,7 @@ export default function App() {
   const [paidAmount, setPaidAmount] = useState<string>('')
   const [paidDate, setPaidDate] = useState<string>(new Date().toISOString().split('T')[0])
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const [successModal, setSuccessModal] = useState<null | {
     claimId: string | null
     petName: string
@@ -85,6 +102,14 @@ export default function App() {
     deadlineDate: string | null
     deadlineDays: number
   }>(null)
+  // Medication linking state
+  const [medQuestionOpen, setMedQuestionOpen] = useState(false)
+  const [medSelectOpen, setMedSelectOpen] = useState(false)
+  const [medicationsForPet, setMedicationsForPet] = useState<any[]>([])
+  const [selectedMedicationIds, setSelectedMedicationIds] = useState<string[]>([])
+  const [createdClaimId, setCreatedClaimId] = useState<string | null>(null)
+  const [pendingSuccess, setPendingSuccess] = useState<null | typeof successModal>(null)
+  const [showAddMedication, setShowAddMedication] = useState(false)
 
   // --- Name similarity helpers for auto-suggestions ---
   const normalizeName = (s: string): string => s.trim().toLowerCase()
@@ -144,7 +169,7 @@ export default function App() {
         setUserId(s.user.id)
         dbEnsureProfile(s.user.id, s.user.email ?? null).catch(() => {})
         setAuthView('app')
-        dbLoadPets(s.user.id).then(setPets).catch(() => setPets([]))
+        dbLoadPets(s.user.id).then((p) => { setPets(p); if ((p || []).length === 0) setShowOnboarding(true) }).catch(() => setPets([]))
         listClaims(s.user.id).then(setClaims).catch(() => setClaims([]))
       } else {
         setAuthView('signup')
@@ -156,7 +181,7 @@ export default function App() {
         setUserId(session.user.id)
         dbEnsureProfile(session.user.id, session.user.email ?? null).catch(() => {})
         setAuthView('app')
-        dbLoadPets(session.user.id).then(setPets).catch(() => setPets([]))
+        dbLoadPets(session.user.id).then((p) => { setPets(p); if ((p || []).length === 0) setShowOnboarding(true) }).catch(() => setPets([]))
         listClaims(session.user.id).then(setClaims).catch(() => setClaims([]))
       } else {
         setUserEmail(null)
@@ -249,7 +274,10 @@ export default function App() {
       ownerName: pet.ownerName || '',
       ownerAddress: pet.ownerAddress || '',
       ownerPhone: pet.ownerPhone || '',
-      filing_deadline_days: (pet as any).filing_deadline_days || ''
+      filing_deadline_days: (pet as any).filing_deadline_days || '',
+      monthly_premium: (pet as any).monthly_premium ?? '',
+      deductible_per_claim: (pet as any).deductible_per_claim ?? '',
+      coverage_start_date: (pet as any).coverage_start_date || ''
     })
     const known = ['Trupanion','Nationwide','Healthy Paws','Fetch']
     if (known.includes(pet.insuranceCompany)) {
@@ -291,6 +319,9 @@ export default function App() {
             ownerAddress: editPet.ownerAddress.trim(),
             ownerPhone: editPet.ownerPhone.trim(),
             filing_deadline_days: finalDays as any,
+            monthly_premium: editPet.monthly_premium === '' ? null : Number(editPet.monthly_premium),
+            deductible_per_claim: editPet.deductible_per_claim === '' ? null : Number(editPet.deductible_per_claim),
+            coverage_start_date: editPet.coverage_start_date || null,
           }
         : p,
     )
@@ -813,6 +844,15 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
               </button>
             )}
             {authView === 'app' && (
+              <button
+                type="button"
+                onClick={() => setActiveView(v => v === 'medications' ? 'app' : 'medications')}
+                className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-3 py-1.5 text-xs hover:shadow"
+              >
+                💊 Medications
+              </button>
+            )}
+            {authView === 'app' && (
   <button
     type="button"
     onClick={async () => {
@@ -863,6 +903,7 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
             {authView === 'app' && (
               <>
                 <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={() => { setMobileMenuOpen(false); claimsSectionRef.current?.scrollIntoView({ behavior: 'smooth' }) }}>Pet Claims</button>
+                <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={() => { setMobileMenuOpen(false); setActiveView('medications') }}>Medications</button>
                 <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={() => { setMobileMenuOpen(false); setActiveView(v => v === 'app' ? 'settings' : 'app') }}>Settings</button>
                 <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={async () => {
                   try {
@@ -896,6 +937,11 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
             onDefaultExpenseChange={(cat) => setExpenseCategory(cat)}
             onDefaultPeriodChange={(p) => setFinPeriod(p as any)}
           />
+        )}
+        {authView === 'app' && activeView === 'medications' && (
+          <section className="mx-auto mt-8 max-w-6xl px-2">
+            <MedicationsDashboard userId={userId} pets={pets} />
+          </section>
         )}
         {authView !== 'app' && (
           <section className="mx-auto max-w-md mt-8">
@@ -1123,6 +1169,21 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                         <input value={editPet.policyNumber} onChange={(e) => setEditPet({ ...editPet, policyNumber: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                       </div>
                       <div>
+                        <label className="block text-xs">Monthly Premium (USD)</label>
+                        <input type="number" step="0.01" placeholder="e.g., 38.00" value={String(editPet.monthly_premium ?? '')} onChange={(e) => setEditPet({ ...editPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                        <div className="mt-1 text-[11px] text-slate-500">Monthly insurance premium cost</div>
+                      </div>
+                      <div>
+                        <label className="block text-xs">Deductible per Claim (USD)</label>
+                        <input type="number" step="0.01" placeholder="e.g., 250.00" value={String(editPet.deductible_per_claim ?? '')} onChange={(e) => setEditPet({ ...editPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                        <div className="mt-1 text-[11px] text-slate-500">Deductible amount per claim</div>
+                      </div>
+                      <div>
+                        <label className="block text-xs">Coverage Start Date</label>
+                        <input type="date" value={editPet.coverage_start_date || ''} onChange={(e) => setEditPet({ ...editPet, coverage_start_date: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                        <div className="mt-1 text-[11px] text-slate-500">When did your coverage start?</div>
+                      </div>
+                      <div>
                         <label className="block text-xs">Owner Name</label>
                         <input value={editPet.ownerName} onChange={(e) => setEditPet({ ...editPet, ownerName: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                       </div>
@@ -1341,7 +1402,6 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                             user_id: userId,
                             pet_id: matchedPet ? matchedPet.id : null,
                             service_date: multiExtracted.dateOfService || null,
-                            deadline_date: deadlineDate ? deadlineDate.toISOString().slice(0,10) : null,
                             invoice_number: multiExtracted.invoiceNumber || null,
                             clinic_name: multiExtracted.clinicName || null,
                             clinic_address: multiExtracted.clinicAddress || null,
@@ -1379,7 +1439,24 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
         {extracted && (
           <section className="mx-auto mt-8 max-w-3xl">
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-sm p-5 sm:p-8">
-              <h2 className="text-lg font-semibold">Extracted Details</h2>
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  className="h-11 inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 text-sm"
+                  onClick={() => {
+                    setExtracted(null)
+                    setMultiExtracted(null)
+                    setSelectedFile(null)
+                    setErrorMessage(null)
+                    setVisitNotes('')
+                    setVisitTitle('')
+                    setExpenseCategory('insured')
+                  }}
+                >
+                  ← Cancel
+                </button>
+                <h2 className="text-lg font-semibold">Extracted Details</h2>
+              </div>
               <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
                 <label className="block text-sm font-medium mb-1">What was this visit for? (Visit Title)</label>
                 <input
@@ -1530,7 +1607,7 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
               </div>
 
               {/* Enhanced Filing Deadline Reminder (pre-save) */}
-              {(() => {
+              {expenseCategory !== 'not_insured' && (() => {
                 const filingDays = Number((selectedPet as any)?.filing_deadline_days) || 90
                 const svc = extracted.dateOfService ? new Date(extracted.dateOfService) : null
                 const deadline = svc ? new Date(svc.getTime()) : null
@@ -1612,7 +1689,22 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                 </div>
               </div>
 
-              <div className="mt-6 flex justify-end">
+              <div className="mt-6 flex items-center justify-between">
+                <button
+                  type="button"
+                  className="h-11 inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 text-sm"
+                  onClick={() => {
+                    setExtracted(null)
+                    setMultiExtracted(null)
+                    setSelectedFile(null)
+                    setErrorMessage(null)
+                    setVisitNotes('')
+                    setVisitTitle('')
+                    setExpenseCategory('insured')
+                  }}
+                >
+                  ← Cancel
+                </button>
                 <button
                   type="button"
                   className="inline-flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-sm font-medium"
@@ -1636,11 +1728,10 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                           user_id: userId,
                           pet_id: selectedPet ? selectedPet.id : null,
                           service_date: extracted.dateOfService || null,
-                          deadline_date: computedDeadlineDate ? computedDeadlineDate.toISOString().slice(0,10) : null,
-                          visit_title: visitTitle || null,
                           invoice_number: extracted.invoiceNumber || null,
                           clinic_name: extracted.clinicName || null,
                           clinic_address: extracted.clinicAddress || null,
+                          visit_title: visitTitle || null,
                           diagnosis: extracted.diagnosis || null,
                           total_amount: totalNum,
                           line_items: extracted.lineItems,
@@ -1651,8 +1742,8 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                         })
                       } catch (e) { console.error('[createClaim single] error', e) }
                     }
-                    // Show success modal with details
-                    setSuccessModal({
+                    // Prepare success details and open medication question flow
+                    const pending = {
                       claimId: row?.id || null,
                       petName: selectedPet?.name || 'Unknown',
                       species: selectedPet?.species || '',
@@ -1661,7 +1752,12 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                       insurance: selectedPet?.insuranceCompany || '',
                       deadlineDate: (computedDeadlineDate ? computedDeadlineDate.toISOString().slice(0,10) : null),
                       deadlineDays: filingDaysToUse,
-                    })
+                    } as typeof successModal
+                    setPendingSuccess(pending)
+                    setCreatedClaimId(row?.id || null)
+                    // eslint-disable-next-line no-console
+                    console.log('[LOOKS GOOD CLICKED] About to show medication modal', { claimId: row?.id })
+                    setMedQuestionOpen(true)
                     // Do not clear form here; wait for user action (Done / File Another)
                   }}
                 >
@@ -1692,8 +1788,7 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
               </div>
             </div>
 
-            {/* Money Coming Back */
-            }
+            {/* Money Coming Back */}
             <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900/50 dark:bg-emerald-900/10">
               <div className="text-sm font-semibold">💰 MONEY COMING BACK TO YOU</div>
               <div className="mt-2 text-3xl font-bold text-emerald-700">{fmtMoney(financial.awaitingInsured)}</div>
@@ -1753,6 +1848,13 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                 })}
               </div>
             </div>
+          </section>
+        )}
+
+        {/* Financial Summary (new component) */}
+        {authView === 'app' && (
+          <section className="mx-auto mt-10 max-w-5xl">
+            <FinancialSummary userId={userId} />
           </section>
         )}
 
@@ -1923,6 +2025,9 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                               await updateClaim(c.id, { filing_status: 'filed', filed_date: filedDate })
                               // Immediately reflect in local state for snappy UI
                               setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: 'filed', filed_date: filedDate } : cl))
+                              // Brief success feedback and delay to avoid jarring reorder
+                              try { alert('✓ Claim marked as submitted') } catch {}
+                              await new Promise((r) => setTimeout(r, 700))
                               if (userId) {
                                 const updated = await listClaims(userId)
                                 setClaims(updated)
@@ -1950,6 +2055,9 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                                   setPaidDate(new Date().toISOString().split('T')[0])
                                 } else {
                                 await updateClaim(c.id, { filing_status: next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next) })
+                                  // Optional feedback and brief delay before refreshing to avoid instant jump
+                                  try { alert('✓ Status updated') } catch {}
+                                  await new Promise((r) => setTimeout(r, 600))
                                   if (userId) listClaims(userId).then(setClaims)
                                 }
                               } catch (er) { console.error('[edit status] error', er) }
@@ -2215,6 +2323,121 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
           </div>
         </div>
       )}
+      {/* Medications prescribed question */}
+      {medQuestionOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setMedQuestionOpen(false)}>
+          <div className="relative mx-4 w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="text-lg font-semibold">Medications Prescribed?</div>
+            <div className="mt-2 text-sm text-slate-700 dark:text-slate-300">Were any medications prescribed during this vet visit?</div>
+            <div className="mt-5 flex flex-col sm:flex-row gap-3 sm:justify-end">
+              <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4" onClick={() => {
+                setMedQuestionOpen(false)
+                if (pendingSuccess) setSuccessModal(pendingSuccess)
+              }}>No</button>
+              <button type="button" className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4" onClick={async () => {
+                try {
+                  setMedQuestionOpen(false)
+                  // Load active medications for this pet
+                  if (userId && selectedPet) {
+                    const today = new Date().toISOString().slice(0,10)
+                    const { data, error } = await supabase
+                      .from('medications')
+                      .select('*')
+                      .eq('user_id', userId)
+                      .eq('pet_id', selectedPet.id)
+                      .lte('start_date', today)
+                      .or(`end_date.is.null,end_date.gte.${today}`)
+                    if (error) throw error
+                    setMedicationsForPet(Array.isArray(data) ? data : [])
+                  } else {
+                    setMedicationsForPet([])
+                  }
+                  setSelectedMedicationIds([])
+                  setMedSelectOpen(true)
+                } catch (e) { console.error('[med question -> load meds] error', e); setMedicationsForPet([]); setMedSelectOpen(true) }
+              }}>Yes</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Medication selection modal */}
+      {medSelectOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setMedSelectOpen(false)}>
+          <div className="relative mx-4 w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="text-lg font-semibold">Select Medications Prescribed</div>
+            <div className="mt-3 space-y-2 max-h-[50vh] overflow-y-auto">
+              {medicationsForPet.length === 0 && (
+                <div className="text-sm text-slate-600">No active medications found</div>
+              )}
+              {medicationsForPet.map((m: any) => (
+                <label key={m.id} className="flex items-center gap-3 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
+                  <input type="checkbox" checked={selectedMedicationIds.includes(m.id)} onChange={(e) => {
+                    const checked = e.target.checked
+                    setSelectedMedicationIds(prev => checked ? [...prev, m.id] : prev.filter(id => id !== m.id))
+                  }} />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">{m.medication_name}</div>
+                    {m.dosage && <div className="text-xs text-slate-500">{m.dosage}</div>}
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div className="mt-3">
+              <button type="button" className="w-full h-12 rounded-lg border border-slate-300 dark:border-slate-700" onClick={() => setShowAddMedication(true)}>+ Add New Medication</button>
+            </div>
+            <div className="mt-4 flex flex-col sm:flex-row gap-3 sm:justify-end">
+              <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4" onClick={() => setMedSelectOpen(false)}>Cancel</button>
+              <button type="button" className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4" onClick={async () => {
+                try {
+                  if (createdClaimId && selectedMedicationIds.length > 0) {
+                    await updateClaim(createdClaimId, { medication_ids: selectedMedicationIds } as any)
+                  }
+                  setMedSelectOpen(false)
+                  if (pendingSuccess) setSuccessModal(pendingSuccess)
+                } catch (e) { console.error('[med select -> link meds] error', e); setMedSelectOpen(false); if (pendingSuccess) setSuccessModal(pendingSuccess) }
+              }}>Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddMedication && (
+        <AddMedicationForm
+          open={showAddMedication}
+          onClose={() => setShowAddMedication(false)}
+          onSaved={async () => {
+            try {
+              if (userId && selectedPet) {
+                const today = new Date().toISOString().slice(0,10)
+                const { data } = await supabase
+                  .from('medications')
+                  .select('*')
+                  .eq('user_id', userId)
+                  .eq('pet_id', selectedPet.id)
+                  .lte('start_date', today)
+                  .or(`end_date.is.null,end_date.gte.${today}`)
+                setMedicationsForPet(Array.isArray(data) ? data : [])
+              }
+            } catch {}
+          }}
+          userId={userId}
+          pets={pets}
+          defaultPetId={selectedPet?.id || null}
+        />
+      )}
+
+      {/* Onboarding (no pets yet) */}
+      <OnboardingModal
+        open={showOnboarding}
+        onClose={() => {
+          setShowOnboarding(false)
+          if (userId) {
+            dbLoadPets(userId).then(setPets).catch(() => {})
+          }
+        }}
+        userId={userId || ''}
+      />
       {successModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setSuccessModal(null)}>
           <div className="relative mx-4 w-full max-w-md rounded-2xl border border-emerald-200 bg-white p-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
@@ -2253,7 +2476,7 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                 <button
                   type="button"
                       className="inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm w-full h-12 sm:w-auto sm:h-auto"
-                  onClick={() => {
+                  onClick={async () => {
                     // Close modal and clear form; stay on upload page
                     setSuccessModal(null)
                     setExtracted(null)
@@ -2263,6 +2486,13 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                     setVisitNotes('')
                     setVisitTitle('')
                     setExpenseCategory('insured')
+                    // Refresh claims so the new claim appears immediately
+                    try {
+                      if (userId) {
+                        const updated = await listClaims(userId)
+                        setClaims(updated)
+                      }
+                    } catch {}
                     setShowClaims(false)
                   }}
                 >
@@ -2279,12 +2509,6 @@ Extract EVERY visible field from the image. Look carefully at the entire documen
                         setShowClaims(true)
                         claimsSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
                         return
-                      }
-                      const { filename, blob } = generateClaimPdf(extracted, selectedPet)
-                      const path = await uploadClaimPdf(userId, claimId, blob)
-                      if (path) {
-                        const { data } = await supabase.storage.from('claim-pdfs').createSignedUrl(path, 60)
-                        if (data?.signedUrl) window.open(data.signedUrl, '_blank')
                       }
                       // Refresh claims list now that PDF is attached
                       listClaims(userId).then(setClaims).catch(() => {})

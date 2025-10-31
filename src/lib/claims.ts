@@ -4,6 +4,7 @@ export type NewClaim = {
   user_id: string
   pet_id: string | null
   service_date: string | null
+  visit_title?: string | null
   invoice_number?: string | null
   clinic_name?: string | null
   clinic_address?: string | null
@@ -16,8 +17,10 @@ export type NewClaim = {
   approved_date?: string | null
   pdf_path?: string | null
   visit_notes?: string | null  // What was discussed at this vet visit
+  expense_category?: string | null
   reimbursed_amount?: number | null
   paid_date?: string | null
+  medication_ids?: string[] | null
 }
 
 export type ClaimRow = NewClaim & { id: string }

@@ -8,6 +8,7 @@ import cors from 'cors'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { getReminderEmailHtml } from './emailTemplates.js'
+import medicationRemindersRouter from './routes/medication-reminders.js'
 
 // Validate required env vars
 const required = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'RESEND_API_KEY']
@@ -29,6 +30,9 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 const app = express()
 app.use(cors())
 app.use(express.json({ limit: '1mb' }))
+
+// Routes
+app.use('/api/medication-reminders', medicationRemindersRouter)
 
 app.get('/api/health', (_req, res) => {
   res.json({

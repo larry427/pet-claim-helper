@@ -5,7 +5,7 @@ import { supabase } from './supabase'
 export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
   const { data, error } = await supabase
     .from('pets')
-    .select('id, name, species, color, insurance_company, policy_number, owner_name, owner_address, owner_phone, filing_deadline_days')
+    .select('id, name, species, color, insurance_company, policy_number, owner_name, owner_address, owner_phone, filing_deadline_days, monthly_premium, deductible_per_claim, coverage_start_date')
     .eq('user_id', userId)
     .order('created_at', { ascending: true })
   if (error) throw error
@@ -20,6 +20,9 @@ export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
     ownerAddress: p.owner_address,
     ownerPhone: p.owner_phone,
     filing_deadline_days: p.filing_deadline_days,
+    monthly_premium: p.monthly_premium ?? null,
+    deductible_per_claim: p.deductible_per_claim ?? null,
+    coverage_start_date: p.coverage_start_date || null,
   }))
   // Debug
   // eslint-disable-next-line no-console
@@ -41,6 +44,9 @@ export async function dbUpsertPet(userId: string, pet: PetProfile): Promise<void
     owner_address: pet.ownerAddress || '',
     owner_phone: pet.ownerPhone || '',
     filing_deadline_days: (pet as any).filing_deadline_days || (pet as any).filingDeadlineDays || null,
+    monthly_premium: (pet as any).monthly_premium ?? null,
+    deductible_per_claim: (pet as any).deductible_per_claim ?? null,
+    coverage_start_date: (pet as any).coverage_start_date || null,
   }
   // Debug
   // eslint-disable-next-line no-console
@@ -64,6 +70,39 @@ export async function dbEnsureProfile(userId: string, email: string | null): Pro
   console.log('[dbEnsureProfile] upserting profile', payload)
   const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' }).select()
   if (error) throw error
+}
+
+
+// Create pet (used by onboarding)
+export async function createPet(pet: any): Promise<any> {
+  // Debug
+  // eslint-disable-next-line no-console
+  console.log('[createPet] received payload:', pet)
+  const { data, error } = await supabase
+    .from('pets')
+    .insert([
+      {
+        user_id: pet.user_id,
+        name: pet.name,
+        species: pet.species,
+        color: pet.color ?? null,
+        insurance_company: pet.insurance_company ?? null,
+        policy_number: pet.policy_number ?? null,
+        // optional extras
+        breed: pet.breed ?? null,
+        weight_lbs: pet.weight_lbs ?? null,
+        monthly_premium: pet.monthly_premium ?? null,
+        deductible_per_claim: pet.deductible_per_claim ?? null,
+        coverage_start_date: pet.coverage_start_date ?? null,
+      },
+    ])
+    .select('*')
+    .single()
+  // Debug
+  // eslint-disable-next-line no-console
+  console.log('[createPet] insert result:', { data, error })
+  if (error) throw error
+  return data
 }
 
 
