@@ -30,6 +30,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
   const [monthlyPremium, setMonthlyPremium] = useState<string>('')
   const [deductiblePerClaim, setDeductiblePerClaim] = useState<string>('')
   const [coverageStartDate, setCoverageStartDate] = useState('')
+  const [insurancePaysPct, setInsurancePaysPct] = useState<string>('80')
 
   useEffect(() => {
     if (!open) return
@@ -49,6 +50,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
     setMonthlyPremium('')
     setDeductiblePerClaim('')
     setCoverageStartDate('')
+    setInsurancePaysPct('80')
   }, [open])
 
   const canNextFrom1 = useMemo(() => fullName.trim().length > 0, [fullName])
@@ -91,6 +93,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         monthly_premium: monthlyPremium === '' ? null : parseFloat(monthlyPremium),
         deductible_per_claim: deductiblePerClaim === '' ? null : parseFloat(deductiblePerClaim),
         coverage_start_date: coverageStartDate || null,
+        insurance_pays_percentage: insurancePaysPct === '' ? null : Math.max(50, Math.min(100, Number(insurancePaysPct)))
       }
       // Debug payload before sending
       // eslint-disable-next-line no-console
@@ -207,6 +210,25 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Deductible per Claim (USD)</label>
                 <input type="number" min={0} value={deductiblePerClaim} onChange={(e) => setDeductiblePerClaim(e.target.value)} className="mt-2 w-full rounded-md border border-emerald-300 dark:border-emerald-700 bg-white/90 dark:bg-slate-900 px-3 py-3" placeholder="250" />
                 <div className="text-xs text-slate-500 mt-1">This affects your actual out-of-pocket costs.</div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">What percentage does YOUR INSURANCE PAY?</label>
+                <input
+                  type="number"
+                  min={50}
+                  max={100}
+                  value={insurancePaysPct}
+                  onChange={(e) => setInsurancePaysPct(e.target.value)}
+                  className="mt-2 w-full rounded-md border border-emerald-300 dark:border-emerald-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                  placeholder="80"
+                />
+                <div className="text-xs text-slate-500 mt-1">After you meet your deductible, your insurance covers this percentage. Common values: 80%, 90%</div>
+                <div className="text-xs text-slate-600 dark:text-slate-300 mt-1">(You pay: {(() => {
+                  const n = Number(insurancePaysPct)
+                  if (!Number.isFinite(n)) return '—'
+                  const you = Math.max(0, Math.min(100, 100 - n))
+                  return `${you}%`
+                })()})</div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Coverage Start Date <span className="text-xs text-slate-500">(optional)</span></label>
