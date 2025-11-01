@@ -86,7 +86,14 @@ const startServer = async () => {
             role: 'user',
             content: [
               { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: dataUrl } },
+              {
+                type: 'document',
+                source: {
+                  type: 'base64',
+                  media_type: 'application/pdf',
+                  data: base64
+                }
+              },
             ],
           },
         ],
