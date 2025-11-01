@@ -89,7 +89,7 @@ const startServer = async () => {
         console.log('[extract-pdf] starting pdfjs text extraction')
         let pdfText = ''
         try {
-          const pdf = await pdfjsLib.getDocument({ data: file.buffer }).promise
+          const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(file.buffer) }).promise
           const pieces = []
           for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i)
