@@ -503,7 +503,7 @@ export default function App() {
     try {
       // eslint-disable-next-line no-console
       console.log('[extract] starting server-side extraction, file type:', selectedFile.file.type)
-      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+      const apiBase = import.meta.env.DEV ? 'http://localhost:3000' : 'https://pet-claim-helper.onrender.com'
       const form = new FormData()
       form.append('file', selectedFile.file)
       const controller = new AbortController()
