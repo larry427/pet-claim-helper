@@ -10,7 +10,7 @@ import { Resend } from 'resend'
 import { getReminderEmailHtml } from './emailTemplates.js'
 import multer from 'multer'
 import OpenAI from 'openai'
-import pdfParse from 'pdf-parse'
+import * as pdfjsLib from 'pdfjs-dist'
 import medicationRemindersRouter from './routes/medication-reminders.js'
 
 // Validate required env vars
@@ -84,20 +84,27 @@ const startServer = async () => {
 
       let completion
       if (mime === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf')) {
-        // Extract text from PDF and send as plain text
+        // Extract text from PDF using pdfjs-dist and send as plain text
         // eslint-disable-next-line no-console
-        console.log('[extract-pdf] starting pdf-parse')
-        let parsed
+        console.log('[extract-pdf] starting pdfjs text extraction')
+        let pdfText = ''
         try {
-          parsed = await pdfParse(file.buffer)
+          const pdf = await pdfjsLib.getDocument({ data: file.buffer }).promise
+          const pieces = []
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i)
+            const content = await page.getTextContent()
+            const pageText = (content.items || []).map((it) => (it.str || '')).join(' ')
+            pieces.push(pageText)
+          }
+          pdfText = pieces.join('\n\n')
           // eslint-disable-next-line no-console
-          console.log('[extract-pdf] pdf-parse success', { textLength: parsed?.text?.length || 0 })
+          console.log('[extract-pdf] pdfjs extraction success', { pages: (await pdf.numPages), textLength: pdfText.length })
         } catch (e) {
           // eslint-disable-next-line no-console
-          console.error('[extract-pdf] pdf-parse error', e)
+          console.error('[extract-pdf] pdfjs extraction error', e)
           throw e
         }
-        const pdfText = parsed?.text || ''
         completion = await openai.chat.completions.create({
           model: 'gpt-4o',
           messages: [

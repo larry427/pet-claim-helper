@@ -12,6 +12,7 @@
       "openai": "^4.20.0",
       "@supabase/supabase-js": "^2.38.4",
       "resend": "^3.0.0",
-      "pdf-parse": "^1.1.1"
+      "pdf-parse": "^1.1.1",
+      "pdfjs-dist": "^4.0.0"
     }
   }
