@@ -504,6 +504,7 @@ export default function App() {
       // eslint-disable-next-line no-console
       console.log('[extract] starting server-side extraction, file type:', selectedFile.file.type)
       const apiBase = 'https://pet-claim-helper.onrender.com'  
+      const form = new FormData()
       form.append('file', selectedFile.file)
       const controller = new AbortController()
       const timeoutMs = 90_000
