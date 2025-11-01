@@ -10,7 +10,7 @@ import { Resend } from 'resend'
 import { getReminderEmailHtml } from './emailTemplates.js'
 import multer from 'multer'
 import OpenAI from 'openai'
-import pdfParse from 'pdf-parse/lib/pdf.js'
+import pdfParse from 'pdf-parse'
 import medicationRemindersRouter from './routes/medication-reminders.js'
 
 // Validate required env vars
