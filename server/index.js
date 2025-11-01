@@ -10,7 +10,7 @@ import { Resend } from 'resend'
 import { getReminderEmailHtml } from './emailTemplates.js'
 import multer from 'multer'
 import OpenAI from 'openai'
-import pdfParse from 'pdf-parse'
+import pdfParse from 'pdf-parse/lib/pdf.js'
 import medicationRemindersRouter from './routes/medication-reminders.js'
 
 // Validate required env vars
@@ -65,6 +65,8 @@ const startServer = async () => {
       if (!file) {
         return res.status(400).json({ ok: false, error: 'No file provided. Use multipart/form-data with field name "file".' })
       }
+      // eslint-disable-next-line no-console
+      console.log('[extract-pdf] upload info', { mimetype: file.mimetype, size: file.buffer?.length })
       const mime = file.mimetype || 'application/octet-stream'
       const base64 = file.buffer.toString('base64')
       const dataUrl = `data:${mime};base64,${base64}`
@@ -83,7 +85,18 @@ const startServer = async () => {
       let completion
       if (mime === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf')) {
         // Extract text from PDF and send as plain text
-        const parsed = await pdfParse(file.buffer)
+        // eslint-disable-next-line no-console
+        console.log('[extract-pdf] starting pdf-parse')
+        let parsed
+        try {
+          parsed = await pdfParse(file.buffer)
+          // eslint-disable-next-line no-console
+          console.log('[extract-pdf] pdf-parse success', { textLength: parsed?.text?.length || 0 })
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.error('[extract-pdf] pdf-parse error', e)
+          throw e
+        }
         const pdfText = parsed?.text || ''
         completion = await openai.chat.completions.create({
           model: 'gpt-4o',
