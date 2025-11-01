@@ -10,6 +10,7 @@ import { Resend } from 'resend'
 import { getReminderEmailHtml } from './emailTemplates.js'
 import multer from 'multer'
 import OpenAI from 'openai'
+import pdfParse from 'pdf-parse'
 import medicationRemindersRouter from './routes/medication-reminders.js'
 
 // Validate required env vars
@@ -79,27 +80,39 @@ const startServer = async () => {
   "line_items": [{"description": "service name", "amount": numeric value}]
 }\n\nExtract EVERY visible field from the image. If a field is not visible, use null. Return ONLY valid JSON.`
 
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              {
-                type: 'document',
-                source: {
-                  type: 'base64',
-                  media_type: 'application/pdf',
-                  data: base64
-                }
-              },
-            ],
-          },
-        ],
-        temperature: 0,
-        max_tokens: 2000,
-      })
+      let completion
+      if (mime === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf')) {
+        // Extract text from PDF and send as plain text
+        const parsed = await pdfParse(file.buffer)
+        const pdfText = parsed?.text || ''
+        completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'user',
+              content: [{ type: 'text', text: `${prompt}\n\nPDF_TEXT:\n${pdfText}` }],
+            },
+          ],
+          temperature: 0,
+          max_tokens: 2000,
+        })
+      } else {
+        // Image path (send as image_url)
+        completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: prompt },
+                { type: 'image_url', image_url: { url: dataUrl } },
+              ],
+            },
+          ],
+          temperature: 0,
+          max_tokens: 2000,
+        })
+      }
 
       const content = completion.choices?.[0]?.message?.content ?? ''
       let parsed = null
