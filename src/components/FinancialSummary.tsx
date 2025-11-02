@@ -162,9 +162,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
 
       const deductibleApplied = Math.min(bill, Math.max(0, acc.deductibleRemaining))
       const remainingAfterDeductible = Math.max(0, bill - deductibleApplied)
-      const insurancePct = Math.max(0, Math.min(100, Number(p.insurance_pays_percentage) || 0)) / 100
-      const potentialReimb = remainingAfterDeductible * insurancePct
-      const allowedReimb = acc.remainingLimit == null ? potentialReimb : Math.min(potentialReimb, acc.remainingLimit)
+      const allowedReimb = Number(c.reimbursed_amount) || 0
       const userCoins = remainingAfterDeductible - allowedReimb
 
       acc.claimed += bill
@@ -242,10 +240,8 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
       const deductibleRemaining = deductibleRemainingByPet[pid]
       const deductibleApplied = Math.min(bill, Math.max(0, deductibleRemaining))
       const remainingAfterDeductible = Math.max(0, bill - deductibleApplied)
-      const insurancePct = Math.max(0, Math.min(100, p ? (Number(p.insurance_pays_percentage) || 0) : 0)) / 100
-      const potentialReimb = remainingAfterDeductible * insurancePct
       const remainingLimit = remainingLimitByPet[pid]
-      const allowedReimb = remainingLimit == null ? potentialReimb : Math.min(potentialReimb, remainingLimit)
+      const allowedReimb = Number(c.reimbursed_amount) || 0
       const userCoins = remainingAfterDeductible - allowedReimb
 
       byPet[pid].claimed += bill
