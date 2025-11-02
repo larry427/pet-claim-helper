@@ -1822,29 +1822,7 @@ export default function App() {
 
             
 
-            {/* This Year's Total */}
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-              <div className="text-sm font-semibold">{(() => {
-                if (finPeriod === 'all') return '📊 ALL TIME TOTAL'
-                if (finPeriod === '2025') return '📊 2025 TOTAL'
-                if (finPeriod === '2024') return '📊 2024 TOTAL'
-                return "📊 LAST 12 MONTHS"
-              })()}</div>
-              <div className="mt-3 text-sm space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-slate-600">Spent on all pets</div>
-                  <div className="text-xl font-bold">{fmtMoney(financial.spentOnAllPets || 0)}</div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="text-slate-600">- Insurance Reimbursed</div>
-                  <div className="text-xl font-bold">{fmtMoney(financial.reimbursedPaidPeriod || 0)}</div>
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
-                  <div className="text-slate-800 font-semibold">= Your Net Cost</div>
-                  <div className="text-2xl font-bold">{fmtMoney(financial.netCostPeriod || 0)}</div>
-                </div>
-              </div>
-            </div>
+            
 
             {/* Per-Pet Breakdown */}
             <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
