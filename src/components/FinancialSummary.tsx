@@ -7,6 +7,7 @@ type ClaimRow = {
   total_amount: number | null
   reimbursed_amount: number | null
   filing_status: string | null
+  expense_category?: string | null
 }
 
 type PetRow = {
@@ -16,6 +17,8 @@ type PetRow = {
   monthly_premium?: number | null
   deductible_per_claim?: number | null
   coverage_start_date?: string | null
+  insurance_pays_percentage?: number | null
+  annual_coverage_limit?: number | null
 }
 
 export default function FinancialSummary({ userId }: { userId: string | null }) {
@@ -31,11 +34,11 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
     Promise.all([
       supabase
         .from('claims')
-        .select('id, pet_id, total_amount, reimbursed_amount, filing_status')
+        .select('id, pet_id, total_amount, reimbursed_amount, filing_status, expense_category')
         .eq('user_id', userId),
       supabase
         .from('pets')
-        .select('id, name, species, monthly_premium, deductible_per_claim, coverage_start_date')
+        .select('id, name, species, monthly_premium, deductible_per_claim, coverage_start_date, insurance_pays_percentage, annual_coverage_limit')
         .eq('user_id', userId)
     ])
       .then(([cl, pe]) => {
@@ -88,31 +91,76 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
   }
 
   const overall = useMemo(() => {
-    const totalClaimed = claims.reduce((sum, c) => sum + (Number(c.total_amount) || 0), 0)
-    const totalReimbursed = claims.reduce((sum, c) => sum + (Number(c.reimbursed_amount) || 0), 0)
-    const premiumsYTD = pets.reduce((sum, p) => sum + ((Number(p.monthly_premium) || 0) * monthsYTD(p.coverage_start_date || null)), 0)
-    const deductiblesPaid = claims.reduce((sum, c) => {
-      if (!isFiledLike(c.filing_status)) return sum
-      const p = c.pet_id ? petById[c.pet_id] : undefined
-      const d = p ? Number(p.deductible_per_claim) || 0 : 0
-      return sum + d
-    }, 0)
-    const netCost = (premiumsYTD + deductiblesPaid) - totalReimbursed
+    // Initialize per-pet accumulators
+    const perPetAcc: Record<string, {
+      claimed: number
+      reimbursed: number
+      premiums: number
+      deductibles: number
+      coinsurancePaid: number
+      remainingLimit: number | null
+    }> = {}
+    for (const p of pets) {
+      const monthly = Number(p.monthly_premium) || 0
+      const premiums = monthly * monthsYTD(p.coverage_start_date || null)
+      const limit = Number(p.annual_coverage_limit)
+      perPetAcc[p.id] = {
+        claimed: 0,
+        reimbursed: 0,
+        premiums,
+        deductibles: 0,
+        coinsurancePaid: 0,
+        remainingLimit: Number.isFinite(limit) && limit > 0 ? limit : null,
+      }
+    }
+
+    // Process insured claims only, applying deductible and co-insurance
+    for (const c of claims) {
+      const category = String(c.expense_category || '').toLowerCase()
+      if (category !== 'insured') continue
+      const pid = c.pet_id || ''
+      const p = petById[pid]
+      if (!p || !perPetAcc[pid]) continue
+      const acc = perPetAcc[pid]
+      const bill = Number(c.total_amount) || 0
+      if (bill <= 0) continue
+      const deductiblePerClaim = Math.max(0, Number(p.deductible_per_claim) || 0)
+      const deductibleThisClaim = Math.min(bill, deductiblePerClaim)
+      const amountAfterDeductible = Math.max(0, bill - deductibleThisClaim)
+      const insurancePct = Math.max(0, Math.min(100, Number(p.insurance_pays_percentage) || 0)) / 100
+      const potentialReimb = amountAfterDeductible * insurancePct
+      const allowedReimb = acc.remainingLimit == null ? potentialReimb : Math.min(potentialReimb, acc.remainingLimit)
+      const userCoins = amountAfterDeductible - allowedReimb
+
+      acc.claimed += bill
+      acc.deductibles += deductibleThisClaim
+      acc.coinsurancePaid += userCoins
+      acc.reimbursed += allowedReimb
+      if (acc.remainingLimit != null) acc.remainingLimit = Math.max(0, acc.remainingLimit - allowedReimb)
+    }
+
+    const totalClaimed = Object.values(perPetAcc).reduce((s, v) => s + v.claimed, 0)
+    const totalReimbursed = Object.values(perPetAcc).reduce((s, v) => s + v.reimbursed, 0)
+    const premiumsYTD = Object.values(perPetAcc).reduce((s, v) => s + v.premiums, 0)
+    const deductiblesPaid = Object.values(perPetAcc).reduce((s, v) => s + v.deductibles, 0)
+    const coinsurancePaid = Object.values(perPetAcc).reduce((s, v) => s + v.coinsurancePaid, 0)
+    const netCost = premiumsYTD + deductiblesPaid + coinsurancePaid - totalReimbursed
+
     // eslint-disable-next-line no-console
-    console.log('[FinancialSummary] overall calc', {
+    console.log('[FinancialSummary] overall calc (insured only)', {
       totalClaimed,
       totalReimbursed,
       premiumsYTD,
       deductiblesPaid,
+      coinsurancePaid,
       netCost,
-      pets,
-      claims,
     })
     return { totalClaimed, totalReimbursed, premiumsYTD, deductiblesPaid, netCost }
   }, [claims, pets, petById])
 
   const perPet = useMemo(() => {
     const byPet: Record<string, { claimed: number; reimbursed: number; premiums: number; deductibles: number }> = {}
+    // Prime with premiums per pet
     for (const p of pets) {
       byPet[p.id] = {
         claimed: 0,
@@ -121,18 +169,36 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
         deductibles: 0,
       }
     }
+
+    // Compute insured-only reimbursement with deductible, coinsurance and annual cap
+    const remainingLimitByPet: Record<string, number | null> = {}
+    for (const p of pets) {
+      const lim = Number(p.annual_coverage_limit)
+      remainingLimitByPet[p.id] = Number.isFinite(lim) && lim > 0 ? lim : null
+    }
+
     for (const c of claims) {
+      const category = String(c.expense_category || '').toLowerCase()
+      if (category !== 'insured') continue
       const pid = c.pet_id || ''
       if (!byPet[pid]) continue
-      byPet[pid].claimed += (Number(c.total_amount) || 0)
-      byPet[pid].reimbursed += (Number(c.reimbursed_amount) || 0)
-      if (isFiledLike(c.filing_status)) {
-        const p = petById[pid]
-        byPet[pid].deductibles += p ? (Number(p.deductible_per_claim) || 0) : 0
-      }
+      const p = petById[pid]
+      const bill = Number(c.total_amount) || 0
+      const deductiblePerClaim = Math.max(0, p ? (Number(p.deductible_per_claim) || 0) : 0)
+      const deductibleThisClaim = Math.min(bill, deductiblePerClaim)
+      const amountAfterDeductible = Math.max(0, bill - deductibleThisClaim)
+      const insurancePct = Math.max(0, Math.min(100, p ? (Number(p.insurance_pays_percentage) || 0) : 0)) / 100
+      const potentialReimb = amountAfterDeductible * insurancePct
+      const remaining = remainingLimitByPet[pid]
+      const allowedReimb = remaining == null ? potentialReimb : Math.min(potentialReimb, remaining)
+
+      byPet[pid].claimed += bill
+      byPet[pid].reimbursed += allowedReimb
+      byPet[pid].deductibles += deductibleThisClaim
+      if (remaining != null) remainingLimitByPet[pid] = Math.max(0, remaining - allowedReimb)
     }
     // eslint-disable-next-line no-console
-    console.log('[FinancialSummary] perPet calc', byPet)
+    console.log('[FinancialSummary] perPet calc (insured only)', byPet)
     return byPet
   }, [claims, pets, petById])
 
