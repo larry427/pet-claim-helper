@@ -763,6 +763,7 @@ export default function App() {
     let nonInsuredTotal = 0
     let deniedTotal = 0
     let pendingTotal = 0
+    let userSharePaidInsured = 0
 
     for (const c of filtered) {
       const amt = Number(c.total_amount || 0)
@@ -776,6 +777,9 @@ export default function App() {
       if (status === 'paid') {
         const paidAmt = Number((c as any).reimbursed_amount || 0)
         reimbursed += paidAmt
+        if (cat === 'insured') {
+          userSharePaidInsured += Math.max(0, amt - paidAmt)
+        }
       } else if (status === 'filed' || status === 'approved') {
         awaiting += amt
       }
@@ -794,7 +798,7 @@ export default function App() {
         }
         // Pending sums are claims under review (submitted/approved/not_submitted) up to today
         const today = new Date()
-        if (svcDate <= today && (status === 'submitted' || status === 'approved' || status === 'not_submitted')) {
+        if (svcDate <= today && status === 'submitted' && cat === 'insured') {
           pendingTotal += amt
         }
       }
@@ -821,10 +825,10 @@ export default function App() {
         coinsurancePaid += Math.max(0, bill - ded - reimb)
       }
     }
-    const actualCost = premiumsPaid + deductiblesPaid + coinsurancePaid + nonInsuredTotal + deniedTotal
-    const periodNet = actualCost
-    const periodSpentActual = actualCost
-    return { byCategory, reimbursed, awaiting, outOfPocket, grandTotal, perPet, awaitingInsured, periodSpent: periodSpentActual, periodReimbursed, periodNet, actualCost, pendingTotal }
+    const definiteTotal = premiumsPaid + nonInsuredTotal + userSharePaidInsured
+    const periodNet = definiteTotal
+    const periodSpentActual = definiteTotal
+    return { byCategory, reimbursed, awaiting, outOfPocket, grandTotal, perPet, awaitingInsured, periodSpent: periodSpentActual, periodReimbursed, periodNet, definiteTotal, pendingTotal }
   }, [claims, finPeriod])
 
   return (
@@ -1803,11 +1807,11 @@ export default function App() {
               </div>
             </div>
 
-            {/* Money Coming Back */}
+            {/* Total Reimbursed (Paid) */}
             <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900/50 dark:bg-emerald-900/10">
-              <div className="text-sm font-semibold">💰 MONEY COMING BACK TO YOU</div>
-              <div className="mt-2 text-3xl font-bold text-emerald-700">{fmtMoney(financial.awaitingInsured)}</div>
-              <div className="mt-1 text-xs text-emerald-800/80 dark:text-emerald-300">Sum of approved claims awaiting reimbursement</div>
+              <div className="text-sm font-semibold">💰 TOTAL REIMBURSED</div>
+              <div className="mt-2 text-3xl font-bold text-emerald-700">{fmtMoney(financial.reimbursed)}</div>
+              <div className="mt-1 text-xs text-emerald-800/80 dark:text-emerald-300">Paid by insurance</div>
             </div>
 
             
@@ -1823,7 +1827,7 @@ export default function App() {
               <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <div className="text-xs text-slate-500">Spent on all pets</div>
-                  <div className="text-2xl font-bold">{fmtMoney(financial.actualCost)}</div>
+                  <div className="text-2xl font-bold">{fmtMoney(financial.definiteTotal)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-slate-500">Pending (Under Review)</div>
@@ -1831,7 +1835,7 @@ export default function App() {
                 </div>
                 <div>
                   <div className="text-xs text-slate-500">Net cost to you</div>
-                  <div className="text-2xl font-bold">{fmtMoney(financial.actualCost)}</div>
+                  <div className="text-2xl font-bold">{fmtMoney(financial.definiteTotal)}</div>
                 </div>
               </div>
             </div>

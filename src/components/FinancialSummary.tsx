@@ -119,7 +119,9 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
     let nonInsuredTotal = 0
     // Insurance reimbursed (paid only) up to today (current year)
     let insurancePaidBack = 0
-    // Pending claims (submitted, approved, not_submitted) totals
+    // User share for paid insured claims (bill - reimbursed)
+    let userSharePaidInsured = 0
+    // Pending claims (submitted only) totals
     let pendingTotal = 0
 
     for (const c of claims) {
@@ -136,13 +138,14 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
         nonInsuredTotal += amount
       } else if (status === 'paid') {
         insurancePaidBack += reimb
-      } else if (status === 'submitted' || status === 'approved' || status === 'not_submitted') {
+        userSharePaidInsured += Math.max(0, amount - reimb)
+      } else if (status === 'submitted') {
         pendingTotal += amount
       }
     }
 
-    const definiteTotal = premiumsYTD + nonInsuredTotal - insurancePaidBack
-    return { premiumsYTD, nonInsuredTotal, insurancePaidBack, definiteTotal, pendingTotal }
+    const definiteTotal = premiumsYTD + nonInsuredTotal + userSharePaidInsured
+    return { premiumsYTD, nonInsuredTotal, insurancePaidBack, userSharePaidInsured, definiteTotal, pendingTotal }
   }, [claims, pets])
 
   const perPet = useMemo(() => {
@@ -223,7 +226,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
                   <div className="mt-3 space-y-1 text-sm">
                     <div className="flex items-center justify-between"><span className="text-slate-600">Premiums:</span><span className="font-semibold">${overall.premiumsYTD.toFixed(2)}</span></div>
                     <div className="flex items-center justify-between"><span className="text-slate-600">Non-Insured Visits:</span><span className="font-semibold">${overall.nonInsuredTotal.toFixed(2)}</span></div>
-                    <div className="flex items-center justify-between"><span className="text-slate-600">Insurance Paid Back:</span><span className="font-semibold">${overall.insurancePaidBack.toFixed(2)}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-slate-600">User Share (Paid Insured):</span><span className="font-semibold">${overall.userSharePaidInsured.toFixed(2)}</span></div>
                   </div>
                 </div>
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-900/10">
