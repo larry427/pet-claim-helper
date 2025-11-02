@@ -159,7 +159,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
       const deductibleApplied = Math.max(0, Number(c.deductible_applied) || 0)
       const remainingAfterDeductible = Math.max(0, bill - deductibleApplied)
       const allowedReimb = Math.max(0, Number(c.reimbursed_amount) || 0)
-      const userCoins = Math.max(0, (Number(c.user_coinsurance_payment) ?? (remainingAfterDeductible - allowedReimb)))
+      const userCoins = Math.max(0, bill - deductibleApplied - allowedReimb)
 
       acc.claimed += bill
       acc.deductibles += deductibleApplied
@@ -231,7 +231,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
       const deductibleApplied = Math.max(0, Number(c.deductible_applied) || 0)
       const remainingAfterDeductible = Math.max(0, bill - deductibleApplied)
       const allowedReimb = Math.max(0, Number(c.reimbursed_amount) || 0)
-      const userCoins = Math.max(0, (Number(c.user_coinsurance_payment) ?? (remainingAfterDeductible - allowedReimb)))
+      const userCoins = Math.max(0, bill - deductibleApplied - allowedReimb)
 
       byPet[pid].claimed += bill
       byPet[pid].reimbursed += allowedReimb
