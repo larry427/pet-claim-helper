@@ -9,6 +9,9 @@ type ClaimRow = {
   filing_status: string | null
   expense_category?: string | null
   service_date?: string | null
+  deductible_applied?: number | null
+  user_coinsurance_payment?: number | null
+  insurance_reimbursement?: number | null
 }
 
 type PetRow = {
@@ -35,7 +38,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
     Promise.all([
       supabase
         .from('claims')
-        .select('id, pet_id, total_amount, reimbursed_amount, filing_status, expense_category, service_date')
+        .select('id, pet_id, total_amount, reimbursed_amount, filing_status, expense_category, service_date, deductible_applied, user_coinsurance_payment, insurance_reimbursement')
         .eq('user_id', userId),
       supabase
         .from('pets')
