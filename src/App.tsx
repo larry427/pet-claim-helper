@@ -2075,7 +2075,6 @@ export default function App() {
                           >
                           <option value="not_submitted">Not Submitted</option>
                           <option value="submitted">Submitted</option>
-                            <option value="approved">Approved</option>
                             <option value="paid">Paid</option>
                             <option value="denied">Denied</option>
                           </select>

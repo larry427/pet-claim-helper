@@ -229,7 +229,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-900/10">
                   <div className="text-amber-700 font-semibold">PENDING (Under Review)</div>
                   <div className="mt-2 text-3xl font-bold text-amber-800">${overall.pendingTotal.toFixed(2)}</div>
-                  <div className="mt-3 text-xs text-amber-900/80 dark:text-amber-300">Not yet submitted/approved/paid — amount may change</div>
+                  <div className="mt-3 text-sm text-amber-900/90 dark:text-amber-200">Claims Awaiting Processing</div>
                 </div>
               </div>
             </div>
