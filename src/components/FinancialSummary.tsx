@@ -173,7 +173,25 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
     const premiumsYTD = Object.values(perPetAcc).reduce((s, v) => s + v.premiums, 0)
     const deductiblesPaid = Object.values(perPetAcc).reduce((s, v) => s + v.deductibles, 0)
     const coinsurancePaid = Object.values(perPetAcc).reduce((s, v) => s + v.coinsurancePaid, 0)
-    const netCost = premiumsYTD + deductiblesPaid + coinsurancePaid
+
+    // Additional components: Non-insured visits and denied insured claims (for the current year view)
+    let nonInsuredTotal = 0
+    let deniedTotal = 0
+    for (const c of claims) {
+      const svc = c.service_date ? parseYmdLocal(c.service_date) : null
+      if (!svc || isNaN(svc.getTime())) continue
+      if (svc.getFullYear() !== viewYear) continue
+      const category = String(c.expense_category || '').toLowerCase()
+      const amount = Number(c.total_amount) || 0
+      const status = String(c.filing_status || '').toLowerCase()
+      if (category !== 'insured') {
+        nonInsuredTotal += amount
+      } else if (status === 'denied') {
+        deniedTotal += amount
+      }
+    }
+
+    const actualCost = premiumsYTD + deductiblesPaid + coinsurancePaid + nonInsuredTotal + deniedTotal
 
     // eslint-disable-next-line no-console
     console.log('[FinancialSummary] overall calc (insured only, annual deductible & caps)', {
@@ -182,9 +200,11 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
       premiumsYTD,
       deductiblesPaid,
       coinsurancePaid,
-      netCost,
+      nonInsuredTotal,
+      deniedTotal,
+      actualCost,
     })
-    return { totalClaimed, totalReimbursed, premiumsYTD, deductiblesPaid, netCost }
+    return { totalClaimed, totalReimbursed, premiumsYTD, deductiblesPaid, coinsurancePaid, nonInsuredTotal, deniedTotal, actualCost }
   }, [claims, pets, petById])
 
   const perPet = useMemo(() => {
@@ -254,7 +274,38 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
         {loading && <div className="mt-2 text-sm text-slate-500">Loading…</div>}
         {error && <div className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-800 text-sm">{error}</div>}
         {!loading && !error && (
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
+          <>
+          {/* Consolidated Actual Cost */}
+          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-5 dark:border-rose-900/50 dark:bg-rose-900/10">
+            <div className="text-sm font-semibold">YOUR ACTUAL COST</div>
+            <div className="mt-2 text-3xl font-bold text-rose-700">${overall.actualCost.toFixed(2)}</div>
+            <div className="mt-1 text-xs text-rose-800/80 dark:text-rose-300">Total out-of-pocket for this period</div>
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+              <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
+                <div className="text-slate-500">Premiums Paid</div>
+                <div className="font-semibold">${overall.premiumsYTD.toFixed(2)}</div>
+              </div>
+              <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
+                <div className="text-slate-500">Deductibles Paid</div>
+                <div className="font-semibold">${overall.deductiblesPaid.toFixed(2)}</div>
+              </div>
+              <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
+                <div className="text-slate-500">Co-Insurance Paid</div>
+                <div className="font-semibold">${overall.coinsurancePaid.toFixed(2)}</div>
+              </div>
+              <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
+                <div className="text-slate-500">Non-Insured Visits</div>
+                <div className="font-semibold">${overall.nonInsuredTotal.toFixed(2)}</div>
+              </div>
+              <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
+                <div className="text-slate-500">Denied Claims</div>
+                <div className="font-semibold">${overall.deniedTotal.toFixed(2)}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Financial summary key metrics */}
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
               <div className="text-emerald-700">Total Claimed</div>
               <div className="mt-1 text-xl font-bold text-emerald-800">${overall.totalClaimed.toFixed(2)}</div>
@@ -271,11 +322,8 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
               <div className="text-amber-700">Deductibles Paid</div>
               <div className="mt-1 text-xl font-bold text-amber-800">${overall.deductiblesPaid.toFixed(2)}</div>
             </div>
-            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-              <div className="text-rose-700">NET COST</div>
-              <div className="mt-1 text-xl font-bold text-rose-800">${overall.netCost.toFixed(2)}</div>
-            </div>
           </div>
+          </>
         )}
       </div>
 
