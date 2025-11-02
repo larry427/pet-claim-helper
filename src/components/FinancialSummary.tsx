@@ -238,6 +238,28 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
         )}
       </div>
 
+      <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+        <div className="text-base font-semibold">YOUR OUT-OF-POCKET BREAKDOWN</div>
+        <div className="mt-3 text-sm space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="text-slate-600">Insurance Premiums <span className="text-xs text-slate-500">(Monthly insurance cost)</span></div>
+            <div className="font-semibold">${overall.premiumsYTD.toFixed(2)}</div>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="text-slate-600">Non-Insured Vet Visits <span className="text-xs text-slate-500">(Not covered by insurance)</span></div>
+            <div className="font-semibold">${overall.nonInsuredTotal.toFixed(2)}</div>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="text-slate-600">Your Share (Deductible/Coinsurance) <span className="text-xs text-slate-500">(Your share of paid claims)</span></div>
+            <div className="font-semibold">${overall.userSharePaidInsured.toFixed(2)}</div>
+          </div>
+          <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <div className="text-slate-800 font-semibold">Total You Paid</div>
+            <div className="text-2xl font-bold">${overall.definiteTotal.toFixed(2)}</div>
+          </div>
+        </div>
+      </div>
+
       <div className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
         <div className="text-base font-semibold">Per-Pet Breakdown</div>
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
