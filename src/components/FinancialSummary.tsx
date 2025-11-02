@@ -8,6 +8,7 @@ type ClaimRow = {
   reimbursed_amount: number | null
   filing_status: string | null
   expense_category?: string | null
+  service_date?: string | null
 }
 
 type PetRow = {
@@ -34,7 +35,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
     Promise.all([
       supabase
         .from('claims')
-        .select('id, pet_id, total_amount, reimbursed_amount, filing_status, expense_category')
+        .select('id, pet_id, total_amount, reimbursed_amount, filing_status, expense_category, service_date')
         .eq('user_id', userId),
       supabase
         .from('pets')
@@ -85,6 +86,17 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
     return months
   }
 
+  const getCoverageYearBounds = (startIso: string | null | undefined): { start: Date | null; end: Date | null } => {
+    if (!startIso) return { start: null, end: null }
+    const startDate = new Date(startIso)
+    if (isNaN(startDate.getTime())) return { start: null, end: null }
+    const now = new Date()
+    const anniversaryThisYear = new Date(now.getFullYear(), startDate.getMonth(), startDate.getDate())
+    const coverageYearStart = (now >= anniversaryThisYear) ? anniversaryThisYear : new Date(now.getFullYear() - 1, startDate.getMonth(), startDate.getDate())
+    const coverageYearEnd = new Date(coverageYearStart.getFullYear() + 1, coverageYearStart.getMonth(), coverageYearStart.getDate())
+    return { start: coverageYearStart, end: coverageYearEnd }
+  }
+
   const isFiledLike = (status: string | null | undefined): boolean => {
     const s = String(status || '').toLowerCase()
     return s === 'filed' || s === 'submitted' || s === 'approved' || s === 'paid'
@@ -99,11 +111,16 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
       deductibles: number
       coinsurancePaid: number
       remainingLimit: number | null
+      deductibleRemaining: number
+      yearStart: Date | null
+      yearEnd: Date | null
     }> = {}
     for (const p of pets) {
       const monthly = Number(p.monthly_premium) || 0
       const premiums = monthly * monthsYTD(p.coverage_start_date || null)
       const limit = Number(p.annual_coverage_limit)
+      const deductibleAnnual = Math.max(0, Number(p.deductible_per_claim) || 0)
+      const { start, end } = getCoverageYearBounds(p.coverage_start_date || null)
       perPetAcc[p.id] = {
         claimed: 0,
         reimbursed: 0,
@@ -111,11 +128,21 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
         deductibles: 0,
         coinsurancePaid: 0,
         remainingLimit: Number.isFinite(limit) && limit > 0 ? limit : null,
+        deductibleRemaining: deductibleAnnual,
+        yearStart: start,
+        yearEnd: end,
       }
     }
 
-    // Process insured claims only, applying deductible and co-insurance
-    for (const c of claims) {
+    // Sort claims chronologically by service date for proper deductible application
+    const sortedClaims = [...claims].sort((a, b) => {
+      const da = a.service_date ? new Date(a.service_date).getTime() : 0
+      const db = b.service_date ? new Date(b.service_date).getTime() : 0
+      return da - db
+    })
+
+    // Process insured claims only, applying annual deductible, co-insurance and annual cap
+    for (const c of sortedClaims) {
       const category = String(c.expense_category || '').toLowerCase()
       if (category !== 'insured') continue
       const pid = c.pet_id || ''
@@ -124,18 +151,24 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
       const acc = perPetAcc[pid]
       const bill = Number(c.total_amount) || 0
       if (bill <= 0) continue
-      const deductiblePerClaim = Math.max(0, Number(p.deductible_per_claim) || 0)
-      const deductibleThisClaim = Math.min(bill, deductiblePerClaim)
-      const amountAfterDeductible = Math.max(0, bill - deductibleThisClaim)
+      const svcDate = c.service_date ? new Date(c.service_date) : null
+      if (!svcDate || isNaN(svcDate.getTime())) continue
+      if (acc.yearStart && acc.yearEnd && !(svcDate >= acc.yearStart && svcDate < acc.yearEnd)) {
+        continue
+      }
+
+      const deductibleApplied = Math.min(bill, Math.max(0, acc.deductibleRemaining))
+      const remainingAfterDeductible = Math.max(0, bill - deductibleApplied)
       const insurancePct = Math.max(0, Math.min(100, Number(p.insurance_pays_percentage) || 0)) / 100
-      const potentialReimb = amountAfterDeductible * insurancePct
+      const potentialReimb = remainingAfterDeductible * insurancePct
       const allowedReimb = acc.remainingLimit == null ? potentialReimb : Math.min(potentialReimb, acc.remainingLimit)
-      const userCoins = amountAfterDeductible - allowedReimb
+      const userCoins = remainingAfterDeductible - allowedReimb
 
       acc.claimed += bill
-      acc.deductibles += deductibleThisClaim
+      acc.deductibles += deductibleApplied
       acc.coinsurancePaid += userCoins
       acc.reimbursed += allowedReimb
+      acc.deductibleRemaining = Math.max(0, acc.deductibleRemaining - deductibleApplied)
       if (acc.remainingLimit != null) acc.remainingLimit = Math.max(0, acc.remainingLimit - allowedReimb)
     }
 
@@ -147,7 +180,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
     const netCost = premiumsYTD + deductiblesPaid + coinsurancePaid - totalReimbursed
 
     // eslint-disable-next-line no-console
-    console.log('[FinancialSummary] overall calc (insured only)', {
+    console.log('[FinancialSummary] overall calc (insured only, annual deductible & caps)', {
       totalClaimed,
       totalReimbursed,
       premiumsYTD,
@@ -159,7 +192,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
   }, [claims, pets, petById])
 
   const perPet = useMemo(() => {
-    const byPet: Record<string, { claimed: number; reimbursed: number; premiums: number; deductibles: number }> = {}
+    const byPet: Record<string, { claimed: number; reimbursed: number; premiums: number; deductibles: number; coinsurance: number }> = {}
     // Prime with premiums per pet
     for (const p of pets) {
       byPet[p.id] = {
@@ -167,38 +200,60 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
         reimbursed: 0,
         premiums: (Number(p.monthly_premium) || 0) * monthsYTD(p.coverage_start_date || null),
         deductibles: 0,
+        coinsurance: 0,
       }
     }
 
-    // Compute insured-only reimbursement with deductible, coinsurance and annual cap
+    // Track coverage-year bounds, deductible and remaining annual coverage limit per pet
     const remainingLimitByPet: Record<string, number | null> = {}
+    const deductibleRemainingByPet: Record<string, number> = {}
+    const yearBoundsByPet: Record<string, { start: Date | null; end: Date | null }> = {}
+
     for (const p of pets) {
       const lim = Number(p.annual_coverage_limit)
       remainingLimitByPet[p.id] = Number.isFinite(lim) && lim > 0 ? lim : null
+      deductibleRemainingByPet[p.id] = Math.max(0, Number(p.deductible_per_claim) || 0)
+      yearBoundsByPet[p.id] = getCoverageYearBounds(p.coverage_start_date || null)
     }
 
-    for (const c of claims) {
+    // Process claims sorted by service date
+    const sorted = [...claims].sort((a, b) => {
+      const da = a.service_date ? new Date(a.service_date).getTime() : 0
+      const db = b.service_date ? new Date(b.service_date).getTime() : 0
+      return da - db
+    })
+
+    for (const c of sorted) {
       const category = String(c.expense_category || '').toLowerCase()
       if (category !== 'insured') continue
       const pid = c.pet_id || ''
       if (!byPet[pid]) continue
       const p = petById[pid]
       const bill = Number(c.total_amount) || 0
-      const deductiblePerClaim = Math.max(0, p ? (Number(p.deductible_per_claim) || 0) : 0)
-      const deductibleThisClaim = Math.min(bill, deductiblePerClaim)
-      const amountAfterDeductible = Math.max(0, bill - deductibleThisClaim)
+      if (bill <= 0) continue
+      const bounds = yearBoundsByPet[pid]
+      const svcDate = c.service_date ? new Date(c.service_date) : null
+      if (!svcDate || isNaN(svcDate.getTime())) continue
+      if (bounds.start && bounds.end && !(svcDate >= bounds.start && svcDate < bounds.end)) continue
+
+      const deductibleRemaining = deductibleRemainingByPet[pid]
+      const deductibleApplied = Math.min(bill, Math.max(0, deductibleRemaining))
+      const remainingAfterDeductible = Math.max(0, bill - deductibleApplied)
       const insurancePct = Math.max(0, Math.min(100, p ? (Number(p.insurance_pays_percentage) || 0) : 0)) / 100
-      const potentialReimb = amountAfterDeductible * insurancePct
-      const remaining = remainingLimitByPet[pid]
-      const allowedReimb = remaining == null ? potentialReimb : Math.min(potentialReimb, remaining)
+      const potentialReimb = remainingAfterDeductible * insurancePct
+      const remainingLimit = remainingLimitByPet[pid]
+      const allowedReimb = remainingLimit == null ? potentialReimb : Math.min(potentialReimb, remainingLimit)
+      const userCoins = remainingAfterDeductible - allowedReimb
 
       byPet[pid].claimed += bill
       byPet[pid].reimbursed += allowedReimb
-      byPet[pid].deductibles += deductibleThisClaim
-      if (remaining != null) remainingLimitByPet[pid] = Math.max(0, remaining - allowedReimb)
+      byPet[pid].deductibles += deductibleApplied
+      byPet[pid].coinsurance += userCoins
+      deductibleRemainingByPet[pid] = Math.max(0, deductibleRemaining - deductibleApplied)
+      if (remainingLimit != null) remainingLimitByPet[pid] = Math.max(0, remainingLimit - allowedReimb)
     }
     // eslint-disable-next-line no-console
-    console.log('[FinancialSummary] perPet calc (insured only)', byPet)
+    console.log('[FinancialSummary] perPet calc (insured only, annual deductible & caps)', byPet)
     return byPet
   }, [claims, pets, petById])
 
