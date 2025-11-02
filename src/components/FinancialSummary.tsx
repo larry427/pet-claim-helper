@@ -242,7 +242,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
               <div className="text-sm font-semibold">{`📊 ${new Date().getFullYear()} TOTAL`}</div>
               <div className="mt-3 text-sm space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="text-slate-600">Spent on all pets</div>
+                  <div className="text-slate-600">Spent on all pets (including premiums)</div>
                   <div className="text-xl font-bold">${(overall.premiumsYTD + overall.nonInsuredTotal + overall.userSharePaidInsured + overall.insurancePaidBack).toFixed(2)}</div>
                 </div>
                 <div className="flex items-center justify-between">
