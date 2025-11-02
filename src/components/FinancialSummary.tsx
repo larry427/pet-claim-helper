@@ -110,102 +110,40 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
 
   const overall = useMemo(() => {
     const viewYear = new Date().getFullYear()
-    // Initialize per-pet accumulators
-    const perPetAcc: Record<string, {
-      claimed: number
-      reimbursed: number
-      premiums: number
-      deductibles: number
-      coinsurancePaid: number
-      remainingLimit: number | null
-    }> = {}
-    for (const p of pets) {
-      const monthly = Number(p.monthly_premium) || 0
-      const premiums = monthly * monthsYTD(p.coverage_start_date || null)
-      const limit = Number(p.annual_coverage_limit)
-      perPetAcc[p.id] = {
-        claimed: 0,
-        reimbursed: 0,
-        premiums,
-        deductibles: 0,
-        coinsurancePaid: 0,
-        remainingLimit: Number.isFinite(limit) && limit > 0 ? limit : null,
-      }
-    }
+    const today = new Date()
 
-    // Sort claims chronologically by service date for proper deductible application
-    const sortedClaims = [...claims].sort((a, b) => {
-      const da = a.service_date ? (parseYmdLocal(a.service_date)?.getTime() || 0) : 0
-      const db = b.service_date ? (parseYmdLocal(b.service_date)?.getTime() || 0) : 0
-      return da - db
-    })
+    // Premiums paid YTD (current year) from pets
+    const premiumsYTD = pets.reduce((sum, p) => sum + ((Number(p.monthly_premium) || 0) * monthsYTD(p.coverage_start_date || null)), 0)
 
-    // Process insured, paid claims in the current year; use DB-provided amounts
-    for (const c of sortedClaims) {
-      const category = String(c.expense_category || '').toLowerCase()
-      if (category !== 'insured') continue
-      const pid = c.pet_id || ''
-      const p = petById[pid]
-      if (!p || !perPetAcc[pid]) continue
-      const acc = perPetAcc[pid]
-      const bill = Number(c.total_amount) || 0
-      if (bill <= 0) continue
-      const svcDate = c.service_date ? parseYmdLocal(c.service_date) : null
-      if (!svcDate || isNaN(svcDate.getTime())) continue
-      if (svcDate.getFullYear() !== viewYear) continue
-      const status = String(c.filing_status || '').toLowerCase()
-      if (status !== 'paid') continue
-
-      const deductibleApplied = Math.max(0, Number(c.deductible_applied) || 0)
-      const remainingAfterDeductible = Math.max(0, bill - deductibleApplied)
-      const allowedReimb = Math.max(0, Number(c.reimbursed_amount) || 0)
-      const userCoins = Math.max(0, bill - deductibleApplied - allowedReimb)
-
-      acc.claimed += bill
-      acc.deductibles += deductibleApplied
-      acc.coinsurancePaid += userCoins
-      acc.reimbursed += allowedReimb
-      if (acc.remainingLimit != null) acc.remainingLimit = Math.max(0, acc.remainingLimit - allowedReimb)
-    }
-
-    const totalClaimed = Object.values(perPetAcc).reduce((s, v) => s + v.claimed, 0)
-    const totalReimbursed = Object.values(perPetAcc).reduce((s, v) => s + v.reimbursed, 0)
-    const premiumsYTD = Object.values(perPetAcc).reduce((s, v) => s + v.premiums, 0)
-    const deductiblesPaid = Object.values(perPetAcc).reduce((s, v) => s + v.deductibles, 0)
-    const coinsurancePaid = Object.values(perPetAcc).reduce((s, v) => s + v.coinsurancePaid, 0)
-
-    // Additional components: Non-insured visits and denied insured claims (for the current year view)
+    // Non-insured visits up to today (current year)
     let nonInsuredTotal = 0
-    let deniedTotal = 0
+    // Insurance reimbursed (paid only) up to today (current year)
+    let insurancePaidBack = 0
+    // Pending claims (submitted, approved, not_submitted) totals
+    let pendingTotal = 0
+
     for (const c of claims) {
       const svc = c.service_date ? parseYmdLocal(c.service_date) : null
       if (!svc || isNaN(svc.getTime())) continue
       if (svc.getFullYear() !== viewYear) continue
+      if (svc > today) continue
       const category = String(c.expense_category || '').toLowerCase()
-      const amount = Number(c.total_amount) || 0
       const status = String(c.filing_status || '').toLowerCase()
+      const amount = Number(c.total_amount) || 0
+      const reimb = Math.max(0, Number(c.reimbursed_amount) || 0)
+
       if (category !== 'insured') {
         nonInsuredTotal += amount
-      } else if (status === 'denied') {
-        deniedTotal += amount
+      } else if (status === 'paid') {
+        insurancePaidBack += reimb
+      } else if (status === 'submitted' || status === 'approved' || status === 'not_submitted') {
+        pendingTotal += amount
       }
     }
 
-    const actualCost = premiumsYTD + deductiblesPaid + coinsurancePaid + nonInsuredTotal + deniedTotal
-
-    // eslint-disable-next-line no-console
-    console.log('[FinancialSummary] overall calc (insured only, annual deductible & caps)', {
-      totalClaimed,
-      totalReimbursed,
-      premiumsYTD,
-      deductiblesPaid,
-      coinsurancePaid,
-      nonInsuredTotal,
-      deniedTotal,
-      actualCost,
-    })
-    return { totalClaimed, totalReimbursed, premiumsYTD, deductiblesPaid, coinsurancePaid, nonInsuredTotal, deniedTotal, actualCost }
-  }, [claims, pets, petById])
+    const definiteTotal = premiumsYTD + nonInsuredTotal - insurancePaidBack
+    return { premiumsYTD, nonInsuredTotal, insurancePaidBack, definiteTotal, pendingTotal }
+  }, [claims, pets])
 
   const perPet = useMemo(() => {
     const viewYear = new Date().getFullYear()
@@ -275,54 +213,26 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
         {error && <div className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-800 text-sm">{error}</div>}
         {!loading && !error && (
           <>
-          {/* Consolidated Actual Cost */}
-          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-5 dark:border-rose-900/50 dark:bg-rose-900/10">
-            <div className="text-sm font-semibold">YOUR ACTUAL COST</div>
-            <div className="mt-2 text-3xl font-bold text-rose-700">${overall.actualCost.toFixed(2)}</div>
-            <div className="mt-1 text-xs text-rose-800/80 dark:text-rose-300">Not insured + any denied claims (including premiums paid below)</div>
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
-              <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
-                <div className="text-slate-500">Premiums Paid</div>
-                <div className="font-semibold">${overall.premiumsYTD.toFixed(2)}</div>
-              </div>
-              <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
-                <div className="text-slate-500">Deductibles Paid</div>
-                <div className="font-semibold">${overall.deductiblesPaid.toFixed(2)}</div>
-              </div>
-              <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
-                <div className="text-slate-500">Co-Insurance Paid</div>
-                <div className="font-semibold">${overall.coinsurancePaid.toFixed(2)}</div>
-              </div>
-              <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
-                <div className="text-slate-500">Non-Insured Visits</div>
-                <div className="font-semibold">${overall.nonInsuredTotal.toFixed(2)}</div>
-              </div>
-              <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
-                <div className="text-slate-500">Denied Claims</div>
-                <div className="font-semibold">${overall.deniedTotal.toFixed(2)}</div>
+            <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+              <div className="text-base font-semibold">YOUR ACTUAL COSTS</div>
+              <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/40 dark:bg-rose-900/10">
+                  <div className="text-rose-700 font-semibold">DEFINITE COST</div>
+                  <div className="mt-2 text-3xl font-bold text-rose-800">${overall.definiteTotal.toFixed(2)}</div>
+                  <div className="mt-3 text-xs text-rose-900/80 dark:text-rose-300">Locked in costs already paid</div>
+                  <div className="mt-3 space-y-1 text-sm">
+                    <div className="flex items-center justify-between"><span className="text-slate-600">Premiums:</span><span className="font-semibold">${overall.premiumsYTD.toFixed(2)}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-slate-600">Non-Insured Visits:</span><span className="font-semibold">${overall.nonInsuredTotal.toFixed(2)}</span></div>
+                    <div className="flex items-center justify-between"><span className="text-slate-600">Insurance Paid Back:</span><span className="font-semibold">${overall.insurancePaidBack.toFixed(2)}</span></div>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-900/10">
+                  <div className="text-amber-700 font-semibold">PENDING (Under Review)</div>
+                  <div className="mt-2 text-3xl font-bold text-amber-800">${overall.pendingTotal.toFixed(2)}</div>
+                  <div className="mt-3 text-xs text-amber-900/80 dark:text-amber-300">Not yet submitted/approved/paid — amount may change</div>
+                </div>
               </div>
             </div>
-          </div>
-
-          {/* Financial summary key metrics */}
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-              <div className="text-emerald-700">Total Claimed</div>
-              <div className="mt-1 text-xl font-bold text-emerald-800">${overall.totalClaimed.toFixed(2)}</div>
-            </div>
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-              <div className="text-emerald-700">Total Reimbursed</div>
-              <div className="mt-1 text-xl font-bold text-emerald-800">${overall.totalReimbursed.toFixed(2)}</div>
-            </div>
-            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-              <div className="text-blue-700">Premiums Paid YTD</div>
-              <div className="mt-1 text-xl font-bold text-blue-800">${overall.premiumsYTD.toFixed(2)}</div>
-            </div>
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-              <div className="text-amber-700">Deductibles Paid</div>
-              <div className="mt-1 text-xl font-bold text-amber-800">${overall.deductiblesPaid.toFixed(2)}</div>
-            </div>
-          </div>
           </>
         )}
       </div>

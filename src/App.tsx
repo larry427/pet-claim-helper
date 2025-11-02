@@ -818,7 +818,7 @@ export default function App() {
     const actualCost = premiumsPaid + deductiblesPaid + coinsurancePaid + nonInsuredTotal + deniedTotal
     const periodNet = actualCost
     const periodSpentActual = actualCost
-    return { byCategory, reimbursed, awaiting, outOfPocket, grandTotal, perPet, awaitingInsured, periodSpent: periodSpentActual, periodReimbursed, periodNet, actualCost }
+    return { byCategory, reimbursed, awaiting, outOfPocket, grandTotal, perPet, awaitingInsured, periodSpent: periodSpentActual, periodReimbursed, periodNet, actualCost, pendingTotal }
   }, [claims, finPeriod])
 
   return (
@@ -1820,8 +1820,8 @@ export default function App() {
                   <div className="text-2xl font-bold">{fmtMoney(financial.actualCost)}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-slate-500">Reimbursed so far</div>
-                  <div className="text-2xl font-bold">{fmtMoney(financial.periodReimbursed)}</div>
+                  <div className="text-xs text-slate-500">Pending (Under Review)</div>
+                  <div className="text-2xl font-bold">{fmtMoney(financial.pendingTotal || 0)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-slate-500">Net cost to you</div>
