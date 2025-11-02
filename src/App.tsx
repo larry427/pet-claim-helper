@@ -2253,7 +2253,32 @@ export default function App() {
                           return
                         }
                         const paidIso = new Date(paidDate).toISOString().slice(0,10)
-                        await updateClaim(paidModalClaim.id, { filing_status: 'paid', reimbursed_amount: amountNum, paid_date: paidIso } as any)
+
+                        // Compute deductible_applied and user_coinsurance_payment
+                        const claimed = Number(paidModalClaim.total_amount || 0)
+                        const petId = paidModalClaim.pet_id || null
+                        // Use calendar year of service_date
+                        const svcY = paidModalClaim.service_date ? Number(String(paidModalClaim.service_date).slice(0,4)) : null
+                        const alreadyDeductedThisYear = svcY && petId ? claims.some((c: any) => (
+                          c.id !== paidModalClaim.id &&
+                          c.pet_id === petId &&
+                          String(c.expense_category || '').toLowerCase() === 'insured' &&
+                          String(c.filing_status || '').toLowerCase() === 'paid' &&
+                          c.service_date && String(c.service_date).slice(0,4) === String(svcY) &&
+                          Number(c.deductible_applied || 0) > 0
+                        )) : false
+                        const pet = petId ? pets.find(p => p.id === petId) : null
+                        const petDeductible = Math.max(0, Number(pet?.deductible_per_claim || 0))
+                        const deductible_applied = Math.min(claimed, alreadyDeductedThisYear ? 0 : petDeductible)
+                        const user_coinsurance_payment = Math.max(0, claimed - deductible_applied - amountNum)
+
+                        await updateClaim(paidModalClaim.id, {
+                          filing_status: 'paid',
+                          reimbursed_amount: amountNum,
+                          paid_date: paidIso,
+                          deductible_applied,
+                          user_coinsurance_payment,
+                        } as any)
                     if (userId) {
                       const updated = await listClaims(userId)
                       setClaims(updated)
