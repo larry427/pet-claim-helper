@@ -173,7 +173,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
     const premiumsYTD = Object.values(perPetAcc).reduce((s, v) => s + v.premiums, 0)
     const deductiblesPaid = Object.values(perPetAcc).reduce((s, v) => s + v.deductibles, 0)
     const coinsurancePaid = Object.values(perPetAcc).reduce((s, v) => s + v.coinsurancePaid, 0)
-    const netCost = premiumsYTD + deductiblesPaid + coinsurancePaid - totalReimbursed
+    const netCost = premiumsYTD + deductiblesPaid + coinsurancePaid
 
     // eslint-disable-next-line no-console
     console.log('[FinancialSummary] overall calc (insured only, annual deductible & caps)', {
@@ -284,7 +284,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {pets.map((p) => {
             const s = perPet[p.id] || { claimed: 0, reimbursed: 0, premiums: 0, deductibles: 0, coinsurance: 0 }
-            const effective = (s.premiums + s.deductibles + s.coinsurance) - s.reimbursed
+            const effective = (s.premiums + s.deductibles + s.coinsurance)
             const color = p.species === 'cat' ? '#F97316' : p.species === 'dog' ? '#3B82F6' : '#6B7280'
             const icon = p.species === 'cat' ? '🐱' : p.species === 'dog' ? '🐶' : '🐾'
             return (
