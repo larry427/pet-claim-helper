@@ -236,6 +236,25 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
                 </div>
               </div>
             </div>
+
+            {/* Year Total (calculation view) */}
+            <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+              <div className="text-sm font-semibold">{`📊 ${new Date().getFullYear()} TOTAL`}</div>
+              <div className="mt-3 text-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-slate-600">Spent on all pets</div>
+                  <div className="text-xl font-bold">${(overall.premiumsYTD + overall.nonInsuredTotal + overall.userSharePaidInsured + overall.insurancePaidBack).toFixed(2)}</div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-slate-600">- Insurance Reimbursed</div>
+                  <div className="text-xl font-bold">${overall.insurancePaidBack.toFixed(2)}</div>
+                </div>
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                  <div className="text-slate-800 font-semibold">= Your Net Cost</div>
+                  <div className="text-2xl font-bold">${overall.definiteTotal.toFixed(2)}</div>
+                </div>
+              </div>
+            </div>
           </>
         )}
       </div>
