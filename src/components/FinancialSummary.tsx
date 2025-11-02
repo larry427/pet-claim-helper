@@ -65,15 +65,28 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
     return m
   }, [pets])
 
+  // Parse YYYY-MM-DD safely as a local Date (no timezone shift)
+  const parseYmdLocal = (iso: string | null | undefined): Date | null => {
+    if (!iso) return null
+    const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (!m) return null
+    const y = Number(m[1])
+    const mo = Number(m[2]) - 1
+    const d = Number(m[3])
+    const dt = new Date(y, mo, d)
+    if (isNaN(dt.getTime())) return null
+    return dt
+  }
+
   const monthsYTD = (startIso: string | null | undefined): number => {
     if (!startIso) return 0
-    const start = new Date(startIso)
+    const start = parseYmdLocal(startIso)
     if (isNaN(start.getTime())) return 0
     const now = new Date()
     const currentYear = now.getFullYear()
-    const startYear = start.getFullYear()
+    const startYear = (start as Date).getFullYear()
     if (startYear > currentYear) return 0
-    const startMonthForYear = startYear < currentYear ? 0 : start.getMonth() // inclusive of start month
+    const startMonthForYear = startYear < currentYear ? 0 : (start as Date).getMonth() // inclusive of start month
     const endMonth = now.getMonth() // inclusive of current month
     const months = (endMonth - startMonthForYear + 1)
     return Math.max(0, months)
@@ -122,8 +135,8 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
 
     // Sort claims chronologically by service date for proper deductible application
     const sortedClaims = [...claims].sort((a, b) => {
-      const da = a.service_date ? new Date(a.service_date).getTime() : 0
-      const db = b.service_date ? new Date(b.service_date).getTime() : 0
+      const da = a.service_date ? (parseYmdLocal(a.service_date)?.getTime() || 0) : 0
+      const db = b.service_date ? (parseYmdLocal(b.service_date)?.getTime() || 0) : 0
       return da - db
     })
 
@@ -137,7 +150,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
       const acc = perPetAcc[pid]
       const bill = Number(c.total_amount) || 0
       if (bill <= 0) continue
-      const svcDate = c.service_date ? new Date(c.service_date) : null
+      const svcDate = c.service_date ? parseYmdLocal(c.service_date) : null
       if (!svcDate || isNaN(svcDate.getTime())) continue
       if (svcDate.getFullYear() !== viewYear) continue
       const status = String(c.filing_status || '').toLowerCase()
@@ -197,8 +210,8 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
 
     // Process claims sorted by service date
     const sorted = [...claims].sort((a, b) => {
-      const da = a.service_date ? new Date(a.service_date).getTime() : 0
-      const db = b.service_date ? new Date(b.service_date).getTime() : 0
+      const da = a.service_date ? (parseYmdLocal(a.service_date)?.getTime() || 0) : 0
+      const db = b.service_date ? (parseYmdLocal(b.service_date)?.getTime() || 0) : 0
       return da - db
     })
 
@@ -209,7 +222,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
       if (!byPet[pid]) continue
       const bill = Number(c.total_amount) || 0
       if (bill <= 0) continue
-      const svcDate = c.service_date ? new Date(c.service_date) : null
+      const svcDate = c.service_date ? parseYmdLocal(c.service_date) : null
       if (!svcDate || isNaN(svcDate.getTime())) continue
       if (svcDate.getFullYear() !== viewYear) continue
       const status = String(c.filing_status || '').toLowerCase()
@@ -270,8 +283,8 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
         <div className="text-base font-semibold">Per-Pet Breakdown</div>
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {pets.map((p) => {
-            const s = perPet[p.id] || { claimed: 0, reimbursed: 0, premiums: 0, deductibles: 0 }
-            const effective = (s.premiums + s.deductibles) - s.reimbursed
+            const s = perPet[p.id] || { claimed: 0, reimbursed: 0, premiums: 0, deductibles: 0, coinsurance: 0 }
+            const effective = (s.premiums + s.deductibles + s.coinsurance) - s.reimbursed
             const color = p.species === 'cat' ? '#F97316' : p.species === 'dog' ? '#3B82F6' : '#6B7280'
             const icon = p.species === 'cat' ? '🐱' : p.species === 'dog' ? '🐶' : '🐾'
             return (
