@@ -762,6 +762,7 @@ export default function App() {
     let coinsurancePaid = 0
     let nonInsuredTotal = 0
     let deniedTotal = 0
+    let pendingTotal = 0
 
     for (const c of filtered) {
       const amt = Number(c.total_amount || 0)
@@ -790,6 +791,11 @@ export default function App() {
         if (status === 'paid') {
           const paidAmt = Number((c as any).reimbursed_amount || 0)
           periodReimbursed += paidAmt
+        }
+        // Pending sums are claims under review (submitted/approved/not_submitted) up to today
+        const today = new Date()
+        if (svcDate <= today && (status === 'submitted' || status === 'approved' || status === 'not_submitted')) {
+          pendingTotal += amt
         }
       }
 
