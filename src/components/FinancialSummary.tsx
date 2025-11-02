@@ -70,23 +70,13 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
     const start = new Date(startIso)
     if (isNaN(start.getTime())) return 0
     const now = new Date()
-    const y = now.getFullYear()
-    const sYear = start.getFullYear()
-    const sMonth = start.getMonth() // 0-11
-    const sDay = start.getDate()
-    // Determine starting month index for YTD counting
-    // If coverage started in a previous year, start counting from January (0)
-    // If coverage started this year, start counting from the month AFTER the start month (exclude partial start month)
-    const startIndex = (sYear < y) ? 0 : (sMonth + 1)
-    // Determine ending month index (inclusive). If the current day is before the billing day (sDay), exclude current month
-    let endIndex = now.getMonth()
-    if (now.getDate() < sDay) endIndex -= 1
-    let months = endIndex - startIndex + 1
-    if (months < 0) months = 0
-    // Debug
-    // eslint-disable-next-line no-console
-    console.log('[FinancialSummary] monthsYTD', { startIso, now: now.toISOString().slice(0,10), startIndex, endIndex, months })
-    return months
+    const currentYear = now.getFullYear()
+    const startYear = start.getFullYear()
+    if (startYear > currentYear) return 0
+    const startMonthForYear = startYear < currentYear ? 0 : start.getMonth() // inclusive of start month
+    const endMonth = now.getMonth() // inclusive of current month
+    const months = (endMonth - startMonthForYear + 1)
+    return Math.max(0, months)
   }
 
   const getCoverageYearBounds = (startIso: string | null | undefined): { start: Date | null; end: Date | null } => {
@@ -106,6 +96,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
   }
 
   const overall = useMemo(() => {
+    const viewYear = new Date().getFullYear()
     // Initialize per-pet accumulators
     const perPetAcc: Record<string, {
       claimed: number
@@ -114,16 +105,11 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
       deductibles: number
       coinsurancePaid: number
       remainingLimit: number | null
-      deductibleRemaining: number
-      yearStart: Date | null
-      yearEnd: Date | null
     }> = {}
     for (const p of pets) {
       const monthly = Number(p.monthly_premium) || 0
       const premiums = monthly * monthsYTD(p.coverage_start_date || null)
       const limit = Number(p.annual_coverage_limit)
-      const deductibleAnnual = Math.max(0, Number(p.deductible_per_claim) || 0)
-      const { start, end } = getCoverageYearBounds(p.coverage_start_date || null)
       perPetAcc[p.id] = {
         claimed: 0,
         reimbursed: 0,
@@ -131,9 +117,6 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
         deductibles: 0,
         coinsurancePaid: 0,
         remainingLimit: Number.isFinite(limit) && limit > 0 ? limit : null,
-        deductibleRemaining: deductibleAnnual,
-        yearStart: start,
-        yearEnd: end,
       }
     }
 
@@ -144,7 +127,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
       return da - db
     })
 
-    // Process insured claims only, applying annual deductible, co-insurance and annual cap
+    // Process insured, paid claims in the current year; use DB-provided amounts
     for (const c of sortedClaims) {
       const category = String(c.expense_category || '').toLowerCase()
       if (category !== 'insured') continue
@@ -156,20 +139,19 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
       if (bill <= 0) continue
       const svcDate = c.service_date ? new Date(c.service_date) : null
       if (!svcDate || isNaN(svcDate.getTime())) continue
-      if (acc.yearStart && acc.yearEnd && !(svcDate >= acc.yearStart && svcDate < acc.yearEnd)) {
-        continue
-      }
+      if (svcDate.getFullYear() !== viewYear) continue
+      const status = String(c.filing_status || '').toLowerCase()
+      if (status !== 'paid') continue
 
-      const deductibleApplied = Math.min(bill, Math.max(0, acc.deductibleRemaining))
+      const deductibleApplied = Math.max(0, Number(c.deductible_applied) || 0)
       const remainingAfterDeductible = Math.max(0, bill - deductibleApplied)
-      const allowedReimb = Number(c.reimbursed_amount) || 0
-      const userCoins = remainingAfterDeductible - allowedReimb
+      const allowedReimb = Math.max(0, Number(c.reimbursed_amount) || 0)
+      const userCoins = Math.max(0, (Number(c.user_coinsurance_payment) ?? (remainingAfterDeductible - allowedReimb)))
 
       acc.claimed += bill
       acc.deductibles += deductibleApplied
       acc.coinsurancePaid += userCoins
       acc.reimbursed += allowedReimb
-      acc.deductibleRemaining = Math.max(0, acc.deductibleRemaining - deductibleApplied)
       if (acc.remainingLimit != null) acc.remainingLimit = Math.max(0, acc.remainingLimit - allowedReimb)
     }
 
@@ -193,6 +175,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
   }, [claims, pets, petById])
 
   const perPet = useMemo(() => {
+    const viewYear = new Date().getFullYear()
     const byPet: Record<string, { claimed: number; reimbursed: number; premiums: number; deductibles: number; coinsurance: number }> = {}
     // Prime with premiums per pet
     for (const p of pets) {
@@ -205,16 +188,11 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
       }
     }
 
-    // Track coverage-year bounds, deductible and remaining annual coverage limit per pet
+    // Track remaining annual coverage limit per pet (if needed)
     const remainingLimitByPet: Record<string, number | null> = {}
-    const deductibleRemainingByPet: Record<string, number> = {}
-    const yearBoundsByPet: Record<string, { start: Date | null; end: Date | null }> = {}
-
     for (const p of pets) {
       const lim = Number(p.annual_coverage_limit)
       remainingLimitByPet[p.id] = Number.isFinite(lim) && lim > 0 ? lim : null
-      deductibleRemainingByPet[p.id] = Math.max(0, Number(p.deductible_per_claim) || 0)
-      yearBoundsByPet[p.id] = getCoverageYearBounds(p.coverage_start_date || null)
     }
 
     // Process claims sorted by service date
@@ -229,26 +207,24 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
       if (category !== 'insured') continue
       const pid = c.pet_id || ''
       if (!byPet[pid]) continue
-      const p = petById[pid]
       const bill = Number(c.total_amount) || 0
       if (bill <= 0) continue
-      const bounds = yearBoundsByPet[pid]
       const svcDate = c.service_date ? new Date(c.service_date) : null
       if (!svcDate || isNaN(svcDate.getTime())) continue
-      if (bounds.start && bounds.end && !(svcDate >= bounds.start && svcDate < bounds.end)) continue
+      if (svcDate.getFullYear() !== viewYear) continue
+      const status = String(c.filing_status || '').toLowerCase()
+      if (status !== 'paid') continue
 
-      const deductibleRemaining = deductibleRemainingByPet[pid]
-      const deductibleApplied = Math.min(bill, Math.max(0, deductibleRemaining))
+      const deductibleApplied = Math.max(0, Number(c.deductible_applied) || 0)
       const remainingAfterDeductible = Math.max(0, bill - deductibleApplied)
-      const remainingLimit = remainingLimitByPet[pid]
-      const allowedReimb = Number(c.reimbursed_amount) || 0
-      const userCoins = remainingAfterDeductible - allowedReimb
+      const allowedReimb = Math.max(0, Number(c.reimbursed_amount) || 0)
+      const userCoins = Math.max(0, (Number(c.user_coinsurance_payment) ?? (remainingAfterDeductible - allowedReimb)))
 
       byPet[pid].claimed += bill
       byPet[pid].reimbursed += allowedReimb
       byPet[pid].deductibles += deductibleApplied
       byPet[pid].coinsurance += userCoins
-      deductibleRemainingByPet[pid] = Math.max(0, deductibleRemaining - deductibleApplied)
+      const remainingLimit = remainingLimitByPet[pid]
       if (remainingLimit != null) remainingLimitByPet[pid] = Math.max(0, remainingLimit - allowedReimb)
     }
     // eslint-disable-next-line no-console
