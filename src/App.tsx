@@ -756,6 +756,9 @@ export default function App() {
     let awaitingInsured = 0
     let periodSpent = 0
     let periodReimbursed = 0
+    const today = new Date()
+    let spentOnAllPets = 0
+    let reimbursedPaidPeriod = 0
     // Components for consolidated Actual Cost
     let premiumsPaid = 0
     let deductiblesPaid = 0
@@ -792,12 +795,15 @@ export default function App() {
 
       if (svcDate && !Number.isNaN(svcDate.getTime())) {
         periodSpent += amt
-        if (status === 'paid') {
-          const paidAmt = Number((c as any).reimbursed_amount || 0)
-          periodReimbursed += paidAmt
+        if (svcDate <= today) {
+          spentOnAllPets += amt
+          if (status === 'paid') {
+            const paidAmt = Number((c as any).reimbursed_amount || 0)
+            periodReimbursed += paidAmt
+            reimbursedPaidPeriod += paidAmt
+          }
         }
         // Pending sums are claims under review (submitted/approved/not_submitted) up to today
-        const today = new Date()
         if (svcDate <= today && status === 'submitted' && cat === 'insured') {
           pendingTotal += amt
         }
@@ -826,9 +832,9 @@ export default function App() {
       }
     }
     const definiteTotal = premiumsPaid + nonInsuredTotal + userSharePaidInsured
-    const periodNet = definiteTotal
+    const netCostPeriod = Math.max(0, spentOnAllPets - reimbursedPaidPeriod)
     const periodSpentActual = definiteTotal
-    return { byCategory, reimbursed, awaiting, outOfPocket, grandTotal, perPet, awaitingInsured, periodSpent: periodSpentActual, periodReimbursed, periodNet, definiteTotal, pendingTotal }
+    return { byCategory, reimbursed, awaiting, outOfPocket, grandTotal, perPet, awaitingInsured, periodSpent: periodSpentActual, periodReimbursed, periodNet: definiteTotal, definiteTotal, pendingTotal, spentOnAllPets, reimbursedPaidPeriod, netCostPeriod }
   }, [claims, finPeriod])
 
   return (
@@ -1824,18 +1830,18 @@ export default function App() {
                 if (finPeriod === '2024') return '📊 2024 TOTAL'
                 return "📊 LAST 12 MONTHS"
               })()}</div>
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <div className="text-xs text-slate-500">Spent on all pets</div>
-                  <div className="text-2xl font-bold">{fmtMoney(financial.definiteTotal)}</div>
+              <div className="mt-3 text-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-slate-600">Spent on all pets</div>
+                  <div className="text-xl font-bold">{fmtMoney(financial.spentOnAllPets || 0)}</div>
                 </div>
-                <div>
-                  <div className="text-xs text-slate-500">Pending (Under Review)</div>
-                  <div className="text-2xl font-bold">{fmtMoney(financial.pendingTotal || 0)}</div>
+                <div className="flex items-center justify-between">
+                  <div className="text-slate-600">- Insurance Reimbursed</div>
+                  <div className="text-xl font-bold">{fmtMoney(financial.reimbursedPaidPeriod || 0)}</div>
                 </div>
-                <div>
-                  <div className="text-xs text-slate-500">Net cost to you</div>
-                  <div className="text-2xl font-bold">{fmtMoney(financial.definiteTotal)}</div>
+                <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <div className="text-slate-800 font-semibold">= Your Net Cost</div>
+                  <div className="text-2xl font-bold">{fmtMoney(financial.netCostPeriod || 0)}</div>
                 </div>
               </div>
             </div>
