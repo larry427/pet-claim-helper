@@ -83,6 +83,12 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
       if (!coverageStartDate) {
         throw new Error('Coverage Start Date is required.')
       }
+      // Normalize to YYYY-MM-DD for API
+      const coverageStartDateISO = (() => {
+        const d = new Date(coverageStartDate)
+        if (Number.isNaN(d.getTime())) throw new Error('Please select a valid Coverage Start Date.')
+        return d.toISOString().slice(0, 10)
+      })()
       // Save profile (Step 1)
       const { error: profErr } = await supabase
         .from('profiles')
@@ -103,7 +109,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         weight_lbs: weightLbs === '' ? null : Number(weightLbs),
         monthly_premium: monthlyPremium === '' ? null : parseFloat(monthlyPremium),
         deductible_per_claim: deductiblePerClaim === '' ? null : parseFloat(deductiblePerClaim),
-        coverage_start_date: coverageStartDate,
+        coverage_start_date: coverageStartDateISO,
         insurance_pays_percentage: insurancePaysPct === '' ? null : Math.max(50, Math.min(100, Number(insurancePaysPct))),
         annual_coverage_limit: annualCoverageLimit === '' ? null : Math.max(0, Math.min(100000, Number(annualCoverageLimit)))
       }
@@ -262,6 +268,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
                   required
                   value={coverageStartDate}
                   onChange={(e) => setCoverageStartDate(e.target.value)}
+                  onClick={(e) => (e.currentTarget as any).showPicker?.()}
                   className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
                 />
               </div>
