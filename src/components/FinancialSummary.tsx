@@ -216,27 +216,6 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
         {error && <div className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-800 text-sm">{error}</div>}
         {!loading && !error && (
           <>
-            <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-              <div className="text-base font-semibold">YOUR ACTUAL COSTS</div>
-              <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/40 dark:bg-rose-900/10">
-                  <div className="text-rose-700 font-semibold">DEFINITE COST</div>
-                  <div className="mt-2 text-3xl font-bold text-rose-800">${overall.definiteTotal.toFixed(2)}</div>
-                  <div className="mt-3 text-xs text-rose-900/80 dark:text-rose-300">Locked in costs already paid</div>
-                  <div className="mt-3 space-y-1 text-sm">
-                    <div className="flex items-center justify-between"><span className="text-slate-600">Premiums:</span><span className="font-semibold">${overall.premiumsYTD.toFixed(2)}</span></div>
-                    <div className="flex items-center justify-between"><span className="text-slate-600">Non-Insured Visits:</span><span className="font-semibold">${overall.nonInsuredTotal.toFixed(2)}</span></div>
-                    <div className="flex items-center justify-between"><span className="text-slate-600">User Share (Paid Insured):</span><span className="font-semibold">${overall.userSharePaidInsured.toFixed(2)}</span></div>
-                  </div>
-                </div>
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-900/10">
-                  <div className="text-amber-700 font-semibold">PENDING (Under Review)</div>
-                  <div className="mt-2 text-3xl font-bold text-amber-800">${overall.pendingTotal.toFixed(2)}</div>
-                  <div className="mt-3 text-sm text-amber-900/90 dark:text-amber-200">Claims Awaiting Processing</div>
-                </div>
-              </div>
-            </div>
-
             {/* Year Total (calculation view) */}
             <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
               <div className="text-sm font-semibold">{`📊 ${new Date().getFullYear()} TOTAL`}</div>
