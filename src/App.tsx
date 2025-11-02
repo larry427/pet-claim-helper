@@ -1746,12 +1746,7 @@ export default function App() {
               <div className="mt-1 text-xs text-emerald-800/80 dark:text-emerald-300">Sum of approved claims awaiting reimbursement</div>
             </div>
 
-            {/* Actual Cost */}
-            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-5 dark:border-rose-900/50 dark:bg-rose-900/10">
-              <div className="text-sm font-semibold">💸 YOUR ACTUAL COST</div>
-              <div className="mt-2 text-3xl font-bold text-rose-700">{fmtMoney(financial.outOfPocket)}</div>
-              <div className="mt-1 text-xs text-rose-800/80 dark:text-rose-300">Not insured + any denied claims</div>
-            </div>
+            
 
             {/* This Year's Total */}
             <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
