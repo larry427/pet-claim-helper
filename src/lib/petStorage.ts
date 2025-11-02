@@ -94,6 +94,7 @@ export async function createPet(pet: any): Promise<any> {
         monthly_premium: pet.monthly_premium ?? null,
         deductible_per_claim: pet.deductible_per_claim ?? null,
         coverage_start_date: pet.coverage_start_date ?? null,
+        annual_coverage_limit: pet.annual_coverage_limit ?? null,
       },
     ])
     .select('*')

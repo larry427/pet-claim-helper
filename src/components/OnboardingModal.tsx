@@ -31,6 +31,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
   const [deductiblePerClaim, setDeductiblePerClaim] = useState<string>('')
   const [coverageStartDate, setCoverageStartDate] = useState('')
   const [insurancePaysPct, setInsurancePaysPct] = useState<string>('80')
+  const [annualCoverageLimit, setAnnualCoverageLimit] = useState<string>('')
 
   useEffect(() => {
     if (!open) return
@@ -51,6 +52,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
     setDeductiblePerClaim('')
     setCoverageStartDate('')
     setInsurancePaysPct('80')
+    setAnnualCoverageLimit('')
   }, [open])
 
   const canNextFrom1 = useMemo(() => fullName.trim().length > 0, [fullName])
@@ -93,7 +95,8 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         monthly_premium: monthlyPremium === '' ? null : parseFloat(monthlyPremium),
         deductible_per_claim: deductiblePerClaim === '' ? null : parseFloat(deductiblePerClaim),
         coverage_start_date: coverageStartDate || null,
-        insurance_pays_percentage: insurancePaysPct === '' ? null : Math.max(50, Math.min(100, Number(insurancePaysPct)))
+        insurance_pays_percentage: insurancePaysPct === '' ? null : Math.max(50, Math.min(100, Number(insurancePaysPct))),
+        annual_coverage_limit: annualCoverageLimit === '' ? null : Math.max(0, Math.min(100000, Number(annualCoverageLimit)))
       }
       // Debug payload before sending
       // eslint-disable-next-line no-console
@@ -229,6 +232,19 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
                   const you = Math.max(0, Math.min(100, 100 - n))
                   return `${you}%`
                 })()})</div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">What is your annual coverage limit (optional)?</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100000}
+                  value={annualCoverageLimit}
+                  onChange={(e) => setAnnualCoverageLimit(e.target.value)}
+                  className="mt-2 w-full rounded-md border border-emerald-300 dark:border-emerald-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                  placeholder="e.g., 5000"
+                />
+                <div className="text-xs text-slate-500 mt-1">Maximum amount insurance will cover per year</div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Coverage Start Date <span className="text-xs text-slate-500">(optional)</span></label>
