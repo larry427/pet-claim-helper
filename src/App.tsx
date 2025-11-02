@@ -699,6 +699,38 @@ export default function App() {
 
   // Financial aggregates
   const financial = useMemo(() => {
+    const parseYmdLocal = (iso?: string | null): Date | null => {
+      if (!iso) return null
+      const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+      if (!m) return null
+      const y = Number(m[1]); const mo = Number(m[2]) - 1; const d = Number(m[3])
+      const dt = new Date(y, mo, d)
+      return Number.isNaN(dt.getTime()) ? null : dt
+    }
+
+    const monthsForPeriod = (startIso?: string | null): number => {
+      const start = parseYmdLocal(startIso)
+      if (!start) return 0
+      const now = new Date()
+      if (finPeriod === '2025') {
+        const year = 2025
+        if (start.getFullYear() > year) return 0
+        const startMonth = start.getFullYear() < year ? 0 : start.getMonth()
+        const endMonth = (now.getFullYear() === year) ? now.getMonth() : 11
+        return Math.max(0, endMonth - startMonth + 1)
+      }
+      if (finPeriod === '2024') {
+        const year = 2024
+        if (start.getFullYear() > year) return 0
+        const startMonth = start.getFullYear() < year ? 0 : start.getMonth()
+        const endMonth = 11
+        return Math.max(0, endMonth - startMonth + 1)
+      }
+      // last12 or all -> months from start to now inclusive
+      const end = now
+      const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1
+      return Math.max(0, months)
+    }
     // Filter claims by selected period
     const filtered = claims.filter((c) => {
       const d = c.service_date ? new Date(c.service_date) : null
@@ -724,12 +756,18 @@ export default function App() {
     let awaitingInsured = 0
     let periodSpent = 0
     let periodReimbursed = 0
+    // Components for consolidated Actual Cost
+    let premiumsPaid = 0
+    let deductiblesPaid = 0
+    let coinsurancePaid = 0
+    let nonInsuredTotal = 0
+    let deniedTotal = 0
 
     for (const c of filtered) {
       const amt = Number(c.total_amount || 0)
       const status = String(c.filing_status || 'not_filed').toLowerCase()
       const cat = (c.expense_category || 'insured') as 'insured' | 'not_insured' | 'maybe_insured'
-      const svcDate = c.service_date ? new Date(c.service_date) : null
+      const svcDate = parseYmdLocal(c.service_date)
       grandTotal += amt
       byCategory[cat].sum += amt
       byCategory[cat].count += 1
@@ -741,6 +779,8 @@ export default function App() {
         awaiting += amt
       }
       if (status === 'denied' || cat === 'not_insured') outOfPocket += amt
+      if (cat !== 'insured') nonInsuredTotal += amt
+      if (status === 'denied' && cat === 'insured') deniedTotal += amt
 
       // Money Coming Back: approved claims only
       if (status === 'approved') awaitingInsured += amt
@@ -758,9 +798,27 @@ export default function App() {
       perPet[petName].sum += amt
       perPet[petName].count += 1
     }
-
-    const periodNet = periodSpent - periodReimbursed
-    return { byCategory, reimbursed, awaiting, outOfPocket, grandTotal, perPet, awaitingInsured, periodSpent, periodReimbursed, periodNet }
+    // Premiums: sum per pet for this period using monthly_premium
+    for (const p of pets) {
+      const monthly = Number((p as any).monthly_premium || 0)
+      if (monthly > 0) premiumsPaid += monthly * monthsForPeriod((p as any).coverage_start_date || null)
+    }
+    // Deductibles + coinsurance from paid insured claims in period
+    for (const c of filtered) {
+      const status = String(c.filing_status || '').toLowerCase()
+      const cat = String(c.expense_category || '').toLowerCase()
+      if (status === 'paid' && cat === 'insured') {
+        const bill = Number(c.total_amount || 0)
+        const ded = Math.max(0, Number((c as any).deductible_applied) || 0)
+        const reimb = Math.max(0, Number((c as any).reimbursed_amount) || 0)
+        deductiblesPaid += ded
+        coinsurancePaid += Math.max(0, bill - ded - reimb)
+      }
+    }
+    const actualCost = premiumsPaid + deductiblesPaid + coinsurancePaid + nonInsuredTotal + deniedTotal
+    const periodNet = actualCost
+    const periodSpentActual = actualCost
+    return { byCategory, reimbursed, awaiting, outOfPocket, grandTotal, perPet, awaitingInsured, periodSpent: periodSpentActual, periodReimbursed, periodNet, actualCost }
   }, [claims, finPeriod])
 
   return (
@@ -1759,7 +1817,7 @@ export default function App() {
               <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <div className="text-xs text-slate-500">Spent on all pets</div>
-                  <div className="text-2xl font-bold">{fmtMoney(financial.periodSpent)}</div>
+                  <div className="text-2xl font-bold">{fmtMoney(financial.actualCost)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-slate-500">Reimbursed so far</div>
@@ -1767,7 +1825,7 @@ export default function App() {
                 </div>
                 <div>
                   <div className="text-xs text-slate-500">Net cost to you</div>
-                  <div className="text-2xl font-bold">{fmtMoney(financial.periodNet)}</div>
+                  <div className="text-2xl font-bold">{fmtMoney(financial.actualCost)}</div>
                 </div>
               </div>
             </div>

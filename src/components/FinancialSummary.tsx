@@ -279,7 +279,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
           <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-5 dark:border-rose-900/50 dark:bg-rose-900/10">
             <div className="text-sm font-semibold">YOUR ACTUAL COST</div>
             <div className="mt-2 text-3xl font-bold text-rose-700">${overall.actualCost.toFixed(2)}</div>
-            <div className="mt-1 text-xs text-rose-800/80 dark:text-rose-300">Not insured + any denied claims (not including premiums paid below)</div>
+            <div className="mt-1 text-xs text-rose-800/80 dark:text-rose-300">Not insured + any denied claims (including premiums paid below)</div>
             <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
               <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
                 <div className="text-slate-500">Premiums Paid</div>
