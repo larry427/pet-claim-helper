@@ -59,9 +59,15 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
   const canNextFrom2 = useMemo(() => petName.trim().length > 0 && !!species, [petName, species])
   const canFinish = useMemo(() => {
     return Boolean(
-      insuranceCompany && policyNumber.trim() && Number.isFinite(Number(monthlyPremium)) && Number(monthlyPremium) > 0 && Number.isFinite(Number(deductiblePerClaim)) && Number(deductiblePerClaim) >= 0
+      insuranceCompany &&
+        policyNumber.trim() &&
+        Number.isFinite(Number(monthlyPremium)) &&
+        Number(monthlyPremium) > 0 &&
+        Number.isFinite(Number(deductiblePerClaim)) &&
+        Number(deductiblePerClaim) >= 0 &&
+        coverageStartDate
     )
-  }, [insuranceCompany, policyNumber, monthlyPremium, deductiblePerClaim])
+  }, [insuranceCompany, policyNumber, monthlyPremium, deductiblePerClaim, coverageStartDate])
 
   useEffect(() => {
     if (open && step === 4) {
@@ -74,6 +80,9 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
     setSaving(true)
     setError(null)
     try {
+      if (!coverageStartDate) {
+        throw new Error('Coverage Start Date is required.')
+      }
       // Save profile (Step 1)
       const { error: profErr } = await supabase
         .from('profiles')
@@ -94,7 +103,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         weight_lbs: weightLbs === '' ? null : Number(weightLbs),
         monthly_premium: monthlyPremium === '' ? null : parseFloat(monthlyPremium),
         deductible_per_claim: deductiblePerClaim === '' ? null : parseFloat(deductiblePerClaim),
-        coverage_start_date: coverageStartDate || null,
+        coverage_start_date: coverageStartDate,
         insurance_pays_percentage: insurancePaysPct === '' ? null : Math.max(50, Math.min(100, Number(insurancePaysPct))),
         annual_coverage_limit: annualCoverageLimit === '' ? null : Math.max(0, Math.min(100000, Number(annualCoverageLimit)))
       }
@@ -247,8 +256,14 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
                 <div className="text-xs text-slate-500 mt-1">Maximum amount insurance will cover per year</div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Coverage Start Date <span className="text-xs text-slate-500">(optional)</span></label>
-                <input type="date" value={coverageStartDate} onChange={(e) => setCoverageStartDate(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Coverage Start Date</label>
+                <input
+                  type="date"
+                  required
+                  value={coverageStartDate}
+                  onChange={(e) => setCoverageStartDate(e.target.value)}
+                  className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                />
               </div>
             </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
