@@ -241,31 +241,34 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
         )}
       </div>
 
-      <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-        <div className="text-base font-semibold">YOUR OUT-OF-POCKET BREAKDOWN</div>
+      <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5">
+        <div className="text-sm sm:text-base font-semibold">YOUR OUT-OF-POCKET BREAKDOWN</div>
         <div className="mt-3 text-sm space-y-2">
           <div className="flex items-center justify-between">
             <div className="text-slate-600">Insurance Premiums <span className="text-xs text-slate-500">(Monthly insurance cost)</span></div>
-            <div className="font-semibold">${overall.premiumsYTD.toFixed(2)}</div>
+            <div className="font-mono font-semibold">${overall.premiumsYTD.toFixed(2)}</div>
           </div>
           <div className="flex items-center justify-between">
             <div className="text-slate-600">Non-Insured Vet Visits <span className="text-xs text-slate-500">(Not covered by insurance)</span></div>
-            <div className="font-semibold">${overall.nonInsuredTotal.toFixed(2)}</div>
+            <div className="font-mono font-semibold">${overall.nonInsuredTotal.toFixed(2)}</div>
           </div>
           <div className="flex items-center justify-between">
             <div className="text-slate-600">Your Share (Deductible/Coinsurance) <span className="text-xs text-slate-500">(Your share of paid claims)</span></div>
-            <div className="font-semibold">${overall.userSharePaidInsured.toFixed(2)}</div>
+            <div className="font-mono font-semibold">${overall.userSharePaidInsured.toFixed(2)}</div>
           </div>
           <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
             <div className="text-slate-800 font-semibold">Total You Paid</div>
-            <div className="text-2xl font-bold">${overall.definiteTotal.toFixed(2)}</div>
+            <div className="text-xl sm:text-2xl font-bold font-mono">${overall.definiteTotal.toFixed(2)}</div>
           </div>
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-        <div className="text-base font-semibold">Per-Pet Breakdown</div>
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5">
+        <div className="text-sm sm:text-base font-semibold">Per-Pet Breakdown</div>
+        {pets.length === 0 && (
+          <div className="mt-3 text-sm text-slate-600">No pets yet. Add a pet to see per-pet costs.</div>
+        )}
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {pets.map((p) => {
             const s = perPet[p.id] || { claimed: 0, reimbursed: 0, premiums: 0, deductibles: 0, coinsurance: 0, nonInsured: 0 }
             const color = p.species === 'cat' ? '#F97316' : p.species === 'dog' ? '#3B82F6' : '#6B7280'
@@ -274,23 +277,23 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
             const hasActivity = ((s.nonInsured || 0) + s.deductibles + s.coinsurance + s.reimbursed + s.claimed) > 0
             return (
               <div key={p.id} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-                <div className="flex items-center gap-2 text-slate-800 dark:text-slate-100">
+                <div className="flex items-center gap-2 text-slate-800 dark:text-slate-100 min-w-0">
                   <span>{icon}</span>
-                  <span className="font-semibold">{p.name} ({p.species})</span>
+                  <span className="font-semibold truncate" title={`${p.name} (${p.species})`}>{p.name} ({p.species})</span>
                 </div>
                 <div className="mt-3 text-sm">
                   <div className="flex items-center justify-between">
                     <div className="text-slate-600">Your Out-of-Pocket Cost</div>
-                    <div className="font-semibold">${outOfPocket.toFixed(2)}</div>
+                    <div className="font-mono font-semibold">${outOfPocket.toFixed(2)}</div>
                   </div>
                   {!hasActivity ? (
                     <div className="mt-2 text-xs text-slate-500">(No claims this year)</div>
                   ) : (
                     <div className="mt-3 space-y-1">
-                      <div className="flex items-center justify-between"><span className="text-slate-600">Premiums (attributed)</span><span className="font-semibold">${s.premiums.toFixed(2)}</span></div>
-                      <div className="flex items-center justify-between"><span className="text-slate-600">Non-Insured Visits</span><span className="font-semibold">${(s.nonInsured || 0).toFixed(2)}</span></div>
-                      <div className="flex items-center justify-between"><span className="text-slate-600">Your Share (Deductible/Coinsurance)</span><span className="font-semibold">${(s.deductibles + s.coinsurance).toFixed(2)}</span></div>
-                      <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between"><span className="text-slate-600">Insurance Helped</span><span className="font-semibold">${s.reimbursed.toFixed(2)}</span></div>
+                      <div className="flex items-center justify-between"><span className="text-slate-600">Premiums (attributed)</span><span className="font-mono font-semibold">${s.premiums.toFixed(2)}</span></div>
+                      <div className="flex items-center justify-between"><span className="text-slate-600">Non-Insured Visits</span><span className="font-mono font-semibold">${(s.nonInsured || 0).toFixed(2)}</span></div>
+                      <div className="flex items-center justify-between"><span className="text-slate-600">Your Share (Deductible/Coinsurance)</span><span className="font-mono font-semibold">${(s.deductibles + s.coinsurance).toFixed(2)}</span></div>
+                      <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between"><span className="text-slate-600">Insurance Helped</span><span className="font-mono font-semibold">${s.reimbursed.toFixed(2)}</span></div>
                     </div>
                   )}
                 </div>
