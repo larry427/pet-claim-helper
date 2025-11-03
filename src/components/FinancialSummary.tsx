@@ -150,7 +150,8 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
 
   const perPet = useMemo(() => {
     const viewYear = new Date().getFullYear()
-    const byPet: Record<string, { claimed: number; reimbursed: number; premiums: number; deductibles: number; coinsurance: number }> = {}
+    const today = new Date()
+    const byPet: Record<string, { claimed: number; reimbursed: number; premiums: number; deductibles: number; coinsurance: number; nonInsured?: number }> = {}
     // Prime with premiums per pet
     for (const p of pets) {
       byPet[p.id] = {
@@ -178,7 +179,6 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
 
     for (const c of sorted) {
       const category = String(c.expense_category || '').toLowerCase()
-      if (category !== 'insured') continue
       const pid = c.pet_id || ''
       if (!byPet[pid]) continue
       const bill = Number(c.total_amount) || 0
@@ -186,11 +186,14 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
       const svcDate = c.service_date ? parseYmdLocal(c.service_date) : null
       if (!svcDate || isNaN(svcDate.getTime())) continue
       if (svcDate.getFullYear() !== viewYear) continue
+      if (category !== 'insured') {
+        if (svcDate <= today) byPet[pid].nonInsured = (byPet[pid].nonInsured || 0) + bill
+        continue
+      }
       const status = String(c.filing_status || '').toLowerCase()
       if (status !== 'paid') continue
 
       const deductibleApplied = Math.max(0, Number(c.deductible_applied) || 0)
-      const remainingAfterDeductible = Math.max(0, bill - deductibleApplied)
       const allowedReimb = Math.max(0, Number(c.reimbursed_amount) || 0)
       const userCoins = Math.max(0, bill - deductibleApplied - allowedReimb)
 
@@ -264,37 +267,32 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
         <div className="text-base font-semibold">Per-Pet Breakdown</div>
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {pets.map((p) => {
-            const s = perPet[p.id] || { claimed: 0, reimbursed: 0, premiums: 0, deductibles: 0, coinsurance: 0 }
-            const effective = (s.premiums + s.deductibles + s.coinsurance)
+            const s = perPet[p.id] || { claimed: 0, reimbursed: 0, premiums: 0, deductibles: 0, coinsurance: 0, nonInsured: 0 }
             const color = p.species === 'cat' ? '#F97316' : p.species === 'dog' ? '#3B82F6' : '#6B7280'
             const icon = p.species === 'cat' ? '🐱' : p.species === 'dog' ? '🐶' : '🐾'
+            const outOfPocket = s.premiums + (s.nonInsured || 0) + (s.deductibles + s.coinsurance)
+            const hasActivity = ((s.nonInsured || 0) + s.deductibles + s.coinsurance + s.reimbursed + s.claimed) > 0
             return (
               <div key={p.id} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
                 <div className="flex items-center gap-2 text-slate-800 dark:text-slate-100">
                   <span>{icon}</span>
                   <span className="font-semibold">{p.name} ({p.species})</span>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <div className="text-slate-500">Total Claimed</div>
-                    <div className="font-semibold">${s.claimed.toFixed(2)}</div>
+                <div className="mt-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="text-slate-600">Your Out-of-Pocket Cost</div>
+                    <div className="font-semibold">${outOfPocket.toFixed(2)}</div>
                   </div>
-                  <div>
-                    <div className="text-slate-500">Total Reimbursed</div>
-                    <div className="font-semibold">${s.reimbursed.toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <div className="text-slate-500">Premiums YTD</div>
-                    <div className="font-semibold">${s.premiums.toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <div className="text-slate-500">Deductibles</div>
-                    <div className="font-semibold">${s.deductibles.toFixed(2)}</div>
-                  </div>
-                </div>
-                <div className="mt-3 rounded-lg border border-slate-200 dark:border-slate-800 p-3 text-sm">
-                  <div className="text-slate-500">Effective Cost</div>
-                  <div className="font-semibold">${effective.toFixed(2)}</div>
+                  {!hasActivity ? (
+                    <div className="mt-2 text-xs text-slate-500">(No claims this year)</div>
+                  ) : (
+                    <div className="mt-3 space-y-1">
+                      <div className="flex items-center justify-between"><span className="text-slate-600">Premiums (attributed)</span><span className="font-semibold">${s.premiums.toFixed(2)}</span></div>
+                      <div className="flex items-center justify-between"><span className="text-slate-600">Non-Insured Visits</span><span className="font-semibold">${(s.nonInsured || 0).toFixed(2)}</span></div>
+                      <div className="flex items-center justify-between"><span className="text-slate-600">Your Share (Deductible/Coinsurance)</span><span className="font-semibold">${(s.deductibles + s.coinsurance).toFixed(2)}</span></div>
+                      <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between"><span className="text-slate-600">Insurance Helped</span><span className="font-semibold">${s.reimbursed.toFixed(2)}</span></div>
+                    </div>
+                  )}
                 </div>
               </div>
             )
