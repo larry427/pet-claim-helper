@@ -14,6 +14,7 @@
         "openai": "^4.20.0",
         "pdf-parse": "^1.1.1",
         "pdfjs-dist": "^4.0.0",
-        "resend": "^3.0.0"
+        "resend": "^3.0.0",
+        "twilio": "^5.10.4"
     }
 }

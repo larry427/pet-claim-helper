@@ -34,6 +34,11 @@ router.post('/send', async (req, res) => {
     }
 
     const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+    // eslint-disable-next-line no-console
+    console.log('[medication-reminders] Twilio ready:', {
+      sidPrefix: String(process.env.TWILIO_ACCOUNT_SID).slice(0, 6),
+      from: process.env.TWILIO_PHONE_NUMBER,
+    })
     // Initialize Supabase service client now (env is ready at request time)
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
     const windowMinutes = 15
@@ -46,12 +51,15 @@ router.post('/send', async (req, res) => {
       .from('medications')
       .select('id, user_id, pet_id, medication_name, dosage, frequency, reminder_times, start_date, end_date')
       .lte('start_date', todayStr)
-      .or(`end_date.is.null,end_date.gte.${todayStr}`)
 
     if (medsErr) throw medsErr
+    // eslint-disable-next-line no-console
+    console.log('[medication-reminders] Raw meds fetched:', meds?.length || 0, 'error:', medsErr)
 
     const due = []
     for (const m of meds || []) {
+      // Filter out medications that have already ended (end_date < today)
+      if (m.end_date && String(m.end_date) < todayStr) continue
       const schedule = Array.isArray(m.reminder_times) && m.reminder_times.length > 0
         ? m.reminder_times
         : (m.frequency === '1x daily' ? ['07:00'] : m.frequency === '2x daily' ? ['07:00','19:00'] : ['08:00','14:00','20:00'])
@@ -81,6 +89,8 @@ router.post('/send', async (req, res) => {
       if (match) due.push({ med: m, match })
     }
 
+    // eslint-disable-next-line no-console
+    console.log(`[medication-reminders] Found ${due.length} medications due for reminders`)
     if (due.length === 0) {
       return res.json({ ok: true, sent: 0, evaluated: meds?.length || 0 })
     }
@@ -113,13 +123,24 @@ router.post('/send', async (req, res) => {
         } catch {}
         const dosageSuffix = med.dosage ? ` (${med.dosage})` : ''
         const messageText = `Time for ${petName}'s ${med.medication_name}${dosageSuffix}. Mark given in Pet Claim Helper.`
+        // Ensure phone is in +1 E.164 format for US numbers
+        let phoneToSend = userPhone
+        if (typeof phoneToSend === 'string' && !phoneToSend.startsWith('+')) {
+          phoneToSend = '+1' + phoneToSend.replace(/\D/g, '')
+        }
+        // eslint-disable-next-line no-console
+        console.log(`[medication-reminders] Processing ${med.medication_name} for ${userPhone}`)
         try {
           await twilioClient.messages.create({
-            to: userPhone,
+            to: phoneToSend,
             from: process.env.TWILIO_PHONE_NUMBER,
             body: messageText,
           })
+          // eslint-disable-next-line no-console
+          console.log(`[medication-reminders] SMS sent successfully to ${userPhone}`)
         } catch (smsErr) {
+          // eslint-disable-next-line no-console
+          console.error('[medication-reminders] Twilio error details:', smsErr && (smsErr.stack || smsErr))
           throw new Error(`Twilio SMS error: ${smsErr?.message || smsErr}`)
         }
 
