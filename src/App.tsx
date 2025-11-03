@@ -1940,11 +1940,21 @@ export default function App() {
                         const statusLower = String(c.filing_status || '').toLowerCase()
                         const shouldShow = Boolean(c.filed_date) && (statusLower === 'filed' || statusLower === 'paid')
                         if (!shouldShow) return null
+                        const label = (() => {
+                          const ymd = String(c.filed_date || '')
+                          const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+                          if (m) {
+                            const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+                            return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                          }
+                          const d = c.filed_date ? new Date(c.filed_date as any) : null
+                          return d ? d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'
+                        })()
                         return (
                           <div className="col-span-2 mt-1 text-[11px] text-slate-700 dark:text-slate-300 flex items-center gap-1">
                             <span>📤</span>
                             <span>
-                              Submitted: {new Date(c.filed_date as any).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                              Submitted: {label}
                             </span>
                           </div>
                         )
