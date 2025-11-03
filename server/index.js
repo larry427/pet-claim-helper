@@ -12,6 +12,7 @@ import multer from 'multer'
 import OpenAI from 'openai'
 import * as pdfjsLib from 'pdfjs-dist'
 import medicationRemindersRouter from './routes/medication-reminders.js'
+import schedule from 'node-schedule'
 
 // Validate required env vars
 const required = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'RESEND_API_KEY']
@@ -281,6 +282,29 @@ if (error) {
   })
   
   const port = process.env.PORT || 8787
+  // Cron: medication reminders every minute
+  try {
+    schedule.scheduleJob('* * * * *', async () => {
+      // eslint-disable-next-line no-console
+      console.log('[Cron] Medication reminders check at', new Date())
+      try {
+        const response = await fetch(`http://localhost:${port}/api/medication-reminders/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        })
+        if (!response.ok) {
+          // eslint-disable-next-line no-console
+          console.error('[Cron] Error:', response.status)
+        }
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('[Cron] Failed:', error?.message || error)
+      }
+    })
+  } catch (cronErr) {
+    // eslint-disable-next-line no-console
+    console.error('[Cron] schedule init failed:', cronErr)
+  }
   // ADD THIS ENDPOINT TO YOUR server/index.js
 // This relay endpoint receives form submissions and forwards them to GHL
 // Solves CORS issues by doing the request server-to-server instead of browser-to-GHL
