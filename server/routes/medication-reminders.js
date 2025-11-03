@@ -1,13 +1,12 @@
 import { Router } from 'express'
 import { createClient } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import twilio from 'twilio'
 
 const router = Router()
 
 // Supabase client will be initialized inside the route to ensure env is ready
 
 const APP_URL = process.env.APP_URL || 'https://app.petclaimhelper.com'
-const MAIL_FROM = process.env.MAIL_FROM || 'Pet Claim Helper <noreply@petclaimhelper.com>'
 
 function isWithinWindow(now, candidate, windowMs) {
   const t = candidate.getTime()
@@ -24,16 +23,17 @@ router.post('/send', async (req, res) => {
   try {
     // Debug logging for env
     // eslint-disable-next-line no-console
-    console.log('[medication-reminders] send invoked', {
-      hasResendKey: Boolean(process.env.RESEND_API_KEY),
-      keyPreview: process.env.RESEND_API_KEY ? process.env.RESEND_API_KEY.slice(0, 6) : null,
+    console.log('[medication-reminders] send invoked (SMS mode)', {
+      hasTwilioSid: Boolean(process.env.TWILIO_ACCOUNT_SID),
+      hasTwilioToken: Boolean(process.env.TWILIO_AUTH_TOKEN),
+      hasFromNumber: Boolean(process.env.TWILIO_PHONE_NUMBER),
     })
 
-    if (!process.env.RESEND_API_KEY) {
-      return res.status(500).json({ ok: false, error: 'RESEND_API_KEY not configured' })
+    if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_PHONE_NUMBER) {
+      return res.status(500).json({ ok: false, error: 'Twilio environment variables not configured' })
     }
 
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
     // Initialize Supabase service client now (env is ready at request time)
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
     const windowMinutes = 15
@@ -89,21 +89,17 @@ router.post('/send', async (req, res) => {
     const failures = []
     for (const { med, match } of due) {
       try {
-        // Fetch user email (profiles), fallback to auth.user
-        let userEmail = null
+        // Fetch user phone (profiles)
+        let userPhone = null
         try {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('email')
+            .select('phone')
             .eq('id', med.user_id)
             .single()
-          userEmail = profile?.email || null
+          userPhone = profile?.phone || null
         } catch {}
-        if (!userEmail) {
-          const { data: authUser } = await supabase.auth.admin.getUserById(med.user_id)
-          userEmail = authUser?.user?.email || null
-        }
-        if (!userEmail) throw new Error('Missing user email')
+        if (!userPhone) throw new Error('Missing user phone')
 
         // Pet name
         let petName = 'Your pet'
@@ -115,35 +111,17 @@ router.post('/send', async (req, res) => {
             .single()
           if (pet?.name) petName = pet.name
         } catch {}
-
-        // Progress
-        const { count: givenCount = 0 } = await supabase
-          .from('medication_doses')
-          .select('*', { count: 'exact', head: true })
-          .eq('medication_id', med.id)
-          .eq('status', 'given')
-
-        const start = new Date(med.start_date)
-        const end = med.end_date ? new Date(med.end_date) : null
-        const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate())
-        const endDay = end ? new Date(end.getFullYear(), end.getMonth(), end.getDate()) : null
-        const days = endDay ? Math.max(1, Math.round((endDay.getTime() - startDay.getTime()) / (1000*60*60*24)) + 1) : 1
-        const tpd = (Array.isArray(med.reminder_times) && med.reminder_times.length > 0) ? med.reminder_times.length : (med.frequency === '1x daily' ? 1 : med.frequency === '2x daily' ? 2 : 3)
-        const total = days * tpd
-
-        const subject = `Time to give ${petName} their ${med.medication_name}`
-        const trackUrl = `${APP_URL}/?medicationId=${med.id}#medications`
-        const html = `
-  <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding:16px;">
-    <h2 style="margin:0 0 8px;">⏰ Time to give ${petName} their ${med.medication_name}</h2>
-    <p style="color:#334155;margin:4px 0;">Dosage: <strong>${med.dosage || '—'}</strong></p>
-    <p style="color:#334155;margin:4px 0;">Progress: <strong>${givenCount}/${total} doses</strong></p>
-    <p style="color:#334155;margin:12px 0;">Scheduled time: <strong>${match.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</strong></p>
-    <a href="${trackUrl}" style="display:inline-block;margin-top:16px;background:#059669;color:white;padding:12px 16px;border-radius:10px;text-decoration:none;">TRACK DOSE</a>
-  </div>`
-
-        const { error: emailErr } = await resend.emails.send({ from: MAIL_FROM, to: [userEmail], subject, html })
-        if (emailErr) throw emailErr
+        const dosageSuffix = med.dosage ? ` (${med.dosage})` : ''
+        const messageText = `Time for ${petName}'s ${med.medication_name}${dosageSuffix}. Mark given in Pet Claim Helper.`
+        try {
+          await twilioClient.messages.create({
+            to: userPhone,
+            from: process.env.TWILIO_PHONE_NUMBER,
+            body: messageText,
+          })
+        } catch (smsErr) {
+          throw new Error(`Twilio SMS error: ${smsErr?.message || smsErr}`)
+        }
 
         // Log
         try {
@@ -161,7 +139,7 @@ router.post('/send', async (req, res) => {
         sent++
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.error('[medication-reminders] send error', err)
+        console.error('[medication-reminders] SMS send error', err)
         failures.push(String(err?.message || err))
       }
     }
