@@ -25,7 +25,7 @@ type PetRow = {
   annual_coverage_limit?: number | null
 }
 
-export default function FinancialSummary({ userId }: { userId: string | null }) {
+export default function FinancialSummary({ userId, refreshToken }: { userId: string | null; refreshToken?: number }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [claims, setClaims] = useState<ClaimRow[]>([])
@@ -57,7 +57,7 @@ export default function FinancialSummary({ userId }: { userId: string | null }) 
       })
       .catch((e: any) => setError(e?.message || 'Failed to load financial data'))
       .finally(() => setLoading(false))
-  }, [userId])
+  }, [userId, refreshToken])
 
   const petById = useMemo(() => {
     const m: Record<string, PetRow> = {}

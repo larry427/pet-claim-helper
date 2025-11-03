@@ -73,6 +73,7 @@ export default function App() {
   const petsSectionRef = useRef<HTMLDivElement | null>(null)
   const claimsSectionRef = useRef<HTMLDivElement | null>(null)
   const [claims, setClaims] = useState<any[]>([])
+  const [dataRefreshToken, setDataRefreshToken] = useState(0)
   const [showClaims, setShowClaims] = useState(false)
   const [claimsSort, setClaimsSort] = useState<'urgent' | 'date_newest' | 'date_oldest' | 'amount_high' | 'amount_low' | 'pet' | 'status'>('urgent')
   const [finPeriod, setFinPeriod] = useState<'all' | '2025' | '2024' | 'last12'>('all')
@@ -192,6 +193,13 @@ export default function App() {
     return () => { sub.subscription.unsubscribe() }
   }, [])
 
+  // Auto-select pet when there is exactly one
+  useEffect(() => {
+    if (pets && pets.length === 1) {
+      setSelectedPetId((prev) => prev || pets[0].id)
+    }
+  }, [pets])
+
   // Persist financial period filter
   useEffect(() => {
     try {
@@ -203,6 +211,11 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem('pch.finPeriod', finPeriod) } catch {}
   }, [finPeriod])
+
+  // Bump a refresh token when core datasets change so child summaries can refetch
+  useEffect(() => {
+    setDataRefreshToken((t) => t + 1)
+  }, [claims, pets, finPeriod])
 
   useEffect(() => {
     if (!editingClaim) return
@@ -1852,7 +1865,7 @@ export default function App() {
         {/* Financial Summary (new component) */}
         {authView === 'app' && (
           <section className="mx-auto mt-10 max-w-5xl">
-            <FinancialSummary userId={userId} />
+            <FinancialSummary userId={userId} refreshToken={dataRefreshToken} />
           </section>
         )}
 
