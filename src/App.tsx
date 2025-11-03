@@ -644,10 +644,11 @@ export default function App() {
     
     // Deadline urgency for not submitted
     if (rem === null) return { text: 'No date', cls: 'bg-slate-100 text-slate-600' }
-    if (rem >= 15) return { text: '✅ Plenty of time', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' }
-    if (rem >= 7) return { text: `⚠️ Due soon - ${rem} days`, cls: 'bg-yellow-100 text-yellow-800 border border-yellow-300 font-semibold' }
-    if (rem >= 1) return { text: `🚨 ${rem} days left!`, cls: 'bg-red-100 text-red-800 border border-red-300 font-bold animate-pulse' }
-    return { text: '❌ Deadline passed', cls: 'bg-slate-200 text-slate-700 font-medium' }
+    if (rem < 0) return { text: '❌ DEADLINE PASSED - Submit now!', cls: 'bg-red-100 text-red-800 border border-red-300 font-bold' }
+    if (rem < 5) return { text: `🔴 URGENT - ${rem} days`, cls: 'bg-red-100 text-red-800 border border-red-300 font-bold animate-pulse' }
+    if (rem <= 14) return { text: `⚠️ Due soon - ${rem} days`, cls: 'bg-orange-100 text-orange-800 border border-orange-300 font-semibold' }
+    if (rem <= 29) return { text: `⏰ Due soon - ${rem} days`, cls: 'bg-yellow-100 text-yellow-800 border border-yellow-300 font-semibold' }
+    return { text: `✅ Plenty of time - ${rem} days`, cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' }
   }
   const fmtMoney = (n: number | null | undefined): string => {
     const val = typeof n === 'number' && Number.isFinite(n) ? n : 0
@@ -1964,7 +1965,6 @@ export default function App() {
                             <div className="text-slate-500">Info</div>
                             <div className="font-medium whitespace-nowrap overflow-hidden">💰 Self-paid claim</div>
                           </div>
-                          <div className="text-right text-slate-400">No deadline tracking</div>
                         </>
                       )}
                     </div>
