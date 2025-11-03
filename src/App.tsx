@@ -75,7 +75,7 @@ export default function App() {
   const [claims, setClaims] = useState<any[]>([])
   const [dataRefreshToken, setDataRefreshToken] = useState(0)
   const [showClaims, setShowClaims] = useState(false)
-  const [claimsSort, setClaimsSort] = useState<'urgent' | 'date_newest' | 'date_oldest' | 'amount_high' | 'amount_low' | 'pet' | 'status'>('urgent')
+  
   const [finPeriod, setFinPeriod] = useState<'all' | '2025' | '2024' | 'last12'>('all')
   const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications'>('app')
   const [editingClaim, setEditingClaim] = useState<any | null>(null)
@@ -653,50 +653,15 @@ export default function App() {
     const val = typeof n === 'number' && Number.isFinite(n) ? n : 0
     return `$${val.toFixed(2)}`
   }
-  const sortedClaims = useMemo(() => {
+  const orderedClaims = useMemo(() => {
     const arr = [...claims]
-    const key = claimsSort
-    const urgentScore = (c: any) => {
-      const st = (c.filing_status || 'not_submitted').toLowerCase()
-      const rem = getDaysRemaining(c)
-      if (st !== 'not_submitted' && st !== 'not_filed') return 9999 // non-urgent if already submitted
-      return rem === null ? 9998 : rem // smaller rem => more urgent
-    }
     arr.sort((a, b) => {
-      switch (key) {
-        case 'date_newest': {
-          const da = getServiceDate(a)?.getTime() || 0
-          const db = getServiceDate(b)?.getTime() || 0
-          return db - da
-        }
-        case 'date_oldest': {
-          const da = getServiceDate(a)?.getTime() || 0
-          const db = getServiceDate(b)?.getTime() || 0
-          return da - db
-        }
-        case 'amount_high': {
-          const aa = a.total_amount || 0
-          const ab = b.total_amount || 0
-          return (ab as number) - (aa as number)
-        }
-        case 'amount_low': {
-          const aa = a.total_amount || 0
-          const ab = b.total_amount || 0
-          return (aa as number) - (ab as number)
-        }
-        case 'pet': {
-          return (a.pets?.name || '').localeCompare(b.pets?.name || '')
-        }
-        case 'status': {
-          return (a.filing_status || '').localeCompare(b.filing_status || '')
-        }
-        case 'urgent':
-        default:
-          return urgentScore(a) - urgentScore(b)
-      }
+      const da = getServiceDate(a)?.getTime() || 0
+      const db = getServiceDate(b)?.getTime() || 0
+      return db - da
     })
     return arr
-  }, [claims, claimsSort])
+  }, [claims])
 
   const claimsSummary = useMemo(() => {
     const total = claims.length
@@ -1874,20 +1839,6 @@ export default function App() {
           <section className="mx-auto mt-10 max-w-5xl">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">Claims History</h2>
-              <div className="flex items-center gap-3">
-                <div className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
-                  <span className="text-slate-500 mr-2">Sort</span>
-                  <select value={claimsSort} onChange={(e) => setClaimsSort(e.target.value as any)} className="bg-transparent outline-none">
-                    <option value="urgent">Urgency</option>
-                    <option value="date_newest">Date (newest)</option>
-                    <option value="date_oldest">Date (oldest)</option>
-                    <option value="amount_high">Amount (high→low)</option>
-                    <option value="amount_low">Amount (low→high)</option>
-                    <option value="pet">Pet</option>
-                    <option value="status">Status</option>
-                  </select>
-                </div>
-              </div>
             </div>
 
             {/* Summary */}
@@ -1912,7 +1863,7 @@ export default function App() {
 
             {/* Claims list */}
             <div ref={claimsSectionRef} className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full overflow-x-hidden" style={{ overscrollBehaviorX: 'none' }}>
-              {sortedClaims.map((c) => {
+              {orderedClaims.map((c) => {
                 const pet = c.pets || {}
                 const petColor = pet?.color || (pet?.species === 'cat' ? '#F97316' : pet?.species === 'dog' ? '#3B82F6' : '#6B7280')
                 const rem = getDaysRemaining(c)
@@ -2128,7 +2079,7 @@ export default function App() {
               })}
             </div>
 
-            {sortedClaims.length === 0 && (
+            {orderedClaims.length === 0 && (
               <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-800 p-6 text-center text-sm text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900">
                 No claims yet. Process your first vet bill to get started!
               </div>
