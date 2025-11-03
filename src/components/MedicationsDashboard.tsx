@@ -224,10 +224,42 @@ export default function MedicationsDashboard({ userId, pets }: { userId: string 
                   return (
                     <div
                       key={m.id}
-                      className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm cursor-pointer hover:shadow-md"
+                      className="relative rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm cursor-pointer hover:shadow-md"
                       onClick={() => setSelectedMedicationId(m.id)}
                     >
-                      <div className="text-lg font-semibold">{m.medication_name}</div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="text-lg font-semibold">{m.medication_name}</div>
+                      </div>
+                      <button
+                        type="button"
+                        className="absolute top-2 right-2 text-xs text-red-600 hover:text-red-700 cursor-pointer"
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          if (!confirm(`Are you sure you want to delete ${m.medication_name}?`)) return
+                          try {
+                            // Prefer API route if available
+                            let ok = false
+                            try {
+                              const resp = await fetch(`/api/medications/${m.id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } })
+                              ok = resp.ok
+                            } catch {}
+                            if (!ok) {
+                              // Fallback to direct Supabase delete
+                              const { error: delErr } = await supabase.from('medications').delete().eq('id', m.id).eq('user_id', userId)
+                              if (delErr) throw delErr
+                            }
+                            setMedications(prev => prev.filter(x => x.id !== m.id))
+                            try { alert('Medication deleted successfully') } catch {}
+                          } catch (err) {
+                            console.error('[medications] delete error', err)
+                            try { alert('Failed to delete medication') } catch {}
+                          }
+                        }}
+                        title="Delete medication"
+                        aria-label="Delete medication"
+                      >
+                        Delete
+                      </button>
                       {m.dosage && <div className="text-sm text-slate-600 mt-0.5">{m.dosage}</div>}
                       <div className="mt-3 space-y-1.5 text-sm">
                         <div><span className="text-slate-500">Progress:</span> {`${stats.given}/${stats.totalDoses} doses (${stats.pct}%)`}</div>

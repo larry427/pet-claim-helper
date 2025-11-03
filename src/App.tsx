@@ -2137,7 +2137,7 @@ export default function App() {
               </div>
               <div>
                 <label className="block text-xs text-slate-500">Service Date</label>
-                <input className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2" value={editServiceDate} onChange={(e) => setEditServiceDate(e.target.value)} />
+                <input type="date" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2" value={editServiceDate} onChange={(e) => setEditServiceDate(e.target.value)} />
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-xs text-slate-500">Visit Title</label>
