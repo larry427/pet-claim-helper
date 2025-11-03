@@ -1980,68 +1980,129 @@ export default function App() {
                     </div>
 
                     <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-start sm:items-center justify-between gap-2">
-                      {isNotInsured ? (
-                        <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600">⭕ Not insured - No filing required</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
-                          onClick={async () => {
-                              try {
-                                const today = new Date().toISOString().slice(0,10)
-                                const input = prompt('Enter filed date (YYYY-MM-DD):', today) || today
-                                const filedDate = input
-                              await updateClaim(c.id, { filing_status: 'filed', filed_date: filedDate })
-                              // Immediately reflect in local state for snappy UI
-                              setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: 'filed', filed_date: filedDate } : cl))
-                              // Brief success feedback and delay to avoid jarring reorder
-                              try { alert('✓ Claim marked as submitted') } catch {}
-                              await new Promise((r) => setTimeout(r, 700))
-                              if (userId) {
-                                const updated = await listClaims(userId)
-                                setClaims(updated)
-                              }
-                              } catch (e) { console.error('[mark filed] error', e) }
-                            }}
-                          >
-                          Mark as Submitted
-                          </button>
-                        <select
-                            className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-                          value={(() => {
-                            const st = String(c.filing_status || 'not_submitted').toLowerCase()
-                            if (st === 'filed') return 'submitted'
-                            if (st === 'not_filed') return 'not_submitted'
-                            return st
-                          })()}
-                          onChange={async (e) => {
-                              try {
-                                const next = e.target.value
-                              if (next === 'paid') {
-                                  setPaidModalClaim(c)
-                                  const preset = (c.total_amount && Number.isFinite(Number(c.total_amount))) ? String(Number(c.total_amount).toFixed(2)) : ''
-                                  setPaidAmount(preset)
-                                  setPaidDate(new Date().toISOString().split('T')[0])
-                                } else {
-                                await updateClaim(c.id, { filing_status: next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next) })
-                                  // Optional feedback and brief delay before refreshing to avoid instant jump
-                                  try { alert('✓ Status updated') } catch {}
-                                  await new Promise((r) => setTimeout(r, 600))
-                                  if (userId) listClaims(userId).then(setClaims)
-                                }
-                              } catch (er) { console.error('[edit status] error', er) }
-                            }}
-                          >
-                          <option value="not_submitted">Not Submitted</option>
-                          <option value="submitted">Submitted</option>
-                            <option value="paid">Paid</option>
-                            <option value="denied">Denied</option>
-                          </select>
-                        </div>
-                      )}
+                      {(() => {
+                        const stRaw = String(c.filing_status || 'not_submitted').toLowerCase()
+                        const st = stRaw === 'filed' ? 'submitted' : stRaw
+                        if (isNotInsured) {
+                          return (
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600">⭕ Not insured - No filing required</span>
+                            </div>
+                          )
+                        }
+                        if (st === 'not_submitted') {
+                          return (
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                className="text-xs px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white"
+                                onClick={async () => {
+                                  try {
+                                    const today = new Date().toISOString().slice(0,10)
+                                    const input = prompt('Enter filed date (YYYY-MM-DD):', today) || today
+                                    const filedDate = input
+                                    await updateClaim(c.id, { filing_status: 'filed', filed_date: filedDate })
+                                    setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: 'filed', filed_date: filedDate } : cl))
+                                    try { alert('✓ Claim marked as submitted') } catch {}
+                                    await new Promise((r) => setTimeout(r, 500))
+                                    if (userId) {
+                                      const updated = await listClaims(userId)
+                                      setClaims(updated)
+                                    }
+                                  } catch (e) { console.error('[mark filed] error', e) }
+                                }}
+                              >
+                                Mark as Submitted
+                              </button>
+                              <div className="flex items-center gap-1 text-xs text-slate-500">
+                                <span>Change Status:</span>
+                                <select
+                                  className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                                  value="not_submitted"
+                                  onChange={async (e) => {
+                                    try {
+                                      const next = e.target.value
+                                      await updateClaim(c.id, { filing_status: next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next) })
+                                      try { alert('✓ Status updated') } catch {}
+                                      await new Promise((r) => setTimeout(r, 400))
+                                      if (userId) listClaims(userId).then(setClaims)
+                                    } catch (er) { console.error('[edit status] error', er) }
+                                  }}
+                                >
+                                  <option value="not_submitted">Not Submitted</option>
+                                  <option value="submitted">Submitted</option>
+                                  <option value="paid">Paid</option>
+                                  <option value="denied">Denied</option>
+                                </select>
+                              </div>
+                            </div>
+                          )
+                        }
+                        if (st === 'submitted') {
+                          return (
+                            <div className="flex flex-col gap-2">
+                              <div className="text-xs text-slate-600">What happened with this claim?</div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  className="text-xs px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  onClick={() => {
+                                    setPaidModalClaim(c)
+                                    const preset = (c.total_amount && Number.isFinite(Number(c.total_amount))) ? String(Number(c.total_amount).toFixed(2)) : ''
+                                    setPaidAmount(preset)
+                                    setPaidDate(new Date().toISOString().split('T')[0])
+                                  }}
+                                >
+                                  Payment Received? Mark as Paid
+                                </button>
+                                <button
+                                  type="button"
+                                  className="text-xs px-3 py-1.5 rounded border border-rose-200 text-rose-700 hover:bg-rose-50 dark:border-rose-800"
+                                  onClick={async () => {
+                                    try {
+                                      await updateClaim(c.id, { filing_status: 'denied' })
+                                      setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: 'denied' } : cl))
+                                      try { alert('✓ Claim marked as denied') } catch {}
+                                      if (userId) listClaims(userId).then(setClaims)
+                                    } catch (er) { console.error('[deny claim] error', er) }
+                                  }}
+                                >
+                                  Deny Claim
+                                </button>
+                                <div className="flex items-center gap-1 text-xs text-slate-500">
+                                  <span>Change Status:</span>
+                                  <select
+                                    className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                                    value="submitted"
+                                    onChange={async (e) => {
+                                      try {
+                                        const next = e.target.value
+                                        if (next === 'paid') {
+                                          setPaidModalClaim(c)
+                                          const preset = (c.total_amount && Number.isFinite(Number(c.total_amount))) ? String(Number(c.total_amount).toFixed(2)) : ''
+                                          setPaidAmount(preset)
+                                          setPaidDate(new Date().toISOString().split('T')[0])
+                                        } else {
+                                          await updateClaim(c.id, { filing_status: next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next) })
+                                          try { alert('✓ Status updated') } catch {}
+                                          if (userId) listClaims(userId).then(setClaims)
+                                        }
+                                      } catch (er) { console.error('[edit status] error', er) }
+                                    }}
+                                  >
+                                    <option value="submitted">Submitted</option>
+                                    <option value="not_submitted">Not Submitted</option>
+                                    <option value="paid">Paid</option>
+                                    <option value="denied">Denied</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        }
+                        // paid or denied
+                        return null
+                      })()}
                       <div className="flex items-center gap-2 flex-wrap justify-end">
                         {c.pdf_path ? (
                           <a
