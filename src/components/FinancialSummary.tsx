@@ -253,7 +253,7 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
             <div className="font-mono font-semibold">${overall.nonInsuredTotal.toFixed(2)}</div>
           </div>
           <div className="flex items-center justify-between">
-            <div className="text-slate-600">Your Share (Deductible/Coinsurance) <span className="text-xs text-slate-500">(Your share of paid claims)</span></div>
+            <div className="text-slate-600">Amount You Paid (for covered claims)</div>
             <div className="font-mono font-semibold">${overall.userSharePaidInsured.toFixed(2)}</div>
           </div>
           <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
@@ -290,10 +290,13 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
                     <div className="mt-2 text-xs text-slate-500">(No claims this year)</div>
                   ) : (
                     <div className="mt-3 space-y-1">
+                      <div className="text-xs font-semibold text-slate-500">YOUR COSTS</div>
                       <div className="flex items-center justify-between"><span className="text-slate-600">Premiums (attributed)</span><span className="font-mono font-semibold">${s.premiums.toFixed(2)}</span></div>
                       <div className="flex items-center justify-between"><span className="text-slate-600">Non-Insured Visits</span><span className="font-mono font-semibold">${(s.nonInsured || 0).toFixed(2)}</span></div>
-                      <div className="flex items-center justify-between"><span className="text-slate-600">Your Share (Deductible/Coinsurance)</span><span className="font-mono font-semibold">${(s.deductibles + s.coinsurance).toFixed(2)}</span></div>
-                      <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between"><span className="text-slate-600">Insurance Helped</span><span className="font-mono font-semibold">${s.reimbursed.toFixed(2)}</span></div>
+                      <div className="flex items-center justify-between"><span className="text-slate-600">Amount You Paid (for covered claims)</span><span className="font-mono font-semibold">${(s.deductibles + s.coinsurance).toFixed(2)}</span></div>
+                      <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between"><span className="text-slate-700 font-semibold">= Total You Paid</span><span className="font-mono font-bold">${outOfPocket.toFixed(2)}</span></div>
+                      <div className="pt-2 text-xs font-semibold text-slate-500">INSURANCE COVERAGE</div>
+                      <div className="flex items-center justify-between"><span className="text-slate-600">Paid Back</span><span className="font-mono font-semibold">${s.reimbursed.toFixed(2)}</span></div>
                     </div>
                   )}
                 </div>
