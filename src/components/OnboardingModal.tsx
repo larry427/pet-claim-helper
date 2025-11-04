@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { createPet } from '../lib/petStorage'
+import TooltipIcon from './TooltipIcon'
 
 type Props = {
   open: boolean
@@ -148,12 +149,16 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
             <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">Welcome to Pet Claim Helper!</div>
             <div className="mt-4 space-y-3">
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Full Name</label>
-                <input value={fullName} onChange={(e) => setFullName(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" placeholder="Jane Doe" />
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Full Name <TooltipIcon title="Full Name" description="Enter your full name. We use this to send you claim reminders and important updates about your pet's insurance." />
+                </label>
+                <input value={fullName} onChange={(e) => setFullName(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" placeholder="John Smith" />
+                <p className="text-xs text-gray-500 mt-1">Used for claim reminders and updates</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Address <span className="text-xs text-slate-500">(optional)</span></label>
-                <input value={address} onChange={(e) => setAddress(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" placeholder="123 Maple St, City, ST" />
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Address (optional) <TooltipIcon title="Address" description="Your home address helps us track insurance deadlines and send you important reminders. This is optional for now." /></label>
+                <input value={address} onChange={(e) => setAddress(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" placeholder="123 Main St, Portland, OR 97201" />
+                <p className="text-xs text-gray-500 mt-1">Optional - helps with reminders</p>
               </div>
             </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
