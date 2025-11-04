@@ -108,6 +108,11 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
     return s === 'filed' || s === 'submitted' || s === 'approved' || s === 'paid'
   }
 
+  const isNonInsuredCategory = (val: string | null | undefined): boolean => {
+    const v = String(val || '').trim().toLowerCase()
+    return v === 'not_insured' || v === 'not insured'
+  }
+
   const overall = useMemo(() => {
     const viewYear = new Date().getFullYear()
     const today = new Date()
@@ -136,7 +141,7 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
       const amount = Number(c.total_amount) || 0
       const reimb = Math.max(0, Number(c.reimbursed_amount) || 0)
 
-      if (category === 'not_insured') {
+      if (isNonInsuredCategory(category)) {
         nonInsuredTotal += amount
       } else if (category === 'insured' && status === 'paid') {
         insurancePaidBack += reimb
@@ -206,7 +211,7 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
         else if (st === 'submitted' || st === 'paid' || st === 'denied' || st === 'approved') byPet[pid].filedClaims += 1
       }
 
-      if (category === 'not_insured') {
+      if (isNonInsuredCategory(category)) {
         if (svcDate <= today) byPet[pid].nonInsured += bill
       } else {
         // Insured vet bills always count toward claimed amount
