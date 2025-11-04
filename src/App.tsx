@@ -2560,28 +2560,7 @@ export default function App() {
                 >
                   Done
                 </button>
-                <button
-                  type="button"
-                      className="inline-flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-sm w-full h-12 sm:w-auto sm:h-auto"
-                  onClick={async () => {
-                    // Close modal immediately, then navigate/show claims
-                    setSuccessModal(null)
-                    setShowClaims(true)
-                    claimsSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
-                    try {
-                      const claimId = successModal?.claimId || null
-                      if (!userId || !claimId || !extracted || !selectedPet) {
-                        return
-                      }
-                      // Refresh claims list now that PDF is attached
-                      listClaims(userId).then(setClaims).catch(() => {})
-                    } catch (err) {
-                      console.error('[view my claim -> generate pdf] error', err)
-                    }
-                  }}
-                >
-                  View My Claim
-                </button>
+                {/* View My Claim button removed */}
               </div>
             </div>
           </div>
