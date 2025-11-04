@@ -127,7 +127,7 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
     let pendingTotal = 0
 
     for (const c of claims) {
-      const svc = c.service_date ? parseYmdLocal(c.service_date) : null
+      const svc = c.service_date ? (parseYmdLocal(c.service_date) || new Date(c.service_date as any)) : null
       if (!svc || isNaN(svc.getTime())) continue
       if (svc.getFullYear() !== viewYear) continue
       if (svc > today) continue
@@ -136,13 +136,13 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
       const amount = Number(c.total_amount) || 0
       const reimb = Math.max(0, Number(c.reimbursed_amount) || 0)
 
-      if (category !== 'insured') {
+      if (category === 'not_insured') {
         nonInsuredTotal += amount
-      } else if (status === 'paid') {
+      } else if (category === 'insured' && status === 'paid') {
         insurancePaidBack += reimb
         insuredBillsTotal += amount
         userShareCoveredClaims += Math.max(0, amount - reimb)
-      } else {
+      } else if (category === 'insured') {
         // insured but not paid yet - still count as vet bill and user share (reimbursed=0 or current value)
         insuredBillsTotal += amount
         userShareCoveredClaims += Math.max(0, amount - reimb)
@@ -194,7 +194,7 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
       if (!byPet[pid]) continue
       const bill = Number(c.total_amount) || 0
       if (bill <= 0) continue
-      const svcDate = c.service_date ? parseYmdLocal(c.service_date) : null
+      const svcDate = c.service_date ? (parseYmdLocal(c.service_date) || new Date(c.service_date as any)) : null
       if (!svcDate || isNaN(svcDate.getTime())) continue
       if (svcDate.getFullYear() !== viewYear) continue
 
@@ -206,7 +206,7 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
         else if (st === 'submitted' || st === 'paid' || st === 'denied' || st === 'approved') byPet[pid].filedClaims += 1
       }
 
-      if (category !== 'insured') {
+      if (category === 'not_insured') {
         if (svcDate <= today) byPet[pid].nonInsured += bill
       } else {
         // Insured vet bills always count toward claimed amount
