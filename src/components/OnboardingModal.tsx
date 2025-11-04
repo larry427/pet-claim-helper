@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { createPet } from '../lib/petStorage'
-import TooltipIcon from './TooltipIcon'
 
 type Props = {
   open: boolean
@@ -227,12 +226,10 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Monthly Premium (USD)</label>
                 <input type="number" min={0} value={monthlyPremium} onChange={(e) => setMonthlyPremium(e.target.value)} className="mt-2 w-full rounded-md border border-emerald-300 dark:border-emerald-700 bg-white/90 dark:bg-slate-900 px-3 py-3" placeholder="45" />
-                <div className="text-xs text-slate-500 mt-1">We need this to calculate your true insurance ROI.</div>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Deductible per Claim (USD)</label>
                 <input type="number" min={0} value={deductiblePerClaim} onChange={(e) => setDeductiblePerClaim(e.target.value)} className="mt-2 w-full rounded-md border border-emerald-300 dark:border-emerald-700 bg-white/90 dark:bg-slate-900 px-3 py-3" placeholder="250" />
-                <div className="text-xs text-slate-500 mt-1">This affects your actual out-of-pocket costs.</div>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">What percentage does YOUR INSURANCE PAY?</label>
@@ -245,13 +242,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
                   className="mt-2 w-full rounded-md border border-emerald-300 dark:border-emerald-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
                   placeholder="80"
                 />
-                <div className="text-xs text-slate-500 mt-1">After you meet your deductible, your insurance covers this percentage. Common values: 80%, 90%</div>
-                <div className="text-xs text-slate-600 dark:text-slate-300 mt-1">(You pay: {(() => {
-                  const n = Number(insurancePaysPct)
-                  if (!Number.isFinite(n)) return '—'
-                  const you = Math.max(0, Math.min(100, 100 - n))
-                  return `${you}%`
-                })()})</div>
+                
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">What is your annual coverage limit (optional)?</label>
@@ -264,7 +255,6 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
                   className="mt-2 w-full rounded-md border border-emerald-300 dark:border-emerald-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
                   placeholder="e.g., 5000"
                 />
-                <div className="text-xs text-slate-500 mt-1">Maximum amount insurance will cover per year</div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Coverage Start Date</label>
