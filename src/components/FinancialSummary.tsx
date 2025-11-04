@@ -164,7 +164,8 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
       reimbursed: number
       premiums: number
       nonInsured: number
-      claimsCount: number
+      pendingBills: number
+      filedClaims: number
     }> = {}
     // Prime with premiums per pet
     for (const p of pets) {
@@ -173,7 +174,8 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
         reimbursed: 0,
         premiums: (Number(p.monthly_premium) || 0) * monthsYTD(p.coverage_start_date || null),
         nonInsured: 0,
-        claimsCount: 0,
+        pendingBills: 0,
+        filedClaims: 0,
       }
     }
 
@@ -196,8 +198,13 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
       if (!svcDate || isNaN(svcDate.getTime())) continue
       if (svcDate.getFullYear() !== viewYear) continue
 
-      // Count claims per pet (insured and non-insured)
-      byPet[pid].claimsCount += 1
+      // Count bills/claims (insured submission vs not)
+      if (category === 'insured') {
+        const stRaw = String(c.filing_status || 'not_submitted').toLowerCase()
+        const st = stRaw === 'filed' ? 'submitted' : stRaw
+        if (st === 'not_submitted' || st === 'not_filed') byPet[pid].pendingBills += 1
+        else if (st === 'submitted' || st === 'paid' || st === 'denied' || st === 'approved') byPet[pid].filedClaims += 1
+      }
 
       if (category !== 'insured') {
         if (svcDate <= today) byPet[pid].nonInsured += bill
@@ -275,7 +282,7 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
         )}
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {pets.map((p) => {
-            const s = perPet[p.id] || { claimed: 0, reimbursed: 0, premiums: 0, nonInsured: 0, claimsCount: 0 }
+            const s = perPet[p.id] || { claimed: 0, reimbursed: 0, premiums: 0, nonInsured: 0, pendingBills: 0, filedClaims: 0 }
             const color = p.species === 'cat' ? '#F97316' : p.species === 'dog' ? '#3B82F6' : '#6B7280'
             const icon = p.species === 'cat' ? '🐱' : p.species === 'dog' ? '🐶' : '🐾'
             const outOfPocket = s.premiums + (s.nonInsured || 0) + s.claimed - s.reimbursed
@@ -292,7 +299,7 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
                     <div className="font-mono font-semibold">${outOfPocket.toFixed(2)}</div>
                   </div>
                   {!hasActivity ? (
-                    <div className="mt-2 text-xs text-slate-500">(No claims this year)</div>
+                    <div className="mt-2 text-xs text-slate-500">(No bills this year)</div>
                   ) : (
                     <div className="mt-3 space-y-1">
                       <div className="text-xs font-semibold text-slate-500">YOUR COSTS</div>
@@ -301,7 +308,13 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
                       <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between"><span className="text-slate-700 font-semibold">= Total You Paid</span><span className="font-mono font-bold">${outOfPocket.toFixed(2)}</span></div>
                       <div className="pt-2 text-xs font-semibold text-slate-500">INSURANCE COVERAGE</div>
                       <div className="flex items-center justify-between"><span className="text-slate-600">Paid Back</span><span className="font-mono font-semibold">${s.reimbursed.toFixed(2)}</span></div>
-                      <div className="text-xs text-slate-500">({s.claimsCount} claim{s.claimsCount === 1 ? '' : 's'} this year)</div>
+                      <div className="text-xs text-slate-500">
+                        {s.pendingBills > 0
+                          ? `(${s.pendingBills} bill${s.pendingBills === 1 ? '' : 's'} pending submission)`
+                          : (s.filedClaims > 0
+                            ? `(${s.filedClaims} claim${s.filedClaims === 1 ? '' : 's'} filed)`
+                            : '(No bills this year)')}
+                      </div>
                     </div>
                   )}
                 </div>

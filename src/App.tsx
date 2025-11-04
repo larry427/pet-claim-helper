@@ -619,7 +619,7 @@ export default function App() {
     switch (s) {
       case 'filed': // legacy
       case 'submitted':
-        return { text: 'Submitted', cls: 'bg-blue-50 text-blue-700' }
+        return { text: 'Claim - Filed', cls: 'bg-blue-50 text-blue-700' }
       case 'approved':
         return { text: 'Approved', cls: 'bg-emerald-50 text-emerald-700' }
       case 'paid':
@@ -628,7 +628,7 @@ export default function App() {
         return { text: 'Denied', cls: 'bg-rose-50 text-rose-700' }
       case 'not_filed': // legacy
       default:
-        return { text: 'Not Submitted', cls: 'bg-slate-100 text-slate-700' }
+        return { text: 'Bill - Pending Submission', cls: 'bg-yellow-50 text-yellow-700' }
     }
   }
   const deadlineBadge = (c: any): { text: string; cls: string } => {
@@ -637,10 +637,10 @@ export default function App() {
     const st = stRaw === 'filed' ? 'submitted' : stRaw
     
     // Different badges for different statuses
-    if (st === 'submitted') return { text: '📤 Submitted - Pending', cls: 'bg-blue-100 text-blue-800 border border-blue-200' }
-    if (st === 'approved') return { text: '✅ Approved', cls: 'bg-green-100 text-green-800 border border-green-200' }
-    if (st === 'paid') return { text: '💰 Paid', cls: 'bg-green-100 text-green-800 border border-green-200' }
-    if (st === 'denied') return { text: '❌ Denied', cls: 'bg-red-100 text-red-800 border border-red-200' }
+    if (st === 'submitted') return { text: '✓ Deadline met', cls: 'bg-green-100 text-green-800 border border-green-200' }
+    if (st === 'approved') return { text: '✓ Deadline met', cls: 'bg-green-100 text-green-800 border border-green-200' }
+    if (st === 'paid') return { text: '✓ Deadline met', cls: 'bg-green-100 text-green-800 border border-green-200' }
+    if (st === 'denied') return { text: '✓ Deadline met', cls: 'bg-green-100 text-green-800 border border-green-200' }
     
     // Deadline urgency for not submitted
     if (rem === null) return { text: 'No date', cls: 'bg-slate-100 text-slate-600' }
@@ -666,14 +666,15 @@ export default function App() {
 
   const claimsSummary = useMemo(() => {
     const total = claims.length
-    const notFiled = claims.filter(c => (c.filing_status || 'not_filed').toLowerCase() === 'not_filed')
-    const notFiledSum = notFiled.reduce((s, c) => s + (c.total_amount || 0), 0)
-    const filedPending = claims.filter(c => ['filed'].includes((c.filing_status || '').toLowerCase())).length
-    const expiringSoon = notFiled.filter(c => {
+    const insured = claims.filter(c => String(c.expense_category || 'insured').toLowerCase() === 'insured')
+    const notSubmitted = insured.filter(c => ['not_filed','not_submitted'].includes(String(c.filing_status || 'not_submitted').toLowerCase()))
+    const notFiledSum = notSubmitted.reduce((s, c) => s + (Number(c.total_amount) || 0), 0)
+    const filedPending = insured.filter(c => ['filed','submitted'].includes(String(c.filing_status || '').toLowerCase())).length
+    const expiringSoon = notSubmitted.filter(c => {
       const rem = getDaysRemaining(c)
       return rem !== null && rem >= 1 && rem <= 14
     }).length
-    return { total, notFiledCount: notFiled.length, notFiledSum, filedPending, expiringSoon }
+    return { total, notFiledCount: notSubmitted.length, notFiledSum, filedPending, expiringSoon }
   }, [claims])
 
   // Financial aggregates
@@ -832,7 +833,7 @@ export default function App() {
                 onClick={() => claimsSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
                 className="relative inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-3 py-1.5 text-xs hover:shadow"
               >
-                Claims ({claims.length})
+                Bills & Claims ({claims.length})
                 {claimsSummary.expiringSoon > 0 && (
                   <span className="ml-2 inline-block h-2 w-2 rounded-full bg-rose-500" aria-hidden />
                 )}
@@ -906,7 +907,7 @@ export default function App() {
             </div>
             {authView === 'app' && (
               <>
-                <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={() => { setMobileMenuOpen(false); claimsSectionRef.current?.scrollIntoView({ behavior: 'smooth' }) }}>Pet Claims</button>
+                <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={() => { setMobileMenuOpen(false); claimsSectionRef.current?.scrollIntoView({ behavior: 'smooth' }) }}>Vet Bills & Claims</button>
                 <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={() => { setMobileMenuOpen(false); setActiveView('medications') }}>Medications</button>
                 <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={() => { setMobileMenuOpen(false); setActiveView(v => v === 'app' ? 'settings' : 'app') }}>Settings</button>
                 <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={async () => {
@@ -1839,25 +1840,25 @@ export default function App() {
         {authView === 'app' && claims.length > 0 && (
           <section className="mx-auto mt-10 max-w-5xl">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Claims History</h2>
+              <h2 className="text-xl font-semibold">Vet Bills & Claims</h2>
             </div>
 
             {/* Summary */}
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-                <div className="text-xs text-slate-500">Total claims</div>
+                <div className="text-xs text-slate-500">Total bills</div>
                 <div className="text-lg font-semibold">{claimsSummary.total}</div>
               </div>
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-                <div className="text-xs text-slate-500">Not yet filed</div>
+                <div className="text-xs text-slate-500">Bills pending submission</div>
                 <div className="text-lg font-semibold">{claimsSummary.notFiledCount} <span className="text-sm text-slate-500">({fmtMoney(claimsSummary.notFiledSum)})</span></div>
               </div>
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-                <div className="text-xs text-slate-500">Filed / pending</div>
+                <div className="text-xs text-slate-500">Claims filed</div>
                 <div className="text-lg font-semibold">{claimsSummary.filedPending}</div>
               </div>
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-                <div className="text-xs text-slate-500">Expiring soon (&lt; 15 days)</div>
+                <div className="text-xs text-slate-500">Claims expiring soon (&lt; 15 days)</div>
                 <div className="text-lg font-semibold">{claimsSummary.expiringSoon}</div>
               </div>
             </div>
@@ -1954,7 +1955,7 @@ export default function App() {
                           <div className="col-span-2 mt-1 text-[11px] text-slate-700 dark:text-slate-300 flex items-center gap-1">
                             <span>📤</span>
                             <span>
-                              Submitted: {label}
+                              Filed: {label}
                             </span>
                           </div>
                         )
@@ -1962,7 +1963,7 @@ export default function App() {
                       {!isNotInsured ? (
                         <>
                           <div>
-                            <div className="text-slate-500">Deadline</div>
+                          <div className="text-slate-500">Filing Deadline</div>
                             <div className="font-medium whitespace-nowrap overflow-hidden">{deadline ? deadline.toISOString().slice(0,10) : '—'}</div>
                           </div>
                           <div className="text-right">
@@ -1973,7 +1974,7 @@ export default function App() {
                         <>
                           <div>
                             <div className="text-slate-500">Info</div>
-                            <div className="font-medium whitespace-nowrap overflow-hidden">💰 Self-paid claim</div>
+                            <div className="font-medium whitespace-nowrap overflow-hidden">💰 Self-paid vet bill</div>
                           </div>
                         </>
                       )}
@@ -2152,7 +2153,7 @@ export default function App() {
 
             {orderedClaims.length === 0 && (
               <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-800 p-6 text-center text-sm text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900">
-                No claims yet. Process your first vet bill to get started!
+                No vet bills yet. Upload your first bill to get started!
               </div>
             )}
           </section>
