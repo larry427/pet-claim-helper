@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react'
-import { Info } from 'lucide-react'
 
 type Props = {
   title: string
@@ -26,7 +25,7 @@ export default function TooltipIcon({ title, description }: Props) {
         className="inline-flex items-center text-slate-500 hover:opacity-70 cursor-pointer"
         onClick={() => setOpen(true)}
       >
-        <Info size={16} />
+        <span className="text-gray-500 cursor-pointer hover:opacity-70">ℹ️</span>
       </button>
 
       {open && (
