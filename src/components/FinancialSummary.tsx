@@ -119,8 +119,10 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
     let nonInsuredTotal = 0
     // Insurance reimbursed (paid only) up to today (current year)
     let insurancePaidBack = 0
-    // User share for paid insured claims (bill - reimbursed)
-    let userSharePaidInsured = 0
+    // User share for insured claims (bill - reimbursed) regardless of status
+    let userShareCoveredClaims = 0
+    // Total insured bills amount regardless of status
+    let insuredBillsTotal = 0
     // Pending claims (submitted only) totals
     let pendingTotal = 0
 
@@ -138,14 +140,20 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
         nonInsuredTotal += amount
       } else if (status === 'paid') {
         insurancePaidBack += reimb
-        userSharePaidInsured += Math.max(0, amount - reimb)
-      } else if (status === 'submitted') {
+        insuredBillsTotal += amount
+        userShareCoveredClaims += Math.max(0, amount - reimb)
+      } else {
+        // insured but not paid yet - still count as vet bill and user share (reimbursed=0 or current value)
+        insuredBillsTotal += amount
+        userShareCoveredClaims += Math.max(0, amount - reimb)
+      }
+      if (status === 'submitted') {
         pendingTotal += amount
       }
     }
 
-    const definiteTotal = premiumsYTD + nonInsuredTotal + userSharePaidInsured
-    return { premiumsYTD, nonInsuredTotal, insurancePaidBack, userSharePaidInsured, definiteTotal, pendingTotal }
+    const definiteTotal = premiumsYTD + nonInsuredTotal + userShareCoveredClaims
+    return { premiumsYTD, nonInsuredTotal, insurancePaidBack, userShareCoveredClaims, insuredBillsTotal, definiteTotal, pendingTotal }
   }, [claims, pets])
 
   const perPet = useMemo(() => {
@@ -225,7 +233,7 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
               <div className="mt-3 text-sm space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="text-slate-600">Spent on all pets (including premiums)</div>
-                  <div className="text-xl font-bold">${(overall.premiumsYTD + overall.nonInsuredTotal + overall.userSharePaidInsured + overall.insurancePaidBack).toFixed(2)}</div>
+                  <div className="text-xl font-bold">${(overall.premiumsYTD + overall.nonInsuredTotal + overall.insuredBillsTotal).toFixed(2)}</div>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="text-slate-600">- Insurance Reimbursed</div>
@@ -254,7 +262,7 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
           </div>
           <div className="flex items-center justify-between">
             <div className="text-slate-600">Amount You Paid (for covered claims)</div>
-            <div className="font-mono font-semibold">${overall.userSharePaidInsured.toFixed(2)}</div>
+            <div className="font-mono font-semibold">${overall.userShareCoveredClaims.toFixed(2)}</div>
           </div>
           <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
             <div className="text-slate-800 font-semibold">Total You Paid</div>
