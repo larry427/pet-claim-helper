@@ -26,7 +26,7 @@ type PetRow = {
   annual_coverage_limit?: number | null
 }
 
-export default function FinancialSummary({ userId, refreshToken }: { userId: string | null; refreshToken?: number }) {
+export default function FinancialSummary({ userId, refreshToken, period }: { userId: string | null; refreshToken?: number; period?: string }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [claims, setClaims] = useState<ClaimRow[]>([])
@@ -115,7 +115,13 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
   }
 
   const overall = useMemo(() => {
-    const viewYear = new Date().getFullYear()
+    const nowYear = new Date().getFullYear()
+    const viewYear = (() => {
+      const p = String(period || '').toLowerCase()
+      if (p === '2024' || p === '2025') return Number(p)
+      if (p === 'all') return null
+      return nowYear
+    })()
     const today = new Date()
 
     // Premiums paid YTD (current year) from pets
@@ -135,7 +141,7 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
     for (const c of claims) {
       const svc = c.service_date ? (parseYmdLocal(c.service_date) || new Date(c.service_date as any)) : null
       if (!svc || isNaN(svc.getTime())) continue
-      if (svc.getFullYear() !== viewYear) continue
+      if (viewYear !== null && svc.getFullYear() !== viewYear) continue
       if (svc > today) continue
       const category = String(c.expense_category || '').toLowerCase()
       const status = String(c.filing_status || '').toLowerCase()
@@ -160,10 +166,16 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
 
     const definiteTotal = premiumsYTD + nonInsuredTotal + userShareCoveredClaims
     return { premiumsYTD, nonInsuredTotal, insurancePaidBack, userShareCoveredClaims, insuredBillsTotal, definiteTotal, pendingTotal }
-  }, [claims, pets])
+  }, [claims, pets, period])
 
   const perPet = useMemo(() => {
-    const viewYear = new Date().getFullYear()
+    const nowYear = new Date().getFullYear()
+    const viewYear = (() => {
+      const p = String(period || '').toLowerCase()
+      if (p === '2024' || p === '2025') return Number(p)
+      if (p === 'all') return null
+      return nowYear
+    })()
     const today = new Date()
     const byPet: Record<string, {
       claimed: number
@@ -202,7 +214,7 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
       if (bill <= 0) continue
       const svcDate = c.service_date ? (parseYmdLocal(c.service_date) || new Date(c.service_date as any)) : null
       if (!svcDate || isNaN(svcDate.getTime())) continue
-      if (svcDate.getFullYear() !== viewYear) continue
+      if (viewYear !== null && svcDate.getFullYear() !== viewYear) continue
 
       // Count bills/claims (insured submission vs not)
       if (category === 'insured') {
@@ -225,7 +237,7 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
     // eslint-disable-next-line no-console
     console.log('[FinancialSummary] perPet calc (premiums + bills - reimbursed)', byPet)
     return byPet
-  }, [claims, pets, petById])
+  }, [claims, pets, petById, period])
 
   if (!userId) return null
 
@@ -239,7 +251,7 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
           <>
             {/* Year Total (calculation view) */}
             <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-              <div className="text-sm font-semibold">{`📊 ${new Date().getFullYear()} TOTAL`}</div>
+              <div className="text-sm font-semibold">{`📊 ${String(period || '').toLowerCase() === 'all' ? 'ALL TIME' : (String(period || new Date().getFullYear()))} TOTAL`}</div>
               <div className="mt-3 text-sm space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="text-slate-600">Spent on all pets (including premiums)</div>

@@ -1845,7 +1845,7 @@ export default function App() {
         {/* Financial Summary (new component) */}
         {authView === 'app' && (
           <section className="mx-auto mt-10 max-w-5xl">
-            <FinancialSummary userId={userId} refreshToken={dataRefreshToken} />
+            <FinancialSummary userId={userId} refreshToken={dataRefreshToken} period={finPeriod} />
           </section>
         )}
 
