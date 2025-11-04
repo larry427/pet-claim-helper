@@ -9,6 +9,7 @@ type ClaimRow = {
   filing_status: string | null
   expense_category?: string | null
   service_date?: string | null
+  created_at?: string | null
   deductible_applied?: number | null
   user_coinsurance_payment?: number | null
   insurance_reimbursement?: number | null
@@ -38,7 +39,7 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
     Promise.all([
       supabase
         .from('claims')
-        .select('id, pet_id, total_amount, reimbursed_amount, filing_status, expense_category, service_date, deductible_applied, user_coinsurance_payment, insurance_reimbursement')
+        .select('id, pet_id, total_amount, reimbursed_amount, filing_status, expense_category, service_date, created_at, deductible_applied, user_coinsurance_payment, insurance_reimbursement')
         .eq('user_id', userId),
       supabase
         .from('pets')
@@ -132,10 +133,10 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
     let pendingTotal = 0
 
     for (const c of claims) {
-      const svc = c.service_date ? (parseYmdLocal(c.service_date) || new Date(c.service_date as any)) : null
-      if (!svc || isNaN(svc.getTime())) continue
-      if (svc.getFullYear() !== viewYear) continue
-      if (svc > today) continue
+      const created = c.created_at ? new Date(c.created_at as any) : null
+      if (!created || isNaN(created.getTime())) continue
+      if (created.getFullYear() !== viewYear) continue
+      if (created > today) continue
       const category = String(c.expense_category || '').toLowerCase()
       const status = String(c.filing_status || '').toLowerCase()
       const amount = Number(c.total_amount) || 0
@@ -186,10 +187,10 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
 
     // No limit tracking needed for this per-pet summary
 
-    // Process claims sorted by service date
+    // Process claims sorted by created_at
     const sorted = [...claims].sort((a, b) => {
-      const da = a.service_date ? (parseYmdLocal(a.service_date)?.getTime() || 0) : 0
-      const db = b.service_date ? (parseYmdLocal(b.service_date)?.getTime() || 0) : 0
+      const da = a.created_at ? (new Date(a.created_at as any).getTime() || 0) : 0
+      const db = b.created_at ? (new Date(b.created_at as any).getTime() || 0) : 0
       return da - db
     })
 
@@ -199,9 +200,9 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
       if (!byPet[pid]) continue
       const bill = Number(c.total_amount) || 0
       if (bill <= 0) continue
-      const svcDate = c.service_date ? (parseYmdLocal(c.service_date) || new Date(c.service_date as any)) : null
-      if (!svcDate || isNaN(svcDate.getTime())) continue
-      if (svcDate.getFullYear() !== viewYear) continue
+      const createdAt = c.created_at ? new Date(c.created_at as any) : null
+      if (!createdAt || isNaN(createdAt.getTime())) continue
+      if (createdAt.getFullYear() !== viewYear) continue
 
       // Count bills/claims (insured submission vs not)
       if (category === 'insured') {
@@ -212,7 +213,7 @@ export default function FinancialSummary({ userId, refreshToken }: { userId: str
       }
 
       if (category === 'not_insured' || category === 'not insured') {
-        if (svcDate <= today) byPet[pid].nonInsured += bill
+        if (createdAt <= today) byPet[pid].nonInsured += bill
       } else {
         // Insured vet bills always count toward claimed amount
         byPet[pid].claimed += bill
