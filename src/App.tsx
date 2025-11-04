@@ -619,7 +619,7 @@ export default function App() {
     switch (s) {
       case 'filed': // legacy
       case 'submitted':
-        return { text: 'Claim - Filed', cls: 'bg-blue-50 text-blue-700' }
+        return { text: 'Claim - Filed', cls: 'bg-emerald-50 text-emerald-700' }
       case 'approved':
         return { text: 'Approved', cls: 'bg-emerald-50 text-emerald-700' }
       case 'paid':
@@ -628,7 +628,7 @@ export default function App() {
         return { text: 'Denied', cls: 'bg-rose-50 text-rose-700' }
       case 'not_filed': // legacy
       default:
-        return { text: 'Bill - Pending Submission', cls: 'bg-yellow-50 text-yellow-700' }
+        return { text: 'Bill - Pending Submission', cls: 'bg-blue-50 text-blue-700' }
     }
   }
   const deadlineBadge = (c: any): { text: string; cls: string } => {
@@ -1882,7 +1882,7 @@ export default function App() {
                 const catBadge = (() => {
                   const v = (c.expense_category || 'insured') as 'insured' | 'not_insured' | 'maybe_insured'
                   if (v === 'insured') return { text: 'Insured', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' }
-                  if (v === 'not_insured') return { text: 'Not Insured', cls: 'bg-slate-100 text-slate-700 border border-slate-300' }
+                  if (v === 'not_insured') return { text: 'Not Insured', cls: 'bg-amber-50 text-amber-700 border border-amber-200' }
                   return { text: 'Maybe Insured', cls: 'bg-amber-50 text-amber-700 border border-amber-200' }
                 })()
                 return (
@@ -1903,7 +1903,11 @@ export default function App() {
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <div className={`px-2 py-1 rounded-full text-xs whitespace-nowrap ${catBadge.cls}`}>{catBadge.text}</div>
-                        <div className={`px-2 py-1 rounded-full text-xs whitespace-nowrap ${stBadge.cls}`}>{stBadge.text}</div>
+                        {(() => {
+                          const v = String(c.expense_category || 'insured').toLowerCase()
+                          if (v !== 'insured') return null
+                          return <div className={`px-2 py-1 rounded-full text-xs whitespace-nowrap ${stBadge.cls}`}>{stBadge.text}</div>
+                        })()}
                       </div>
                     </div>
 
