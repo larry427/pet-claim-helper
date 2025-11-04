@@ -107,6 +107,12 @@ export default function App() {
   const [medSelectOpen, setMedSelectOpen] = useState(false)
   const [medicationsForPet, setMedicationsForPet] = useState<any[]>([])
   const [selectedMedicationIds, setSelectedMedicationIds] = useState<string[]>([])
+  // Toast notifications
+  const [toast, setToast] = useState<{ message: string } | null>(null)
+  const showToast = (message: string) => {
+    setToast({ message })
+    setTimeout(() => setToast(null), 2500)
+  }
   const [createdClaimId, setCreatedClaimId] = useState<string | null>(null)
   const [pendingSuccess, setPendingSuccess] = useState<null | typeof successModal>(null)
   const [showAddMedication, setShowAddMedication] = useState(false)
@@ -819,6 +825,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white text-slate-800 dark:from-slate-900 dark:to-slate-950 dark:text-slate-100">
+      {toast && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
+          <div className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm shadow-lg border border-slate-700">
+            {toast.message}
+          </div>
+        </div>
+      )}
       <header className="px-6 py-5">
         <div className="mx-auto max-w-6xl flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -2456,8 +2469,9 @@ export default function App() {
                     await updateClaim(createdClaimId, { medication_ids: selectedMedicationIds } as any)
                   }
                   setMedSelectOpen(false)
-                  if (pendingSuccess) setSuccessModal(pendingSuccess)
-                } catch (e) { console.error('[med select -> link meds] error', e); setMedSelectOpen(false); if (pendingSuccess) setSuccessModal(pendingSuccess) }
+                  // Show lightweight toast instead of claim success modal
+                  showToast('Medications saved ✓')
+                } catch (e) { console.error('[med select -> link meds] error', e); setMedSelectOpen(false); showToast('Medications saved ✓') }
               }}>Confirm</button>
             </div>
           </div>
