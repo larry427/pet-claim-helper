@@ -92,8 +92,8 @@ const startServer = async () => {
         try {
           const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(file.buffer) }).promise
           const pieces = []
-          // Extract first 2 pages only - reduces extraction time from 5-20s to 2-5s. Covers 99% of vet bills
-          for (let i = 1; i <= Math.min(2, pdf.numPages); i++) {
+          // Extract ALL pages for complete accuracy - financial app cannot miss any data (5-7 seconds is acceptable for accuracy)
+          for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i)
             const content = await page.getTextContent()
             const pageText = (content.items || []).map((it) => (it.str || '')).join(' ')
