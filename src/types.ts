@@ -33,6 +33,8 @@ export type PetProfile = {
   monthly_premium?: number | null
   deductible_per_claim?: number | null
   coverage_start_date?: string | null
+  insurance_pays_percentage?: number | null // decimal 0-1
+  annual_coverage_limit?: number | null
 }
 
 export type ExtractedPetGroup = {

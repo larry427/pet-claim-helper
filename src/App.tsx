@@ -31,7 +31,8 @@ export default function App() {
   const [visitTitle, setVisitTitle] = useState('')  // NEW: User friendly title
   const [expenseCategory, setExpenseCategory] = useState<'insured' | 'not_insured' | 'maybe_insured'>('insured')
   const [addingPet, setAddingPet] = useState(false)
-  const [newPet, setNewPet] = useState<{ name: string; species: PetSpecies; insuranceCompany: InsuranceCompany; policyNumber: string; ownerName: string; ownerAddress: string; ownerPhone: string; filing_deadline_days?: number | '' }>({
+  const [newPet, setNewPet] = useState<{ name: string; species: PetSpecies; insuranceCompany: InsuranceCompany; policyNumber: string; ownerName: string; ownerAddress: string; ownerPhone: string; filing_deadline_days?: number | ''; monthly_premium?: number | ''; deductible_per_claim?: number | ''; insurance_pays_percentage?: number | ''; annual_coverage_limit?: number | ''; coverage_start_date?: string }>(
+    {
     name: '',
     species: 'dog',
     insuranceCompany: '',
@@ -39,8 +40,14 @@ export default function App() {
     ownerName: '',
     ownerAddress: '',
     ownerPhone: '',
-    filing_deadline_days: ''
-  })
+      filing_deadline_days: '',
+      monthly_premium: '',
+      deductible_per_claim: '',
+      insurance_pays_percentage: '',
+      annual_coverage_limit: '',
+      coverage_start_date: ''
+    }
+  )
   const [editingPetId, setEditingPetId] = useState<string | null>(null)
   const [editPet, setEditPet] = useState<{
     name: string;
@@ -54,6 +61,8 @@ export default function App() {
     monthly_premium?: number | '';
     deductible_per_claim?: number | '';
     coverage_start_date?: string;
+    insurance_pays_percentage?: number | '';
+    annual_coverage_limit?: number | '';
   } | null>(null)
   const [newPetInsurer, setNewPetInsurer] = useState<'Trupanion' | 'Nationwide' | 'Healthy Paws' | 'Fetch' | 'Custom Insurance' | ''>('')
   const [editPetInsurer, setEditPetInsurer] = useState<'Trupanion' | 'Nationwide' | 'Healthy Paws' | 'Fetch' | 'Custom Insurance' | ''>('')
@@ -260,6 +269,11 @@ export default function App() {
       ownerAddress: newPet.ownerAddress.trim(),
       ownerPhone: newPet.ownerPhone.trim(),
       filing_deadline_days: (newPet as any).filing_deadline_days as any,
+      monthly_premium: newPet.monthly_premium === '' ? null : Number(newPet.monthly_premium),
+      deductible_per_claim: newPet.deductible_per_claim === '' ? null : Number(newPet.deductible_per_claim),
+      insurance_pays_percentage: newPet.insurance_pays_percentage === '' ? null : (Number(newPet.insurance_pays_percentage) / 100),
+      annual_coverage_limit: newPet.annual_coverage_limit === '' ? null : Number(newPet.annual_coverage_limit),
+      coverage_start_date: newPet.coverage_start_date || null,
     }
     const updated = [...pets, created]
     setPets(updated)
@@ -276,7 +290,7 @@ export default function App() {
       setSelectedPetId(id)
     }
     setAddingPet(false)
-    setNewPet({ name: '', species: 'dog', insuranceCompany: '', policyNumber: '', ownerName: '', ownerAddress: '', ownerPhone: '', filing_deadline_days: '' })
+    setNewPet({ name: '', species: 'dog', insuranceCompany: '', policyNumber: '', ownerName: '', ownerAddress: '', ownerPhone: '', filing_deadline_days: '', monthly_premium: '', deductible_per_claim: '', insurance_pays_percentage: '', annual_coverage_limit: '', coverage_start_date: '' })
     setNewPetInsurer('')
     setCustomInsurerNameNew('')
     setCustomDeadlineNew('')
@@ -295,7 +309,9 @@ export default function App() {
       filing_deadline_days: (pet as any).filing_deadline_days || '',
       monthly_premium: (pet as any).monthly_premium ?? '',
       deductible_per_claim: (pet as any).deductible_per_claim ?? '',
-      coverage_start_date: (pet as any).coverage_start_date || ''
+      coverage_start_date: (pet as any).coverage_start_date || '',
+      insurance_pays_percentage: (pet as any).insurance_pays_percentage != null ? Math.round(Number((pet as any).insurance_pays_percentage) * 100) : '',
+      annual_coverage_limit: (pet as any).annual_coverage_limit ?? ''
     })
     const known = ['Trupanion','Nationwide','Healthy Paws','Fetch']
     if (known.includes(pet.insuranceCompany)) {
@@ -340,6 +356,8 @@ export default function App() {
             monthly_premium: editPet.monthly_premium === '' ? null : Number(editPet.monthly_premium),
             deductible_per_claim: editPet.deductible_per_claim === '' ? null : Number(editPet.deductible_per_claim),
             coverage_start_date: editPet.coverage_start_date || null,
+            insurance_pays_percentage: editPet.insurance_pays_percentage === '' ? null : (Number(editPet.insurance_pays_percentage) / 100),
+            annual_coverage_limit: editPet.annual_coverage_limit === '' ? null : Number(editPet.annual_coverage_limit),
           }
         : p,
     )
@@ -1065,6 +1083,31 @@ export default function App() {
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Policy #</label>
                   <input value={newPet.policyNumber} onChange={(e) => setNewPet({ ...newPet, policyNumber: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
+                <div>
+                  <label className="block text-xs">Monthly Premium (USD)</label>
+                  <input type="number" step="0.01" placeholder="40" value={String(newPet.monthly_premium ?? '')} onChange={(e) => setNewPet({ ...newPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <div className="mt-1 text-[11px] text-slate-500">Your monthly insurance payment</div>
+                </div>
+                <div>
+                  <label className="block text-xs">Deductible (Annual) (USD)</label>
+                  <input type="number" step="0.01" placeholder="250" value={String(newPet.deductible_per_claim ?? '')} onChange={(e) => setNewPet({ ...newPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <div className="mt-1 text-[11px] text-slate-500">Amount you pay before insurance kicks in (resets yearly)</div>
+                </div>
+                <div>
+                  <label className="block text-xs">Insurance Pays (%)</label>
+                  <input type="number" min={0} max={100} placeholder="80" value={String(newPet.insurance_pays_percentage ?? '')} onChange={(e) => setNewPet({ ...newPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <div className="mt-1 text-[11px] text-slate-500">What percentage your insurance covers (e.g., 80% means you pay 20%)</div>
+                </div>
+                <div>
+                  <label className="block text-xs">Annual Coverage Limit (USD)</label>
+                  <input type="number" step="1" placeholder="10000" value={String(newPet.annual_coverage_limit ?? '')} onChange={(e) => setNewPet({ ...newPet, annual_coverage_limit: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <div className="mt-1 text-[11px] text-slate-500">Maximum insurance pays per year (leave blank for unlimited)</div>
+                </div>
+                <div>
+                  <label className="block text-xs">Coverage Start Date</label>
+                  <input type="date" value={newPet.coverage_start_date || ''} onChange={(e) => setNewPet({ ...newPet, coverage_start_date: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <div className="mt-1 text-[11px] text-slate-500">When your insurance policy began (used to calculate deductible reset)</div>
+                </div>
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Owner Name</label>
                   <input value={newPet.ownerName} onChange={(e) => setNewPet({ ...newPet, ownerName: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
@@ -1192,9 +1235,19 @@ export default function App() {
                         <div className="mt-1 text-[11px] text-slate-500">Monthly insurance premium cost</div>
                       </div>
                       <div>
-                        <label className="block text-xs">Deductible per Claim (USD)</label>
+                        <label className="block text-xs">Deductible (Annual) (USD)</label>
                         <input type="number" step="0.01" placeholder="e.g., 250.00" value={String(editPet.deductible_per_claim ?? '')} onChange={(e) => setEditPet({ ...editPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                        <div className="mt-1 text-[11px] text-slate-500">Deductible amount per claim</div>
+                        <div className="mt-1 text-[11px] text-slate-500">Amount you pay before insurance kicks in (resets yearly)</div>
+                      </div>
+                      <div>
+                        <label className="block text-xs">Insurance Pays (%)</label>
+                        <input type="number" min={0} max={100} placeholder="80" value={String(editPet.insurance_pays_percentage ?? '')} onChange={(e) => setEditPet({ ...editPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                        <div className="mt-1 text-[11px] text-slate-500">What percentage your insurance covers (e.g., 80% means you pay 20%)</div>
+                      </div>
+                      <div>
+                        <label className="block text-xs">Annual Coverage Limit (USD)</label>
+                        <input type="number" step="1" placeholder="10000" value={String(editPet.annual_coverage_limit ?? '')} onChange={(e) => setEditPet({ ...editPet, annual_coverage_limit: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                        <div className="mt-1 text-[11px] text-slate-500">Maximum insurance pays per year (leave blank for unlimited)</div>
                       </div>
                       <div>
                         <label className="block text-xs">Coverage Start Date</label>

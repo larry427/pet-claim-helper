@@ -5,7 +5,7 @@ import { supabase } from './supabase'
 export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
   const { data, error } = await supabase
     .from('pets')
-    .select('id, name, species, color, insurance_company, policy_number, owner_name, owner_address, owner_phone, filing_deadline_days, monthly_premium, deductible_per_claim, coverage_start_date')
+    .select('id, name, species, color, insurance_company, policy_number, owner_name, owner_address, owner_phone, filing_deadline_days, monthly_premium, deductible_per_claim, coverage_start_date, insurance_pays_percentage, annual_coverage_limit')
     .eq('user_id', userId)
     .order('created_at', { ascending: true })
   if (error) throw error
@@ -23,6 +23,8 @@ export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
     monthly_premium: p.monthly_premium ?? null,
     deductible_per_claim: p.deductible_per_claim ?? null,
     coverage_start_date: p.coverage_start_date || null,
+    insurance_pays_percentage: p.insurance_pays_percentage ?? null,
+    annual_coverage_limit: p.annual_coverage_limit ?? null,
   }))
   // Debug
   // eslint-disable-next-line no-console
@@ -47,6 +49,8 @@ export async function dbUpsertPet(userId: string, pet: PetProfile): Promise<void
     monthly_premium: (pet as any).monthly_premium ?? null,
     deductible_per_claim: (pet as any).deductible_per_claim ?? null,
     coverage_start_date: (pet as any).coverage_start_date || null,
+    insurance_pays_percentage: (pet as any).insurance_pays_percentage ?? null,
+    annual_coverage_limit: (pet as any).annual_coverage_limit ?? null,
   }
   // Debug
   // eslint-disable-next-line no-console
@@ -95,6 +99,7 @@ export async function createPet(pet: any): Promise<any> {
         deductible_per_claim: pet.deductible_per_claim ?? null,
         coverage_start_date: pet.coverage_start_date ?? null,
         annual_coverage_limit: pet.annual_coverage_limit ?? null,
+        insurance_pays_percentage: pet.insurance_pays_percentage ?? null,
       },
     ])
     .select('*')
