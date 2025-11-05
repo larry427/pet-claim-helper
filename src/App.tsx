@@ -1370,6 +1370,15 @@ export default function App() {
                         )}
                         Process Bill
                       </button>
+                      {isProcessing && (
+                        <div className="mt-4 flex flex-col items-center text-sm text-slate-700 dark:text-slate-300">
+                          <svg className="h-6 w-6 animate-spin mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10" className="opacity-25" />
+                            <path d="M4 12a8 8 0 018-8" className="opacity-75" />
+                          </svg>
+                          <div>📄 Extracting bill data...</div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1776,6 +1785,7 @@ export default function App() {
                 >
                   ← Cancel
                 </button>
+                {!isProcessing && (
                 <button
                   type="button"
                   className="inline-flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-sm font-medium"
@@ -1834,6 +1844,7 @@ export default function App() {
                 >
                   Looks Good
                 </button>
+                )}
               </div>
             </div>
           </section>
