@@ -71,6 +71,18 @@ export default function App() {
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [authView, setAuthView] = useState<'login' | 'signup' | 'app'>('app')
+  // Prefill Owner Phone from user profile when opening Add Pet
+  useEffect(() => {
+    if (!addingPet || !userId) return
+    ;(async () => {
+      try {
+        const { data, error } = await supabase.from('profiles').select('phone').eq('id', userId).single()
+        if (!error && data && data.phone && !newPet.ownerPhone) {
+          setNewPet(prev => ({ ...prev, ownerPhone: data.phone as string }))
+        }
+      } catch {}
+    })()
+  }, [addingPet, userId])
 
   // Multi-pet extraction state
   const [multiExtracted, setMultiExtracted] = useState<MultiPetExtracted | null>(null)
@@ -1021,7 +1033,7 @@ export default function App() {
           </div>
 
           {addingPet && (
-            <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4">
+            <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 max-w-3xl mx-auto overflow-x-hidden">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div className="sm:col-span-1">
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Name</label>
@@ -1163,7 +1175,7 @@ export default function App() {
                   )}
                 </div>
                 {editingPetId === pet.id && editPet && (
-                  <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-800 p-3">
+                  <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-800 p-3 max-w-3xl mx-auto overflow-x-hidden">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs">Name</label>
