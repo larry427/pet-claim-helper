@@ -26,7 +26,7 @@ export type PetProfile = {
   insuranceCompany: InsuranceCompany
   policyNumber: string
   ownerName?: string
-  ownerAddress?: string
+  // ownerAddress removed from form
   ownerPhone?: string
   filingDeadlineDays?: number
   filing_deadline_days?: number

@@ -74,7 +74,7 @@ export function generateClaimPdf(extracted: ExtractedBill, pet: PetProfile | nul
   // Owner Section (placeholder for now)
   addSectionTitle('Pet Owner Information')
   addLabelValue('Owner Name', pet?.ownerName || 'N/A')
-  addLabelValue('Address', pet?.ownerAddress || 'N/A')
+  // Address removed from pet form; omit from PDF
   addLabelValue('Phone', pet?.ownerPhone || 'N/A')
   y += 8
 

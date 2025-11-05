@@ -31,14 +31,13 @@ export default function App() {
   const [visitTitle, setVisitTitle] = useState('')  // NEW: User friendly title
   const [expenseCategory, setExpenseCategory] = useState<'insured' | 'not_insured' | 'maybe_insured'>('insured')
   const [addingPet, setAddingPet] = useState(false)
-  const [newPet, setNewPet] = useState<{ name: string; species: PetSpecies; insuranceCompany: InsuranceCompany; policyNumber: string; ownerName: string; ownerAddress: string; ownerPhone: string; filing_deadline_days?: number | ''; monthly_premium?: number | ''; deductible_per_claim?: number | ''; insurance_pays_percentage?: number | ''; annual_coverage_limit?: number | ''; coverage_start_date?: string }>(
+  const [newPet, setNewPet] = useState<{ name: string; species: PetSpecies; insuranceCompany: InsuranceCompany; policyNumber: string; ownerName: string; ownerPhone: string; filing_deadline_days?: number | ''; monthly_premium?: number | ''; deductible_per_claim?: number | ''; insurance_pays_percentage?: number | ''; annual_coverage_limit?: number | ''; coverage_start_date?: string }>(
     {
     name: '',
     species: 'dog',
     insuranceCompany: '',
     policyNumber: '',
     ownerName: '',
-    ownerAddress: '',
     ownerPhone: '',
       filing_deadline_days: '',
       monthly_premium: '',
@@ -55,7 +54,6 @@ export default function App() {
     insuranceCompany: InsuranceCompany;
     policyNumber: string;
     ownerName: string;
-    ownerAddress: string;
     ownerPhone: string;
     filing_deadline_days?: number | '';
     monthly_premium?: number | '';
@@ -266,7 +264,6 @@ export default function App() {
       insuranceCompany: newPet.insuranceCompany,
       policyNumber: newPet.policyNumber.trim(),
       ownerName: newPet.ownerName.trim(),
-      ownerAddress: newPet.ownerAddress.trim(),
       ownerPhone: newPet.ownerPhone.trim(),
       filing_deadline_days: (newPet as any).filing_deadline_days as any,
       monthly_premium: newPet.monthly_premium === '' ? null : Number(newPet.monthly_premium),
@@ -290,7 +287,7 @@ export default function App() {
       setSelectedPetId(id)
     }
     setAddingPet(false)
-    setNewPet({ name: '', species: 'dog', insuranceCompany: '', policyNumber: '', ownerName: '', ownerAddress: '', ownerPhone: '', filing_deadline_days: '', monthly_premium: '', deductible_per_claim: '', insurance_pays_percentage: '', annual_coverage_limit: '', coverage_start_date: '' })
+    setNewPet({ name: '', species: 'dog', insuranceCompany: '', policyNumber: '', ownerName: '', ownerPhone: '', filing_deadline_days: '', monthly_premium: '', deductible_per_claim: '', insurance_pays_percentage: '', annual_coverage_limit: '', coverage_start_date: '' })
     setNewPetInsurer('')
     setCustomInsurerNameNew('')
     setCustomDeadlineNew('')
@@ -304,7 +301,6 @@ export default function App() {
       insuranceCompany: pet.insuranceCompany,
       policyNumber: pet.policyNumber,
       ownerName: pet.ownerName || '',
-      ownerAddress: pet.ownerAddress || '',
       ownerPhone: pet.ownerPhone || '',
       filing_deadline_days: (pet as any).filing_deadline_days || '',
       monthly_premium: (pet as any).monthly_premium ?? '',
@@ -350,7 +346,6 @@ export default function App() {
             insuranceCompany: finalCompany as any,
             policyNumber: editPet.policyNumber.trim(),
             ownerName: editPet.ownerName.trim(),
-            ownerAddress: editPet.ownerAddress.trim(),
             ownerPhone: editPet.ownerPhone.trim(),
             filing_deadline_days: finalDays as any,
             monthly_premium: editPet.monthly_premium === '' ? null : Number(editPet.monthly_premium),
@@ -1105,20 +1100,17 @@ export default function App() {
                 </div>
                 <div>
                   <label className="block text-xs">Coverage Start Date</label>
-                  <input type="date" value={newPet.coverage_start_date || ''} onChange={(e) => setNewPet({ ...newPet, coverage_start_date: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <input type="date" value={newPet.coverage_start_date || ''} onChange={(e) => setNewPet({ ...newPet, coverage_start_date: e.target.value })} className="mt-1 w-full min-w-[220px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                   <div className="mt-1 text-[11px] text-slate-500">When your insurance policy began (used to calculate deductible reset)</div>
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Owner Name</label>
                   <input value={newPet.ownerName} onChange={(e) => setNewPet({ ...newPet, ownerName: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Owner Address</label>
-                  <input value={newPet.ownerAddress} onChange={(e) => setNewPet({ ...newPet, ownerAddress: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                </div>
+                
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Owner Phone</label>
-                  <input value={newPet.ownerPhone} onChange={(e) => setNewPet({ ...newPet, ownerPhone: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <input value={newPet.ownerPhone} onChange={(e) => setNewPet({ ...newPet, ownerPhone: e.target.value })} className="mt-1 w-full min-w-[200px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
               </div>
               <div className="mt-3 flex items-center gap-3">
@@ -1163,10 +1155,9 @@ export default function App() {
                 <div className="mt-4 text-sm text-slate-700 dark:text-slate-300 space-y-1.5">
                   <div><span className="text-slate-500">Insurance:</span> {pet.insuranceCompany}</div>
                   <div><span className="text-slate-500">Policy #:</span> {pet.policyNumber || '—'}</div>
-                  {(pet.ownerName || pet.ownerAddress || pet.ownerPhone) && (
+                  {(pet.ownerName || pet.ownerPhone) && (
                     <div className="mt-3 space-y-1.5">
                       <div><span className="text-slate-500">Owner:</span> {pet.ownerName || ''}</div>
-                      <div><span className="text-slate-500">Address:</span> {pet.ownerAddress || ''}</div>
                       <div><span className="text-slate-500">Phone:</span> {pet.ownerPhone || ''}</div>
                     </div>
                   )}
@@ -1251,20 +1242,17 @@ export default function App() {
                       </div>
                       <div>
                         <label className="block text-xs">Coverage Start Date</label>
-                        <input type="date" value={editPet.coverage_start_date || ''} onChange={(e) => setEditPet({ ...editPet, coverage_start_date: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                        <input type="date" value={editPet.coverage_start_date || ''} onChange={(e) => setEditPet({ ...editPet, coverage_start_date: e.target.value })} className="mt-1 w-full min-w-[220px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                         <div className="mt-1 text-[11px] text-slate-500">When did your coverage start?</div>
                       </div>
                       <div>
                         <label className="block text-xs">Owner Name</label>
                         <input value={editPet.ownerName} onChange={(e) => setEditPet({ ...editPet, ownerName: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                       </div>
-                      <div>
-                        <label className="block text-xs">Owner Address</label>
-                        <input value={editPet.ownerAddress} onChange={(e) => setEditPet({ ...editPet, ownerAddress: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                      </div>
+                      
                       <div>
                         <label className="block text-xs">Owner Phone</label>
-                        <input value={editPet.ownerPhone} onChange={(e) => setEditPet({ ...editPet, ownerPhone: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                        <input value={editPet.ownerPhone} onChange={(e) => setEditPet({ ...editPet, ownerPhone: e.target.value })} className="mt-1 w-full min-w-[200px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                       </div>
                     </div>
                     <div className="mt-3 flex items-center gap-3">

@@ -5,7 +5,7 @@ import { supabase } from './supabase'
 export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
   const { data, error } = await supabase
     .from('pets')
-    .select('id, name, species, color, insurance_company, policy_number, owner_name, owner_address, owner_phone, filing_deadline_days, monthly_premium, deductible_per_claim, coverage_start_date, insurance_pays_percentage, annual_coverage_limit')
+    .select('id, name, species, color, insurance_company, policy_number, owner_name, owner_phone, filing_deadline_days, monthly_premium, deductible_per_claim, coverage_start_date, insurance_pays_percentage, annual_coverage_limit')
     .eq('user_id', userId)
     .order('created_at', { ascending: true })
   if (error) throw error
@@ -17,7 +17,6 @@ export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
     insuranceCompany: p.insurance_company,
     policyNumber: p.policy_number,
     ownerName: p.owner_name,
-    ownerAddress: p.owner_address,
     ownerPhone: p.owner_phone,
     filing_deadline_days: p.filing_deadline_days,
     monthly_premium: p.monthly_premium ?? null,
@@ -43,7 +42,6 @@ export async function dbUpsertPet(userId: string, pet: PetProfile): Promise<void
     insurance_company: pet.insuranceCompany,
     policy_number: pet.policyNumber,
     owner_name: pet.ownerName || '',
-    owner_address: pet.ownerAddress || '',
     owner_phone: pet.ownerPhone || '',
     filing_deadline_days: (pet as any).filing_deadline_days || (pet as any).filingDeadlineDays || null,
     monthly_premium: (pet as any).monthly_premium ?? null,
