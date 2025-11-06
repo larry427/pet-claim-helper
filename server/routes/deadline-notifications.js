@@ -122,8 +122,8 @@ export async function runDeadlineNotifications(opts = {}) {
       : Number.isFinite(claimDeadlineDays)
         ? claimDeadlineDays
         : 90
-    const deadline = new Date(serviceDate)
-    deadline.setUTCDate(deadline.getUTCDate() + filingDays)
+    const deadline = claim?.deadline_date ? parseDateOnlyUTC(claim.deadline_date) : null
+    if (!deadline) continue
     const daysRemaining = diffDays(today, deadline)
 
     const flags = claim?.sent_reminders || {}
