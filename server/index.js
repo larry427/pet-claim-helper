@@ -284,9 +284,18 @@ if (error) {
   })
 
   // Daily deadline reminders endpoint (used by cron)
+  app.options('/api/send-deadline-reminders', (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*')
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    res.set('Access-Control-Allow-Headers', 'Content-Type')
+    return res.sendStatus(204)
+  })
   app.post('/api/send-deadline-reminders', async (req, res) => {
     // eslint-disable-next-line no-console
     console.log('[DEBUG] send-deadline-reminders endpoint hit')
+    res.set('Access-Control-Allow-Origin', '*')
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    res.set('Access-Control-Allow-Headers', 'Content-Type')
     try {
       const result = await deadlineNotifications.runDeadlineNotifications({
         // Reuse initialized clients to avoid re-auth
