@@ -149,6 +149,12 @@ export async function runDeadlineNotifications(opts = {}) {
   for (const [email, reminders] of Object.entries(remindersByUser)) {
     if (!reminders.length) continue
     try {
+      // eslint-disable-next-line no-console
+      console.log(`[DEBUG] Processing user email: ${email}`)
+      for (const r of reminders) {
+        // eslint-disable-next-line no-console
+        console.log(`[DEBUG] Sending reminder to: ${email} for claim: ${r.claimId}`)
+      }
       const subject = buildSubject(reminders)
       const html = buildEmailHtml(reminders, dashboardUrl())
       const text = buildEmailText(reminders, dashboardUrl())
@@ -156,6 +162,10 @@ export async function runDeadlineNotifications(opts = {}) {
       const result = await resend.emails.send({ from, to: [email], subject, html, text })
       // eslint-disable-next-line no-console
       console.log(`[deadline-notifications] Sent email to ${email}`, { id: result?.id, items: reminders.length })
+      // eslint-disable-next-line no-console
+      console.log('[DEBUG] Resend response:', result)
+      // eslint-disable-next-line no-console
+      console.log(`[DEBUG] Email sent successfully to: ${email}`)
       emailsSent++
 
       // Update sent_reminders flags for included claims
@@ -177,6 +187,8 @@ export async function runDeadlineNotifications(opts = {}) {
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error('[deadline-notifications] Email send failed for', email, e)
+      // eslint-disable-next-line no-console
+      console.error('[DEBUG] Resend error for', email, e)
       errors.push({ type: 'email', email, error: String(e?.message || e) })
     }
   }
