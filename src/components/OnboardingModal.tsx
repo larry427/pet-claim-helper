@@ -20,9 +20,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
   // Step 2 - Pet
   const [petName, setPetName] = useState('')
   const [species, setSpecies] = useState<'dog' | 'cat' | 'other' | ''>('')
-  const [breed, setBreed] = useState('')
-  const [weightLbs, setWeightLbs] = useState<string>('')
-  const [color, setColor] = useState('')
+  // Removed: breed, weight, color/markings
 
   // Step 3 - Insurance
   const [insuranceCompany, setInsuranceCompany] = useState('')
@@ -30,8 +28,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
   const [monthlyPremium, setMonthlyPremium] = useState<string>('')
   const [deductiblePerClaim, setDeductiblePerClaim] = useState<string>('')
   const [coverageStartDate, setCoverageStartDate] = useState('')
-  const [insurancePaysPct, setInsurancePaysPct] = useState<string>('80')
-  const [annualCoverageLimit, setAnnualCoverageLimit] = useState<string>('')
+  const [insurancePaysPct, setInsurancePaysPct] = useState<string>('')
 
   useEffect(() => {
     if (!open) return
@@ -43,16 +40,13 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
     setAddress('')
     setPetName('')
     setSpecies('')
-    setBreed('')
-    setWeightLbs('')
-    setColor('')
+    // removed optional pet fields
     setInsuranceCompany('')
     setPolicyNumber('')
     setMonthlyPremium('')
     setDeductiblePerClaim('')
     setCoverageStartDate('')
-    setInsurancePaysPct('80')
-    setAnnualCoverageLimit('')
+    setInsurancePaysPct('')
   }, [open])
 
   const canNextFrom1 = useMemo(() => fullName.trim().length > 0, [fullName])
@@ -101,17 +95,15 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         user_id: userId,
         name: petName.trim(),
         species: species || 'other',
-        color: color.trim() || null,
+        // color removed
         insurance_company: insuranceCompany || null,
         policy_number: policyNumber.trim() || null,
         // Optional/extended fields
-        breed: breed.trim() || null,
-        weight_lbs: weightLbs === '' ? null : Number(weightLbs),
+        // breed/weight removed
         monthly_premium: monthlyPremium === '' ? null : parseFloat(monthlyPremium),
         deductible_per_claim: deductiblePerClaim === '' ? null : parseFloat(deductiblePerClaim),
         coverage_start_date: coverageStartDateISO,
         insurance_pays_percentage: insurancePaysPct === '' ? null : Math.max(50, Math.min(100, Number(insurancePaysPct))),
-        annual_coverage_limit: annualCoverageLimit === '' ? null : Math.max(0, Math.min(100000, Number(annualCoverageLimit)))
       }
       // Debug payload before sending
       // eslint-disable-next-line no-console
@@ -149,11 +141,11 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
             <div className="mt-4 space-y-3">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Full Name</label>
-                <input value={fullName} onChange={(e) => setFullName(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" placeholder="John Smith" />
+                <input value={fullName} onChange={(e) => setFullName(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Address <span className="text-xs text-slate-500">(optional)</span></label>
-                <input value={address} onChange={(e) => setAddress(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" placeholder="123 Main St, Portland, OR 97201" />
+                <input value={address} onChange={(e) => setAddress(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
               </div>
             </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
@@ -169,7 +161,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
             <div className="mt-4 space-y-3">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Pet Name</label>
-                <input value={petName} onChange={(e) => setPetName(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" placeholder="Bo" />
+                <input value={petName} onChange={(e) => setPetName(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Species</label>
@@ -180,18 +172,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
                   <option value="other">Other</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Breed <span className="text-xs text-slate-500">(optional)</span></label>
-                <input value={breed} onChange={(e) => setBreed(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" placeholder="Golden Retriever" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Weight (lbs) <span className="text-xs text-slate-500">(optional)</span></label>
-                <input type="number" min={0} value={weightLbs} onChange={(e) => setWeightLbs(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" placeholder="65" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Color/Markings <span className="text-xs text-slate-500">(optional)</span></label>
-                <input value={color} onChange={(e) => setColor(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" placeholder="Brown with white chest" />
-              </div>
+              
             </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
               <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4" onClick={onClose}>Cancel</button>
@@ -217,15 +198,15 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Policy Number</label>
-                <input value={policyNumber} onChange={(e) => setPolicyNumber(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" placeholder="ABC-12345" />
+                <input value={policyNumber} onChange={(e) => setPolicyNumber(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Monthly Premium (USD)</label>
-                <input type="number" min={0} value={monthlyPremium} onChange={(e) => setMonthlyPremium(e.target.value)} className="mt-2 w-full rounded-md border border-emerald-300 dark:border-emerald-700 bg-white/90 dark:bg-slate-900 px-3 py-3" placeholder="45" />
+                <input type="number" min={0} value={monthlyPremium} onChange={(e) => setMonthlyPremium(e.target.value)} className="mt-2 w-full rounded-md border border-emerald-300 dark:border-emerald-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Deductible per Claim (USD)</label>
-                <input type="number" min={0} value={deductiblePerClaim} onChange={(e) => setDeductiblePerClaim(e.target.value)} className="mt-2 w-full rounded-md border border-emerald-300 dark:border-emerald-700 bg-white/90 dark:bg-slate-900 px-3 py-3" placeholder="250" />
+                <input type="number" min={0} value={deductiblePerClaim} onChange={(e) => setDeductiblePerClaim(e.target.value)} className="mt-2 w-full rounded-md border border-emerald-300 dark:border-emerald-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">What percentage does YOUR INSURANCE PAY?</label>
@@ -236,22 +217,10 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
                   value={insurancePaysPct}
                   onChange={(e) => setInsurancePaysPct(e.target.value)}
                   className="mt-2 w-full rounded-md border border-emerald-300 dark:border-emerald-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
-                  placeholder="80"
                 />
                 
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">What is your annual coverage limit (optional)?</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={100000}
-                  value={annualCoverageLimit}
-                  onChange={(e) => setAnnualCoverageLimit(e.target.value)}
-                  className="mt-2 w-full rounded-md border border-emerald-300 dark:border-emerald-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
-                  placeholder="e.g., 5000"
-                />
-              </div>
+              
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Coverage Start Date</label>
                 <input
