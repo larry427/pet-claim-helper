@@ -127,6 +127,8 @@ export async function runDeadlineNotifications(opts = {}) {
     const daysRemaining = diffDays(today, deadline)
 
     const flags = claim?.sent_reminders || {}
+    // eslint-disable-next-line no-console
+    console.log('[deadline-notifications] Claim', claim.id, '- daysRemaining:', daysRemaining, 'flags:', flags)
     let key = null
     let include = false
     if (daysRemaining <= 7 && daysRemaining > 0 && flags.day_7 !== true) { key = 'day_7'; include = true }
