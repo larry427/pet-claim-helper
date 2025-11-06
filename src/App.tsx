@@ -2757,6 +2757,8 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
     const [fullName, setFullName] = useState('')
     const [phone, setPhone] = useState('')
     const [address, setAddress] = useState('')
+    const [testLoading, setTestLoading] = useState(false)
+    const [testMsg, setTestMsg] = useState<string | null>(null)
     const [emailReminders, setEmailReminders] = useState(false)
     const [weeklySummaries, setWeeklySummaries] = useState(false)
     const [deadlineAlerts, setDeadlineAlerts] = useState(false)
@@ -2834,6 +2836,23 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
         onDefaultPeriodChange(defaultPeriod)
         alert('Preferences saved')
       } catch (e) { console.error('[save prefs] error', e); alert('Error saving preferences') } finally { setLoading(false) }
+    }
+
+    const sendTestEmail = async () => {
+      setTestMsg(null)
+      setTestLoading(true)
+      try {
+        const resp = await fetch('/api/test-email', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+        const body = await resp.json().catch(() => ({}))
+        if (!resp.ok) {
+          throw new Error(body?.error || `Request failed (${resp.status})`)
+        }
+        setTestMsg(`Email sent to larry@uglydogadventures.com!`)
+      } catch (e: any) {
+        setTestMsg(`Failed to send test email: ${e?.message || e}`)
+      } finally {
+        setTestLoading(false)
+      }
     }
 
     return (
@@ -2956,6 +2975,26 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
           <div className="mt-3">
             <button type="button" onClick={savePreferences} disabled={loading} className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-sm disabled:opacity-60">Save Preferences</button>
           </div>
+        </div>
+
+        {/* Debug / Test Utilities */}
+        <div className="mt-4 rounded-2xl border border-blue-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+          <div className="text-sm font-semibold">Debug</div>
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={sendTestEmail}
+              disabled={testLoading}
+              className="inline-flex items-center rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 text-sm disabled:opacity-60"
+              title="Send a test email via /api/test-email"
+            >
+              {testLoading ? 'Sending…' : 'Send Test Email'}
+            </button>
+            {testMsg && (
+              <span className={['text-sm', testMsg.startsWith('Failed') ? 'text-rose-600' : 'text-emerald-700'].join(' ')}>{testMsg}</span>
+            )}
+          </div>
+          <div className="mt-2 text-xs text-slate-500">Sends a test email to larry@uglydogadventures.com</div>
         </div>
       </section>
     )

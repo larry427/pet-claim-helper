@@ -283,6 +283,32 @@ if (error) {
     }
   })
 
+  // Test email endpoint (Resend)
+  app.options('/api/test-email', (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*')
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    res.set('Access-Control-Allow-Headers', 'Content-Type')
+    return res.sendStatus(204)
+  })
+  app.post('/api/test-email', async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*')
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    res.set('Access-Control-Allow-Headers', 'Content-Type')
+    try {
+      const result = await resend.emails.send({
+        from: 'Pet Claim Helper <onboarding@resend.dev>',
+        to: ['larry@uglydogadventures.com'],
+        subject: 'Pet Claim Helper - Test Email',
+        text: "If you're seeing this, Resend is working on Vercel!",
+      })
+      return res.json({ ok: true, messageId: result?.id })
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[/api/test-email] error', err)
+      return res.status(500).json({ ok: false, error: String(err?.message || err) })
+    }
+  })
+
   // Daily deadline reminders endpoint (used by cron)
   app.options('/api/send-deadline-reminders', (req, res) => {
     res.set('Access-Control-Allow-Origin', '*')
