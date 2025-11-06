@@ -1,67 +1,3 @@
-import { createClient } from '@supabase/supabase-js'
-import { Resend } from 'resend'
-
-function startOfDayUtc(d = new Date()) {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
-}
-
-function parseDateOnlyUTC(s) {
-  const d = new Date(s)
-  if (Number.isNaN(d.getTime())) return null
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
-}
-
-function diffDays(from, to) {
-  return Math.round((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000))
-}
-
-function ensureClients({ supabase, resend }) {
-  const supa =
-    supabase ||
-    createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
-  const rsnd = resend || new Resend(process.env.RESEND_API_KEY)
-  return { supabase: supa, resend: rsnd }
-}
-
-function buildSubject(reminders) {
-  if (!reminders?.length) return 'Your claim is expiring soon'
-  const first = reminders[0]
-  if (reminders.length === 1) return `Your claim for ${first.petName} is expiring soon`
-  return `Your claim for ${first.petName} is expiring soon (+${reminders.length - 1} more)`
-}
-
-function buildEmailHtml(reminders, dashboardUrl) {
-  const rows = reminders
-    .map((r) => {
-      const tag = r.kind === 'deadline_passed' ? 'DEADLINE PASSED' : `${r.daysRemaining} days`
-      return `<tr>
-        <td style="padding:6px 8px;border-bottom:1px solid #eee"><strong>${r.petName}</strong></td>
-        <td style="padding:6px 8px;border-bottom:1px solid #eee">${r.clinicName || '—'}</td>
-        <td style="padding:6px 8px;border-bottom:1px solid #eee">${r.serviceDate || '—'}</td>
-        <td style="padding:6px 8px;border-bottom:1px solid #eee">${r.deadline}</td>
-        <td style="padding:6px 8px;border-bottom:1px solid #eee">${tag}</td>
-      </tr>`
-    })
-    .join('')
-  return `
-  <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
-    <p>We detected claim filing deadlines approaching for the following items:</p>
-    <table style="border-collapse:collapse;width:100%;font-size:14px">
-      <thead>
-        <tr>
-          <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #ccc">Pet</th>
-          <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #ccc">Clinic</th>
-          <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #ccc">Service date</th>
-          <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #ccc">Deadline</th>
-          <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #ccc">Status</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <p style="margin-top:16px">Take action here: <a href="${dashboardUrl}">${dashboardUrl}</a></p>
-  </div>`
-}
-
 function buildEmailText(reminders, dashboardUrl) {
   const lines = reminders
     .map((r) => {
@@ -87,17 +23,42 @@ export async function runDeadlineNotifications(opts = {}) {
   console.log('[deadline-notifications] Starting function')
 
   // Query all relevant claims and join pets and profiles
-  const { data, error } = await supabase
-    .from('claims')
-    .select([
-      '*',
-      'pets(name, user_id, filing_deadline_days)',
-      'profiles(email)'
-    ].join(', '))
-    .in('filing_status', ['not_filed', 'filed'])
-    // Note: do not filter by insurance type here; evaluate eligibility in application logic below
+  // Use raw SQL to calculate deadline directly since it's not stored in the table
+  const { data, error } = await supabase.rpc('get_claims_with_deadlines', {})
 
-  if (error) throw error
+  if (error) {
+    // Fallback: query the table directly and calculate in JavaScript
+    // eslint-disable-next-line no-console
+    console.log('[deadline-notifications] RPC failed, falling back to direct query', error)
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from('claims')
+      .select('*, pets(name, filing_deadline_days), profiles(email)')
+      .in('filing_status', ['not_filed', 'filed'])
+
+    if (fallbackError) throw fallbackError
+
+    // Calculate deadlines in JS
+    const calculatedData = (fallbackData || []).map((claim) => {
+      const serviceDate = claim?.service_date ? parseDateOnlyUTC(claim.service_date) : null
+      if (!serviceDate) return null
+
+      const petDeadlineDays = Number(claim?.pets?.filing_deadline_days)
+      const claimDeadlineDays = Number(claim?.filing_deadline_days)
+      const filingDays = Number.isFinite(petDeadlineDays)
+        ? petDeadlineDays
+        : Number.isFinite(claimDeadlineDays)
+          ? claimDeadlineDays
+          : 90
+
+      const deadlineDate = new Date(serviceDate.getTime() + filingDays * 24 * 60 * 60 * 1000)
+      return {
+        ...claim,
+        calculated_deadline: deadlineDate.toISOString().split('T')[0],
+      }
+    }).filter(Boolean)
+
+    data = calculatedData
+  }
 
   const claims = data || []
   const claimsChecked = claims.length
@@ -112,29 +73,37 @@ export async function runDeadlineNotifications(opts = {}) {
     const userEmail = claim?.profiles?.email
     if (!userEmail) continue
 
-    // Calculate deadline strictly from service_date + filing_deadline_days (prefer pets value)
-    const serviceDate = claim?.service_date ? parseDateOnlyUTC(claim.service_date) : null
-    if (!serviceDate) continue
-    const petDeadlineDays = Number(claim?.pets?.filing_deadline_days)
-    const claimDeadlineDays = Number(claim?.filing_deadline_days)
-    const filingDays = Number.isFinite(petDeadlineDays)
-      ? petDeadlineDays
-      : Number.isFinite(claimDeadlineDays)
-        ? claimDeadlineDays
-        : 90
-    const deadline = claim?.deadline_date ? parseDateOnlyUTC(claim.deadline_date) : null
-    if (!deadline) continue
+    // Parse the calculated deadline (should come from RPC or be calculated above)
+    const deadline = claim?.calculated_deadline ? parseDateOnlyUTC(claim.calculated_deadline) : null
+    if (!deadline) {
+      // eslint-disable-next-line no-console
+      console.log('[deadline-notifications] Skipping claim (no deadline):', claim.id)
+      continue
+    }
+
     const daysRemaining = diffDays(today, deadline)
 
     const flags = claim?.sent_reminders || {}
     // eslint-disable-next-line no-console
     console.log('[deadline-notifications] Claim', claim.id, '- daysRemaining:', daysRemaining, 'flags:', flags)
+
     let key = null
     let include = false
-    if (daysRemaining <= 7 && daysRemaining > 0 && flags.day_7 !== true) { key = 'day_7'; include = true }
-    else if (daysRemaining <= 30 && daysRemaining > 7 && flags.day_30 !== true) { key = 'day_30'; include = true }
-    else if (daysRemaining <= 60 && daysRemaining > 30 && flags.day_60 !== true) { key = 'day_60'; include = true }
-    else if (daysRemaining <= 0 && flags.deadline_passed !== true) { key = 'deadline_passed'; include = true }
+
+    if (daysRemaining <= 7 && daysRemaining > 0 && flags.day_7 !== true) {
+      key = 'day_7'
+      include = true
+    } else if (daysRemaining <= 30 && daysRemaining > 7 && flags.day_30 !== true) {
+      key = 'day_30'
+      include = true
+    } else if (daysRemaining <= 60 && daysRemaining > 30 && flags.day_60 !== true) {
+      key = 'day_60'
+      include = true
+    } else if (daysRemaining <= 0 && flags.deadline_passed !== true) {
+      key = 'deadline_passed'
+      include = true
+    }
+
     if (!include || !key) continue
 
     if (!remindersByUser[userEmail]) remindersByUser[userEmail] = []
@@ -214,5 +183,3 @@ export async function runDeadlineNotifications(opts = {}) {
 }
 
 export default { runDeadlineNotifications }
-
-
