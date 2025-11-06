@@ -11,7 +11,7 @@ import { getReminderEmailHtml } from './emailTemplates.js'
 import multer from 'multer'
 import OpenAI from 'openai'
 import * as pdfjsLib from 'pdfjs-dist'
-import medicationRemindersRouter from './routes/medication-reminders.js'
+// import medicationRemindersRouter from './routes/medication-reminders.js'
 import deadlineNotifications from './routes/deadline-notifications.js'
 import schedule from 'node-schedule'
 
@@ -39,8 +39,8 @@ const app = express()
 app.use(cors())
 app.use(express.json({ limit: '1mb' }))
 
-// Routes
-app.use('/api/medication-reminders', medicationRemindersRouter)
+// Routes (medication reminders router not ready yet)
+// app.use('/api/medication-reminders', medicationRemindersRouter)
 
 app.get('/api/health', (_req, res) => {
   res.json({
