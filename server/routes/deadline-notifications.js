@@ -92,7 +92,7 @@ export async function runDeadlineNotifications(opts = {}) {
       'profiles(email)'
     ].join(', '))
     .in('filing_status', ['not_filed', 'filed'])
-    .or('expense_category.eq.insured,insurance_type.eq.insured')
+    // Note: do not filter by insurance type here; evaluate eligibility in application logic below
 
   if (error) throw error
 
