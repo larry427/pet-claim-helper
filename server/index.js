@@ -285,6 +285,8 @@ if (error) {
 
   // Daily deadline reminders endpoint (used by cron)
   app.post('/api/send-deadline-reminders', async (req, res) => {
+    // eslint-disable-next-line no-console
+    console.log('[DEBUG] send-deadline-reminders endpoint hit')
     try {
       const result = await deadlineNotifications.runDeadlineNotifications({
         // Reuse initialized clients to avoid re-auth
@@ -298,6 +300,8 @@ if (error) {
       return res.status(500).json({ ok: false, error: String(err?.message || err) })
     }
   })
+  // eslint-disable-next-line no-console
+  console.log('Deadline reminders route registered')
   
   const port = process.env.PORT || 8787
   // Cron: medication reminders every minute
