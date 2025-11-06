@@ -129,10 +129,10 @@ export async function runDeadlineNotifications(opts = {}) {
     const flags = claim?.sent_reminders || {}
     let key = null
     let include = false
-    if (daysRemaining === 60 && flags.day_60 !== true) { key = 'day_60'; include = true }
-    else if (daysRemaining === 30 && flags.day_30 !== true) { key = 'day_30'; include = true }
-    else if (daysRemaining === 7 && flags.day_7 !== true) { key = 'day_7'; include = true }
-    else if (daysRemaining < 0 && flags.deadline_passed !== true) { key = 'deadline_passed'; include = true }
+    if (daysRemaining <= 7 && daysRemaining > 0 && flags.day_7 !== true) { key = 'day_7'; include = true }
+    else if (daysRemaining <= 30 && daysRemaining > 7 && flags.day_30 !== true) { key = 'day_30'; include = true }
+    else if (daysRemaining <= 60 && daysRemaining > 30 && flags.day_60 !== true) { key = 'day_60'; include = true }
+    else if (daysRemaining <= 0 && flags.deadline_passed !== true) { key = 'deadline_passed'; include = true }
     if (!include || !key) continue
 
     if (!remindersByUser[userEmail]) remindersByUser[userEmail] = []
