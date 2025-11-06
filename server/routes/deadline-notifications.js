@@ -83,6 +83,9 @@ export async function runDeadlineNotifications(opts = {}) {
   const today = startOfDayUtc()
   const errors = []
 
+  // eslint-disable-next-line no-console
+  console.log('[deadline-notifications] Starting function')
+
   // Query all relevant claims and join pets and profiles
   const { data, error } = await supabase
     .from('claims')
@@ -98,6 +101,8 @@ export async function runDeadlineNotifications(opts = {}) {
 
   const claims = data || []
   const claimsChecked = claims.length
+  // eslint-disable-next-line no-console
+  console.log('[deadline-notifications] Claims fetched:', claimsChecked)
 
   // Build reminder intents per user (email)
   const remindersByUser = {}
@@ -144,6 +149,12 @@ export async function runDeadlineNotifications(opts = {}) {
     remindersQueued++
   }
 
+  // eslint-disable-next-line no-console
+  console.log('[deadline-notifications] Reminders to send:', remindersQueued)
+  const emailsByUser = remindersByUser
+  // eslint-disable-next-line no-console
+  console.log('[deadline-notifications] Batched emails:', Object.keys(emailsByUser).length)
+
   // Send batched emails per user and update flags
   let emailsSent = 0
   for (const [email, reminders] of Object.entries(remindersByUser)) {
@@ -166,6 +177,8 @@ export async function runDeadlineNotifications(opts = {}) {
       console.log('[DEBUG] Resend response:', result)
       // eslint-disable-next-line no-console
       console.log(`[DEBUG] Email sent successfully to: ${email}`)
+      // eslint-disable-next-line no-console
+      console.log('[deadline-notifications] Email sent to:', email, 'Result:', result)
       emailsSent++
 
       // Update sent_reminders flags for included claims
@@ -193,6 +206,8 @@ export async function runDeadlineNotifications(opts = {}) {
     }
   }
 
+  // eslint-disable-next-line no-console
+  console.log('[deadline-notifications] Finished. Emails sent:', emailsSent)
   return { success: true, claimsChecked, remindersQueued, emailsSent, errors }
 }
 
