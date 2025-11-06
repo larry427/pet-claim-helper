@@ -12,6 +12,7 @@ import multer from 'multer'
 import OpenAI from 'openai'
 import * as pdfjsLib from 'pdfjs-dist'
 import medicationRemindersRouter from './routes/medication-reminders.js'
+import deadlineNotifications from './routes/deadline-notifications.js'
 import schedule from 'node-schedule'
 
 // Validate required env vars
@@ -279,6 +280,22 @@ if (error) {
         success: false,
         error: error.message 
       })
+    }
+  })
+
+  // Daily deadline reminders endpoint (used by cron)
+  app.post('/api/send-deadline-reminders', async (req, res) => {
+    try {
+      const result = await deadlineNotifications.runDeadlineNotifications({
+        // Reuse initialized clients to avoid re-auth
+        supabase,
+        resend,
+      })
+      return res.json({ ok: true, ...result })
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[/api/send-deadline-reminders] error', err)
+      return res.status(500).json({ ok: false, error: String(err?.message || err) })
     }
   })
   
