@@ -2842,7 +2842,7 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
       setTestMsg(null)
       setTestLoading(true)
       try {
-        const resp = await fetch('/api/test-email', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+        const resp = await fetch('https://pet-claim-helper.onrender.com/api/test-email', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
         const body = await resp.json().catch(() => ({}))
         if (!resp.ok) {
           throw new Error(body?.error || `Request failed (${resp.status})`)
