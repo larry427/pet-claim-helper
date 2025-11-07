@@ -900,7 +900,7 @@ export default function App() {
     type="button"
     onClick={async () => {
       try {
-        const response = await fetch('http://localhost:8787/api/send-reminders', {
+        const response = await fetch('https://pet-claim-helper.onrender.com/api/send-deadline-reminders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         })
@@ -950,7 +950,7 @@ export default function App() {
                 <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={() => { setMobileMenuOpen(false); setActiveView(v => v === 'app' ? 'settings' : 'app') }}>Settings</button>
                 <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={async () => {
                   try {
-                    const response = await fetch('http://localhost:8787/api/send-reminders', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+                    const response = await fetch('https://pet-claim-helper.onrender.com/api/send-deadline-reminders', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
                     const data = await response.json()
                     alert(`✅ ${data.message}\n\nEmails sent: ${data.sent}\nTotal expiring claims: ${data.totalClaims}`)
                   } catch (error) {
