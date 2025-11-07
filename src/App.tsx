@@ -905,7 +905,7 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' }
         })
         const data = await response.json()
-        alert(`✅ ${data.message}\n\nEmails sent: ${data.sent}\nTotal expiring claims: ${data.totalClaims}`)
+        alert(`✅ Reminders processed!\n\nEmails sent: ${data.emailsSent}\nClaims checked: ${data.claimsChecked}\nReminders queued: ${data.remindersQueued}`)
       } catch (error) {
         alert('❌ Error sending reminders: ' + (error as Error).message)
       }
@@ -952,7 +952,7 @@ export default function App() {
                   try {
                     const response = await fetch('https://pet-claim-helper.onrender.com/api/send-deadline-reminders', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
                     const data = await response.json()
-                    alert(`✅ ${data.message}\n\nEmails sent: ${data.sent}\nTotal expiring claims: ${data.totalClaims}`)
+                    alert(`✅ Reminders processed!\n\nEmails sent: ${data.emailsSent}\nClaims checked: ${data.claimsChecked}\nReminders queued: ${data.remindersQueued}`)
                   } catch (error) {
                     alert('❌ Error sending reminders: ' + (error as Error).message)
                   } finally {
