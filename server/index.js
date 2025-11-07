@@ -296,7 +296,7 @@ if (error) {
     res.set('Access-Control-Allow-Headers', 'Content-Type')
     try {
       const from = 'Pet Claim Helper <onboarding@resend.dev>'
-      const to = ['larry@uglydogadventures.com']
+      const to = ['larry@vrexistence.com']
       const subject = 'Pet Claim Helper - Test Email'
       const text = "If you're seeing this, Resend is working on Vercel!"
 
