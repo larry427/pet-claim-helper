@@ -295,12 +295,18 @@ if (error) {
     res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
     res.set('Access-Control-Allow-Headers', 'Content-Type')
     try {
-      const result = await resend.emails.send({
-        from: 'Pet Claim Helper <onboarding@resend.dev>',
-        to: ['larry@uglydogadventures.com'],
-        subject: 'Pet Claim Helper - Test Email',
-        text: "If you're seeing this, Resend is working on Vercel!",
-      })
+      const from = 'Pet Claim Helper <onboarding@resend.dev>'
+      const to = ['larry@uglydogadventures.com']
+      const subject = 'Pet Claim Helper - Test Email'
+      const text = "If you're seeing this, Resend is working on Vercel!"
+
+      const key = process.env.RESEND_API_KEY || ''
+      const keyPreview = key ? `${key.slice(0, 10)}...${key.slice(-10)}` : 'MISSING'
+      console.log('[test-email] Key present:', key ? keyPreview : 'NO KEY')
+      console.log('[test-email] Sending to:', to.join(','), 'subject:', subject, 'from:', from)
+
+      const result = await resend.emails.send({ from, to, subject, text })
+      console.log('[test-email] Resend response:', result)
       return res.json({ ok: true, messageId: result?.id })
     } catch (err) {
       // eslint-disable-next-line no-console
