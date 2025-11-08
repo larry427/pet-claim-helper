@@ -2087,7 +2087,7 @@ export default function App() {
                                 className="text-xs px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white"
                                 onClick={async () => {
                                   try {
-                                    const today = new Date().toISOString().slice(0,10)
+                                    const today = getLocalTodayYYYYMMDD()
                                     const input = prompt('Enter filed date (YYYY-MM-DD):', today) || today
                                     const filedDate = input
                                     await updateClaim(c.id, { filing_status: 'filed', filed_date: filedDate })
@@ -2485,7 +2485,7 @@ export default function App() {
                   setMedQuestionOpen(false)
                   // Load active medications for this pet
                   if (userId && selectedPet) {
-                    const today = new Date().toISOString().slice(0,10)
+                    const today = getLocalTodayYYYYMMDD()
                     const { data, error } = await supabase
                       .from('medications')
                       .select('*')
@@ -2556,7 +2556,7 @@ export default function App() {
           onSaved={async () => {
             try {
               if (userId && selectedPet) {
-                const today = new Date().toISOString().slice(0,10)
+                const today = getLocalTodayYYYYMMDD()
                 const { data } = await supabase
                   .from('medications')
                   .select('*')
