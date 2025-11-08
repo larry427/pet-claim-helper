@@ -2099,30 +2099,31 @@ export default function App() {
                               >
                                 Mark as Submitted
                               </button>
-                              <div className="flex items-center gap-1 text-xs text-slate-500">
-                                <span>Change Status:</span>
-                                <select
-                                  className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-                                  value="not_submitted"
-                                  onChange={async (e) => {
-                                    try {
-                                      const next = e.target.value
-                                      const newStatus = next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next)
-                                      await updateClaim(c.id, { filing_status: newStatus })
-                                      // Optimistically update local UI to reflect new status immediately
-                                      setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: newStatus } : cl))
-                                      try { alert('✓ Status updated') } catch {}
-                                      await new Promise((r) => setTimeout(r, 400))
-                                      if (userId) listClaims(userId).then(setClaims)
-                                    } catch (er) { console.error('[edit status] error', er) }
-                                  }}
-                                >
-                                  <option value="not_submitted">Not Submitted</option>
-                                  <option value="submitted">Submitted</option>
-                                  <option value="paid">Paid</option>
-                                  <option value="denied">Denied</option>
-                                </select>
-                              </div>
+                              {(['insured','maybe_insured'].includes(String(c.expense_category || 'insured').toLowerCase())) && (
+                                <div className="flex items-center gap-1 text-xs text-slate-500">
+                                  <span>Change Status:</span>
+                                  <select
+                                    className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                                    value="not_submitted"
+                                    onChange={async (e) => {
+                                      try {
+                                        const next = e.target.value
+                                        const newStatus = next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next)
+                                        await updateClaim(c.id, { filing_status: newStatus })
+                                        // Optimistically update local UI to reflect new status immediately
+                                        setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: newStatus } : cl))
+                                        try { alert('✓ Status updated') } catch {}
+                                        await new Promise((r) => setTimeout(r, 400))
+                                        if (userId) listClaims(userId).then(setClaims)
+                                      } catch (er) { console.error('[edit status] error', er) }
+                                    }}
+                                  >
+                                    <option value="not_submitted">Not Submitted</option>
+                                    <option value="submitted">Submitted</option>
+                                    <option value="denied">Denied</option>
+                                  </select>
+                                </div>
+                              )}
                             </div>
                           )
                         }
@@ -2157,36 +2158,30 @@ export default function App() {
                                 >
                                   Deny Claim
                                 </button>
-                                <div className="flex items-center gap-1 text-xs text-slate-500">
-                                  <span>Change Status:</span>
-                                  <select
-                                    className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-                                    value="submitted"
-                                    onChange={async (e) => {
-                                      try {
-                                        const next = e.target.value
-                                        if (next === 'paid') {
-                                          setPaidModalClaim(c)
-                                          const preset = (c.total_amount && Number.isFinite(Number(c.total_amount))) ? String(Number(c.total_amount).toFixed(2)) : ''
-                                          setPaidAmount(preset)
-                                          setPaidDate(getLocalTodayYYYYMMDD())
-                                        } else {
+                                {(['insured','maybe_insured'].includes(String(c.expense_category || 'insured').toLowerCase())) && (
+                                  <div className="flex items-center gap-1 text-xs text-slate-500">
+                                    <span>Change Status:</span>
+                                    <select
+                                      className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                                      value="submitted"
+                                      onChange={async (e) => {
+                                        try {
+                                          const next = e.target.value
                                           const newStatus = next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next)
                                           await updateClaim(c.id, { filing_status: newStatus })
                                           // Optimistically update local UI to reflect new status immediately
                                           setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: newStatus } : cl))
                                           try { alert('✓ Status updated') } catch {}
                                           if (userId) listClaims(userId).then(setClaims)
-                                        }
-                                      } catch (er) { console.error('[edit status] error', er) }
-                                    }}
-                                  >
-                                    <option value="submitted">Submitted</option>
-                                    <option value="not_submitted">Not Submitted</option>
-                                    <option value="paid">Paid</option>
-                                    <option value="denied">Denied</option>
-                                  </select>
-                                </div>
+                                        } catch (er) { console.error('[edit status] error', er) }
+                                      }}
+                                    >
+                                      <option value="submitted">Submitted</option>
+                                      <option value="not_submitted">Not Submitted</option>
+                                      <option value="denied">Denied</option>
+                                    </select>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )
