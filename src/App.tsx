@@ -2222,13 +2222,6 @@ export default function App() {
                         >
                           Delete
                         </button>
-                        <button
-                          type="button"
-                          className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0 whitespace-nowrap"
-                          onClick={() => setEditingClaim(c)}
-                        >
-                          Edit
-                        </button>
                       </div>
                     </div>
                   </div>
