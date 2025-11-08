@@ -2111,7 +2111,10 @@ export default function App() {
                                   onChange={async (e) => {
                                     try {
                                       const next = e.target.value
-                                      await updateClaim(c.id, { filing_status: next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next) })
+                                      const newStatus = next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next)
+                                      await updateClaim(c.id, { filing_status: newStatus })
+                                      // Optimistically update local UI to reflect new status immediately
+                                      setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: newStatus } : cl))
                                       try { alert('✓ Status updated') } catch {}
                                       await new Promise((r) => setTimeout(r, 400))
                                       if (userId) listClaims(userId).then(setClaims)
@@ -2172,7 +2175,10 @@ export default function App() {
                                           setPaidAmount(preset)
                                           setPaidDate(getLocalTodayYYYYMMDD())
                                         } else {
-                                          await updateClaim(c.id, { filing_status: next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next) })
+                                          const newStatus = next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next)
+                                          await updateClaim(c.id, { filing_status: newStatus })
+                                          // Optimistically update local UI to reflect new status immediately
+                                          setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: newStatus } : cl))
                                           try { alert('✓ Status updated') } catch {}
                                           if (userId) listClaims(userId).then(setClaims)
                                         }
