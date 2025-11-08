@@ -361,7 +361,7 @@ if (error) {
       // Fetch medications (all), include pet name for message
       const { data: meds, error: medsError } = await supabase
         .from('medications')
-        .select('id, user_id, pet_id, medication_name, dosage, frequency, reminder_times, start_date, end_date, last_reminder_sent, next_reminder_time, pets(name)')
+        .select('id, user_id, pet_id, medication_name, dosage, frequency, reminder_times, start_date, end_date, next_reminder_time, pets(name)')
       if (medsError) {
         console.error('[Medication Reminders] query error:', medsError)
         return res.status(500).json({ success: false, error: medsError.message })
@@ -379,11 +379,6 @@ if (error) {
           if (typeof val === 'string') return JSON.parse(val)
         } catch {}
         return []
-      }
-      const isSameLocalDate = (d1, d2) => {
-        return d1.getFullYear() === d2.getFullYear() &&
-               d1.getMonth() === d2.getMonth() &&
-               d1.getDate() === d2.getDate()
       }
 
       const dueMeds = (meds || []).filter((m) => {
@@ -407,12 +402,10 @@ if (error) {
           return hh === nowHour
         })
         if (!matches) return false
-        // Only once per day
-        if (m?.last_reminder_sent) {
-          const last = new Date(m.last_reminder_sent)
-          if (!Number.isNaN(last.getTime()) && isSameLocalDate(last, now)) {
-            return false
-          }
+        // Use next_reminder_time: send if null or <= now
+        if (m?.next_reminder_time) {
+          const nxt = new Date(m.next_reminder_time)
+          if (!Number.isNaN(nxt.getTime()) && nxt > now) return false
         }
         return true
       })
@@ -464,7 +457,6 @@ if (error) {
             await supabase
               .from('medications')
               .update({
-                last_reminder_sent: sentAt.toISOString(),
                 next_reminder_time: nextAt.toISOString(),
               })
               .eq('id', med.id)
