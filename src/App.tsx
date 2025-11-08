@@ -2067,7 +2067,7 @@ export default function App() {
                     <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-start sm:items-center justify-between gap-2">
                       {(() => {
                         const stRaw = String(c.filing_status || 'not_submitted').toLowerCase()
-                        const st = stRaw === 'filed' ? 'submitted' : stRaw
+                        const st = (stRaw === 'filed') ? 'submitted' : (stRaw === 'not_filed' ? 'not_submitted' : stRaw)
                         if (isNotInsured) {
                           return (
                             <div className="flex items-center gap-2">
