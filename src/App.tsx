@@ -2100,10 +2100,10 @@ export default function App() {
                                 Mark as Submitted
                               </button>
                               {(['insured','maybe'].includes(String(c.expense_category || 'insured').toLowerCase())) && (
-                                <div className="flex items-center gap-1 text-xs text-slate-500">
-                                  <span>Change Status:</span>
+                                <div className="flex flex-wrap items-center gap-1 text-xs text-slate-500 w-full sm:w-auto">
+                                  <span className="whitespace-nowrap">Change Status:</span>
                                   <select
-                                    className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                                    className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 w-full sm:w-auto max-w-xs"
                                     value="not_submitted"
                                     onChange={async (e) => {
                                       try {
@@ -2159,10 +2159,10 @@ export default function App() {
                                   Deny Claim
                                 </button>
                                 {(['insured','maybe'].includes(String(c.expense_category || 'insured').toLowerCase())) && (
-                                  <div className="flex items-center gap-1 text-xs text-slate-500">
-                                    <span>Change Status:</span>
+                                  <div className="flex flex-wrap items-center gap-1 text-xs text-slate-500 w-full sm:w-auto">
+                                    <span className="whitespace-nowrap">Change Status:</span>
                                     <select
-                                      className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                                      className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 w-full sm:w-auto max-w-xs"
                                       value="submitted"
                                       onChange={async (e) => {
                                         try {
