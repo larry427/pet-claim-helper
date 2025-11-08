@@ -1117,12 +1117,12 @@ export default function App() {
                   <input type="number" step="1" value={String(newPet.annual_coverage_limit ?? '')} onChange={(e) => setNewPet({ ...newPet, annual_coverage_limit: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                   <div className="mt-1 text-[11px] text-slate-500">Maximum insurance pays per year (leave blank for unlimited)</div>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className="block text-xs">Coverage Start Date</label>
-                  <input type="date" value={newPet.coverage_start_date || ''} onChange={(e) => setNewPet({ ...newPet, coverage_start_date: e.target.value })} className="mt-1 w-full min-w-[220px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <input type="date" value={newPet.coverage_start_date || ''} onChange={(e) => setNewPet({ ...newPet, coverage_start_date: e.target.value })} className="mt-1 w-full max-w-xs rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                   <div className="mt-1 text-[11px] text-slate-500">When your insurance policy began (used to calculate deductible reset)</div>
                 </div>
-                <div className="sm:col-span-2">
+                <div className="sm:col-span-2 min-w-0">
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Owner Name</label>
                   <input value={newPet.ownerName} onChange={(e) => setNewPet({ ...newPet, ownerName: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
