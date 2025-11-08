@@ -358,43 +358,71 @@ if (error) {
     res.set('Access-Control-Allow-Headers', 'Content-Type')
     try {
       console.log('[Medication Reminders] start at', new Date().toISOString())
-      const nowIso = new Date().toISOString()
-      // Fetch medications with reminders enabled; include pet name for message
+      // Fetch medications (all), include pet name for message
       const { data: meds, error: medsError } = await supabase
         .from('medications')
-        .select('id, user_id, pet_id, name, dosage, reminder_enabled, next_reminder_time, last_reminder_sent, frequency, pets(name)')
-        .eq('reminder_enabled', true)
+        .select('id, user_id, pet_id, medication_name, dosage, frequency, reminder_times, start_date, end_date, last_reminder_sent, next_reminder_time, pets(name)')
       if (medsError) {
         console.error('[Medication Reminders] query error:', medsError)
         return res.status(500).json({ success: false, error: medsError.message })
       }
+
       const now = new Date()
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const nowHour = now.getHours()
+      const nowMinute = now.getMinutes()
+
+      const parseTimes = (val) => {
+        if (!val) return []
+        try {
+          if (Array.isArray(val)) return val
+          if (typeof val === 'string') return JSON.parse(val)
+        } catch {}
+        return []
+      }
+      const isSameLocalDate = (d1, d2) => {
+        return d1.getFullYear() === d2.getFullYear() &&
+               d1.getMonth() === d2.getMonth() &&
+               d1.getDate() === d2.getDate()
+      }
+
       const dueMeds = (meds || []).filter((m) => {
-        const nrt = m?.next_reminder_time ? new Date(m.next_reminder_time) : null
-        if (!nrt) return true // if not scheduled, allow first-time send
-        return !Number.isNaN(nrt.getTime()) && nrt <= now
+        // Skip if medication end_date has passed
+        if (m?.end_date) {
+          const end = new Date(m.end_date)
+          if (!Number.isNaN(end.getTime()) && end < startOfToday) {
+            return false
+          }
+        }
+        const times = parseTimes(m?.reminder_times)
+        if (!times.length) return false
+        // Match any time that has the same hour as now
+        const matches = times.find((t) => {
+          const [hh, mm] = String(t).split(':').map((x) => Number(x))
+          if (!Number.isFinite(hh)) return false
+          // Match by hour; optional minute match if present
+          if (Number.isFinite(mm)) {
+            return hh === nowHour && mm === nowMinute
+          }
+          return hh === nowHour
+        })
+        if (!matches) return false
+        // Only once per day
+        if (m?.last_reminder_sent) {
+          const last = new Date(m.last_reminder_sent)
+          if (!Number.isNaN(last.getTime()) && isSameLocalDate(last, now)) {
+            return false
+          }
+        }
+        return true
       })
       let remindersSent = 0
       const results = []
 
-      // Helper to compute next reminder based on frequency
-      const computeNextReminder = (baseDate, frequency) => {
-        const d = new Date(baseDate.getTime())
-        const f = String(frequency || '').toLowerCase()
-        if (f === 'every_12_hours' || f === '12h' || f === 'q12h') {
-          d.setHours(d.getHours() + 12)
-        } else if (f === 'every_8_hours' || f === '8h' || f === 'q8h') {
-          d.setHours(d.getHours() + 8)
-        } else if (f === 'weekly' || f === '1w' || f === '7d') {
-          d.setDate(d.getDate() + 7)
-        } else if (f === 'twice_daily' || f === 'bid') {
-          d.setHours(d.getHours() + 12)
-        } else if (f === 'three_times_daily' || f === 'tid') {
-          d.setHours(d.getHours() + 8)
-        } else {
-          // default daily
-          d.setDate(d.getDate() + 1)
-        }
+      // Helper to compute next reminder for "tomorrow at same time"
+      const computeNextReminderSameTimeTomorrow = (matchedTimeString) => {
+        const [hh, mm] = String(matchedTimeString || `${nowHour}:${nowMinute.toString().padStart(2, '0')}`).split(':').map((x) => Number(x))
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, Number.isFinite(hh) ? hh : nowHour, Number.isFinite(mm) ? mm : 0, 0, 0)
         return d
       }
 
@@ -413,7 +441,7 @@ if (error) {
             continue
           }
           const petName = med?.pets?.name || 'your pet'
-          const medName = med?.name || 'medication'
+          const medName = med?.medication_name || 'medication'
           const dosage = med?.dosage ? ` - ${med.dosage}` : ''
           const message = `🐾 Medication reminder for ${petName}: ${medName}${dosage}. Time to give medication!`
           const smsRes = await sendSMS(phone, message)
@@ -422,7 +450,17 @@ if (error) {
           if (smsRes.success) {
             remindersSent += 1
             const sentAt = new Date()
-            const nextAt = computeNextReminder(sentAt, med.frequency)
+            // Determine which time matched in reminder_times
+            const times = parseTimes(med?.reminder_times)
+            const matched = times.find((t) => {
+              const [hh, mm] = String(t).split(':').map((x) => Number(x))
+              if (!Number.isFinite(hh)) return false
+              if (Number.isFinite(mm)) {
+                return hh === nowHour && mm === nowMinute
+              }
+              return hh === nowHour
+            }) || `${nowHour}:${nowMinute.toString().padStart(2, '0')}`
+            const nextAt = computeNextReminderSameTimeTomorrow(matched)
             await supabase
               .from('medications')
               .update({
