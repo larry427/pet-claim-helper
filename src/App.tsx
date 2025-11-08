@@ -1099,22 +1099,22 @@ export default function App() {
                 </div>
                 <div>
                   <label className="block text-xs">Monthly Premium (USD)</label>
-                  <input type="number" step="0.01" placeholder="40" value={String(newPet.monthly_premium ?? '')} onChange={(e) => setNewPet({ ...newPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <input type="number" step="0.01" value={String(newPet.monthly_premium ?? '')} onChange={(e) => setNewPet({ ...newPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                   <div className="mt-1 text-[11px] text-slate-500">Your monthly insurance payment</div>
                 </div>
                 <div>
                   <label className="block text-xs">Deductible (Annual) (USD)</label>
-                  <input type="number" step="0.01" placeholder="250" value={String(newPet.deductible_per_claim ?? '')} onChange={(e) => setNewPet({ ...newPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <input type="number" step="0.01" value={String(newPet.deductible_per_claim ?? '')} onChange={(e) => setNewPet({ ...newPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                   <div className="mt-1 text-[11px] text-slate-500">Amount you pay before insurance kicks in (resets yearly)</div>
                 </div>
                 <div>
                   <label className="block text-xs">Insurance Pays (%)</label>
-                  <input type="number" min={0} max={100} placeholder="80" value={String(newPet.insurance_pays_percentage ?? '')} onChange={(e) => setNewPet({ ...newPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <input type="number" min={0} max={100} value={String(newPet.insurance_pays_percentage ?? '')} onChange={(e) => setNewPet({ ...newPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                   <div className="mt-1 text-[11px] text-slate-500">What percentage your insurance covers (e.g., 80% means you pay 20%)</div>
                 </div>
                 <div>
                   <label className="block text-xs">Annual Coverage Limit (USD)</label>
-                  <input type="number" step="1" placeholder="10000" value={String(newPet.annual_coverage_limit ?? '')} onChange={(e) => setNewPet({ ...newPet, annual_coverage_limit: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <input type="number" step="1" value={String(newPet.annual_coverage_limit ?? '')} onChange={(e) => setNewPet({ ...newPet, annual_coverage_limit: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                   <div className="mt-1 text-[11px] text-slate-500">Maximum insurance pays per year (leave blank for unlimited)</div>
                 </div>
                 <div>
