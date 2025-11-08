@@ -2099,7 +2099,7 @@ export default function App() {
                               >
                                 Mark as Submitted
                               </button>
-                              {(['insured','maybe_insured'].includes(String(c.expense_category || 'insured').toLowerCase())) && (
+                              {(['insured','maybe'].includes(String(c.expense_category || 'insured').toLowerCase())) && (
                                 <div className="flex items-center gap-1 text-xs text-slate-500">
                                   <span>Change Status:</span>
                                   <select
@@ -2158,7 +2158,7 @@ export default function App() {
                                 >
                                   Deny Claim
                                 </button>
-                                {(['insured','maybe_insured'].includes(String(c.expense_category || 'insured').toLowerCase())) && (
+                                {(['insured','maybe'].includes(String(c.expense_category || 'insured').toLowerCase())) && (
                                   <div className="flex items-center gap-1 text-xs text-slate-500">
                                     <span>Change Status:</span>
                                     <select
