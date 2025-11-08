@@ -93,7 +93,7 @@ function buildEmailText(reminders, dashboardUrl) {
 
 function dashboardUrl() {
   return (
-    process.env.APP_DASHBOARD_URL || process.env.VITE_APP_DASHBOARD_URL || 'https://pet-claim-helper.vercel.app/dashboard'
+    process.env.APP_DASHBOARD_URL || process.env.VITE_APP_DASHBOARD_URL || 'https://pet-claim-helper.vercel.app'
   )
 }
 
