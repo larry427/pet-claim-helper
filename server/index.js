@@ -14,6 +14,7 @@ import * as pdfjsLib from 'pdfjs-dist'
 // import medicationRemindersRouter from './routes/medication-reminders.js'
 import deadlineNotifications from './routes/deadline-notifications.js'
 import schedule from 'node-schedule'
+import { sendSMS } from './utils/sendSMS.js'
 
 // Validate required env vars
 const required = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'RESEND_API_KEY']
@@ -344,6 +345,108 @@ if (error) {
   // eslint-disable-next-line no-console
   console.log('Deadline reminders route registered')
   
+  // SMS medication reminders endpoint
+  app.options('/api/send-medication-reminders', (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*')
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    res.set('Access-Control-Allow-Headers', 'Content-Type')
+    return res.sendStatus(204)
+  })
+  app.post('/api/send-medication-reminders', async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*')
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    res.set('Access-Control-Allow-Headers', 'Content-Type')
+    try {
+      console.log('[Medication Reminders] start at', new Date().toISOString())
+      const nowIso = new Date().toISOString()
+      // Fetch medications with reminders enabled; include pet name for message
+      const { data: meds, error: medsError } = await supabase
+        .from('medications')
+        .select('id, user_id, pet_id, name, dosage, reminder_enabled, next_reminder_time, last_reminder_sent, frequency, pets(name)')
+        .eq('reminder_enabled', true)
+      if (medsError) {
+        console.error('[Medication Reminders] query error:', medsError)
+        return res.status(500).json({ success: false, error: medsError.message })
+      }
+      const now = new Date()
+      const dueMeds = (meds || []).filter((m) => {
+        const nrt = m?.next_reminder_time ? new Date(m.next_reminder_time) : null
+        if (!nrt) return true // if not scheduled, allow first-time send
+        return !Number.isNaN(nrt.getTime()) && nrt <= now
+      })
+      let remindersSent = 0
+      const results = []
+
+      // Helper to compute next reminder based on frequency
+      const computeNextReminder = (baseDate, frequency) => {
+        const d = new Date(baseDate.getTime())
+        const f = String(frequency || '').toLowerCase()
+        if (f === 'every_12_hours' || f === '12h' || f === 'q12h') {
+          d.setHours(d.getHours() + 12)
+        } else if (f === 'every_8_hours' || f === '8h' || f === 'q8h') {
+          d.setHours(d.getHours() + 8)
+        } else if (f === 'weekly' || f === '1w' || f === '7d') {
+          d.setDate(d.getDate() + 7)
+        } else if (f === 'twice_daily' || f === 'bid') {
+          d.setHours(d.getHours() + 12)
+        } else if (f === 'three_times_daily' || f === 'tid') {
+          d.setHours(d.getHours() + 8)
+        } else {
+          // default daily
+          d.setDate(d.getDate() + 1)
+        }
+        return d
+      }
+
+      for (const med of dueMeds) {
+        try {
+          // Get user's phone number from profiles
+          const { data: prof, error: profErr } = await supabase
+            .from('profiles')
+            .select('phone_number')
+            .eq('id', med.user_id)
+            .single()
+          const phone = prof?.phone_number || null
+          if (!phone) {
+            console.log('[Medication Reminders] No phone on file; skipping', { medId: med.id, userId: med.user_id })
+            results.push({ medId: med.id, sent: false, reason: 'no_phone' })
+            continue
+          }
+          const petName = med?.pets?.name || 'your pet'
+          const medName = med?.name || 'medication'
+          const dosage = med?.dosage ? ` - ${med.dosage}` : ''
+          const message = `🐾 Medication reminder for ${petName}: ${medName}${dosage}. Time to give medication!`
+          const smsRes = await sendSMS(phone, message)
+          console.log('[Medication Reminders] SMS result:', { medId: med.id, phone, success: smsRes.success, messageId: smsRes.messageId })
+
+          if (smsRes.success) {
+            remindersSent += 1
+            const sentAt = new Date()
+            const nextAt = computeNextReminder(sentAt, med.frequency)
+            await supabase
+              .from('medications')
+              .update({
+                last_reminder_sent: sentAt.toISOString(),
+                next_reminder_time: nextAt.toISOString(),
+              })
+              .eq('id', med.id)
+            results.push({ medId: med.id, sent: true, messageId: smsRes.messageId, nextReminder: nextAt.toISOString() })
+          } else {
+            results.push({ medId: med.id, sent: false, reason: 'sms_failed', error: smsRes.error })
+          }
+        } catch (perErr) {
+          console.error('[Medication Reminders] error for med', med?.id, perErr)
+          results.push({ medId: med?.id, sent: false, reason: 'exception', error: perErr?.message || String(perErr) })
+        }
+      }
+
+      return res.json({ success: true, remindersSent, totalEligible: dueMeds.length, results })
+    } catch (err) {
+      console.error('[/api/send-medication-reminders] error', err)
+      return res.status(500).json({ success: false, error: String(err?.message || err) })
+    }
+  })
+
   const port = process.env.PORT || 8787
   // Cron: medication reminders every minute
   try {
