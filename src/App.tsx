@@ -1987,11 +1987,7 @@ export default function App() {
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <div className={`px-2 py-1 rounded-full text-xs whitespace-nowrap ${catBadge.cls}`}>{catBadge.text}</div>
-                        {(() => {
-                          const v = String(c.expense_category || 'insured').toLowerCase()
-                          if (v !== 'insured') return null
-                          return <div className={`px-2 py-1 rounded-full text-xs whitespace-nowrap ${stBadge.cls}`}>{stBadge.text}</div>
-                        })()}
+                        <div className={`px-2 py-1 rounded-full text-xs whitespace-nowrap ${stBadge.cls}`}>{stBadge.text}</div>
                       </div>
                     </div>
 
