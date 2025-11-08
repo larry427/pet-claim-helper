@@ -108,7 +108,7 @@ export default function App() {
   const [petSelectError, setPetSelectError] = useState(false)
   const [paidModalClaim, setPaidModalClaim] = useState<any | null>(null)
   const [paidAmount, setPaidAmount] = useState<string>('')
-  const [paidDate, setPaidDate] = useState<string>(new Date().toISOString().split('T')[0])
+  const [paidDate, setPaidDate] = useState<string>(getLocalTodayYYYYMMDD())
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [successModal, setSuccessModal] = useState<null | {
@@ -127,6 +127,13 @@ export default function App() {
   const [medicationsForPet, setMedicationsForPet] = useState<any[]>([])
   const [selectedMedicationIds, setSelectedMedicationIds] = useState<string[]>([])
   // Toast notifications
+  function getLocalTodayYYYYMMDD() {
+    const today = new Date()
+    const year = today.getFullYear()
+    const month = String(today.getMonth() + 1).padStart(2, '0')
+    const day = String(today.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
   const [toast, setToast] = useState<{ message: string } | null>(null)
   const showToast = (message: string) => {
     setToast({ message })
@@ -2132,7 +2139,7 @@ export default function App() {
                                     setPaidModalClaim(c)
                                     const preset = (c.total_amount && Number.isFinite(Number(c.total_amount))) ? String(Number(c.total_amount).toFixed(2)) : ''
                                     setPaidAmount(preset)
-                                    setPaidDate(new Date().toISOString().split('T')[0])
+                                    setPaidDate(getLocalTodayYYYYMMDD())
                                   }}
                                 >
                                   Payment Received? Mark as Paid
@@ -2163,7 +2170,7 @@ export default function App() {
                                           setPaidModalClaim(c)
                                           const preset = (c.total_amount && Number.isFinite(Number(c.total_amount))) ? String(Number(c.total_amount).toFixed(2)) : ''
                                           setPaidAmount(preset)
-                                          setPaidDate(new Date().toISOString().split('T')[0])
+                                          setPaidDate(getLocalTodayYYYYMMDD())
                                         } else {
                                           await updateClaim(c.id, { filing_status: next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next) })
                                           try { alert('✓ Status updated') } catch {}
@@ -2383,7 +2390,7 @@ export default function App() {
                       type="date"
                       value={paidDate}
                       onChange={(e) => setPaidDate(e.target.value)}
-                      max={new Date().toISOString().split('T')[0]}
+                      max={getLocalTodayYYYYMMDD()}
                       placeholder="YYYY-MM-DD"
                       className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2"
                     />
@@ -2448,7 +2455,7 @@ export default function App() {
                     }
                     setPaidModalClaim(null)
                     setPaidAmount('')
-                        setPaidDate(new Date().toISOString().split('T')[0])
+                        setPaidDate(getLocalTodayYYYYMMDD())
                     alert('Claim marked as paid')
                   } catch (e) {
                     console.error('[mark paid] error', e)
