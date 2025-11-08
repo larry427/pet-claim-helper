@@ -345,6 +345,100 @@ if (error) {
   // eslint-disable-next-line no-console
   console.log('Deadline reminders route registered')
   
+  // Shared function to send medication reminders without HTTP round-trip
+  const sendMedicationReminders = async () => {
+    console.log('[Medication Reminders] start at', new Date().toISOString())
+    const { data: meds, error: medsError } = await supabase
+      .from('medications')
+      .select('id, user_id, pet_id, medication_name, dosage, frequency, reminder_times, start_date, end_date, next_reminder_time, pets(name)')
+    if (medsError) {
+      console.error('[Medication Reminders] query error:', medsError)
+      throw new Error(medsError.message)
+    }
+    const now = new Date()
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const nowHour = now.getHours()
+    const nowMinute = now.getMinutes()
+    const parseTimes = (val) => {
+      if (!val) return []
+      try {
+        if (Array.isArray(val)) return val
+        if (typeof val === 'string') return JSON.parse(val)
+      } catch {}
+      return []
+    }
+    const dueMeds = (meds || []).filter((m) => {
+      if (m?.end_date) {
+        const end = new Date(m.end_date)
+        if (!Number.isNaN(end.getTime()) && end < startOfToday) return false
+      }
+      const times = parseTimes(m?.reminder_times)
+      if (!times.length) return false
+      const matches = times.find((t) => {
+        const [hh, mm] = String(t).split(':').map((x) => Number(x))
+        if (!Number.isFinite(hh)) return false
+        if (Number.isFinite(mm)) return hh === nowHour && mm === nowMinute
+        return hh === nowHour
+      })
+      if (!matches) return false
+      if (m?.next_reminder_time) {
+        const nxt = new Date(m.next_reminder_time)
+        if (!Number.isNaN(nxt.getTime()) && nxt > now) return false
+      }
+      return true
+    })
+    let remindersSent = 0
+    const results = []
+    const computeNextReminderSameTimeTomorrow = (matchedTimeString) => {
+      const [hh, mm] = String(matchedTimeString || `${nowHour}:${nowMinute.toString().padStart(2, '0')}`).split(':').map((x) => Number(x))
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, Number.isFinite(hh) ? hh : nowHour, Number.isFinite(mm) ? mm : 0, 0, 0)
+      return d
+    }
+    for (const med of dueMeds) {
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('phone_number')
+          .eq('id', med.user_id)
+          .single()
+        const phone = prof?.phone_number || null
+        if (!phone) {
+          console.log('[Medication Reminders] No phone on file; skipping', { medId: med.id, userId: med.user_id })
+          results.push({ medId: med.id, sent: false, reason: 'no_phone' })
+          continue
+        }
+        const petName = med?.pets?.name || 'your pet'
+        const medName = med?.medication_name || 'medication'
+        const dosage = med?.dosage ? ` - ${med.dosage}` : ''
+        const message = `🐾 Medication reminder for ${petName}: ${medName}${dosage}. Time to give medication!`
+        const smsRes = await sendSMS(phone, message)
+        console.log('[Medication Reminders] SMS result:', { medId: med.id, phone, success: smsRes.success, messageId: smsRes.messageId })
+        if (smsRes.success) {
+          remindersSent += 1
+          const times = parseTimes(med?.reminder_times)
+          const matched = times.find((t) => {
+            const [hh, mm] = String(t).split(':').map((x) => Number(x))
+            if (!Number.isFinite(hh)) return false
+            if (Number.isFinite(mm)) return hh === nowHour && mm === nowMinute
+            return hh === nowHour
+          }) || `${nowHour}:${nowMinute.toString().padStart(2, '0')}`
+          const nextAt = computeNextReminderSameTimeTomorrow(matched)
+          await supabase
+            .from('medications')
+            .update({ next_reminder_time: nextAt.toISOString() })
+            .eq('id', med.id)
+          results.push({ medId: med.id, sent: true, messageId: smsRes.messageId, nextReminder: nextAt.toISOString() })
+        } else {
+          results.push({ medId: med.id, sent: false, reason: 'sms_failed', error: smsRes.error })
+        }
+      } catch (perErr) {
+        console.error('[Medication Reminders] error for med', med?.id, perErr)
+        results.push({ medId: med?.id, sent: false, reason: 'exception', error: perErr?.message || String(perErr) })
+      }
+    }
+    return { success: true, remindersSent, totalEligible: dueMeds.length, results }
+  }
+
   // SMS medication reminders endpoint
   app.options('/api/send-medication-reminders', (req, res) => {
     res.set('Access-Control-Allow-Origin', '*')
@@ -357,120 +451,8 @@ if (error) {
     res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
     res.set('Access-Control-Allow-Headers', 'Content-Type')
     try {
-      console.log('[Medication Reminders] start at', new Date().toISOString())
-      // Fetch medications (all), include pet name for message
-      const { data: meds, error: medsError } = await supabase
-        .from('medications')
-        .select('id, user_id, pet_id, medication_name, dosage, frequency, reminder_times, start_date, end_date, next_reminder_time, pets(name)')
-      if (medsError) {
-        console.error('[Medication Reminders] query error:', medsError)
-        return res.status(500).json({ success: false, error: medsError.message })
-      }
-
-      const now = new Date()
-      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      const nowHour = now.getHours()
-      const nowMinute = now.getMinutes()
-
-      const parseTimes = (val) => {
-        if (!val) return []
-        try {
-          if (Array.isArray(val)) return val
-          if (typeof val === 'string') return JSON.parse(val)
-        } catch {}
-        return []
-      }
-
-      const dueMeds = (meds || []).filter((m) => {
-        // Skip if medication end_date has passed
-        if (m?.end_date) {
-          const end = new Date(m.end_date)
-          if (!Number.isNaN(end.getTime()) && end < startOfToday) {
-            return false
-          }
-        }
-        const times = parseTimes(m?.reminder_times)
-        if (!times.length) return false
-        // Match any time that has the same hour as now
-        const matches = times.find((t) => {
-          const [hh, mm] = String(t).split(':').map((x) => Number(x))
-          if (!Number.isFinite(hh)) return false
-          // Match by hour; optional minute match if present
-          if (Number.isFinite(mm)) {
-            return hh === nowHour && mm === nowMinute
-          }
-          return hh === nowHour
-        })
-        if (!matches) return false
-        // Use next_reminder_time: send if null or <= now
-        if (m?.next_reminder_time) {
-          const nxt = new Date(m.next_reminder_time)
-          if (!Number.isNaN(nxt.getTime()) && nxt > now) return false
-        }
-        return true
-      })
-      let remindersSent = 0
-      const results = []
-
-      // Helper to compute next reminder for "tomorrow at same time"
-      const computeNextReminderSameTimeTomorrow = (matchedTimeString) => {
-        const [hh, mm] = String(matchedTimeString || `${nowHour}:${nowMinute.toString().padStart(2, '0')}`).split(':').map((x) => Number(x))
-        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, Number.isFinite(hh) ? hh : nowHour, Number.isFinite(mm) ? mm : 0, 0, 0)
-        return d
-      }
-
-      for (const med of dueMeds) {
-        try {
-          // Get user's phone number from profiles
-          const { data: prof, error: profErr } = await supabase
-            .from('profiles')
-            .select('phone_number')
-            .eq('id', med.user_id)
-            .single()
-          const phone = prof?.phone_number || null
-          if (!phone) {
-            console.log('[Medication Reminders] No phone on file; skipping', { medId: med.id, userId: med.user_id })
-            results.push({ medId: med.id, sent: false, reason: 'no_phone' })
-            continue
-          }
-          const petName = med?.pets?.name || 'your pet'
-          const medName = med?.medication_name || 'medication'
-          const dosage = med?.dosage ? ` - ${med.dosage}` : ''
-          const message = `🐾 Medication reminder for ${petName}: ${medName}${dosage}. Time to give medication!`
-          const smsRes = await sendSMS(phone, message)
-          console.log('[Medication Reminders] SMS result:', { medId: med.id, phone, success: smsRes.success, messageId: smsRes.messageId })
-
-          if (smsRes.success) {
-            remindersSent += 1
-            const sentAt = new Date()
-            // Determine which time matched in reminder_times
-            const times = parseTimes(med?.reminder_times)
-            const matched = times.find((t) => {
-              const [hh, mm] = String(t).split(':').map((x) => Number(x))
-              if (!Number.isFinite(hh)) return false
-              if (Number.isFinite(mm)) {
-                return hh === nowHour && mm === nowMinute
-              }
-              return hh === nowHour
-            }) || `${nowHour}:${nowMinute.toString().padStart(2, '0')}`
-            const nextAt = computeNextReminderSameTimeTomorrow(matched)
-            await supabase
-              .from('medications')
-              .update({
-                next_reminder_time: nextAt.toISOString(),
-              })
-              .eq('id', med.id)
-            results.push({ medId: med.id, sent: true, messageId: smsRes.messageId, nextReminder: nextAt.toISOString() })
-          } else {
-            results.push({ medId: med.id, sent: false, reason: 'sms_failed', error: smsRes.error })
-          }
-        } catch (perErr) {
-          console.error('[Medication Reminders] error for med', med?.id, perErr)
-          results.push({ medId: med?.id, sent: false, reason: 'exception', error: perErr?.message || String(perErr) })
-        }
-      }
-
-      return res.json({ success: true, remindersSent, totalEligible: dueMeds.length, results })
+      const result = await sendMedicationReminders()
+      return res.json(result)
     } catch (err) {
       console.error('[/api/send-medication-reminders] error', err)
       return res.status(500).json({ success: false, error: String(err?.message || err) })
@@ -484,17 +466,11 @@ if (error) {
       // eslint-disable-next-line no-console
       console.log('[Cron] Medication reminders check at', new Date())
       try {
-        const response = await fetch(`http://localhost:${port}/api/medication-reminders/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        })
-        if (!response.ok) {
-          // eslint-disable-next-line no-console
-          console.error('[Cron] Error:', response.status)
-        }
+        const result = await sendMedicationReminders()
+        console.log('[Cron] Medication reminders result:', { remindersSent: result.remindersSent, totalEligible: result.totalEligible })
       } catch (error) {
         // eslint-disable-next-line no-console
-        console.error('[Cron] Failed:', error?.message || error)
+        console.error('[Cron] Medication reminders failed:', error?.message || error)
       }
     })
   } catch (cronErr) {
