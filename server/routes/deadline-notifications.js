@@ -212,7 +212,7 @@ export async function runDeadlineNotifications(opts = {}) {
       const subject = buildSubject(reminders)
       const html = buildEmailHtml(reminders, dashboardUrl())
       const text = buildEmailText(reminders, dashboardUrl())
-      const from = 'Pet Claim Helper <onboarding@resend.dev>'
+      const from = 'Pet Claim Helper <reminders@petclaimhelper.com>'
       const result = await resend.emails.send({ from, to: [email], subject, html, text })
       // eslint-disable-next-line no-console
       console.log(`[deadline-notifications] Sent email to ${email}`, { id: result?.id, items: reminders.length })
