@@ -42,10 +42,17 @@ export default function AddMedicationForm({
       setCustomDays(7)
       setLoading(false)
       setError(null)
+      // Debug: log initial detected timezone when form opens
+      try {
+        console.log('[AddMedicationForm] Form opened. Initial timezone (from Intl):', userTimezone)
+      } catch {}
       // Fetch user's timezone from profile
       if (userId) {
         supabase.from('profiles').select('timezone').eq('id', userId).single().then(({ data }) => {
           const tz = (data && (data as any).timezone) ? String((data as any).timezone) : ''
+          try {
+            console.log('[AddMedicationForm] Profile timezone loaded:', tz || '(empty)')
+          } catch {}
           if (tz) setUserTimezone(tz)
         }).catch(() => {})
       }
@@ -90,7 +97,14 @@ export default function AddMedicationForm({
     try {
       const { start, end } = computeDates()
       const tz = userTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+      try {
+        console.log('[AddMedicationForm] Submitting. Detected timezone:', tz)
+        console.log('[AddMedicationForm] Local times selected:', times)
+      } catch {}
       const timesUtc = times.map((t) => convertLocalToUTC(t, tz)).filter(Boolean)
+      try {
+        console.log('[AddMedicationForm] Converted UTC times:', timesUtc)
+      } catch {}
       const payload = {
         user_id: userId,
         pet_id: petId,
@@ -102,8 +116,14 @@ export default function AddMedicationForm({
         start_date: start,
         end_date: end,
       } as const
+      try {
+        console.log('[AddMedicationForm] Payload.reminder_times (will save as UTC):', payload.reminder_times)
+      } catch {}
 
       const { error: insertError } = await supabase.from('medications').insert(payload)
+      try {
+        console.log('[AddMedicationForm] Supabase insert completed. Error:', insertError || null)
+      } catch {}
       if (insertError) throw insertError
       if (onSaved) onSaved()
       onClose()
