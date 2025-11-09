@@ -9,7 +9,26 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Supabase client not configured: set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// eslint-disable-next-line no-console
+try {
+  console.log('[supabase] initializing client', {
+    urlPresent: Boolean(supabaseUrl),
+    keyPresent: Boolean(supabaseAnonKey),
+    urlPreview: supabaseUrl ? `${supabaseUrl.slice(0, 20)}...` : null,
+  })
+} catch {}
+
+const storage = typeof window !== 'undefined' ? window.localStorage : undefined
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storage,
+    storageKey: 'pch.auth',
+  },
+})
 
 // Update user's timezone in profiles if not already set
 export async function updateUserTimezone(timezone: string): Promise<{ ok: boolean; updated: boolean; timezone?: string; error?: string }> {

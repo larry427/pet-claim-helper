@@ -194,7 +194,10 @@ export default function App() {
   }
 
   useEffect(() => {
+    // Debug: initial auth getSession check
+    try { console.log('[auth] calling getSession()') } catch {}
     const session = supabase.auth.getSession().then(async ({ data }) => {
+      try { console.log('[auth] getSession() result:', { hasSession: Boolean(data?.session), userId: data?.session?.user?.id || null }) } catch {}
       const s = data.session
       if (s?.user) {
         setUserEmail(s.user.email ?? null)
@@ -208,10 +211,12 @@ export default function App() {
         dbLoadPets(s.user.id).then((p) => { setPets(p); if ((p || []).length === 0) setShowOnboarding(true) }).catch(() => setPets([]))
         listClaims(s.user.id).then(setClaims).catch(() => setClaims([]))
       } else {
+        try { console.log('[auth] getSession() no session found - showing signup') } catch {}
         setAuthView('signup')
       }
     })
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
+      try { console.log('[auth] onAuthStateChange:', { event, hasSession: Boolean(session), userId: session?.user?.id || null }) } catch {}
       if (session?.user) {
         setUserEmail(session.user.email ?? null)
         setUserId(session.user.id)
@@ -227,6 +232,7 @@ export default function App() {
         setUserEmail(null)
         setUserId(null)
         setPets([])
+        try { console.log('[auth] onAuthStateChange - signed out, clearing state') } catch {}
         setAuthView('signup')
       }
     })
@@ -395,7 +401,13 @@ export default function App() {
   const handlePick = () => inputRef.current?.click()
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
+    try { console.log('[auth] signOut() called') } catch {}
+    const { error } = await supabase.auth.signOut()
+    try { console.log('[auth] signOut() result:', error || null) } catch {}
+    try {
+      const { data } = await supabase.auth.getSession()
+      console.log('[auth] post-signOut getSession():', { hasSession: Boolean(data?.session) })
+    } catch {}
   }
 
   const processFile = (file: File | undefined | null) => {
@@ -2664,13 +2676,22 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
     setLoading(true)
     setError(null)
     try {
+      try { console.log('[auth] handleSubmit start:', { mode, emailPreview: email.replace(/(.).+(@.+)/, '$1***$2') }) } catch {}
       if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({ email, password })
+        const { data, error } = await supabase.auth.signUp({ email, password })
+        try { console.log('[auth] signUp result:', { hasUser: Boolean(data?.user), hasSession: Boolean(data?.session), error: error || null }) } catch {}
         if (error) throw error
         // Auto-login may require email confirmation based on project settings
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+        try { console.log('[auth] signInWithPassword result:', { hasUser: Boolean(data?.user), hasSession: Boolean(data?.session), error: error || null }) } catch {}
         if (error) throw error
+        try {
+          const { data: sess } = await supabase.auth.getSession()
+          console.log('[auth] post-login getSession():', { hasSession: Boolean(sess?.session), userId: sess?.session?.user?.id || null })
+          const raw = (typeof window !== 'undefined') ? window.localStorage?.getItem('pch.auth') : null
+          console.log('[auth] localStorage pch.auth present:', Boolean(raw))
+        } catch {}
       }
     } catch (err: any) {
       setError(err?.message || 'Authentication failed')
