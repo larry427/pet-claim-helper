@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { formatTimeForDisplay } from '../utils/timezoneUtils'
 
 type MedicationRow = {
   id: string
@@ -31,6 +32,7 @@ export default function DoseTrackingPage({
   const [med, setMed] = useState<MedicationRow | null>(null)
   const [petName, setPetName] = useState<string>('')
   const [givenCount, setGivenCount] = useState<number>(0)
+  const [userTimezone, setUserTimezone] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone)
 
   const timesPerDay = useMemo(() => {
     if (!med) return 0
@@ -92,6 +94,14 @@ export default function DoseTrackingPage({
         .eq('status', 'given')
       if (dErr) throw dErr
       setGivenCount(count || 0)
+      // Load user timezone
+      if (userId) {
+        try {
+          const { data } = await supabase.from('profiles').select('timezone').eq('id', userId).single()
+          const tz = (data && (data as any).timezone) ? String((data as any).timezone) : ''
+          if (tz) setUserTimezone(tz)
+        } catch {}
+      }
     } catch (e: any) {
       setError(e?.message || 'Failed to load medication')
     } finally {
@@ -104,14 +114,7 @@ export default function DoseTrackingPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [medicationId])
 
-  const formatClock = (hhmm: string) => {
-    const [hStr, mStr] = hhmm.split(':')
-    let h = Number(hStr)
-    const ampm = h >= 12 ? 'PM' : 'AM'
-    h = h % 12
-    if (h === 0) h = 12
-    return `${h}:${mStr} ${ampm}`
-  }
+  const formatClock = (utcHHMM: string) => formatTimeForDisplay(utcHHMM, userTimezone)
 
   const handleMarkGiven = async () => {
     if (!userId) { setError('You must be logged in to record a dose.'); return }

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { convertUTCToLocal } from '../utils/timezoneUtils'
 import type { PetProfile } from '../types'
 import AddMedicationForm from './AddMedicationForm'
 import DoseTrackingPage from './DoseTrackingPage'
@@ -36,6 +37,7 @@ export default function MedicationsDashboard({ userId, pets }: { userId: string 
   const [showAdd, setShowAdd] = useState(false)
   const [expandedPets, setExpandedPets] = useState<Record<string, boolean>>({})
   const [selectedMedicationId, setSelectedMedicationId] = useState<string | null>(null)
+  const [userTimezone, setUserTimezone] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone)
 
   const petMap = useMemo(() => {
     const m: Record<string, PetProfile> = {}
@@ -48,6 +50,12 @@ export default function MedicationsDashboard({ userId, pets }: { userId: string 
     setLoading(true)
     setError(null)
     try {
+      // Load user timezone
+      try {
+        const { data } = await supabase.from('profiles').select('timezone').eq('id', userId).single()
+        const tz = (data && (data as any).timezone) ? String((data as any).timezone) : ''
+        if (tz) setUserTimezone(tz)
+      } catch {}
       const { data: meds, error: medsErr } = await supabase
         .from('medications')
         .select('*')
@@ -139,8 +147,9 @@ export default function MedicationsDashboard({ userId, pets }: { userId: string 
     const daysRemaining = endDay ? Math.max(0, Math.round((endDay.getTime() - todayDay.getTime()) / (1000 * 60 * 60 * 24)) + 1) : 0
 
     // Next dose (compute from schedule rather than doses, in case doses aren't pre-generated)
+    // Convert stored UTC schedule to local schedule for display and next-dose calc
     const schedule = (m.reminder_times && m.reminder_times.length > 0)
-      ? m.reminder_times
+      ? m.reminder_times.map((t) => convertUTCToLocal(t, userTimezone)).filter(Boolean)
       : (m.frequency === '1x daily' ? ['07:00'] : m.frequency === '2x daily' ? ['07:00', '19:00'] : ['08:00', '14:00', '20:00'])
     let next: Date | null = null
     const cursor = new Date(today)

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { convertLocalToUTC } from '../utils/timezoneUtils'
 import type { PetProfile } from '../types'
 
 type Frequency = '1x daily' | '2x daily' | '3x daily'
@@ -28,6 +29,7 @@ export default function AddMedicationForm({
   const [customDays, setCustomDays] = useState<number>(7)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [userTimezone, setUserTimezone] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone)
 
   useEffect(() => {
     if (open) {
@@ -40,6 +42,13 @@ export default function AddMedicationForm({
       setCustomDays(7)
       setLoading(false)
       setError(null)
+      // Fetch user's timezone from profile
+      if (userId) {
+        supabase.from('profiles').select('timezone').eq('id', userId).single().then(({ data }) => {
+          const tz = (data && (data as any).timezone) ? String((data as any).timezone) : ''
+          if (tz) setUserTimezone(tz)
+        }).catch(() => {})
+      }
     }
   }, [open, defaultPetId, pets])
 
@@ -80,6 +89,8 @@ export default function AddMedicationForm({
     setError(null)
     try {
       const { start, end } = computeDates()
+      const tz = userTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+      const timesUtc = times.map((t) => convertLocalToUTC(t, tz)).filter(Boolean)
       const payload = {
         user_id: userId,
         pet_id: petId,
@@ -87,7 +98,7 @@ export default function AddMedicationForm({
         medication_name: medicationName.trim(),
         dosage: dosage.trim() || null,
         frequency,
-        reminder_times: times,
+        reminder_times: timesUtc,
         start_date: start,
         end_date: end,
       } as const
