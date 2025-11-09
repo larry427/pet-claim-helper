@@ -11,4 +11,40 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+// Update user's timezone in profiles if not already set
+export async function updateUserTimezone(timezone: string): Promise<{ ok: boolean; updated: boolean; timezone?: string; error?: string }> {
+	try {
+		const { data: userData, error: userErr } = await supabase.auth.getUser()
+		if (userErr || !userData?.user?.id) {
+			return { ok: false, updated: false, error: userErr?.message || 'No authenticated user' }
+		}
+		const userId = userData.user.id
+		const { data: prof, error: profErr } = await supabase
+			.from('profiles')
+			.select('timezone')
+			.eq('id', userId)
+			.single()
+		if (profErr) {
+			// If profile is missing or select failed, do not hard-fail here
+			return { ok: false, updated: false, error: profErr.message }
+		}
+		const current = String((prof as any)?.timezone || '').trim()
+		if (current) {
+			return { ok: true, updated: false, timezone: current }
+		}
+		const tz = String(timezone || '').trim()
+		if (!tz) {
+			return { ok: false, updated: false, error: 'Empty timezone provided' }
+		}
+		const { error: updErr } = await supabase
+			.from('profiles')
+			.update({ timezone: tz })
+			.eq('id', userId)
+		if (updErr) return { ok: false, updated: false, error: updErr.message }
+		return { ok: true, updated: true, timezone: tz }
+	} catch (e: any) {
+		return { ok: false, updated: false, error: e?.message || String(e) }
+	}
+}
+
 

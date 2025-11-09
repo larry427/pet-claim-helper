@@ -3,7 +3,7 @@ import { fileToDataUrl } from './lib/fileUtils'
 import type { ExtractedBill, LineItem, PetProfile, PetSpecies, InsuranceCompany, MultiPetExtracted, ExtractedPetGroup } from './types'
 import { pdfFileToPngDataUrl } from './lib/pdfToImage'
 import { dbLoadPets, dbUpsertPet, dbDeletePet, dbEnsureProfile } from './lib/petStorage'
-import { supabase } from './lib/supabase'
+import { supabase, updateUserTimezone } from './lib/supabase'
 import { generateClaimPdf, generateClaimPdfForPet } from './lib/pdfClaim'
 import AddMedicationForm from './components/AddMedicationForm'
 import OnboardingModal from './components/OnboardingModal'
@@ -194,12 +194,16 @@ export default function App() {
   }
 
   useEffect(() => {
-    const session = supabase.auth.getSession().then(({ data }) => {
+    const session = supabase.auth.getSession().then(async ({ data }) => {
       const s = data.session
       if (s?.user) {
         setUserEmail(s.user.email ?? null)
         setUserId(s.user.id)
         dbEnsureProfile(s.user.id, s.user.email ?? null).catch(() => {})
+        try {
+          const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+          await updateUserTimezone(userTimezone)
+        } catch {}
         setAuthView('app')
         dbLoadPets(s.user.id).then((p) => { setPets(p); if ((p || []).length === 0) setShowOnboarding(true) }).catch(() => setPets([]))
         listClaims(s.user.id).then(setClaims).catch(() => setClaims([]))
@@ -207,11 +211,15 @@ export default function App() {
         setAuthView('signup')
       }
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
         setUserEmail(session.user.email ?? null)
         setUserId(session.user.id)
         dbEnsureProfile(session.user.id, session.user.email ?? null).catch(() => {})
+        try {
+          const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+          await updateUserTimezone(userTimezone)
+        } catch {}
         setAuthView('app')
         dbLoadPets(session.user.id).then((p) => { setPets(p); if ((p || []).length === 0) setShowOnboarding(true) }).catch(() => setPets([]))
         listClaims(session.user.id).then(setClaims).catch(() => setClaims([]))
