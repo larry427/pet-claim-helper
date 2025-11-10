@@ -2670,6 +2670,8 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
+  const [signupNoticeEmail, setSignupNoticeEmail] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -2681,7 +2683,8 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
         const { data, error } = await supabase.auth.signUp({ email, password })
         try { console.log('[auth] signUp result:', { hasUser: Boolean(data?.user), hasSession: Boolean(data?.session), error: error || null }) } catch {}
         if (error) throw error
-        // Auto-login may require email confirmation based on project settings
+        // Show verification notice; most setups require email confirmation before login
+        setSignupNoticeEmail(email)
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password })
         try { console.log('[auth] signInWithPassword result:', { hasUser: Boolean(data?.user), hasSession: Boolean(data?.session), error: error || null }) } catch {}
@@ -2702,6 +2705,15 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
 
   return (
     <form onSubmit={handleSubmit} className="mt-2 space-y-3">
+      {signupNoticeEmail && (
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800 text-sm">
+          <div className="font-medium">Account created!</div>
+          <div className="text-[13px] mt-1">
+            Please check your email at <span className="font-mono">{signupNoticeEmail}</span> to verify your account.
+            You won't be able to log in until you confirm your email address.
+          </div>
+        </div>
+      )}
       {mode === 'signup' ? (
         <div className="text-center text-sm text-slate-700 dark:text-slate-200 mb-2">
           <div className="font-medium">Welcome! Create your account</div>
@@ -2718,7 +2730,36 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
       </div>
       <div>
         <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Password</label>
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" required />
+        <div className="mt-1 relative">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 pr-10 text-sm"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:text-slate-400"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            title={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword ? (
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20C7 20 2.73 16.11 1 12a21.87 21.87 0 0 1 5.06-7.94" />
+                <path d="M10.58 10.58a2 2 0 1 0 2.83 2.83" />
+                <path d="M1 1l22 22" />
+                <path d="M9.88 4.12A10.94 10.94 0 0 1 12 4c5 0 9.27 3.89 11 8a21.87 21.87 0 0 1-2.16 3.19" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
       {error && <p className="text-xs text-rose-600">{error}</p>}
       <button
