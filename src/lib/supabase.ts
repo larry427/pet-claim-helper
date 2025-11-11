@@ -15,6 +15,9 @@ try {
     urlPresent: Boolean(supabaseUrl),
     keyPresent: Boolean(supabaseAnonKey),
     urlPreview: supabaseUrl ? `${supabaseUrl.slice(0, 20)}...` : null,
+    keyLength: supabaseAnonKey?.length || 0,
+    keyFirst50: supabaseAnonKey ? `${supabaseAnonKey.slice(0, 50)}...` : null,
+    keyLast20: supabaseAnonKey ? `...${supabaseAnonKey.slice(-20)}` : null,
   })
 } catch {}
 
