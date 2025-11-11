@@ -209,8 +209,8 @@ export default function App() {
           updateUserTimezone(userTimezone).catch(() => {})
         } catch {}
         try { console.log('[auth] calling dbLoadPets for user:', s.user.id) } catch {}
-        dbLoadPets(s.user.id).then((p) => { setPets(p); if ((p || []).length === 0) setShowOnboarding(true) }).catch(() => setPets([]))
-        listClaims(s.user.id).then(setClaims).catch(() => setClaims([]))
+        dbLoadPets(s.user.id).then((p) => { setPets(p); if ((p || []).length === 0) setShowOnboarding(true) }).catch((err) => { console.error('[auth] dbLoadPets failed:', err); setPets([]) })
+        listClaims(s.user.id).then(setClaims).catch((err) => { console.error('[auth] listClaims failed:', err); setClaims([]) })
       } else {
         try { console.log('[auth] getSession() no session found - showing signup') } catch {}
         setAuthView('signup')
@@ -231,8 +231,8 @@ export default function App() {
           updateUserTimezone(userTimezone).catch(() => {})
         } catch {}
         try { console.log('[auth] calling dbLoadPets for user:', session.user.id) } catch {}
-        dbLoadPets(session.user.id).then((p) => { setPets(p); if ((p || []).length === 0) setShowOnboarding(true) }).catch(() => setPets([]))
-        listClaims(session.user.id).then(setClaims).catch(() => setClaims([]))
+        dbLoadPets(session.user.id).then((p) => { setPets(p); if ((p || []).length === 0) setShowOnboarding(true) }).catch((err) => { console.error('[auth] dbLoadPets failed:', err); setPets([]) })
+        listClaims(session.user.id).then(setClaims).catch((err) => { console.error('[auth] listClaims failed:', err); setClaims([]) })
       } else {
         setUserEmail(null)
         setUserId(null)

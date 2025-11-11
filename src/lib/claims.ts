@@ -38,13 +38,24 @@ export async function createClaim(claim: NewClaim): Promise<ClaimRow> {
 }
 
 export async function listClaims(userId: string) {
-  const { data, error } = await supabase
-    .from('claims')
-    .select('*, pets(id, name, species)')
-    .eq('user_id', userId)
-    .order('service_date', { ascending: false })
-  if (error) throw error
-  return data
+  try {
+    console.log('[listClaims] START - userId=', userId)
+    const { data, error } = await supabase
+      .from('claims')
+      .select('*, pets(id, name, species)')
+      .eq('user_id', userId)
+      .order('service_date', { ascending: false })
+    console.log('[listClaims] QUERY RESULT - data:', data, 'error:', error)
+    if (error) {
+      console.error('[listClaims] ERROR:', error)
+      throw error
+    }
+    console.log('[listClaims] SUCCESS - count=', data?.length || 0)
+    return data
+  } catch (e) {
+    console.error('[listClaims] EXCEPTION:', e)
+    throw e
+  }
 }
 
 export async function updateClaim(id: string, updates: Partial<NewClaim>) {

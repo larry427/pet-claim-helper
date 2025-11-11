@@ -3,32 +3,40 @@ import { supabase } from './supabase'
 
 // Supabase-backed helpers
 export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
-  const { data, error } = await supabase
-    .from('pets')
-    .select('id, name, species, color, insurance_company, policy_number, owner_name, owner_phone, filing_deadline_days, monthly_premium, deductible_per_claim, coverage_start_date, insurance_pays_percentage, annual_coverage_limit')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true })
-  if (error) throw error
-  const mapped = (data || []).map((p: any) => ({
-    id: p.id,
-    name: p.name,
-    species: p.species,
-    color: p.color,
-    insuranceCompany: p.insurance_company,
-    policyNumber: p.policy_number,
-    ownerName: p.owner_name,
-    ownerPhone: p.owner_phone,
-    filing_deadline_days: p.filing_deadline_days,
-    monthly_premium: p.monthly_premium ?? null,
-    deductible_per_claim: p.deductible_per_claim ?? null,
-    coverage_start_date: p.coverage_start_date || null,
-    insurance_pays_percentage: p.insurance_pays_percentage ?? null,
-    annual_coverage_limit: p.annual_coverage_limit ?? null,
-  }))
-  // Debug
-  // eslint-disable-next-line no-console
-  console.log('[dbLoadPets] userId=', userId, 'count=', mapped.length)
-  return mapped
+  try {
+    console.log('[dbLoadPets] START - userId=', userId)
+    const { data, error } = await supabase
+      .from('pets')
+      .select('id, name, species, color, insurance_company, policy_number, owner_name, owner_phone, filing_deadline_days, monthly_premium, deductible_per_claim, coverage_start_date, insurance_pays_percentage, annual_coverage_limit')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+    console.log('[dbLoadPets] QUERY RESULT - data:', data, 'error:', error)
+    if (error) {
+      console.error('[dbLoadPets] ERROR:', error)
+      throw error
+    }
+    const mapped = (data || []).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      species: p.species,
+      color: p.color,
+      insuranceCompany: p.insurance_company,
+      policyNumber: p.policy_number,
+      ownerName: p.owner_name,
+      ownerPhone: p.owner_phone,
+      filing_deadline_days: p.filing_deadline_days,
+      monthly_premium: p.monthly_premium ?? null,
+      deductible_per_claim: p.deductible_per_claim ?? null,
+      coverage_start_date: p.coverage_start_date || null,
+      insurance_pays_percentage: p.insurance_pays_percentage ?? null,
+      annual_coverage_limit: p.annual_coverage_limit ?? null,
+    }))
+    console.log('[dbLoadPets] SUCCESS - count=', mapped.length, 'pets:', mapped)
+    return mapped
+  } catch (e) {
+    console.error('[dbLoadPets] EXCEPTION:', e)
+    throw e
+  }
 }
 
 export async function dbUpsertPet(userId: string, pet: PetProfile): Promise<void> {
