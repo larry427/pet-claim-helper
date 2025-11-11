@@ -206,8 +206,9 @@ export default function App() {
         dbEnsureProfile(s.user.id, s.user.email ?? null).catch(() => {})
         try {
           const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
-          await updateUserTimezone(userTimezone)
+          updateUserTimezone(userTimezone).catch(() => {})
         } catch {}
+        try { console.log('[auth] calling dbLoadPets for user:', s.user.id) } catch {}
         dbLoadPets(s.user.id).then((p) => { setPets(p); if ((p || []).length === 0) setShowOnboarding(true) }).catch(() => setPets([]))
         listClaims(s.user.id).then(setClaims).catch(() => setClaims([]))
       } else {
@@ -227,8 +228,9 @@ export default function App() {
         dbEnsureProfile(session.user.id, session.user.email ?? null).catch(() => {})
         try {
           const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
-          await updateUserTimezone(userTimezone)
+          updateUserTimezone(userTimezone).catch(() => {})
         } catch {}
+        try { console.log('[auth] calling dbLoadPets for user:', session.user.id) } catch {}
         dbLoadPets(session.user.id).then((p) => { setPets(p); if ((p || []).length === 0) setShowOnboarding(true) }).catch(() => setPets([]))
         listClaims(session.user.id).then(setClaims).catch(() => setClaims([]))
       } else {
