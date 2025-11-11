@@ -202,12 +202,12 @@ export default function App() {
       if (s?.user) {
         setUserEmail(s.user.email ?? null)
         setUserId(s.user.id)
+        setAuthView('app')
         dbEnsureProfile(s.user.id, s.user.email ?? null).catch(() => {})
         try {
           const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
           await updateUserTimezone(userTimezone)
         } catch {}
-        setAuthView('app')
         dbLoadPets(s.user.id).then((p) => { setPets(p); if ((p || []).length === 0) setShowOnboarding(true) }).catch(() => setPets([]))
         listClaims(s.user.id).then(setClaims).catch(() => setClaims([]))
       } else {
@@ -223,12 +223,12 @@ export default function App() {
       if (session?.user) {
         setUserEmail(session.user.email ?? null)
         setUserId(session.user.id)
+        setAuthView('app')
         dbEnsureProfile(session.user.id, session.user.email ?? null).catch(() => {})
         try {
           const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
           await updateUserTimezone(userTimezone)
         } catch {}
-        setAuthView('app')
         dbLoadPets(session.user.id).then((p) => { setPets(p); if ((p || []).length === 0) setShowOnboarding(true) }).catch(() => setPets([]))
         listClaims(session.user.id).then(setClaims).catch(() => setClaims([]))
       } else {
