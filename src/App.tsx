@@ -70,7 +70,7 @@ export default function App() {
   const [customDeadlineEdit, setCustomDeadlineEdit] = useState<string>('')
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
-  const [authView, setAuthView] = useState<'login' | 'signup' | 'app'>('app')
+  const [authView, setAuthView] = useState<'login' | 'signup' | 'app'>('signup')
   // Prefill Owner Phone from user profile when opening Add Pet
   useEffect(() => {
     if (!addingPet || !userId) return
@@ -196,7 +196,7 @@ export default function App() {
   useEffect(() => {
     // Debug: initial auth getSession check
     try { console.log('[auth] calling getSession()') } catch {}
-    const session = supabase.auth.getSession().then(async ({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       try { console.log('[auth] getSession() result:', { hasSession: Boolean(data?.session), userId: data?.session?.user?.id || null }) } catch {}
       const s = data.session
       if (s?.user) {
@@ -214,6 +214,9 @@ export default function App() {
         try { console.log('[auth] getSession() no session found - showing signup') } catch {}
         setAuthView('signup')
       }
+    }).catch((error) => {
+      try { console.error('[auth] getSession() error:', error) } catch {}
+      setAuthView('signup')
     })
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       try { console.log('[auth] onAuthStateChange:', { event, hasSession: Boolean(session), userId: session?.user?.id || null }) } catch {}
