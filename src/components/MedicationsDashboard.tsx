@@ -35,7 +35,6 @@ export default function MedicationsDashboard({ userId, pets }: { userId: string 
   const [medications, setMedications] = useState<MedicationRow[]>([])
   const [dosesGivenByMed, setDosesGivenByMed] = useState<Record<string, number>>({})
   const [showAdd, setShowAdd] = useState(false)
-  const [expandedPets, setExpandedPets] = useState<Record<string, boolean>>({})
   const [selectedMedicationId, setSelectedMedicationId] = useState<string | null>(null)
   const [userTimezone, setUserTimezone] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone)
 
@@ -100,10 +99,24 @@ export default function MedicationsDashboard({ userId, pets }: { userId: string 
   // Always show all medications; no expand/collapse needed
 
   const grouped = useMemo(() => {
+    const today = new Date()
+    const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+
     const g: Record<string, MedicationRow[]> = {}
     for (const m of medications) {
-      if (!g[m.pet_id]) g[m.pet_id] = []
-      g[m.pet_id].push(m)
+      // Filter for active medications only
+      const startDate = new Date(m.start_date)
+      const startDay = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+      const endDate = m.end_date ? new Date(m.end_date) : null
+      const endDay = endDate ? new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()) : null
+
+      // Medication is active if today is >= start_date AND (end_date is null OR today <= end_date)
+      const isActive = todayDay >= startDay && (!endDay || todayDay <= endDay)
+
+      if (isActive) {
+        if (!g[m.pet_id]) g[m.pet_id] = []
+        g[m.pet_id].push(m)
+      }
     }
     return g
   }, [medications])
@@ -209,24 +222,13 @@ export default function MedicationsDashboard({ userId, pets }: { userId: string 
           const pet = petMap[petId]
           return (
             <div key={petId}>
-              <button
-                type="button"
-                onClick={() => setExpandedPets((prev) => ({ ...prev, [petId]: !prev[petId] }))}
-                className="group w-full text-left text-base font-semibold mb-2 flex items-center justify-between gap-2 h-12 px-4 rounded-lg cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-800 hover:shadow-sm transition transform hover:scale-[1.01]"
-                title="Click to toggle medications"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: pet?.color || (pet?.species === 'dog' ? '#3B82F6' : pet?.species === 'cat' ? '#F97316' : '#6B7280') }} />
-                  <span className="font-semibold">{pet ? `${pet.name} (${pet.species})` : 'Unknown Pet'}</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-600">
-                  <svg className={[ 'h-4 w-4 transition-transform duration-150', expandedPets[petId] ? 'rotate-90' : '' ].join(' ')} viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                    <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 0 1-.02-1.06L10.17 10 7.2 6.3a.75.75 0 1 1 1.1-1.02l3.5 3.75c.27.29.27.74 0 1.03l-3.5 3.75a.75.75 0 0 1-1.09.01Z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-sm text-slate-600 font-medium">{expandedPets[petId] ? 'Hide medications' : 'Show medications'}</span>
-                </div>
-              </button>
-              {expandedPets[petId] !== false && (
+              <div className="text-base font-semibold mb-2 flex items-center gap-3 h-12 px-4">
+                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: pet?.color || (pet?.species === 'dog' ? '#3B82F6' : pet?.species === 'cat' ? '#F97316' : '#6B7280') }} />
+                <span className="font-semibold">{pet ? `${pet.name} (${pet.species})` : 'Unknown Pet'}</span>
+              </div>
+              {meds.length === 0 ? (
+                <div className="ml-4 text-sm text-slate-500 dark:text-slate-400">No active medications</div>
+              ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {meds.map(m => {
                   const stats = computeStats(m)

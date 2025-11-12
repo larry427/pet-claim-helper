@@ -114,6 +114,22 @@ export default function DoseTrackingPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [medicationId])
 
+  // Prevent body scroll and handle escape key when modal is open
+  useEffect(() => {
+    // Prevent body scroll
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    // Handle escape key
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      document.body.style.overflow = originalOverflow
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [onClose])
+
   const formatClock = (utcHHMM: string) => formatTimeForDisplay(utcHHMM, userTimezone)
 
   const handleMarkGiven = async () => {

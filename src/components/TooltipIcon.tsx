@@ -10,11 +10,18 @@ export default function TooltipIcon({ title, description }: Props) {
 
   useEffect(() => {
     if (!open) return
+    // Prevent body scroll
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    // Handle escape key
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false)
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = originalOverflow
+      window.removeEventListener('keydown', onKey)
+    }
   }, [open])
 
   return (

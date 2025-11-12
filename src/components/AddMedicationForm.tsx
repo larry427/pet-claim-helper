@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { convertLocalToUTC } from '../utils/timezoneUtils'
 import type { PetProfile } from '../types'
@@ -31,8 +31,13 @@ export default function AddMedicationForm({
   const [error, setError] = useState<string | null>(null)
   const [userTimezone, setUserTimezone] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone)
 
+  // Track previous open state to only reset form when modal first opens
+  const prevOpenRef = useRef(false)
+
   useEffect(() => {
-    if (open) {
+    // Only reset form fields when modal transitions from closed to open (false -> true)
+    // This prevents form data loss when validation fails and component re-renders
+    if (open && !prevOpenRef.current) {
       setPetId(defaultPetId || (pets[0]?.id ?? ''))
       setMedicationName('')
       setDosage('')
@@ -57,7 +62,26 @@ export default function AddMedicationForm({
         }).catch(() => {})
       }
     }
-  }, [open, defaultPetId, pets])
+    // Update the ref to track current open state
+    prevOpenRef.current = open
+  }, [open, defaultPetId, pets, userId, userTimezone])
+
+  // Prevent body scroll and handle escape key when modal is open
+  useEffect(() => {
+    if (!open) return
+    // Prevent body scroll
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    // Handle escape key
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      document.body.style.overflow = originalOverflow
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [open, onClose])
 
   useEffect(() => {
     if (frequency === '1x daily') setTimes(['07:00'])
@@ -225,7 +249,7 @@ export default function AddMedicationForm({
                   type="time"
                   value={times[idx] || ''}
                   onChange={(e) => handleTimeChange(idx, e.target.value)}
-                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                  className="w-full min-w-[140px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
                 />
               ))}
             </div>

@@ -70,6 +70,23 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
     }
   }, [open, step, onClose])
 
+  // Prevent body scroll and handle escape key when modal is open
+  useEffect(() => {
+    if (!open) return
+    // Prevent body scroll
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    // Handle escape key (only allow closing before step 4)
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && step !== 4) onClose()
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      document.body.style.overflow = originalOverflow
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [open, step, onClose])
+
   const handleFinish = async () => {
     setSaving(true)
     setError(null)

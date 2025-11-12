@@ -31,19 +31,15 @@ export default function App() {
   const [visitTitle, setVisitTitle] = useState('')  // NEW: User friendly title
   const [expenseCategory, setExpenseCategory] = useState<'insured' | 'not_insured' | 'maybe_insured'>('insured')
   const [addingPet, setAddingPet] = useState(false)
-  const [newPet, setNewPet] = useState<{ name: string; species: PetSpecies; insuranceCompany: InsuranceCompany; policyNumber: string; ownerName: string; ownerPhone: string; filing_deadline_days?: number | ''; monthly_premium?: number | ''; deductible_per_claim?: number | ''; insurance_pays_percentage?: number | ''; annual_coverage_limit?: number | ''; coverage_start_date?: string }>(
+  const [newPet, setNewPet] = useState<{ name: string; species: PetSpecies; insuranceCompany: InsuranceCompany; filing_deadline_days?: number | ''; monthly_premium?: number | ''; deductible_per_claim?: number | ''; insurance_pays_percentage?: number | ''; coverage_start_date?: string }>(
     {
     name: '',
     species: 'dog',
     insuranceCompany: '',
-    policyNumber: '',
-    ownerName: '',
-    ownerPhone: '',
       filing_deadline_days: '',
       monthly_premium: '',
       deductible_per_claim: '',
       insurance_pays_percentage: '',
-      annual_coverage_limit: '',
       coverage_start_date: ''
     }
   )
@@ -52,15 +48,11 @@ export default function App() {
     name: string;
     species: PetSpecies;
     insuranceCompany: InsuranceCompany;
-    policyNumber: string;
-    ownerName: string;
-    ownerPhone: string;
     filing_deadline_days?: number | '';
     monthly_premium?: number | '';
     deductible_per_claim?: number | '';
     coverage_start_date?: string;
     insurance_pays_percentage?: number | '';
-    annual_coverage_limit?: number | '';
   } | null>(null)
   const [newPetInsurer, setNewPetInsurer] = useState<'Trupanion' | 'Nationwide' | 'Healthy Paws' | 'Fetch' | 'Custom Insurance' | ''>('')
   const [editPetInsurer, setEditPetInsurer] = useState<'Trupanion' | 'Nationwide' | 'Healthy Paws' | 'Fetch' | 'Custom Insurance' | ''>('')
@@ -71,19 +63,6 @@ export default function App() {
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [authView, setAuthView] = useState<'login' | 'signup' | 'app'>('signup')
-  // Prefill Owner Phone from user profile when opening Add Pet
-  useEffect(() => {
-    if (!addingPet || !userId) return
-    ;(async () => {
-      try {
-        const { data, error } = await supabase.from('profiles').select('phone').eq('id', userId).single()
-        if (!error && data && data.phone && !newPet.ownerPhone) {
-          setNewPet(prev => ({ ...prev, ownerPhone: data.phone as string }))
-        }
-      } catch {}
-    })()
-  }, [addingPet, userId])
-
   // Multi-pet extraction state
   const [multiExtracted, setMultiExtracted] = useState<MultiPetExtracted | null>(null)
   const [petMatches, setPetMatches] = useState<(string | null)[]>([])
@@ -298,6 +277,21 @@ export default function App() {
     }
   }, [pets])
 
+  // Mobile menu: prevent body scroll and handle escape key when open
+  useEffect(() => {
+    if (!mobileMenuOpen) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileMenuOpen(false)
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      document.body.style.overflow = originalOverflow
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [mobileMenuOpen])
+
   // Persist financial period filter
   useEffect(() => {
     try {
@@ -347,14 +341,14 @@ export default function App() {
       name: trimmedName,
       species: newPet.species,
       insuranceCompany: newPet.insuranceCompany,
-      policyNumber: newPet.policyNumber.trim(),
-      ownerName: newPet.ownerName.trim(),
-      ownerPhone: newPet.ownerPhone.trim(),
+      policyNumber: '',
+      ownerName: '',
+      ownerPhone: '',
       filing_deadline_days: (newPet as any).filing_deadline_days as any,
       monthly_premium: newPet.monthly_premium === '' ? null : Number(newPet.monthly_premium),
       deductible_per_claim: newPet.deductible_per_claim === '' ? null : Number(newPet.deductible_per_claim),
       insurance_pays_percentage: newPet.insurance_pays_percentage === '' ? null : (Number(newPet.insurance_pays_percentage) / 100),
-      annual_coverage_limit: newPet.annual_coverage_limit === '' ? null : Number(newPet.annual_coverage_limit),
+      annual_coverage_limit: null,
       coverage_start_date: newPet.coverage_start_date || null,
     }
     const updated = [...pets, created]
@@ -372,7 +366,7 @@ export default function App() {
       setSelectedPetId(id)
     }
     setAddingPet(false)
-    setNewPet({ name: '', species: 'dog', insuranceCompany: '', policyNumber: '', ownerName: '', ownerPhone: '', filing_deadline_days: '', monthly_premium: '', deductible_per_claim: '', insurance_pays_percentage: '', annual_coverage_limit: '', coverage_start_date: '' })
+    setNewPet({ name: '', species: 'dog', insuranceCompany: '', filing_deadline_days: '', monthly_premium: '', deductible_per_claim: '', insurance_pays_percentage: '', coverage_start_date: '' })
     setNewPetInsurer('')
     setCustomInsurerNameNew('')
     setCustomDeadlineNew('')
@@ -384,15 +378,11 @@ export default function App() {
       name: pet.name,
       species: pet.species,
       insuranceCompany: pet.insuranceCompany,
-      policyNumber: pet.policyNumber,
-      ownerName: pet.ownerName || '',
-      ownerPhone: pet.ownerPhone || '',
       filing_deadline_days: (pet as any).filing_deadline_days || '',
       monthly_premium: (pet as any).monthly_premium ?? '',
       deductible_per_claim: (pet as any).deductible_per_claim ?? '',
       coverage_start_date: (pet as any).coverage_start_date || '',
-      insurance_pays_percentage: (pet as any).insurance_pays_percentage != null ? Math.round(Number((pet as any).insurance_pays_percentage) * 100) : '',
-      annual_coverage_limit: (pet as any).annual_coverage_limit ?? ''
+      insurance_pays_percentage: (pet as any).insurance_pays_percentage != null ? Math.round(Number((pet as any).insurance_pays_percentage) * 100) : ''
     })
     const known = ['Trupanion','Nationwide','Healthy Paws','Fetch']
     if (known.includes(pet.insuranceCompany)) {
@@ -429,15 +419,15 @@ export default function App() {
             name: editPet.name.trim(),
             species: editPet.species,
             insuranceCompany: finalCompany as any,
-            policyNumber: editPet.policyNumber.trim(),
-            ownerName: editPet.ownerName.trim(),
-            ownerPhone: editPet.ownerPhone.trim(),
+            policyNumber: p.policyNumber || '',
+            ownerName: p.ownerName || '',
+            ownerPhone: p.ownerPhone || '',
             filing_deadline_days: finalDays as any,
             monthly_premium: editPet.monthly_premium === '' ? null : Number(editPet.monthly_premium),
             deductible_per_claim: editPet.deductible_per_claim === '' ? null : Number(editPet.deductible_per_claim),
             coverage_start_date: editPet.coverage_start_date || null,
             insurance_pays_percentage: editPet.insurance_pays_percentage === '' ? null : (Number(editPet.insurance_pays_percentage) / 100),
-            annual_coverage_limit: editPet.annual_coverage_limit === '' ? null : Number(editPet.annual_coverage_limit),
+            annual_coverage_limit: p.annual_coverage_limit ?? null,
           }
         : p,
     )
@@ -936,13 +926,19 @@ export default function App() {
           </div>
         </div>
       )}
-      <header className="px-6 py-5">
-        <div className="mx-auto max-w-6xl flex items-center justify-between">
-          <div className="flex items-center gap-3">
-          <img src="/pch-logo.png" alt="Pet Claim Helper" className="h-14 w-14 object-contain" />
-            <span className="text-xl font-semibold tracking-tight">Pet Claim Helper</span>
+      <header className="px-4 py-6 md:py-8 bg-gradient-to-b from-white/50 to-transparent dark:from-slate-900/50">
+        <div className="mx-auto max-w-6xl">
+          {/* Logo - centered and prominent */}
+          <div className="flex flex-col items-center justify-center mb-6">
+            <img
+              src="/pch-logo.png"
+              alt="Pet Claim Helper"
+              className="w-[90vw] max-w-[400px] md:max-w-[500px] h-auto object-contain"
+            />
           </div>
-          {/* Desktop navigation */}
+          {/* Navigation row */}
+          <div className="flex items-center justify-center gap-3">
+            {/* Desktop navigation */}
           <div className="hidden md:flex items-center gap-3">
             {authView === 'app' && (
               <button
@@ -974,33 +970,13 @@ export default function App() {
                 💊 Medications
               </button>
             )}
-            {authView === 'app' && (
-  <button
-    type="button"
-    onClick={async () => {
-      try {
-        const response = await fetch('https://pet-claim-helper.onrender.com/api/send-deadline-reminders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        })
-        const data = await response.json()
-        alert(`✅ Reminders processed!\n\nEmails sent: ${data.emailsSent}\nClaims checked: ${data.claimsChecked}\nReminders queued: ${data.remindersQueued}`)
-      } catch (error) {
-        alert('❌ Error sending reminders: ' + (error as Error).message)
-      }
-    }}
-    className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-3 py-1.5 text-xs hover:shadow"
-  >
-    📧 Send Reminders
-  </button>
-)}
             {userEmail && <span className="text-xs text-slate-600 dark:text-slate-300">Logged in as: {userEmail}</span>}
             {userEmail && (
               <button onClick={handleLogout} className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-3 py-1.5 text-xs hover:shadow">Logout</button>
             )}
           </div>
           {/* Mobile hamburger */}
-          <div className="md:hidden">
+          <div className="md:hidden flex items-center">
             <button
               type="button"
               className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-3 py-2 text-sm"
@@ -1010,14 +986,15 @@ export default function App() {
               ☰
             </button>
           </div>
+          </div>
         </div>
       </header>
 
       {/* Mobile slide-out menu */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 pointer-events-none">
-          <div className="absolute inset-0 bg-black/40" />
-          <div className="absolute right-0 top-0 h-full w-80 max-w-[85vw] bg-white dark:bg-slate-900 shadow-xl p-6 flex flex-col gap-4 pointer-events-auto">
+          <div className="absolute inset-0 bg-black/40 pointer-events-auto" onClick={() => setMobileMenuOpen(false)} />
+          <div className="absolute right-0 top-0 h-full w-80 max-w-[85vw] bg-white dark:bg-slate-900 shadow-xl p-6 flex flex-col gap-4 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <div className="text-lg font-semibold">Menu</div>
               <button type="button" className="text-sm" onClick={() => setMobileMenuOpen(false)}>Close</button>
@@ -1165,10 +1142,6 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-                <div className="sm:col-span-1">
-                  <label htmlFor="pet-policy" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Policy Number</label>
-                  <input id="pet-policy" value={newPet.policyNumber} onChange={(e) => setNewPet({ ...newPet, policyNumber: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                </div>
                 <div>
                   <label htmlFor="pet-premium" className="block text-xs">Monthly Premium (USD)</label>
                   <input id="pet-premium" type="number" step="0.01" value={String(newPet.monthly_premium ?? '')} onChange={(e) => setNewPet({ ...newPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
@@ -1184,24 +1157,10 @@ export default function App() {
                   <input id="pet-insurance-pays" type="number" min={0} max={100} value={String(newPet.insurance_pays_percentage ?? '')} onChange={(e) => setNewPet({ ...newPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                   <div className="mt-1 text-[11px] text-slate-500">What percentage your insurance covers (e.g., 80% means you pay 20%)</div>
                 </div>
-                <div>
-                  <label htmlFor="pet-coverage-limit" className="block text-xs">Annual Coverage Limit (USD)</label>
-                  <input id="pet-coverage-limit" type="number" step="1" value={String(newPet.annual_coverage_limit ?? '')} onChange={(e) => setNewPet({ ...newPet, annual_coverage_limit: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                  <div className="mt-1 text-[11px] text-slate-500">Maximum insurance pays per year (leave blank for unlimited)</div>
-                </div>
                 <div className="min-w-0">
                   <label htmlFor="pet-coverage-start" className="block text-xs">Coverage Start Date</label>
                   <input id="pet-coverage-start" type="date" value={newPet.coverage_start_date || ''} onChange={(e) => setNewPet({ ...newPet, coverage_start_date: e.target.value })} className="mt-1 w-full max-w-xs rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                   <div className="mt-1 text-[11px] text-slate-500">When your insurance policy began (used to calculate deductible reset)</div>
-                </div>
-                <div className="sm:col-span-2 min-w-0">
-                  <label htmlFor="pet-owner-name" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Owner Name</label>
-                  <input id="pet-owner-name" value={newPet.ownerName} onChange={(e) => setNewPet({ ...newPet, ownerName: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label htmlFor="pet-owner-phone" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Owner Phone</label>
-                  <input id="pet-owner-phone" value={newPet.ownerPhone} onChange={(e) => setNewPet({ ...newPet, ownerPhone: e.target.value })} className="mt-1 w-full min-w-[200px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
               </div>
               <div className="mt-3 flex items-center gap-3">
@@ -1247,13 +1206,6 @@ export default function App() {
                 </div>
                 <div className="mt-4 text-sm text-slate-700 dark:text-slate-300 space-y-1.5">
                   <div><span className="text-slate-500">Insurance:</span> {pet.insuranceCompany}</div>
-                  <div><span className="text-slate-500">Policy #:</span> {pet.policyNumber || '—'}</div>
-                  {(pet.ownerName || pet.ownerPhone) && (
-                    <div className="mt-3 space-y-1.5">
-                      <div><span className="text-slate-500">Owner:</span> {pet.ownerName || ''}</div>
-                      <div><span className="text-slate-500">Phone:</span> {pet.ownerPhone || ''}</div>
-                    </div>
-                  )}
                 </div>
                 {editingPetId === pet.id && editPet && (
                   <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-800 p-3 max-w-3xl mx-auto overflow-x-hidden">
@@ -1310,10 +1262,6 @@ export default function App() {
                         </div>
                       </div>
                       <div>
-                        <label htmlFor="edit-pet-policy" className="block text-xs">Policy Number</label>
-                        <input id="edit-pet-policy" value={editPet.policyNumber} onChange={(e) => setEditPet({ ...editPet, policyNumber: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                      </div>
-                      <div>
                         <label htmlFor="edit-pet-premium" className="block text-xs">Monthly Premium (USD)</label>
                         <input id="edit-pet-premium" type="number" step="0.01" placeholder="e.g., 38.00" value={String(editPet.monthly_premium ?? '')} onChange={(e) => setEditPet({ ...editPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                         <div className="mt-1 text-[11px] text-slate-500">Monthly insurance premium cost</div>
@@ -1329,23 +1277,9 @@ export default function App() {
                         <div className="mt-1 text-[11px] text-slate-500">What percentage your insurance covers (e.g., 80% means you pay 20%)</div>
                       </div>
                       <div>
-                        <label htmlFor="edit-pet-coverage-limit" className="block text-xs">Annual Coverage Limit (USD)</label>
-                        <input id="edit-pet-coverage-limit" type="number" step="1" placeholder="10000" value={String(editPet.annual_coverage_limit ?? '')} onChange={(e) => setEditPet({ ...editPet, annual_coverage_limit: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                        <div className="mt-1 text-[11px] text-slate-500">Maximum insurance pays per year (leave blank for unlimited)</div>
-                      </div>
-                      <div>
                         <label htmlFor="edit-pet-coverage-start" className="block text-xs">Coverage Start Date</label>
                         <input id="edit-pet-coverage-start" type="date" value={editPet.coverage_start_date || ''} onChange={(e) => setEditPet({ ...editPet, coverage_start_date: e.target.value })} className="mt-1 w-full min-w-[220px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                         <div className="mt-1 text-[11px] text-slate-500">When did your coverage start?</div>
-                      </div>
-                      <div>
-                        <label htmlFor="edit-pet-owner-name" className="block text-xs">Owner Name</label>
-                        <input id="edit-pet-owner-name" value={editPet.ownerName} onChange={(e) => setEditPet({ ...editPet, ownerName: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                      </div>
-
-                      <div>
-                        <label htmlFor="edit-pet-owner-phone" className="block text-xs">Owner Phone</label>
-                        <input id="edit-pet-owner-phone" value={editPet.ownerPhone} onChange={(e) => setEditPet({ ...editPet, ownerPhone: e.target.value })} className="mt-1 w-full min-w-[200px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                       </div>
                     </div>
                     <div className="mt-3 flex items-center gap-3">
@@ -2953,17 +2887,6 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
     const [loading, setLoading] = useState(false)
     const [fullName, setFullName] = useState('')
     const [phone, setPhone] = useState('')
-    const [address, setAddress] = useState('')
-    const [testLoading, setTestLoading] = useState(false)
-    const [testMsg, setTestMsg] = useState<string | null>(null)
-    const [emailReminders, setEmailReminders] = useState(false)
-    const [weeklySummaries, setWeeklySummaries] = useState(false)
-    const [deadlineAlerts, setDeadlineAlerts] = useState(false)
-    const [defaultExpense, setDefaultExpense] = useState<'insured' | 'not_insured' | 'maybe_insured'>('insured')
-    const [defaultPeriod, setDefaultPeriod] = useState<'all' | '2025' | '2024' | 'last12'>('all')
-    const [insurer, setInsurer] = useState<'Trupanion' | 'Nationwide' | 'Healthy Paws' | 'Fetch' | 'Custom Insurance' | ''>('')
-    const [customInsurer, setCustomInsurer] = useState('')
-    const [deadlineDays, setDeadlineDays] = useState<number | ''>('')
 
     useEffect(() => {
       if (!userId) return
@@ -2975,7 +2898,6 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
           if (data) {
             setFullName(data.full_name || '')
             setPhone(data.phone || '')
-            setAddress(data.address || '')
             setEmailReminders(!!data.email_reminders)
             setWeeklySummaries(!!data.weekly_summaries)
             setDeadlineAlerts(!!data.deadline_alerts)
@@ -3005,52 +2927,12 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
           email: userEmail || '',
           full_name: fullName,
           phone,
-          address,
         })
         if (error) throw error
         alert('Profile saved')
       } catch (e) { console.error('[save profile] error', e); alert('Error saving profile') } finally { setLoading(false) }
     }
 
-    const savePreferences = async () => {
-      if (!userId) return
-      setLoading(true)
-      try {
-        const { error } = await supabase
-          .from('profiles')
-          .update({
-            email_reminders: emailReminders,
-            weekly_summaries: weeklySummaries,
-            deadline_alerts: deadlineAlerts,
-            default_expense_category: defaultExpense,
-            default_time_period: defaultPeriod,
-            insurance_company: insurer === 'Custom Insurance' ? (customInsurer || null) : insurer || null,
-            filing_deadline_days: insurer === 'Custom Insurance' ? (Number(deadlineDays) || null) : 90,
-          })
-          .eq('id', userId)
-        if (error) throw error
-        onDefaultExpenseChange(defaultExpense)
-        onDefaultPeriodChange(defaultPeriod)
-        alert('Preferences saved')
-      } catch (e) { console.error('[save prefs] error', e); alert('Error saving preferences') } finally { setLoading(false) }
-    }
-
-    const sendTestEmail = async () => {
-      setTestMsg(null)
-      setTestLoading(true)
-      try {
-        const resp = await fetch('https://pet-claim-helper.onrender.com/api/test-email', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
-        const body = await resp.json().catch(() => ({}))
-        if (!resp.ok) {
-          throw new Error(body?.error || `Request failed (${resp.status})`)
-        }
-        setTestMsg(`Email sent to larry@uglydogadventures.com!`)
-      } catch (e: any) {
-        setTestMsg(`Failed to send test email: ${e?.message || e}`)
-      } finally {
-        setTestLoading(false)
-      }
-    }
 
     return (
       <section className="mx-auto max-w-3xl mt-6">
@@ -3075,123 +2957,10 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
               <label className="block text-xs text-slate-500">Phone Number</label>
               <input value={phone} onChange={(e) => setPhone(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
             </div>
-            <div>
-              <label className="block text-xs text-slate-500">Address</label>
-              <textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={3} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-            </div>
           </div>
           <div className="mt-3">
             <button type="button" onClick={saveProfile} disabled={loading} className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-sm disabled:opacity-60">Save Profile</button>
           </div>
-        </div>
-
-        {/* Email Notifications */}
-        <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-          <div className="text-sm font-semibold">Email Notifications</div>
-          <div className="mt-3 space-y-2 text-sm">
-            <label className="flex items-center gap-2"><input type="checkbox" checked={emailReminders} onChange={(e) => setEmailReminders(e.target.checked)} /> Email me deadline reminders</label>
-            <label className="flex items-center gap-2"><input type="checkbox" checked={weeklySummaries} onChange={(e) => setWeeklySummaries(e.target.checked)} /> Email me weekly summaries</label>
-            <label className="flex items-center gap-2"><input type="checkbox" checked={deadlineAlerts} onChange={(e) => setDeadlineAlerts(e.target.checked)} /> Email me when claims are due</label>
-            <div className="text-xs text-slate-500">Email notification features coming soon</div>
-          </div>
-        </div>
-
-        {/* Insurance Company Settings */}
-        <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-          <div className="text-sm font-semibold">Insurance Company Settings</div>
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-            <div>
-              <label className="block text-xs text-slate-500">Select Insurance</label>
-              <select
-                value={insurer}
-                onChange={(e) => {
-                  const v = e.target.value as any
-                  setInsurer(v)
-                  if (v === 'Custom Insurance') {
-                    setDeadlineDays('')
-                  } else if (v) {
-                    setDeadlineDays(90)
-                  }
-                }}
-                className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2"
-              >
-                <option value="">—</option>
-                <option value="Trupanion">Trupanion (90 days)</option>
-                <option value="Nationwide">Nationwide (90 days)</option>
-                <option value="Healthy Paws">Healthy Paws (90 days)</option>
-                <option value="Fetch">Fetch (90 days)</option>
-                <option value="Custom Insurance">Custom Insurance</option>
-              </select>
-            </div>
-            {insurer === 'Custom Insurance' && (
-              <>
-                <div>
-                  <label className="block text-xs text-slate-500">Insurance Company Name</label>
-                  <input value={customInsurer} onChange={(e) => setCustomInsurer(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-500">Filing Deadline (days)</label>
-                  <input type="number" min={1} value={deadlineDays} onChange={(e) => setDeadlineDays(e.target.value === '' ? '' : Number(e.target.value))} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2" />
-                </div>
-              </>
-            )}
-          </div>
-          <div className="mt-3 text-xs text-slate-500">
-            {insurer && insurer !== 'Custom Insurance' && <span>{insurer} - Filing Deadline: 90 days</span>}
-            {insurer === 'Custom Insurance' && customInsurer && deadlineDays !== '' && (
-              <span>{customInsurer} - Filing Deadline: {deadlineDays} days</span>
-            )}
-          </div>
-          <div className="mt-3">
-            <button type="button" onClick={savePreferences} disabled={loading} className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-sm disabled:opacity-60">Save Insurance Settings</button>
-          </div>
-        </div>
-
-        {/* Account Preferences */}
-        <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-          <div className="text-sm font-semibold">Account Preferences</div>
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-            <div>
-              <label className="block text-xs text-slate-500">Default expense category</label>
-              <select value={defaultExpense} onChange={(e) => setDefaultExpense(e.target.value as any)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm">
-                <option value="insured">Insured</option>
-                <option value="not_insured">Not Insured</option>
-                <option value="maybe_insured">Maybe Insured</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500">Default financial period</label>
-              <select value={defaultPeriod} onChange={(e) => setDefaultPeriod(e.target.value as any)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm">
-                <option value="all">All Time</option>
-                <option value="2025">2025</option>
-                <option value="2024">2024</option>
-                <option value="last12">Last 12 Months</option>
-              </select>
-            </div>
-          </div>
-          <div className="mt-3">
-            <button type="button" onClick={savePreferences} disabled={loading} className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-sm disabled:opacity-60">Save Preferences</button>
-          </div>
-        </div>
-
-        {/* Debug / Test Utilities */}
-        <div className="mt-4 rounded-2xl border border-blue-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-          <div className="text-sm font-semibold">Debug</div>
-          <div className="mt-3 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={sendTestEmail}
-              disabled={testLoading}
-              className="inline-flex items-center rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 text-sm disabled:opacity-60"
-              title="Send a test email via /api/test-email"
-            >
-              {testLoading ? 'Sending…' : 'Send Test Email'}
-            </button>
-            {testMsg && (
-              <span className={['text-sm', testMsg.startsWith('Failed') ? 'text-rose-600' : 'text-emerald-700'].join(' ')}>{testMsg}</span>
-            )}
-          </div>
-          <div className="mt-2 text-xs text-slate-500">Sends a test email to larry@uglydogadventures.com</div>
         </div>
       </section>
     )
