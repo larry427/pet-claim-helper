@@ -195,3 +195,26 @@ create policy if not exists "med_rem_log_select_own" on public.medication_remind
 create policy if not exists "med_rem_log_insert_own" on public.medication_reminders_log for insert with check (auth.uid() = user_id);
 create index if not exists idx_med_rem_log_user_date on public.medication_reminders_log(user_id, reminder_date);
 
+-- SMS consent tracking table
+create table if not exists public.sms_consent (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.profiles(id) on delete cascade not null,
+  phone_number text not null,
+  consented boolean not null default false,
+  consent_timestamp timestamp with time zone default now(),
+  ip_address text,
+  consent_text text not null
+);
+
+-- Enable RLS
+alter table public.sms_consent enable row level security;
+
+-- SMS consent policies (owner-only access)
+create policy if not exists "sms_consent_select_own" on public.sms_consent
+  for select using (auth.uid() = user_id);
+create policy if not exists "sms_consent_insert_own" on public.sms_consent
+  for insert with check (auth.uid() = user_id);
+
+-- Index for performance
+create index if not exists idx_sms_consent_user on public.sms_consent(user_id);
+

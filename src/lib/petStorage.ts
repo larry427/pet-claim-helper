@@ -19,7 +19,7 @@ export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
       id: p.id,
       name: p.name,
       species: p.species,
-      color: p.color,
+      color: p.color || (p.species === 'dog' ? '#3B82F6' : p.species === 'cat' ? '#F97316' : '#6B7280'),
       insuranceCompany: p.insurance_company,
       policyNumber: p.policy_number,
       ownerName: p.owner_name,

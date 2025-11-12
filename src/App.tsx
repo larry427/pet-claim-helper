@@ -226,6 +226,53 @@ export default function App() {
         setUserId(session.user.id)
         setAuthView('app')
         dbEnsureProfile(session.user.id, session.user.email ?? null).catch(() => {})
+
+        // Check for pending SMS consent from signup
+        try {
+          const pendingConsent = localStorage.getItem('pending_sms_consent')
+          if (pendingConsent) {
+            console.log('[auth] Found pending SMS consent, saving to database...')
+            const consentData = JSON.parse(pendingConsent)
+
+            // Fetch IP address
+            let ipAddress = null
+            try {
+              const ipResponse = await fetch('https://api.ipify.org?format=json')
+              const ipData = await ipResponse.json()
+              ipAddress = ipData.ip
+              console.log('[auth] IP address fetched:', ipAddress)
+            } catch (ipErr) {
+              console.log('[auth] Could not fetch IP address:', ipErr)
+            }
+
+            const insertData = {
+              user_id: session.user.id,
+              phone_number: consentData.phone_number,
+              consented: consentData.consented,
+              consent_text: consentData.consent_text,
+              ip_address: ipAddress
+            }
+            console.log('[auth] Inserting SMS consent data:', insertData)
+
+            const { data: insertResult, error: consentError } = await supabase
+              .from('sms_consent')
+              .insert(insertData)
+              .select()
+
+            if (consentError) {
+              console.error('[auth] Failed to save SMS consent:', consentError)
+              console.error('[auth] Consent error details:', JSON.stringify(consentError, null, 2))
+            } else {
+              console.log('[auth] SMS consent saved successfully!', insertResult)
+              // Clear pending consent from localStorage
+              localStorage.removeItem('pending_sms_consent')
+              console.log('[auth] Cleared pending SMS consent from localStorage')
+            }
+          }
+        } catch (err) {
+          console.error('[auth] Error processing pending SMS consent:', err)
+        }
+
         try {
           const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
           updateUserTimezone(userTimezone).catch(() => {})
@@ -968,9 +1015,9 @@ export default function App() {
 
       {/* Mobile slide-out menu */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileMenuOpen(false)} />
-          <div className="absolute right-0 top-0 h-full w-80 max-w-[85vw] bg-white dark:bg-slate-900 shadow-xl p-6 flex flex-col gap-4">
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="absolute right-0 top-0 h-full w-80 max-w-[85vw] bg-white dark:bg-slate-900 shadow-xl p-6 flex flex-col gap-4 pointer-events-auto">
             <div className="flex items-center justify-between">
               <div className="text-lg font-semibold">Menu</div>
               <button type="button" className="text-sm" onClick={() => setMobileMenuOpen(false)}>Close</button>
@@ -1031,7 +1078,7 @@ export default function App() {
                       authView === 'signup' ? 'text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                     ].join(' ')}
                   >
-                    Sign Up
+                    Create Account
                   </button>
                   <button
                     type="button"
@@ -1041,7 +1088,7 @@ export default function App() {
                       authView === 'login' ? 'text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                     ].join(' ')}
                   >
-                    Log In
+                    Sign In
                   </button>
                 </div>
               </div>
@@ -1068,12 +1115,12 @@ export default function App() {
             <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 max-w-3xl mx-auto overflow-x-hidden">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div className="sm:col-span-1">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Name</label>
-                  <input value={newPet.name} onChange={(e) => setNewPet({ ...newPet, name: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <label htmlFor="pet-name" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Pet Name</label>
+                  <input id="pet-name" value={newPet.name} onChange={(e) => setNewPet({ ...newPet, name: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
                 <div className="sm:col-span-1">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Species</label>
-                  <select value={newPet.species} onChange={(e) => setNewPet({ ...newPet, species: e.target.value as PetSpecies })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm">
+                  <label htmlFor="pet-species" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Species</label>
+                  <select id="pet-species" value={newPet.species} onChange={(e) => setNewPet({ ...newPet, species: e.target.value as PetSpecies })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm">
                     <option value="dog">Dog</option>
                     <option value="cat">Cat</option>
                   </select>
@@ -1083,8 +1130,8 @@ export default function App() {
                     <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Insurance Information</div>
                     <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs text-slate-500">Insurance Company</label>
-                        <select value={newPetInsurer} onChange={(e) => {
+                        <label htmlFor="pet-insurance" className="block text-xs text-slate-500">Insurance Company</label>
+                        <select id="pet-insurance" value={newPetInsurer} onChange={(e) => {
                           const v = e.target.value as any
                           setNewPetInsurer(v)
                           if (v === 'Custom Insurance') {
@@ -1104,12 +1151,12 @@ export default function App() {
                       {newPetInsurer === 'Custom Insurance' ? (
                         <>
                           <div>
-                            <label className="block text-xs text-slate-500">Insurance Company Name</label>
-                            <input value={customInsurerNameNew} onChange={(e) => setCustomInsurerNameNew(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                            <label htmlFor="pet-insurance-custom-name" className="block text-xs text-slate-500">Insurance Company Name</label>
+                            <input id="pet-insurance-custom-name" value={customInsurerNameNew} onChange={(e) => setCustomInsurerNameNew(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                           </div>
                           <div>
-                            <label className="block text-xs text-slate-500">Filing Deadline (days)</label>
-                            <input type="number" min={1} max={365} value={customDeadlineNew} onChange={(e) => setCustomDeadlineNew(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                            <label htmlFor="pet-insurance-custom-deadline" className="block text-xs text-slate-500">Filing Deadline (days)</label>
+                            <input id="pet-insurance-custom-deadline" type="number" min={1} max={365} value={customDeadlineNew} onChange={(e) => setCustomDeadlineNew(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                           </div>
                         </>
                       ) : (
@@ -1119,42 +1166,42 @@ export default function App() {
                   </div>
                 </div>
                 <div className="sm:col-span-1">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Policy #</label>
-                  <input value={newPet.policyNumber} onChange={(e) => setNewPet({ ...newPet, policyNumber: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <label htmlFor="pet-policy" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Policy Number</label>
+                  <input id="pet-policy" value={newPet.policyNumber} onChange={(e) => setNewPet({ ...newPet, policyNumber: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs">Monthly Premium (USD)</label>
-                  <input type="number" step="0.01" value={String(newPet.monthly_premium ?? '')} onChange={(e) => setNewPet({ ...newPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <label htmlFor="pet-premium" className="block text-xs">Monthly Premium (USD)</label>
+                  <input id="pet-premium" type="number" step="0.01" value={String(newPet.monthly_premium ?? '')} onChange={(e) => setNewPet({ ...newPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                   <div className="mt-1 text-[11px] text-slate-500">Your monthly insurance payment</div>
                 </div>
                 <div>
-                  <label className="block text-xs">Deductible (Annual) (USD)</label>
-                  <input type="number" step="0.01" value={String(newPet.deductible_per_claim ?? '')} onChange={(e) => setNewPet({ ...newPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <label htmlFor="pet-deductible" className="block text-xs">Deductible (Annual) (USD)</label>
+                  <input id="pet-deductible" type="number" step="0.01" value={String(newPet.deductible_per_claim ?? '')} onChange={(e) => setNewPet({ ...newPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                   <div className="mt-1 text-[11px] text-slate-500">Amount you pay before insurance kicks in (resets yearly)</div>
                 </div>
                 <div>
-                  <label className="block text-xs">Insurance Pays (%)</label>
-                  <input type="number" min={0} max={100} value={String(newPet.insurance_pays_percentage ?? '')} onChange={(e) => setNewPet({ ...newPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <label htmlFor="pet-insurance-pays" className="block text-xs">Insurance Pays (%)</label>
+                  <input id="pet-insurance-pays" type="number" min={0} max={100} value={String(newPet.insurance_pays_percentage ?? '')} onChange={(e) => setNewPet({ ...newPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                   <div className="mt-1 text-[11px] text-slate-500">What percentage your insurance covers (e.g., 80% means you pay 20%)</div>
                 </div>
                 <div>
-                  <label className="block text-xs">Annual Coverage Limit (USD)</label>
-                  <input type="number" step="1" value={String(newPet.annual_coverage_limit ?? '')} onChange={(e) => setNewPet({ ...newPet, annual_coverage_limit: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <label htmlFor="pet-coverage-limit" className="block text-xs">Annual Coverage Limit (USD)</label>
+                  <input id="pet-coverage-limit" type="number" step="1" value={String(newPet.annual_coverage_limit ?? '')} onChange={(e) => setNewPet({ ...newPet, annual_coverage_limit: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                   <div className="mt-1 text-[11px] text-slate-500">Maximum insurance pays per year (leave blank for unlimited)</div>
                 </div>
                 <div className="min-w-0">
-                  <label className="block text-xs">Coverage Start Date</label>
-                  <input type="date" value={newPet.coverage_start_date || ''} onChange={(e) => setNewPet({ ...newPet, coverage_start_date: e.target.value })} className="mt-1 w-full max-w-xs rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <label htmlFor="pet-coverage-start" className="block text-xs">Coverage Start Date</label>
+                  <input id="pet-coverage-start" type="date" value={newPet.coverage_start_date || ''} onChange={(e) => setNewPet({ ...newPet, coverage_start_date: e.target.value })} className="mt-1 w-full max-w-xs rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                   <div className="mt-1 text-[11px] text-slate-500">When your insurance policy began (used to calculate deductible reset)</div>
                 </div>
                 <div className="sm:col-span-2 min-w-0">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Owner Name</label>
-                  <input value={newPet.ownerName} onChange={(e) => setNewPet({ ...newPet, ownerName: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <label htmlFor="pet-owner-name" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Owner Name</label>
+                  <input id="pet-owner-name" value={newPet.ownerName} onChange={(e) => setNewPet({ ...newPet, ownerName: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
-                
+
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Owner Phone</label>
-                  <input value={newPet.ownerPhone} onChange={(e) => setNewPet({ ...newPet, ownerPhone: e.target.value })} className="mt-1 w-full min-w-[200px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <label htmlFor="pet-owner-phone" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Owner Phone</label>
+                  <input id="pet-owner-phone" value={newPet.ownerPhone} onChange={(e) => setNewPet({ ...newPet, ownerPhone: e.target.value })} className="mt-1 w-full min-w-[200px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
               </div>
               <div className="mt-3 flex items-center gap-3">
@@ -1170,20 +1217,22 @@ export default function App() {
             )}
             {pets.map(pet => (
               <div key={pet.id} className={[ 'rounded-xl border p-6 text-left bg-white dark:bg-slate-900/60 shadow-sm relative', selectedPetId === pet.id ? 'border-emerald-400' : 'border-slate-200 dark:border-slate-800' ].join(' ')} style={{ border: `2px solid ${pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280')}` }}>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="text-base font-semibold flex items-center gap-2">
-                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280') }} />
-                      {pet.name}
+                <div>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <div className="text-base font-semibold flex items-center gap-2">
+                        <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280') }} />
+                        {pet.name}
+                      </div>
+                      <div className="text-sm text-slate-500 dark:text-slate-400 capitalize">{pet.species}</div>
                     </div>
-                    <div className="text-sm text-slate-500 dark:text-slate-400 capitalize">{pet.species}</div>
                   </div>
-                  <div className="flex flex-col sm:flex-row items-stretch gap-3 w-32 sm:w-auto">
+                  <div className="flex flex-col sm:flex-row items-stretch gap-3">
                     <button
                       type="button"
                       onClick={() => setSelectedPetId(pet.id)}
                       className={[
-                        'inline-flex items-center justify-center rounded-lg px-3 py-1.5 h-12 text-sm hover:shadow w-full sm:w-auto',
+                        'inline-flex items-center justify-center rounded-lg px-3 py-1.5 h-12 text-sm hover:shadow w-full sm:w-auto whitespace-nowrap',
                         selectedPetId === pet.id
                           ? (pet.species === 'dog'
                               ? 'bg-blue-600 hover:bg-blue-700 text-white'
@@ -1193,7 +1242,7 @@ export default function App() {
                     >
                       {selectedPetId === pet.id ? 'Selected' : 'Use This Pet'}
                     </button>
-                    <button type="button" onClick={() => startEditPet(pet)} className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-200 w-full sm:w-auto px-3">Edit</button>
+                    <button type="button" onClick={() => startEditPet(pet)} className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-200 w-full sm:w-auto px-3 whitespace-nowrap">Edit</button>
                   </div>
                 </div>
                 <div className="mt-4 text-sm text-slate-700 dark:text-slate-300 space-y-1.5">
@@ -1210,12 +1259,12 @@ export default function App() {
                   <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-800 p-3 max-w-3xl mx-auto overflow-x-hidden">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs">Name</label>
-                        <input value={editPet.name} onChange={(e) => setEditPet({ ...editPet, name: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                        <label htmlFor="edit-pet-name" className="block text-xs">Pet Name</label>
+                        <input id="edit-pet-name" value={editPet.name} onChange={(e) => setEditPet({ ...editPet, name: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                       </div>
                       <div>
-                        <label className="block text-xs">Species</label>
-                        <select value={editPet.species} onChange={(e) => setEditPet({ ...editPet, species: e.target.value as PetSpecies })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm">
+                        <label htmlFor="edit-pet-species" className="block text-xs">Species</label>
+                        <select id="edit-pet-species" value={editPet.species} onChange={(e) => setEditPet({ ...editPet, species: e.target.value as PetSpecies })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm">
                           <option value="dog">Dog</option>
                           <option value="cat">Cat</option>
                         </select>
@@ -1225,8 +1274,8 @@ export default function App() {
                           <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Insurance Information</div>
                           <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                              <label className="block text-xs text-slate-500">Insurance Company</label>
-                              <select value={editPetInsurer} onChange={(e) => {
+                              <label htmlFor="edit-pet-insurance" className="block text-xs text-slate-500">Insurance Company</label>
+                              <select id="edit-pet-insurance" value={editPetInsurer} onChange={(e) => {
                                 const v = e.target.value as any
                                 setEditPetInsurer(v)
                                 if (v === 'Custom Insurance') {
@@ -1246,12 +1295,12 @@ export default function App() {
                             {editPetInsurer === 'Custom Insurance' ? (
                               <>
                                 <div>
-                                  <label className="block text-xs text-slate-500">Insurance Company Name</label>
-                                  <input value={customInsurerNameEdit} onChange={(e) => setCustomInsurerNameEdit(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                                  <label htmlFor="edit-pet-insurance-custom-name" className="block text-xs text-slate-500">Insurance Company Name</label>
+                                  <input id="edit-pet-insurance-custom-name" value={customInsurerNameEdit} onChange={(e) => setCustomInsurerNameEdit(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                                 </div>
                                 <div>
-                                  <label className="block text-xs text-slate-500">Filing Deadline (days)</label>
-                                  <input type="number" min={1} max={365} value={customDeadlineEdit} onChange={(e) => setCustomDeadlineEdit(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                                  <label htmlFor="edit-pet-insurance-custom-deadline" className="block text-xs text-slate-500">Filing Deadline (days)</label>
+                                  <input id="edit-pet-insurance-custom-deadline" type="number" min={1} max={365} value={customDeadlineEdit} onChange={(e) => setCustomDeadlineEdit(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                                 </div>
                               </>
                             ) : (
@@ -1261,42 +1310,42 @@ export default function App() {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-xs">Policy #</label>
-                        <input value={editPet.policyNumber} onChange={(e) => setEditPet({ ...editPet, policyNumber: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                        <label htmlFor="edit-pet-policy" className="block text-xs">Policy Number</label>
+                        <input id="edit-pet-policy" value={editPet.policyNumber} onChange={(e) => setEditPet({ ...editPet, policyNumber: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                       </div>
                       <div>
-                        <label className="block text-xs">Monthly Premium (USD)</label>
-                        <input type="number" step="0.01" placeholder="e.g., 38.00" value={String(editPet.monthly_premium ?? '')} onChange={(e) => setEditPet({ ...editPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                        <label htmlFor="edit-pet-premium" className="block text-xs">Monthly Premium (USD)</label>
+                        <input id="edit-pet-premium" type="number" step="0.01" placeholder="e.g., 38.00" value={String(editPet.monthly_premium ?? '')} onChange={(e) => setEditPet({ ...editPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                         <div className="mt-1 text-[11px] text-slate-500">Monthly insurance premium cost</div>
                       </div>
                       <div>
-                        <label className="block text-xs">Deductible (Annual) (USD)</label>
-                        <input type="number" step="0.01" placeholder="e.g., 250.00" value={String(editPet.deductible_per_claim ?? '')} onChange={(e) => setEditPet({ ...editPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                        <label htmlFor="edit-pet-deductible" className="block text-xs">Deductible (Annual) (USD)</label>
+                        <input id="edit-pet-deductible" type="number" step="0.01" placeholder="e.g., 250.00" value={String(editPet.deductible_per_claim ?? '')} onChange={(e) => setEditPet({ ...editPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                         <div className="mt-1 text-[11px] text-slate-500">Amount you pay before insurance kicks in (resets yearly)</div>
                       </div>
                       <div>
-                        <label className="block text-xs">Insurance Pays (%)</label>
-                        <input type="number" min={0} max={100} placeholder="80" value={String(editPet.insurance_pays_percentage ?? '')} onChange={(e) => setEditPet({ ...editPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                        <label htmlFor="edit-pet-insurance-pays" className="block text-xs">Insurance Pays (%)</label>
+                        <input id="edit-pet-insurance-pays" type="number" min={0} max={100} placeholder="80" value={String(editPet.insurance_pays_percentage ?? '')} onChange={(e) => setEditPet({ ...editPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                         <div className="mt-1 text-[11px] text-slate-500">What percentage your insurance covers (e.g., 80% means you pay 20%)</div>
                       </div>
                       <div>
-                        <label className="block text-xs">Annual Coverage Limit (USD)</label>
-                        <input type="number" step="1" placeholder="10000" value={String(editPet.annual_coverage_limit ?? '')} onChange={(e) => setEditPet({ ...editPet, annual_coverage_limit: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                        <label htmlFor="edit-pet-coverage-limit" className="block text-xs">Annual Coverage Limit (USD)</label>
+                        <input id="edit-pet-coverage-limit" type="number" step="1" placeholder="10000" value={String(editPet.annual_coverage_limit ?? '')} onChange={(e) => setEditPet({ ...editPet, annual_coverage_limit: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                         <div className="mt-1 text-[11px] text-slate-500">Maximum insurance pays per year (leave blank for unlimited)</div>
                       </div>
                       <div>
-                        <label className="block text-xs">Coverage Start Date</label>
-                        <input type="date" value={editPet.coverage_start_date || ''} onChange={(e) => setEditPet({ ...editPet, coverage_start_date: e.target.value })} className="mt-1 w-full min-w-[220px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                        <label htmlFor="edit-pet-coverage-start" className="block text-xs">Coverage Start Date</label>
+                        <input id="edit-pet-coverage-start" type="date" value={editPet.coverage_start_date || ''} onChange={(e) => setEditPet({ ...editPet, coverage_start_date: e.target.value })} className="mt-1 w-full min-w-[220px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                         <div className="mt-1 text-[11px] text-slate-500">When did your coverage start?</div>
                       </div>
                       <div>
-                        <label className="block text-xs">Owner Name</label>
-                        <input value={editPet.ownerName} onChange={(e) => setEditPet({ ...editPet, ownerName: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                        <label htmlFor="edit-pet-owner-name" className="block text-xs">Owner Name</label>
+                        <input id="edit-pet-owner-name" value={editPet.ownerName} onChange={(e) => setEditPet({ ...editPet, ownerName: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                       </div>
-                      
+
                       <div>
-                        <label className="block text-xs">Owner Phone</label>
-                        <input value={editPet.ownerPhone} onChange={(e) => setEditPet({ ...editPet, ownerPhone: e.target.value })} className="mt-1 w-full min-w-[200px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                        <label htmlFor="edit-pet-owner-phone" className="block text-xs">Owner Phone</label>
+                        <input id="edit-pet-owner-phone" value={editPet.ownerPhone} onChange={(e) => setEditPet({ ...editPet, ownerPhone: e.target.value })} className="mt-1 w-full min-w-[200px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                       </div>
                     </div>
                     <div className="mt-3 flex items-center gap-3">
@@ -2677,6 +2726,8 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [signupNoticeEmail, setSignupNoticeEmail] = useState<string | null>(null)
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [smsConsent, setSmsConsent] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -2688,6 +2739,25 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
         const { data, error } = await supabase.auth.signUp({ email, password })
         try { console.log('[auth] signUp result:', { hasUser: Boolean(data?.user), hasSession: Boolean(data?.session), error: error || null }) } catch {}
         if (error) throw error
+
+        // Store SMS consent for later (after email verification and login)
+        console.log('[auth] Checking SMS consent:', { smsConsent, hasPhoneNumber: Boolean(phoneNumber), phoneNumber })
+
+        if (smsConsent && phoneNumber) {
+          console.log('[auth] Storing SMS consent in localStorage for after email verification')
+          try {
+            localStorage.setItem('pending_sms_consent', JSON.stringify({
+              phone_number: phoneNumber,
+              consented: true,
+              consent_text: "By checking this box, you consent to receive up to 3 SMS reminders per medication prescription. Message and data rates may apply. Reply STOP to opt out, HELP for support. Privacy Policy: https://pawpals.ai/pet-claim-helper-privacy-policy | Terms of Service: https://pawpals.ai/pet-claim-helper-terms-of-servcie",
+              timestamp: new Date().toISOString()
+            }))
+            console.log('[auth] SMS consent stored in localStorage, will be saved after email verification and login')
+          } catch (err) {
+            console.error('[auth] Failed to store SMS consent in localStorage:', err)
+          }
+        }
+
         // Show verification notice; most setups require email confirmation before login
         setSignupNoticeEmail(email)
       } else {
@@ -2730,13 +2800,14 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
         </div>
       )}
       <div>
-        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Email</label>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" required />
+        <label htmlFor="auth-email" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Email</label>
+        <input id="auth-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" required />
       </div>
       <div>
-        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Password</label>
+        <label htmlFor="auth-password" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Password</label>
         <div className="mt-1 relative">
           <input
+            id="auth-password"
             type={showPassword ? 'text' : 'password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -2766,6 +2837,58 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
           </button>
         </div>
       </div>
+      {mode === 'signup' && (
+        <>
+          <div>
+            <label htmlFor="auth-phone" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Phone Number (Optional)</label>
+            <input
+              id="auth-phone"
+              type="tel"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              placeholder="(555) 123-4567"
+              className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={smsConsent}
+                onChange={(e) => setSmsConsent(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span className="text-xs text-slate-700 dark:text-slate-300">
+                I agree to receive SMS medication reminders from Pet Claim Helper
+              </span>
+            </label>
+            {smsConsent && (
+              <div className="ml-6 text-[11px] text-slate-600 dark:text-slate-400 space-y-1">
+                <p>By checking this box, you consent to receive up to 3 SMS reminders per medication prescription. Message and data rates may apply. Reply STOP to opt out, HELP for support.</p>
+                <p>
+                  <a
+                    href="https://pawpals.ai/pet-claim-helper-privacy-policy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-emerald-600 dark:text-emerald-400 hover:underline"
+                  >
+                    Privacy Policy
+                  </a>
+                  {' | '}
+                  <a
+                    href="https://pawpals.ai/pet-claim-helper-terms-of-servcie"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-emerald-600 dark:text-emerald-400 hover:underline"
+                  >
+                    Terms of Service
+                  </a>
+                </p>
+              </div>
+            )}
+          </div>
+        </>
+      )}
       {error && <p className="text-xs text-rose-600">{error}</p>}
       <button
         type="submit"
@@ -2789,8 +2912,9 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
           <h2 className="text-xl font-semibold mb-4">Settings</h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">User ID</label>
+              <label htmlFor="settings-userid" className="block text-sm font-medium mb-1">User ID</label>
               <input
+                id="settings-userid"
                 type="text"
                 value={userId || ''}
                 disabled
@@ -2798,8 +2922,9 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Email</label>
+              <label htmlFor="settings-email" className="block text-sm font-medium mb-1">Email</label>
               <input
+                id="settings-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
