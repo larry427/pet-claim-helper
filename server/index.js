@@ -478,11 +478,11 @@ if (error) {
     console.error('[Cron] schedule init failed:', cronErr)
   }
 
-  // Cron: deadline reminders daily at 9 AM
+  // Cron: deadline reminders daily at 9 AM Pacific Time (5 PM UTC / 17:00 UTC)
   try {
-    schedule.scheduleJob('0 9 * * *', async () => {
+    schedule.scheduleJob('0 17 * * *', async () => {
       // eslint-disable-next-line no-console
-      console.log('[Cron] Deadline reminders check at', new Date())
+      console.log('[Cron] Deadline reminders check at', new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }), 'Pacific')
       try {
         const result = await deadlineNotifications.runDeadlineNotifications({
           supabase,
@@ -496,7 +496,7 @@ if (error) {
       }
     })
     // eslint-disable-next-line no-console
-    console.log('[Cron] Deadline reminders scheduled for 9 AM daily (0 9 * * *)')
+    console.log('[Cron] Deadline reminders scheduled for 9 AM Pacific Time daily (0 17 * * * UTC = 9 AM PST/PDT)')
   } catch (cronErr) {
     // eslint-disable-next-line no-console
     console.error('[Cron] Deadline reminders schedule init failed:', cronErr)
