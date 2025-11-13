@@ -22,10 +22,10 @@ function ensureClients({ supabase, resend } = {}) {
 }
 
 function buildSubject(reminders) {
-  if (!reminders?.length) return 'Your claim is expiring soon'
+  if (!reminders?.length) return 'Friendly reminder: Your claim deadline is coming up 🐾'
   const first = reminders[0]
-  if (reminders.length === 1) return `Your claim for ${first.petName} is expiring soon`
-  return `Your claim for ${first.petName} is expiring soon (+${reminders.length - 1} more)`
+  if (reminders.length === 1) return `Don't miss your claim deadline for ${first.petName}! 🐾`
+  return `We've got you covered - ${first.petName}'s claim needs attention (+${reminders.length - 1} more)`
 }
 
 function buildEmailHtml(reminders, dashboardUrl) {
@@ -53,27 +53,41 @@ function buildEmailHtml(reminders, dashboardUrl) {
         <style>
           body { font-family: Arial, sans-serif; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #007bff; color: white; padding: 20px; border-radius: 8px; }
+          .header { background: #10b981; color: white; padding: 20px; border-radius: 8px; }
           .content { margin: 20px 0; }
-          .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #999; }
-          a { color: #007bff; text-decoration: none; }
+          .greeting { font-size: 16px; line-height: 1.6; margin-bottom: 20px; }
+          .closing { margin-top: 30px; font-size: 16px; line-height: 1.6; background: #f0fdf4; padding: 20px; border-radius: 8px; border-left: 4px solid #10b981; }
+          .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; text-align: center; }
+          a { color: #10b981; text-decoration: none; }
           a:hover { text-decoration: underline; }
+          .cta-button { display: inline-block; background: #10b981; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; margin-top: 10px; }
+          .cta-button:hover { background: #059669; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h1 style="margin: 0;">Claim Filing Deadline Alert</h1>
+            <h1 style="margin: 0;">Don't Lose Money on Your Pet's Care 🐾</h1>
           </div>
           <div class="content">
-            <p>We detected the following claim filing deadlines approaching:</p>
+            <div class="greeting">
+              <p style="margin: 0 0 12px 0;">Hi there! 👋</p>
+              <p style="margin: 0 0 12px 0;">We're checking in because we care about helping you get every dollar back from your pet insurance. Your furry family member deserves the best care, and we want to make sure you don't lose money on missed deadlines.</p>
+              <p style="margin: 0; font-weight: bold;">Here are the claims that need your attention:</p>
+            </div>
             ${items}
-            <p style="margin-top: 20px;">
-              <a href="${dashboardUrl}" style="display: inline-block; background: #007bff; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none;">View Dashboard</a>
-            </p>
+            <div class="closing">
+              <p style="margin: 0 0 12px 0; font-weight: bold;">You've got this! We're here to help. 🐾</p>
+              <p style="margin: 0 0 12px 0;">If you need any help filing these claims, just log into your dashboard and we'll walk you through it.</p>
+              <p style="margin: 0;">
+                <a href="${dashboardUrl}" class="cta-button">Go to My Dashboard</a>
+              </p>
+              <p style="margin: 16px 0 0 0; font-size: 14px;">– The Pet Claim Helper Team</p>
+              <p style="margin: 8px 0 0 0; font-size: 13px; color: #666; font-style: italic;">P.S. Never miss a deadline again - we'll always remind you!</p>
+            </div>
           </div>
           <div class="footer">
-            <p>Pet Claim Helper - Never miss a claim deadline</p>
+            <p style="margin: 0;">Pet Claim Helper - Because your pet's health matters, and so does your wallet. ❤️</p>
           </div>
         </div>
       </body>
@@ -88,7 +102,23 @@ function buildEmailText(reminders, dashboardUrl) {
       return `- ${r.petName} | ${r.clinicName || '—'} | service: ${r.serviceDate || '—'} | deadline: ${r.deadline} | ${tag}`
     })
     .join('\n')
-  return `We detected claim filing deadlines approaching:\n\n${lines}\n\nDashboard: ${dashboardUrl}`
+  return `Hi there! 👋
+
+We're checking in because we care about helping you get every dollar back from your pet insurance. Your furry family member deserves the best care, and we want to make sure you don't lose money on missed deadlines.
+
+Here are the claims that need your attention:
+
+${lines}
+
+You've got this! We're here to help. 🐾
+
+If you need any help filing these claims, just log into your dashboard and we'll walk you through it.
+
+Dashboard: ${dashboardUrl}
+
+– The Pet Claim Helper Team
+
+P.S. Never miss a deadline again - we'll always remind you!`
 }
 
 function dashboardUrl() {
