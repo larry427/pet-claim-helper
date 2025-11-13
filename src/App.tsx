@@ -644,7 +644,7 @@ export default function App() {
       const refreshedPets = await dbLoadPets(userId)
       setPets(refreshedPets)
 
-      setToast({ message: 'Photo uploaded successfully!', type: 'success' })
+      showToast('Photo uploaded successfully!')
     } catch (e: any) {
       // eslint-disable-next-line no-console
       console.error('[uploadPetPhoto] error', e)
