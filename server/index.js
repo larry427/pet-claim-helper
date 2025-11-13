@@ -572,7 +572,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
 
       // Handle HELP command
       if (messageBody.includes('HELP')) {
-        const helpMessage = 'Pet Claim Helper here! 🐾 We send medication reminders to help you care for your pet. Reply STOP to opt-out. Questions? larry@uglydogadventures.com'
+        const helpMessage = 'Pet Claim Helper here! 🐾 We send medication reminders to help you care for your pet. Reply STOP to opt-out. Questions? support@petclaimhelper.com'
         res.type('text/xml')
         return res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>

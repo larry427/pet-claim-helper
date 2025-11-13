@@ -1049,6 +1049,15 @@ export default function App() {
                 💊 Medications
               </button>
             )}
+            {authView === 'app' && (
+              <a
+                href={`mailto:support@petclaimhelper.com?subject=Pet Claim Helper Support Request&body=Hi Pet Claim Helper Team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0A----%0D%0AUser: ${userEmail || 'Not logged in'}%0D%0AUser ID: ${userId || 'N/A'}`}
+                className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow"
+                title="Need help? Contact support"
+              >
+                💬 Contact Support
+              </a>
+            )}
             {userEmail && <span className="hidden sm:inline text-xs text-slate-600 dark:text-slate-300">Logged in as: {userEmail}</span>}
             {userEmail && (
               <button onClick={handleLogout} className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow">Logout</button>

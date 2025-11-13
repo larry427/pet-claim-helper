@@ -82,7 +82,8 @@ function buildEmailHtml(reminders, dashboardUrl) {
               <p style="margin: 0;">
                 <a href="${dashboardUrl}" class="cta-button">Go to My Dashboard</a>
               </p>
-              <p style="margin: 16px 0 0 0; font-size: 14px;">– The Pet Claim Helper Team</p>
+              <p style="margin: 16px 0 0 0; font-size: 14px;">Need help? Email us at <a href="mailto:support@petclaimhelper.com" style="color: #10b981; text-decoration: underline;">support@petclaimhelper.com</a></p>
+              <p style="margin: 12px 0 0 0; font-size: 14px;">– The Pet Claim Helper Team</p>
               <p style="margin: 8px 0 0 0; font-size: 13px; color: #666; font-style: italic;">P.S. Never miss a deadline again - we'll always remind you!</p>
             </div>
           </div>
@@ -115,6 +116,8 @@ You've got this! We're here to help. 🐾
 If you need any help filing these claims, just log into your dashboard and we'll walk you through it.
 
 Dashboard: ${dashboardUrl}
+
+Need help? Email us at support@petclaimhelper.com
 
 – The Pet Claim Helper Team
 
