@@ -16,6 +16,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
   // Step 1 - Profile
   const [fullName, setFullName] = useState('')
   const [address, setAddress] = useState('')
+  const [phone, setPhone] = useState('')
 
   // Step 2 - Pet
   const [petName, setPetName] = useState('')
@@ -38,6 +39,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
     setError(null)
     setFullName('')
     setAddress('')
+    setPhone('')
     setPetName('')
     setSpecies('')
     // removed optional pet fields
@@ -103,9 +105,32 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
       // Save profile (Step 1)
       const { error: profErr } = await supabase
         .from('profiles')
-        .update({ full_name: fullName.trim(), address: address.trim() || null })
+        .update({
+          full_name: fullName.trim(),
+          address: address.trim() || null,
+          phone: phone.trim() || null
+        })
         .eq('id', userId)
       if (profErr) throw profErr
+
+      // Send welcome SMS if phone number provided
+      if (phone.trim()) {
+        try {
+          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787'
+          await fetch(`${apiUrl}/api/sms/welcome`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId,
+              phoneNumber: phone.trim()
+            })
+          })
+          console.log('[OnboardingModal] Welcome SMS sent to:', phone.trim())
+        } catch (smsError) {
+          // Don't fail onboarding if SMS fails - just log it
+          console.error('[OnboardingModal] Failed to send welcome SMS:', smsError)
+        }
+      }
 
       // Save pet (Step 2 + Step 3)
       const petPayload: any = {
@@ -163,6 +188,16 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Address <span className="text-xs text-slate-500">(optional)</span></label>
                 <input value={address} onChange={(e) => setAddress(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Phone Number <span className="text-xs text-slate-500">(optional, for SMS medication reminders)</span></label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+1234567890"
+                  className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                />
               </div>
             </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">

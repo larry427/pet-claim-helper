@@ -511,8 +511,8 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
 
       // Validate email
       if (!email || !email.includes('@')) {
-          return res.status(400).json({ 
-              error: 'Invalid email address' 
+          return res.status(400).json({
+              error: 'Invalid email address'
           });
       }
 
@@ -522,9 +522,9 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
           {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                  email: email, 
-                  tags: ['Pet Claim Helper Waitlist'] 
+              body: JSON.stringify({
+                  email: email,
+                  tags: ['Pet Claim Helper Waitlist']
               })
           }
       );
@@ -532,24 +532,173 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
       // Check if GHL responded successfully
       if (!ghlResponse.ok) {
           console.error('GHL webhook error:', ghlResponse.status);
-          return res.status(500).json({ 
-              error: 'Failed to process signup' 
+          return res.status(500).json({
+              error: 'Failed to process signup'
           });
       }
 
       // Success!
-      res.json({ 
-          success: true, 
-          message: 'Signup received! Check your email.' 
+      res.json({
+          success: true,
+          message: 'Signup received! Check your email.'
       });
 
   } catch (error) {
       console.error('Webhook relay error:', error);
-      res.status(500).json({ 
-          error: 'Server error processing signup' 
+      res.status(500).json({
+          error: 'Server error processing signup'
       });
   }
 });
+
+  // SMS Webhook Handler - Twilio sends POST requests here
+  // Handles HELP and STOP commands
+  app.post('/api/sms/incoming', express.urlencoded({ extended: false }), async (req, res) => {
+    try {
+      const { Body, From } = req.body
+      const messageBody = (Body || '').trim().toUpperCase()
+      const phoneNumber = From
+
+      console.log('[SMS Webhook] Incoming message:', { from: phoneNumber, body: messageBody })
+
+      // Handle HELP command
+      if (messageBody.includes('HELP')) {
+        const helpMessage = 'Pet Claim Helper medication reminders. Reply STOP to opt-out. Questions? larry@uglydogadventures.com'
+        res.type('text/xml')
+        return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Message>${helpMessage}</Message>
+</Response>`)
+      }
+
+      // Handle STOP command - update database
+      if (messageBody.includes('STOP')) {
+        // Twilio automatically handles the STOP response
+        // We just need to update our database
+        const { error } = await supabase
+          .from('profiles')
+          .update({ sms_opt_in: false })
+          .eq('phone', phoneNumber)
+
+        if (error) {
+          console.error('[SMS Webhook] Error updating opt-out:', error)
+        } else {
+          console.log('[SMS Webhook] User opted out:', phoneNumber)
+        }
+
+        // Twilio will send the automatic STOP response
+        // We just need to acknowledge with empty TwiML
+        res.type('text/xml')
+        return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response></Response>`)
+      }
+
+      // Default response for other messages
+      res.type('text/xml')
+      return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response></Response>`)
+    } catch (error) {
+      console.error('[SMS Webhook] Error:', error)
+      res.type('text/xml')
+      return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response></Response>`)
+    }
+  })
+
+  // Welcome SMS endpoint - called after user completes onboarding
+  app.post('/api/sms/welcome', async (req, res) => {
+    try {
+      const { userId, phoneNumber } = req.body
+
+      if (!phoneNumber) {
+        return res.status(400).json({ ok: false, error: 'Phone number required' })
+      }
+
+      // Import Twilio SMS utility
+      const { sendTwilioSMS } = await import('./utils/sendTwilioSMS.js')
+
+      const message = "Welcome to Pet Claim Helper! We'll send medication reminders via SMS. Reply HELP for help or STOP to opt-out."
+      const result = await sendTwilioSMS(phoneNumber, message)
+
+      if (result.success) {
+        console.log('[Welcome SMS] Sent to:', phoneNumber, 'MessageID:', result.messageId)
+        return res.json({ ok: true, messageId: result.messageId })
+      } else {
+        console.error('[Welcome SMS] Failed:', result.error)
+        return res.status(500).json({ ok: false, error: result.error })
+      }
+    } catch (error) {
+      console.error('[Welcome SMS] Error:', error)
+      return res.status(500).json({ ok: false, error: error.message })
+    }
+  })
+
+  // Mark medication dose as given
+  app.post('/api/medications/:id/mark-given', async (req, res) => {
+    try {
+      const { id } = req.params
+      const { userId } = req.body
+
+      if (!userId) {
+        return res.status(400).json({ ok: false, error: 'User ID required' })
+      }
+
+      // Get the medication to find today's dose
+      const { data: medication, error: medError } = await supabase
+        .from('medications')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', userId)
+        .single()
+
+      if (medError || !medication) {
+        return res.status(404).json({ ok: false, error: 'Medication not found' })
+      }
+
+      // Find today's pending dose for this medication
+      const today = new Date().toISOString().split('T')[0]
+      const { data: doses, error: doseError } = await supabase
+        .from('medication_doses')
+        .select('*')
+        .eq('medication_id', id)
+        .eq('user_id', userId)
+        .eq('status', 'pending')
+        .gte('scheduled_time', `${today}T00:00:00`)
+        .lt('scheduled_time', `${today}T23:59:59`)
+        .order('scheduled_time', { ascending: true })
+        .limit(1)
+
+      if (doseError) {
+        console.error('[Mark Given] Error finding dose:', doseError)
+        return res.status(500).json({ ok: false, error: 'Error finding dose' })
+      }
+
+      if (!doses || doses.length === 0) {
+        return res.status(404).json({ ok: false, error: 'No pending dose found for today' })
+      }
+
+      // Mark the dose as given
+      const dose = doses[0]
+      const { error: updateError } = await supabase
+        .from('medication_doses')
+        .update({
+          status: 'given',
+          given_time: new Date().toISOString()
+        })
+        .eq('id', dose.id)
+
+      if (updateError) {
+        console.error('[Mark Given] Error updating dose:', updateError)
+        return res.status(500).json({ ok: false, error: 'Error marking dose as given' })
+      }
+
+      console.log('[Mark Given] Dose marked as given:', dose.id)
+      return res.json({ ok: true, doseId: dose.id })
+    } catch (error) {
+      console.error('[Mark Given] Error:', error)
+      return res.status(500).json({ ok: false, error: error.message })
+    }
+  })
   app.listen(port, () => {
     console.log(`[server] listening on http://localhost:${port}`)
   })

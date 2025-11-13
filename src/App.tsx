@@ -9,6 +9,7 @@ import AddMedicationForm from './components/AddMedicationForm'
 import OnboardingModal from './components/OnboardingModal'
 import FinancialSummary from './components/FinancialSummary'
 import MedicationsDashboard from './components/MedicationsDashboard'
+import DoseMarkingPage from './components/DoseMarkingPage'
 import { createClaim, listClaims, updateClaim, deleteClaim as dbDeleteClaim } from './lib/claims'
 import React from 'react'
 
@@ -120,6 +121,8 @@ export default function App() {
   const [createdClaimId, setCreatedClaimId] = useState<string | null>(null)
   const [pendingSuccess, setPendingSuccess] = useState<null | typeof successModal>(null)
   const [showAddMedication, setShowAddMedication] = useState(false)
+  // Deep link state for /dose/:id?action=mark
+  const [doseDeepLinkId, setDoseDeepLinkId] = useState<string | null>(null)
 
   // --- Name similarity helpers for auto-suggestions ---
   const normalizeName = (s: string): string => s.trim().toLowerCase()
@@ -276,6 +279,19 @@ export default function App() {
     }
   }, [pets])
 
+  // Deep link detection for /dose/:id?action=mark
+  useEffect(() => {
+    const path = window.location.pathname
+    const params = new URLSearchParams(window.location.search)
+
+    // Check if path matches /dose/:id and has action=mark
+    const doseMatch = path.match(/^\/dose\/([a-f0-9-]+)$/i)
+    if (doseMatch && params.get('action') === 'mark') {
+      const medicationId = doseMatch[1]
+      setDoseDeepLinkId(medicationId)
+      setActiveView('medications')
+    }
+  }, [])
 
   // Persist financial period filter
   useEffect(() => {
@@ -2507,6 +2523,19 @@ export default function App() {
           userId={userId}
           pets={pets}
           defaultPetId={selectedPet?.id || null}
+        />
+      )}
+
+      {/* Deep link modal for marking dose as given */}
+      {doseDeepLinkId && (
+        <DoseMarkingPage
+          medicationId={doseDeepLinkId}
+          userId={userId}
+          onClose={() => {
+            setDoseDeepLinkId(null)
+            // Clear the URL to go back to root
+            window.history.pushState({}, '', '/')
+          }}
         />
       )}
 

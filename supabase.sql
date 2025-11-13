@@ -16,6 +16,7 @@ create table if not exists public.profiles (
   default_time_period text default 'all_time',
   insurance_company text,
   filing_deadline_days integer,
+  sms_opt_in boolean default true,
   created_at timestamp with time zone default now()
 );
 
