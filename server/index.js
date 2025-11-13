@@ -320,15 +320,24 @@ if (error) {
   app.options('/api/send-deadline-reminders', (req, res) => {
     res.set('Access-Control-Allow-Origin', '*')
     res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    res.set('Access-Control-Allow-Headers', 'Content-Type')
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
     return res.sendStatus(204)
   })
   app.post('/api/send-deadline-reminders', async (req, res) => {
     // eslint-disable-next-line no-console
     console.log('[DEBUG] send-deadline-reminders endpoint hit')
+
+    // PRIORITY 3: Protect manual endpoint with authentication
+    const authHeader = req.headers.authorization
+    if (authHeader !== `Bearer ${process.env.ADMIN_SECRET}`) {
+      // eslint-disable-next-line no-console
+      console.error('[/api/send-deadline-reminders] Unauthorized access attempt')
+      return res.status(401).json({ ok: false, error: 'Unauthorized' })
+    }
+
     res.set('Access-Control-Allow-Origin', '*')
     res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    res.set('Access-Control-Allow-Headers', 'Content-Type')
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
     try {
       const result = await deadlineNotifications.runDeadlineNotifications({
         // Reuse initialized clients to avoid re-auth

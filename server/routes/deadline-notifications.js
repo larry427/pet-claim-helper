@@ -102,8 +102,42 @@ export async function runDeadlineNotifications(opts = {}) {
   const today = startOfDayUtc()
   const errors = []
 
+  // PRIORITY 2: Generate unique execution ID for tracking
+  const executionId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
   // eslint-disable-next-line no-console
-  console.log('[deadline-notifications] Starting function')
+  console.log(`[deadline-notifications] START execution ${executionId}`)
+
+  // PRIORITY 1: Acquire execution lock to prevent concurrent runs
+  const lockKey = `deadline-notifications-lock-${today.toISOString().split('T')[0]}`
+  let lockAcquired = false
+
+  try {
+    const { error: lockError } = await supabase
+      .from('execution_locks')
+      .insert({ key: lockKey, created_at: new Date().toISOString() })
+
+    if (lockError) {
+      if (lockError.code === '23505') {
+        // Lock already exists - another execution in progress
+        // eslint-disable-next-line no-console
+        console.log(`[deadline-notifications] [${executionId}] Already running, skipping (lock exists)`)
+        return { success: false, reason: 'already_running', executionId }
+      }
+      throw lockError
+    }
+
+    lockAcquired = true
+    // eslint-disable-next-line no-console
+    console.log(`[deadline-notifications] [${executionId}] Lock acquired: ${lockKey}`)
+  } catch (lockErr) {
+    // eslint-disable-next-line no-console
+    console.error(`[deadline-notifications] [${executionId}] Lock acquisition failed:`, lockErr)
+    throw lockErr
+  }
+
+  try {
+    // eslint-disable-next-line no-console
+    console.log(`[deadline-notifications] [${executionId}] Starting function`)
 
   // Query all relevant claims and join pets and profiles
   const { data: fallbackData, error: fallbackError } = await supabase
@@ -204,32 +238,58 @@ export async function runDeadlineNotifications(opts = {}) {
     if (!reminders.length) continue
     try {
       // eslint-disable-next-line no-console
-      console.log(`[deadline-notifications] Processing user email: ${email}`)
+      console.log(`[deadline-notifications] [${executionId}] Processing user email: ${email}`)
+
+      // PRIORITY 4: Re-check flags in database before sending (prevents race conditions)
+      const validReminders = []
       for (const r of reminders) {
+        const { data: freshClaim } = await supabase
+          .from('claims')
+          .select('sent_reminders')
+          .eq('id', r.claimId)
+          .single()
+
+        if (freshClaim?.sent_reminders?.[r.flagKey]) {
+          // eslint-disable-next-line no-console
+          console.log(`[deadline-notifications] [${executionId}] Flag already set for claim ${r.claimId}, skipping`)
+          continue
+        }
+
+        validReminders.push(r)
         // eslint-disable-next-line no-console
-        console.log(`[deadline-notifications] Sending reminder to: ${email} for claim: ${r.claimId}`)
+        console.log(`[deadline-notifications] [${executionId}] Sending reminder to: ${email} for claim: ${r.claimId}`)
       }
-      const subject = buildSubject(reminders)
-      const html = buildEmailHtml(reminders, dashboardUrl())
-      const text = buildEmailText(reminders, dashboardUrl())
+
+      // Skip if all reminders were filtered out
+      if (!validReminders.length) {
+        // eslint-disable-next-line no-console
+        console.log(`[deadline-notifications] [${executionId}] No valid reminders for ${email} after flag check, skipping`)
+        continue
+      }
+
+      const subject = buildSubject(validReminders)
+      const html = buildEmailHtml(validReminders, dashboardUrl())
+      const text = buildEmailText(validReminders, dashboardUrl())
       const from = 'Pet Claim Helper <reminders@petclaimhelper.com>'
       let result
       try {
+        // eslint-disable-next-line no-console
+        console.log(`[deadline-notifications] [${executionId}] Calling Resend API for ${email}`)
         const response = await resend.emails.send({ from, to: [email], subject, html, text })
         // eslint-disable-next-line no-console
-        console.log('[deadline-notifications] Resend response:', JSON.stringify(response))
+        console.log(`[deadline-notifications] [${executionId}] Resend response:`, JSON.stringify(response))
         result = response
       } catch (error) {
         // eslint-disable-next-line no-console
-        console.error('[deadline-notifications] Resend error:', error)
+        console.error(`[deadline-notifications] [${executionId}] Resend error:`, error)
         throw error
       }
       // eslint-disable-next-line no-console
-      console.log(`[deadline-notifications] Sent email to ${email}`, { id: result?.id, items: reminders.length })
+      console.log(`[deadline-notifications] [${executionId}] Sent email to ${email}`, { id: result?.id, items: validReminders.length })
       emailsSent++
 
       // Update sent_reminders flags for included claims
-      for (const r of reminders) {
+      for (const r of validReminders) {
         try {
           const current = (claims.find((c) => c.id === r.claimId)?.sent_reminders) || {}
           const nextFlags = { ...current, [r.flagKey]: true }
@@ -251,9 +311,22 @@ export async function runDeadlineNotifications(opts = {}) {
     }
   }
 
-  // eslint-disable-next-line no-console
-  console.log('[deadline-notifications] Finished. Emails sent:', emailsSent)
-  return { success: true, claimsChecked, remindersQueued, emailsSent, errors }
+    // eslint-disable-next-line no-console
+    console.log(`[deadline-notifications] [${executionId}] Finished. Emails sent:`, emailsSent)
+    return { success: true, claimsChecked, remindersQueued, emailsSent, errors, executionId }
+  } finally {
+    // CLEANUP: Release the execution lock
+    if (lockAcquired) {
+      try {
+        await supabase.from('execution_locks').delete().eq('key', lockKey)
+        // eslint-disable-next-line no-console
+        console.log(`[deadline-notifications] [${executionId}] Lock released: ${lockKey}`)
+      } catch (cleanupErr) {
+        // eslint-disable-next-line no-console
+        console.error(`[deadline-notifications] [${executionId}] Failed to release lock:`, cleanupErr)
+      }
+    }
+  }
 }
 
 export default { runDeadlineNotifications }
