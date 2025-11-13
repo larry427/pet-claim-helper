@@ -11,6 +11,7 @@ import FinancialSummary from './components/FinancialSummary'
 import MedicationsDashboard from './components/MedicationsDashboard'
 import DoseMarkingPage from './components/DoseMarkingPage'
 import { createClaim, listClaims, updateClaim, deleteClaim as dbDeleteClaim } from './lib/claims'
+import { formatPhoneOnChange, formatPhoneForStorage, formatPhoneForDisplay } from './utils/phoneUtils'
 import React from 'react'
 
 type SelectedFile = {
@@ -2759,13 +2760,17 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
         if (smsConsent && phoneNumber) {
           console.log('[auth] Storing SMS consent in localStorage for after email verification')
           try {
-            localStorage.setItem('pending_sms_consent', JSON.stringify({
-              phone_number: phoneNumber,
-              consented: true,
-              consent_text: "By checking this box, you consent to receive up to 3 SMS reminders per medication prescription. Message and data rates may apply. Reply STOP to opt out, HELP for support. Privacy Policy: https://pawpals.ai/pet-claim-helper-privacy-policy | Terms of Service: https://pawpals.ai/pet-claim-helper-terms-of-servcie",
-              timestamp: new Date().toISOString()
-            }))
-            console.log('[auth] SMS consent stored in localStorage, will be saved after email verification and login')
+            // Convert phone to E.164 format before storing
+            const phoneE164 = formatPhoneForStorage(phoneNumber)
+            if (phoneE164) {
+              localStorage.setItem('pending_sms_consent', JSON.stringify({
+                phone_number: phoneE164,
+                consented: true,
+                consent_text: "By checking this box, you consent to receive up to 3 SMS reminders per medication prescription. Message and data rates may apply. Reply STOP to opt out, HELP for support. Privacy Policy: https://pawpals.ai/pet-claim-helper-privacy-policy | Terms of Service: https://pawpals.ai/pet-claim-helper-terms-of-servcie",
+                timestamp: new Date().toISOString()
+              }))
+              console.log('[auth] SMS consent stored in localStorage (E.164 format), will be saved after email verification and login')
+            }
           } catch (err) {
             console.error('[auth] Failed to store SMS consent in localStorage:', err)
           }
@@ -2858,8 +2863,8 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
               id="auth-phone"
               type="tel"
               value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              placeholder="(555) 123-4567"
+              onChange={(e) => setPhoneNumber(formatPhoneOnChange(e.target.value, phoneNumber))}
+              placeholder="(123) 456-7890"
               className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
             />
           </div>
@@ -2976,7 +2981,8 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
           if (error) throw error
           if (data) {
             setFullName(data.full_name || '')
-            setPhone(data.phone || '')
+            // Convert E.164 format phone to display format
+            setPhone(data.phone ? formatPhoneForDisplay(data.phone) : '')
             setEmailReminders(!!data.email_reminders)
             setWeeklySummaries(!!data.weekly_summaries)
             setDeadlineAlerts(!!data.deadline_alerts)
@@ -3001,11 +3007,14 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
       if (!userId) return
       setLoading(true)
       try {
+        // Convert phone to E.164 format for storage
+        const phoneE164 = formatPhoneForStorage(phone)
+
         const { error } = await supabase.from('profiles').upsert({
           id: userId,
           email: userEmail || '',
           full_name: fullName,
-          phone,
+          phone: phoneE164 || null,
         })
         if (error) throw error
         alert('Profile saved')
@@ -3035,7 +3044,7 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
             </div>
             <div>
               <label className="block text-xs text-slate-500">Phone Number</label>
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+              <input value={phone} onChange={(e) => setPhone(formatPhoneOnChange(e.target.value, phone))} placeholder="(123) 456-7890" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
             </div>
           </div>
           <div className="mt-3">

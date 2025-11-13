@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { createPet } from '../lib/petStorage'
+import { formatPhoneOnChange, formatPhoneForStorage } from '../utils/phoneUtils'
 
 type Props = {
   open: boolean
@@ -102,19 +103,22 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         if (Number.isNaN(d.getTime())) throw new Error('Please select a valid Coverage Start Date.')
         return d.toISOString().slice(0, 10)
       })()
+      // Convert phone to E.164 format for storage and SMS
+      const phoneE164 = formatPhoneForStorage(phone)
+
       // Save profile (Step 1)
       const { error: profErr } = await supabase
         .from('profiles')
         .update({
           full_name: fullName.trim(),
           address: address.trim() || null,
-          phone: phone.trim() || null
+          phone: phoneE164 || null
         })
         .eq('id', userId)
       if (profErr) throw profErr
 
       // Send welcome SMS if phone number provided
-      if (phone.trim()) {
+      if (phoneE164) {
         try {
           const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787'
           await fetch(`${apiUrl}/api/sms/welcome`, {
@@ -122,10 +126,10 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               userId,
-              phoneNumber: phone.trim()
+              phoneNumber: phoneE164
             })
           })
-          console.log('[OnboardingModal] Welcome SMS sent to:', phone.trim())
+          console.log('[OnboardingModal] Welcome SMS sent to:', phoneE164)
         } catch (smsError) {
           // Don't fail onboarding if SMS fails - just log it
           console.error('[OnboardingModal] Failed to send welcome SMS:', smsError)
@@ -194,8 +198,8 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
                 <input
                   type="tel"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+1234567890"
+                  onChange={(e) => setPhone(formatPhoneOnChange(e.target.value, phone))}
+                  placeholder="(123) 456-7890"
                   className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
                 />
               </div>
