@@ -572,7 +572,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
 
       // Handle HELP command
       if (messageBody.includes('HELP')) {
-        const helpMessage = 'Pet Claim Helper medication reminders. Reply STOP to opt-out. Questions? larry@uglydogadventures.com'
+        const helpMessage = 'Pet Claim Helper here! 🐾 We send medication reminders to help you care for your pet. Reply STOP to opt-out. Questions? larry@uglydogadventures.com'
         res.type('text/xml')
         return res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -626,7 +626,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
       // Import Twilio SMS utility
       const { sendTwilioSMS } = await import('./utils/sendTwilioSMS.js')
 
-      const message = "Welcome to Pet Claim Helper! We'll send medication reminders via SMS. Reply HELP for help or STOP to opt-out."
+      const message = "Welcome to Pet Claim Helper! 🐾 We'll send friendly reminders for your pet's medications. You've got this! Reply HELP or STOP to opt-out."
       const result = await sendTwilioSMS(phoneNumber, message)
 
       if (result.success) {

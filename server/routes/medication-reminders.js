@@ -91,7 +91,7 @@ export async function runMedicationReminders(options = {}) {
       const petName = med.pets?.name || 'your pet'
       const medName = med.medication_name || 'medication'
       const deepLink = `https://pet-claim-helper.vercel.app/dose/${med.id}?action=mark`
-      const message = `Time to give ${petName} their ${medName}! Mark as given: ${deepLink} Reply HELP for help.`
+      const message = `🐾 Time to give ${petName} their ${medName}! Tap to mark as given: ${deepLink} Reply HELP for help.`
 
       // Send SMS
       const result = await sendTwilioSMS(profile.phone, message)
