@@ -1010,9 +1010,9 @@ export default function App() {
             <img
               src="/pch-logo.png"
               alt="Pet Claim Helper"
-              className="w-[70vw] max-w-[320px] md:w-[90vw] md:max-w-[500px] h-auto object-contain mt-1 mb-1 md:mt-0 md:mb-4"
+              className="w-[70vw] max-w-[320px] md:w-[90vw] md:max-w-[500px] h-auto object-contain mt-1 mb-0 md:mt-0 md:mb-0"
             />
-            <div className="text-base md:text-lg text-gray-500 dark:text-gray-400 text-center max-w-xl px-4 leading-snug mt-1 mb-3 md:mt-0 md:mb-0">
+            <div className="text-base md:text-lg font-bold text-gray-500 dark:text-gray-400 text-center max-w-xl px-4 leading-snug mt-1 mb-3 md:mt-0 md:mb-0">
               <div>Track Vet Bills. File Pet Insurance Instantly.</div>
               <div>Get Paid Faster.</div>
             </div>
