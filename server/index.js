@@ -398,10 +398,10 @@ if (error) {
       try {
         const { data: prof } = await supabase
           .from('profiles')
-          .select('phone_number')
+          .select('phone')
           .eq('id', med.user_id)
           .single()
-        const phone = prof?.phone_number || null
+        const phone = prof?.phone || null
         if (!phone) {
           console.log('[Medication Reminders] No phone on file; skipping', { medId: med.id, userId: med.user_id })
           results.push({ medId: med.id, sent: false, reason: 'no_phone' })
