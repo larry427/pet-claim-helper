@@ -477,6 +477,30 @@ if (error) {
     // eslint-disable-next-line no-console
     console.error('[Cron] schedule init failed:', cronErr)
   }
+
+  // Cron: deadline reminders daily at 9 AM
+  try {
+    schedule.scheduleJob('0 9 * * *', async () => {
+      // eslint-disable-next-line no-console
+      console.log('[Cron] Deadline reminders check at', new Date())
+      try {
+        const result = await deadlineNotifications.runDeadlineNotifications({
+          supabase,
+          resend,
+        })
+        // eslint-disable-next-line no-console
+        console.log('[Cron] Deadline reminders result:', result)
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('[Cron] Deadline reminders failed:', error?.message || error)
+      }
+    })
+    // eslint-disable-next-line no-console
+    console.log('[Cron] Deadline reminders scheduled for 9 AM daily (0 9 * * *)')
+  } catch (cronErr) {
+    // eslint-disable-next-line no-console
+    console.error('[Cron] Deadline reminders schedule init failed:', cronErr)
+  }
   // ADD THIS ENDPOINT TO YOUR server/index.js
 // This relay endpoint receives form submissions and forwards them to GHL
 // Solves CORS issues by doing the request server-to-server instead of browser-to-GHL
