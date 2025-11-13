@@ -294,7 +294,7 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
       </div>
 
       <div className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5">
-        <div className="text-sm sm:text-base font-semibold">Per-Pet Breakdown</div>
+        <div className="text-sm sm:text-base font-semibold">{`Per-Pet Breakdown (${String(period || '').toLowerCase() === 'all' ? 'All Time' : String(period || new Date().getFullYear())})`}</div>
         {pets.length === 0 && (
           <div className="mt-3 text-sm text-slate-600">No pets yet. Add a pet to see per-pet costs.</div>
         )}
@@ -312,26 +312,29 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
                   <span className="font-semibold truncate" title={`${p.name} (${p.species})`}>{p.name} ({p.species})</span>
                 </div>
                 <div className="mt-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <div className="text-slate-600">Your Out-of-Pocket Cost</div>
-                    <div className="font-mono font-semibold">${outOfPocket.toFixed(2)}</div>
-                  </div>
                   {!hasActivity ? (
-                    <div className="mt-2 text-xs text-slate-500">(No bills this year)</div>
+                    <>
+                      <div className="flex items-center justify-between">
+                        <div className="text-slate-800 dark:text-slate-100 font-bold">YOUR OUT-OF-POCKET COST</div>
+                        <div className="font-mono font-bold text-lg">${outOfPocket.toFixed(2)}</div>
+                      </div>
+                      <div className="mt-2 text-xs text-slate-500">(No vet bills this year)</div>
+                    </>
                   ) : (
-                    <div className="mt-3 space-y-1">
+                    <div className="space-y-1">
                       <div className="text-xs font-semibold text-slate-500">YOUR COSTS</div>
                       <div className="flex items-center justify-between"><span className="text-slate-600">Premiums (attributed)</span><span className="font-mono font-semibold">${s.premiums.toFixed(2)}</span></div>
                       <div className="flex items-center justify-between"><span className="text-slate-600">Vet Bills (insured + non-insured)</span><span className="font-mono font-semibold">${(s.claimed + (s.nonInsured || 0)).toFixed(2)}</span></div>
-                      <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between"><span className="text-slate-700 font-semibold">= Total You Paid</span><span className="font-mono font-bold">${outOfPocket.toFixed(2)}</span></div>
-                      <div className="pt-2 text-xs font-semibold text-slate-500">INSURANCE COVERAGE</div>
-                      <div className="flex items-center justify-between"><span className="text-slate-600">Paid Back</span><span className="font-mono font-semibold">${s.reimbursed.toFixed(2)}</span></div>
+                      <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between"><span className="text-slate-600">Subtotal Paid</span><span className="font-mono font-semibold">${(s.premiums + s.claimed + (s.nonInsured || 0)).toFixed(2)}</span></div>
+                      <div className="pt-3 text-xs font-semibold text-slate-500">INSURANCE COVERAGE</div>
+                      <div className="flex items-center justify-between"><span className="text-slate-600">Reimbursements Received</span><span className="font-mono font-semibold">${s.reimbursed.toFixed(2)}</span></div>
+                      <div className="pt-3 border-t-2 border-slate-300 dark:border-slate-700 flex items-center justify-between"><span className="text-slate-800 dark:text-slate-100 font-bold">YOUR OUT-OF-POCKET COST</span><span className="font-mono font-bold text-lg">${outOfPocket.toFixed(2)}</span></div>
                       <div className="text-xs text-slate-500">
                         {s.pendingBills > 0
                           ? `(${s.pendingBills} bill${s.pendingBills === 1 ? '' : 's'} pending submission)`
                           : (s.filedClaims > 0
                             ? `(${s.filedClaims} claim${s.filedClaims === 1 ? '' : 's'} filed)`
-                            : '(No bills this year)')}
+                            : '')}
                       </div>
                     </div>
                   )}
