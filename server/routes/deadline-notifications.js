@@ -78,7 +78,7 @@ function buildEmailHtml(reminders, dashboardUrl) {
             ${items}
             <div class="closing">
               <p style="margin: 0 0 12px 0; font-weight: bold;">You've got this! We're here to help. 🐾</p>
-              <p style="margin: 0 0 12px 0;">If you need any help filing these claims, just log into your dashboard and we'll walk you through it.</p>
+              <p style="margin: 0 0 12px 0;">If you need any help filing these claims or are struggling with something, just email us at larry@uglydogadventures.com - we're here to help!</p>
               <p style="margin: 0;">
                 <a href="${dashboardUrl}" class="cta-button">Go to My Dashboard</a>
               </p>
@@ -113,7 +113,7 @@ ${lines}
 
 You've got this! We're here to help. 🐾
 
-If you need any help filing these claims, just log into your dashboard and we'll walk you through it.
+If you need any help filing these claims or are struggling with something, just email us at larry@uglydogadventures.com - we're here to help!
 
 Dashboard: ${dashboardUrl}
 
