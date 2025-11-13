@@ -123,6 +123,9 @@ export default function App() {
   const [showAddMedication, setShowAddMedication] = useState(false)
   // Deep link state for /dose/:id?action=mark
   const [doseDeepLinkId, setDoseDeepLinkId] = useState<string | null>(null)
+  // Pet photo upload state
+  const [uploadingPhotoForPetId, setUploadingPhotoForPetId] = useState<string | null>(null)
+  const [photoUploadError, setPhotoUploadError] = useState<string | null>(null)
 
   // --- Name similarity helpers for auto-suggestions ---
   const normalizeName = (s: string): string => s.trim().toLowerCase()
@@ -587,6 +590,78 @@ export default function App() {
     }
   }
 
+  // Pet photo upload
+  const uploadPetPhoto = async (petId: string, file: File): Promise<void> => {
+    if (!userId) {
+      setPhotoUploadError('Please log in to upload photos')
+      return
+    }
+
+    // Validate file size (5MB max)
+    const maxSize = 5 * 1024 * 1024 // 5MB in bytes
+    if (file.size > maxSize) {
+      setPhotoUploadError('Photo must be smaller than 5MB')
+      return
+    }
+
+    // Validate file type
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg']
+    if (!validTypes.includes(file.type)) {
+      setPhotoUploadError('Please upload a PNG or JPEG image')
+      return
+    }
+
+    setUploadingPhotoForPetId(petId)
+    setPhotoUploadError(null)
+
+    try {
+      // Upload to Supabase Storage
+      const fileExt = file.name.split('.').pop() || 'jpg'
+      const timestamp = Date.now()
+      const path = `${userId}/${petId}-${timestamp}.${fileExt}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('pet-photos')
+        .upload(path, file, { upsert: true, contentType: file.type })
+
+      if (uploadError) throw uploadError
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('pet-photos')
+        .getPublicUrl(path)
+
+      if (!urlData?.publicUrl) throw new Error('Failed to get public URL')
+
+      // Update pet record with photo_url
+      const pet = pets.find(p => p.id === petId)
+      if (!pet) throw new Error('Pet not found')
+
+      const updatedPet = { ...pet, photo_url: urlData.publicUrl }
+      await dbUpsertPet(userId, updatedPet)
+
+      // Refresh pets list
+      const refreshedPets = await dbLoadPets(userId)
+      setPets(refreshedPets)
+
+      setToast({ message: 'Photo uploaded successfully!', type: 'success' })
+    } catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.error('[uploadPetPhoto] error', e)
+      setPhotoUploadError(e?.message || 'Failed to upload photo. Please try again.')
+    } finally {
+      setUploadingPhotoForPetId(null)
+    }
+  }
+
+  const handlePetPhotoSelect = async (petId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    await uploadPetPhoto(petId, file)
+    // Reset input so same file can be selected again
+    event.target.value = ''
+  }
+
   // Filing deadline helpers
   const [showDeadlineHelp, setShowDeadlineHelp] = useState(false)
   const parseServiceDate = (dateStr: string | undefined): Date | null => {
@@ -1042,6 +1117,13 @@ export default function App() {
             </button>
           </div>
 
+          {photoUploadError && (
+            <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-800 dark:text-red-200 flex items-start justify-between">
+              <span>{photoUploadError}</span>
+              <button onClick={() => setPhotoUploadError(null)} className="ml-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200">×</button>
+            </div>
+          )}
+
           {addingPet && (
             <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 max-w-3xl mx-auto overflow-x-hidden">
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
@@ -1130,10 +1212,59 @@ export default function App() {
             )}
             {pets.map(pet => (
               <div key={pet.id} className={[ 'rounded-xl border p-6 text-left bg-white dark:bg-slate-900/60 shadow-sm relative', selectedPetId === pet.id ? 'border-emerald-400' : 'border-slate-200 dark:border-slate-800' ].join(' ')} style={{ border: `2px solid ${pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280')}` }}>
+                {/* Camera button for photo upload - top right */}
+                <div className="absolute top-3 right-3 z-10">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg"
+                    onChange={(e) => handlePetPhotoSelect(pet.id, e)}
+                    className="sr-only"
+                    id={`photo-upload-${pet.id}`}
+                    disabled={uploadingPhotoForPetId === pet.id}
+                  />
+                  <label
+                    htmlFor={`photo-upload-${pet.id}`}
+                    className={[
+                      'inline-flex items-center justify-center w-8 h-8 rounded-full cursor-pointer transition-all',
+                      pet.species === 'dog' ? 'bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50' : 'bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 dark:hover:bg-orange-900/50',
+                      uploadingPhotoForPetId === pet.id ? 'opacity-50 cursor-not-allowed' : ''
+                    ].join(' ')}
+                    title={pet.photo_url ? 'Change Photo' : 'Add Photo'}
+                  >
+                    {uploadingPhotoForPetId === pet.id ? (
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    )}
+                  </label>
+                </div>
+
                 <div>
+                  {/* Pet photo or fallback icon */}
+                  <div className="flex justify-center mb-4">
+                    {pet.photo_url ? (
+                      <img
+                        src={pet.photo_url}
+                        alt={`${pet.name}'s photo`}
+                        className="w-32 h-32 rounded-full object-cover border-4 shadow-lg transition-transform hover:scale-105"
+                        style={{ borderColor: pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280') }}
+                      />
+                    ) : (
+                      <div
+                        className="w-32 h-32 rounded-full flex items-center justify-center text-6xl border-4 shadow-lg"
+                        style={{ borderColor: pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280'), backgroundColor: pet.species === 'dog' ? '#EFF6FF' : pet.species === 'cat' ? '#FFF7ED' : '#F3F4F6' }}
+                      >
+                        {pet.species === 'dog' ? '🐕' : pet.species === 'cat' ? '🐱' : '🐾'}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="flex items-start justify-between gap-3 mb-3">
-                    <div>
-                      <div className="text-base font-semibold flex items-center gap-2">
+                    <div className="flex-1 text-center">
+                      <div className="text-base font-semibold flex items-center justify-center gap-2">
                         <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280') }} />
                         {pet.name}
                       </div>

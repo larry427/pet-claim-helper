@@ -27,6 +27,7 @@ create table if not exists public.pets (
   name text not null,
   species text not null,
   color text,
+  photo_url text,
   insurance_company text,
   policy_number text,
   owner_name text,

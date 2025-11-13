@@ -5,9 +5,9 @@ import { supabase } from './supabase'
 export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
   try {
     console.log('[dbLoadPets] START - userId=', userId)
-    const { data, error } = await supabase
+    const { data, error} = await supabase
       .from('pets')
-      .select('id, name, species, color, insurance_company, policy_number, owner_name, owner_phone, filing_deadline_days, monthly_premium, deductible_per_claim, coverage_start_date, insurance_pays_percentage, annual_coverage_limit')
+      .select('id, name, species, color, photo_url, insurance_company, policy_number, owner_name, owner_phone, filing_deadline_days, monthly_premium, deductible_per_claim, coverage_start_date, insurance_pays_percentage, annual_coverage_limit')
       .eq('user_id', userId)
       .order('created_at', { ascending: true })
     console.log('[dbLoadPets] QUERY RESULT - data:', data, 'error:', error)
@@ -20,6 +20,7 @@ export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
       name: p.name,
       species: p.species,
       color: p.color || (p.species === 'dog' ? '#3B82F6' : p.species === 'cat' ? '#F97316' : '#6B7280'),
+      photo_url: p.photo_url || null,
       insuranceCompany: p.insurance_company,
       policyNumber: p.policy_number,
       ownerName: p.owner_name,
@@ -47,6 +48,7 @@ export async function dbUpsertPet(userId: string, pet: PetProfile): Promise<void
     name: pet.name,
     species: pet.species,
     color,
+    photo_url: pet.photo_url || null,
     insurance_company: pet.insuranceCompany,
     policy_number: pet.policyNumber,
     owner_name: pet.ownerName || '',
@@ -96,6 +98,7 @@ export async function createPet(pet: any): Promise<any> {
         name: pet.name,
         species: pet.species,
         color: pet.color ?? null,
+        photo_url: pet.photo_url ?? null,
         insurance_company: pet.insurance_company ?? null,
         policy_number: pet.policy_number ?? null,
         // optional extras

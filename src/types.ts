@@ -23,6 +23,7 @@ export type PetProfile = {
   name: string
   species: PetSpecies
   color?: string
+  photo_url?: string | null
   insuranceCompany: InsuranceCompany
   policyNumber: string
   ownerName?: string
