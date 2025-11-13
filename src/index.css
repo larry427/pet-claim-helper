@@ -7,8 +7,30 @@
   color-scheme: light dark;
 }
 
-html, body, #root {
+/* Prevent horizontal overflow and ensure native app feel */
+html, body {
   height: 100%;
+  width: 100%;
+  overflow-x: hidden;
+  position: fixed;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* iOS safe area support for notch and home bar */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+  }
 }
 
 

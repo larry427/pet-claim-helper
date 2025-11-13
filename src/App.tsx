@@ -88,7 +88,6 @@ export default function App() {
   const [paidModalClaim, setPaidModalClaim] = useState<any | null>(null)
   const [paidAmount, setPaidAmount] = useState<string>('')
   const [paidDate, setPaidDate] = useState<string>(getLocalTodayYYYYMMDD())
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [successModal, setSuccessModal] = useState<null | {
     claimId: string | null
@@ -277,20 +276,6 @@ export default function App() {
     }
   }, [pets])
 
-  // Mobile menu: prevent body scroll and handle escape key when open
-  useEffect(() => {
-    if (!mobileMenuOpen) return
-    const originalOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMobileMenuOpen(false)
-    }
-    window.addEventListener('keydown', handleEscape)
-    return () => {
-      document.body.style.overflow = originalOverflow
-      window.removeEventListener('keydown', handleEscape)
-    }
-  }, [mobileMenuOpen])
 
   // Persist financial period filter
   useEffect(() => {
@@ -926,25 +911,27 @@ export default function App() {
           </div>
         </div>
       )}
-      <header className="px-4 py-6 md:py-8 bg-gradient-to-b from-white/50 to-transparent dark:from-slate-900/50">
+      <header className="px-4 pt-2 pb-3 md:py-8 bg-gradient-to-b from-white/50 to-transparent dark:from-slate-900/50">
         <div className="mx-auto max-w-6xl">
           {/* Logo - centered and prominent */}
-          <div className="flex flex-col items-center justify-center mb-6">
+          <div className="flex flex-col items-center justify-center mb-1 md:mb-6">
             <img
               src="/pch-logo.png"
               alt="Pet Claim Helper"
-              className="w-[90vw] max-w-[400px] md:max-w-[500px] h-auto object-contain"
+              className="w-[70vw] max-w-[320px] md:w-[90vw] md:max-w-[500px] h-auto object-contain mt-1 mb-1 md:mt-0 md:mb-4"
             />
+            <div className="text-base md:text-lg text-gray-500 dark:text-gray-400 text-center max-w-xl px-4 leading-snug mt-1 mb-3 md:mt-0 md:mb-0">
+              <div>Track Vet Bills. File Pet Insurance Instantly.</div>
+              <div>Get Paid Faster.</div>
+            </div>
           </div>
-          {/* Navigation row */}
-          <div className="flex items-center justify-center gap-3">
-            {/* Desktop navigation */}
-          <div className="hidden md:flex items-center gap-3">
+          {/* Navigation row - unified for mobile and desktop */}
+          <div className="flex items-center justify-center gap-2 md:gap-3 flex-wrap mt-2 md:mt-0">
             {authView === 'app' && (
               <button
                 type="button"
                 onClick={() => claimsSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
-                className="relative inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-3 py-1.5 text-xs hover:shadow"
+                className="relative inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow"
               >
                 Bills & Claims ({claims.length})
                 {claimsSummary.expiringSoon > 0 && (
@@ -956,7 +943,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setActiveView(v => v === 'app' ? 'settings' : 'app')}
-                className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-3 py-1.5 text-xs hover:shadow"
+                className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow"
               >
                 ⚙️ Settings
               </button>
@@ -965,67 +952,18 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setActiveView(v => v === 'medications' ? 'app' : 'medications')}
-                className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-3 py-1.5 text-xs hover:shadow"
+                className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow"
               >
                 💊 Medications
               </button>
             )}
-            {userEmail && <span className="text-xs text-slate-600 dark:text-slate-300">Logged in as: {userEmail}</span>}
+            {userEmail && <span className="hidden sm:inline text-xs text-slate-600 dark:text-slate-300">Logged in as: {userEmail}</span>}
             {userEmail && (
-              <button onClick={handleLogout} className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-3 py-1.5 text-xs hover:shadow">Logout</button>
+              <button onClick={handleLogout} className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow">Logout</button>
             )}
-          </div>
-          {/* Mobile hamburger */}
-          <div className="md:hidden flex items-center">
-            <button
-              type="button"
-              className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-3 py-2 text-sm"
-              onClick={() => setMobileMenuOpen(true)}
-              aria-label="Open menu"
-            >
-              ☰
-            </button>
-          </div>
           </div>
         </div>
       </header>
-
-      {/* Mobile slide-out menu */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 pointer-events-none">
-          <div className="absolute inset-0 bg-black/40 pointer-events-auto" onClick={() => setMobileMenuOpen(false)} />
-          <div className="absolute right-0 top-0 h-full w-80 max-w-[85vw] bg-white dark:bg-slate-900 shadow-xl p-6 flex flex-col gap-4 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <div className="text-lg font-semibold">Menu</div>
-              <button type="button" className="text-sm" onClick={() => setMobileMenuOpen(false)}>Close</button>
-            </div>
-            {authView === 'app' && (
-              <>
-                <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={() => { setMobileMenuOpen(false); claimsSectionRef.current?.scrollIntoView({ behavior: 'smooth' }) }}>Vet Bills & Claims</button>
-                <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={() => { setMobileMenuOpen(false); setActiveView('medications') }}>Medications</button>
-                <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={() => { setMobileMenuOpen(false); setActiveView(v => v === 'app' ? 'settings' : 'app') }}>Settings</button>
-                <button type="button" className="w-full h-12 rounded-lg border border-slate-200 dark:border-slate-700 text-left px-4" onClick={async () => {
-                  try {
-                    const response = await fetch('https://pet-claim-helper.onrender.com/api/send-deadline-reminders', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
-                    const data = await response.json()
-                    alert(`✅ Reminders processed!\n\nEmails sent: ${data.emailsSent}\nClaims checked: ${data.claimsChecked}\nReminders queued: ${data.remindersQueued}`)
-                  } catch (error) {
-                    alert('❌ Error sending reminders: ' + (error as Error).message)
-                  } finally {
-                    setMobileMenuOpen(false)
-                  }
-                }}>Send Reminders</button>
-                {userEmail && (
-                  <div className="text-xs text-slate-600 dark:text-slate-300 mt-2">Logged in as: {userEmail}</div>
-                )}
-                {userEmail && (
-                  <button type="button" className="w-full h-12 rounded-lg bg-rose-600 hover:bg-rose-700 text-white" onClick={() => { setMobileMenuOpen(false); handleLogout() }}>Logout</button>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       <main className="px-6">
         {authView === 'app' && activeView === 'settings' && (
@@ -2599,30 +2537,12 @@ export default function App() {
                 <div><span className="text-slate-500 dark:text-slate-400">Insurance:</span> <span className="text-slate-900 dark:text-slate-100">{successModal.insurance || '—'}</span></div>
                 <div><span className="text-slate-500 dark:text-slate-400">Filing Deadline:</span> <span className="text-slate-900 dark:text-slate-100">{successModal.deadlineDate || '—'} ({successModal.deadlineDays} days)</span></div>
               </div>
-                  <div className="mt-5 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
+                  <div className="mt-5 flex justify-center">
                 <button
                   type="button"
-                      className="inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm w-full h-12 sm:w-auto sm:h-auto"
-                  onClick={() => {
-                    // Reset for another claim
-                    setSuccessModal(null)
-                    setExtracted(null)
-                    setMultiExtracted(null)
-                    setSelectedFile(null)
-                    setErrorMessage(null)
-                    setVisitNotes('')
-                    setVisitTitle('')
-                    setExpenseCategory('insured')
-                    setShowClaims(false)
-                  }}
-                >
-                  File Another Claim
-                </button>
-                <button
-                  type="button"
-                      className="inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm w-full h-12 sm:w-auto sm:h-auto"
+                      className="inline-flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 text-sm font-medium w-full sm:w-auto"
                   onClick={async () => {
-                    // Close modal and clear form; stay on upload page
+                    // Close modal and clear form; return to dashboard
                     setSuccessModal(null)
                     setExtracted(null)
                     setMultiExtracted(null)
@@ -2643,7 +2563,6 @@ export default function App() {
                 >
                   Done
                 </button>
-                {/* View My Claim button removed */}
               </div>
             </div>
           </div>
@@ -2930,6 +2849,7 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
         })
         if (error) throw error
         alert('Profile saved')
+        onClose() // Auto-close Settings modal after success message
       } catch (e) { console.error('[save profile] error', e); alert('Error saving profile') } finally { setLoading(false) }
     }
 
