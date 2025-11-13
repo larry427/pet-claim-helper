@@ -152,7 +152,7 @@ export default function DoseTrackingPage({
       if (onDoseRecorded) onDoseRecorded()
       setTimeout(() => {
         onClose()
-      }, 2000)
+      }, 4000)
     } catch (e: any) {
       setError(e?.message || 'Failed to record dose')
     } finally {
