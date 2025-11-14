@@ -2751,14 +2751,32 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
   const [signupNoticeEmail, setSignupNoticeEmail] = useState<string | null>(null)
   const [phoneNumber, setPhoneNumber] = useState('')
   const [smsConsent, setSmsConsent] = useState(false)
+  const [phoneError, setPhoneError] = useState<string | null>(null)
+  const [smsConsentError, setSmsConsentError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    setPhoneError(null)
+    setSmsConsentError(null)
     try {
       try { console.log('[auth] handleSubmit start:', { mode, emailPreview: email.replace(/(.).+(@.+)/, '$1***$2') }) } catch {}
       if (mode === 'signup') {
+        // Validate phone number is provided
+        if (!phoneNumber || phoneNumber.trim().length === 0) {
+          setPhoneError('Phone number is required for SMS medication reminders')
+          setLoading(false)
+          return
+        }
+
+        // Validate SMS consent is checked
+        if (!smsConsent) {
+          setSmsConsentError('You must consent to receive SMS reminders to use this feature')
+          setLoading(false)
+          return
+        }
+
         const { data, error } = await supabase.auth.signUp({ email, password })
         try { console.log('[auth] signUp result:', { hasUser: Boolean(data?.user), hasSession: Boolean(data?.session), error: error || null }) } catch {}
         if (error) throw error
@@ -2867,28 +2885,51 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
       {mode === 'signup' && (
         <>
           <div>
-            <label htmlFor="auth-phone" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Phone Number (Optional)</label>
+            <label htmlFor="auth-phone" className="block text-xs font-medium text-slate-600 dark:text-slate-300">
+              Phone Number (for medication reminders) <span className="text-rose-600">*</span>
+            </label>
             <input
               id="auth-phone"
               type="tel"
               value={phoneNumber}
-              onChange={(e) => setPhoneNumber(formatPhoneOnChange(e.target.value, phoneNumber))}
+              onChange={(e) => {
+                setPhoneNumber(formatPhoneOnChange(e.target.value, phoneNumber))
+                setPhoneError(null) // Clear error when user types
+              }}
               placeholder="(123) 456-7890"
-              className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
+              className={[
+                "mt-1 w-full rounded-md border px-3 py-2 text-sm bg-white/80 dark:bg-slate-900",
+                phoneError ? "border-rose-500" : "border-slate-300 dark:border-slate-700"
+              ].join(' ')}
+              required
             />
+            {phoneError && (
+              <p className="mt-1 text-xs text-rose-600">{phoneError}</p>
+            )}
           </div>
           <div className="space-y-2">
             <label className="flex items-start gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={smsConsent}
-                onChange={(e) => setSmsConsent(e.target.checked)}
-                className="mt-0.5"
+                onChange={(e) => {
+                  setSmsConsent(e.target.checked)
+                  setSmsConsentError(null) // Clear error when user checks
+                }}
+                className={[
+                  "mt-0.5 w-4 h-4 rounded border-2",
+                  smsConsentError ? "border-rose-500" : "border-slate-400 dark:border-slate-500",
+                  "checked:bg-emerald-600 checked:border-emerald-600"
+                ].join(' ')}
+                required
               />
               <span className="text-xs text-slate-700 dark:text-slate-300">
-                I agree to receive SMS medication reminders from Pet Claim Helper
+                I agree to receive SMS medication reminders from Pet Claim Helper <span className="text-rose-600">*</span>
               </span>
             </label>
+            {smsConsentError && (
+              <p className="ml-6 text-xs text-rose-600">{smsConsentError}</p>
+            )}
             {smsConsent && (
               <div className="ml-6 text-[11px] text-slate-600 dark:text-slate-400 space-y-1">
                 <p>By checking this box, you consent to receive up to 3 SMS reminders per medication prescription. Message and data rates may apply. Reply STOP to opt out, HELP for support.</p>

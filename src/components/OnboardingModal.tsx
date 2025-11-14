@@ -16,7 +16,6 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
 
   // Step 1 - Profile
   const [fullName, setFullName] = useState('')
-  const [address, setAddress] = useState('')
   const [phone, setPhone] = useState('')
 
   // Step 2 - Pet
@@ -39,7 +38,6 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
     setSaving(false)
     setError(null)
     setFullName('')
-    setAddress('')
     setPhone('')
     setPetName('')
     setSpecies('')
@@ -111,7 +109,6 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         .from('profiles')
         .update({
           full_name: fullName.trim(),
-          address: address.trim() || null,
           phone: phoneE164 || null
         })
         .eq('id', userId)
@@ -188,10 +185,6 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Full Name</label>
                 <input value={fullName} onChange={(e) => setFullName(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Address <span className="text-xs text-slate-500">(optional)</span></label>
-                <input value={address} onChange={(e) => setAddress(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Phone Number <span className="text-xs text-slate-500">(optional, for SMS medication reminders)</span></label>
