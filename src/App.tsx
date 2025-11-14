@@ -2030,6 +2030,24 @@ export default function App() {
               <h2 className="text-xl font-semibold">Vet Bills & Claims</h2>
             </div>
 
+            {/* Coming Soon: Auto-Submit Banner */}
+            <div className="mt-4 mb-4 p-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-md">
+              <div className="flex items-center justify-between text-white">
+                <div className="flex items-center space-x-3">
+                  <span className="text-3xl">🚀</span>
+                  <div>
+                    <h3 className="font-bold text-lg">Auto-Submit Coming Soon!</h3>
+                    <p className="text-sm text-blue-100">
+                      Soon we'll file claims directly with your insurance company. No more manual paperwork!
+                    </p>
+                  </div>
+                </div>
+                <button className="px-4 py-2 bg-white text-blue-600 rounded-md text-sm font-semibold hover:bg-blue-50 transition">
+                  Learn More
+                </button>
+              </div>
+            </div>
+
             {/* Summary */}
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
@@ -2227,6 +2245,20 @@ export default function App() {
                                   </select>
                                 </div>
                               )}
+                            </div>
+                            {/* Coming Soon: Auto-Submit Teaser */}
+                            <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/30 border-l-4 border-blue-400 rounded">
+                              <div className="flex items-start">
+                                <span className="text-2xl mr-2">🚀</span>
+                                <div>
+                                  <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
+                                    Coming Soon: Auto-Submit
+                                  </p>
+                                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                    We'll file claims directly with your insurance company - no more manual work!
+                                  </p>
+                                </div>
+                              </div>
                             </div>
                           )
                         }
