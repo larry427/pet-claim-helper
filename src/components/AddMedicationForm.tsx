@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { convertLocalToUTC } from '../utils/timezoneUtils'
 import type { PetProfile } from '../types'
 
 type Frequency = '1x daily' | '2x daily' | '3x daily'
@@ -123,11 +122,12 @@ export default function AddMedicationForm({
       const tz = userTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone
       try {
         console.log('[AddMedicationForm] Submitting. Detected timezone:', tz)
-        console.log('[AddMedicationForm] Local times selected:', times)
+        console.log('[AddMedicationForm] Times selected (will store as PST, no UTC conversion):', times)
       } catch {}
-      const timesUtc = times.map((t) => convertLocalToUTC(t, tz)).filter(Boolean)
+      // Store times as-is in PST format (HH:mm), no UTC conversion
+      const timesPst = times.filter(Boolean)
       try {
-        console.log('[AddMedicationForm] Converted UTC times:', timesUtc)
+        console.log('[AddMedicationForm] Times to store in PST:', timesPst)
       } catch {}
       const payload = {
         user_id: userId,
@@ -136,12 +136,12 @@ export default function AddMedicationForm({
         medication_name: medicationName.trim(),
         dosage: dosage.trim() || null,
         frequency,
-        reminder_times: timesUtc,
+        reminder_times: timesPst,
         start_date: start,
         end_date: end,
       } as const
       try {
-        console.log('[AddMedicationForm] Payload.reminder_times (will save as UTC):', payload.reminder_times)
+        console.log('[AddMedicationForm] Payload.reminder_times (storing in PST):', payload.reminder_times)
       } catch {}
 
       const { error: insertError } = await supabase.from('medications').insert(payload)

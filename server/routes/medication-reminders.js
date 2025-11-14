@@ -1,5 +1,6 @@
 // Medication reminders logic with SMS support
 import { sendTwilioSMS } from '../utils/sendTwilioSMS.js'
+import { DateTime } from 'luxon'
 
 export async function runMedicationReminders(options = {}) {
   const { supabase } = options
@@ -12,13 +13,13 @@ export async function runMedicationReminders(options = {}) {
   try {
     console.log('[Medication Reminders] Starting medication reminder check...')
 
-    // Get current time in UTC
-    const now = new Date()
-    const currentHour = now.getUTCHours()
-    const currentMinute = now.getUTCMinutes()
+    // Get current time in PST (America/Los_Angeles)
+    const nowPST = DateTime.now().setZone('America/Los_Angeles')
+    const currentHour = nowPST.hour
+    const currentMinute = nowPST.minute
     const currentTime = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`
 
-    console.log('[Medication Reminders] Current time (UTC):', currentTime)
+    console.log('[Medication Reminders] Current time (PST):', currentTime, '| Full PST time:', nowPST.toISO())
 
     // Query all active medications with reminder times
     const { data: medications, error: medsError } = await supabase
@@ -44,7 +45,8 @@ export async function runMedicationReminders(options = {}) {
     // Check each medication to see if it's time to send a reminder
     for (const med of medications) {
       // Check if medication is active (within start/end date range)
-      const today = new Date().toISOString().split('T')[0]
+      // Use PST date for consistent timezone handling
+      const today = nowPST.toISODate()
       if (med.start_date > today) {
         remindersSkipped.push({ medicationId: med.id, reason: 'Not started yet' })
         continue
