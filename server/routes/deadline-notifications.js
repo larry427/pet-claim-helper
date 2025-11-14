@@ -32,6 +32,7 @@ function buildEmailHtml(reminders, dashboardUrl) {
   const items = reminders
     .map((r) => {
       const tag = r.daysRemaining <= 0 ? 'DEADLINE PASSED' : `${r.daysRemaining} days`
+      const claimUrl = `${dashboardUrl}/claim/${r.claimId}`
       return `
         <div style="margin: 16px 0; padding: 12px; border-left: 4px solid #ff6b35; background: #fff5f0;">
           <p style="margin: 0; font-weight: bold;">${r.petName}</p>
@@ -41,10 +42,18 @@ function buildEmailHtml(reminders, dashboardUrl) {
           <p style="margin: 4px 0; font-size: 14px; color: #ff6b35; font-weight: bold;">
             Deadline: ${r.deadline} (${tag})
           </p>
+          <p style="margin: 8px 0 0 0;">
+            <a href="${claimUrl}" style="color: #10b981; font-size: 14px; font-weight: 600; text-decoration: underline;">View this claim →</a>
+          </p>
         </div>
       `
     })
     .join('')
+
+  // Link main button to most urgent claim (first in list)
+  const primaryClaimUrl = reminders.length === 1
+    ? `${dashboardUrl}/claim/${reminders[0].claimId}`
+    : dashboardUrl
 
   return `
     <!DOCTYPE html>
@@ -80,7 +89,7 @@ function buildEmailHtml(reminders, dashboardUrl) {
               <p style="margin: 0 0 12px 0; font-weight: bold;">You've got this! We're here to help. 🐾</p>
               <p style="margin: 0 0 12px 0;">If you need any help filing these claims or are struggling with something, just email us at larry@uglydogadventures.com - we're here to help!</p>
               <p style="margin: 0;">
-                <a href="${dashboardUrl}" class="cta-button">Go to My Dashboard</a>
+                <a href="${primaryClaimUrl}" class="cta-button">${reminders.length === 1 ? 'View This Claim' : 'Go to My Dashboard'}</a>
               </p>
               <p style="margin: 16px 0 0 0; font-size: 14px;">Need help? Email us at <a href="mailto:larry@uglydogadventures.com" style="color: #10b981; text-decoration: underline;">larry@uglydogadventures.com</a></p>
               <p style="margin: 12px 0 0 0; font-size: 14px;">– The Pet Claim Helper Team</p>
@@ -100,9 +109,17 @@ function buildEmailText(reminders, dashboardUrl) {
   const lines = reminders
     .map((r) => {
       const tag = r.daysRemaining <= 0 ? 'DEADLINE PASSED' : `${r.daysRemaining} days`
-      return `- ${r.petName} | ${r.clinicName || '—'} | service: ${r.serviceDate || '—'} | deadline: ${r.deadline} | ${tag}`
+      const claimUrl = `${dashboardUrl}/claim/${r.claimId}`
+      return `- ${r.petName} | ${r.clinicName || '—'} | service: ${r.serviceDate || '—'} | deadline: ${r.deadline} | ${tag}
+  View claim: ${claimUrl}`
     })
-    .join('\n')
+    .join('\n\n')
+
+  // Link to most urgent claim if single claim, otherwise dashboard
+  const primaryUrl = reminders.length === 1
+    ? `${dashboardUrl}/claim/${reminders[0].claimId}`
+    : dashboardUrl
+
   return `Hi there! 👋
 
 We're checking in because we care about helping you get every dollar back from your pet insurance. Your furry family member deserves the best care, and we want to make sure you don't lose money on missed deadlines.
@@ -115,7 +132,7 @@ You've got this! We're here to help. 🐾
 
 If you need any help filing these claims or are struggling with something, just email us at larry@uglydogadventures.com - we're here to help!
 
-Dashboard: ${dashboardUrl}
+${reminders.length === 1 ? 'View this claim' : 'Dashboard'}: ${primaryUrl}
 
 Need help? Email us at larry@uglydogadventures.com
 
