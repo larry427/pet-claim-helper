@@ -77,14 +77,18 @@ export async function runMedicationReminders(options = {}) {
       }
 
       // Check if we already sent a reminder for this medication today
-      const { data: logCheck } = await supabase
+      // Note: This table may not exist yet - if query fails, proceed anyway
+      const { data: logCheck, error: logError } = await supabase
         .from('medication_reminders_log')
         .select('id')
         .eq('medication_id', med.id)
         .eq('reminder_date', today)
         .eq('reminder_time', currentTime)
 
-      if (logCheck && logCheck.length > 0) {
+      if (logError) {
+        console.warn('[Medication Reminders] Log check failed (table may not exist):', logError.message)
+        // Continue anyway - better to send duplicate than miss a reminder
+      } else if (logCheck && logCheck.length > 0) {
         remindersSkipped.push({ medicationId: med.id, reason: 'Already sent today' })
         continue
       }
@@ -118,8 +122,8 @@ export async function runMedicationReminders(options = {}) {
           console.log('[Medication Reminders] Created dose:', dose.id)
         }
 
-        // Log the sent reminder
-        await supabase
+        // Log the sent reminder (best effort - don't fail if table doesn't exist)
+        const { error: logInsertError } = await supabase
           .from('medication_reminders_log')
           .insert({
             medication_id: med.id,
@@ -127,6 +131,10 @@ export async function runMedicationReminders(options = {}) {
             reminder_date: today,
             reminder_time: currentTime
           })
+
+        if (logInsertError) {
+          console.warn('[Medication Reminders] Failed to log reminder (table may not exist):', logInsertError.message)
+        }
 
         remindersSent.push({
           medicationId: med.id,
