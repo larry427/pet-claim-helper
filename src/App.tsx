@@ -124,6 +124,8 @@ export default function App() {
   const [showAddMedication, setShowAddMedication] = useState(false)
   // Deep link state for /dose/:id?action=mark
   const [doseDeepLinkId, setDoseDeepLinkId] = useState<string | null>(null)
+  // Medications refresh key - increment to force MedicationsDashboard to reload
+  const [medicationsRefreshKey, setMedicationsRefreshKey] = useState(0)
   // Pet photo upload state
   const [uploadingPhotoForPetId, setUploadingPhotoForPetId] = useState<string | null>(null)
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null)
@@ -1078,7 +1080,7 @@ export default function App() {
         )}
         {authView === 'app' && activeView === 'medications' && (
           <section className="mx-auto mt-8 max-w-6xl px-2">
-            <MedicationsDashboard userId={userId} pets={pets} />
+            <MedicationsDashboard userId={userId} pets={pets} refreshKey={medicationsRefreshKey} />
           </section>
         )}
         {authView !== 'app' && (
@@ -2701,10 +2703,14 @@ export default function App() {
         <DoseMarkingPage
           medicationId={doseDeepLinkId}
           userId={userId}
-          onClose={() => {
+          onClose={(wasMarked?: boolean) => {
             setDoseDeepLinkId(null)
             // Clear the URL to go back to root
             window.history.pushState({}, '', '/')
+            // If dose was marked, refresh medications to show updated count
+            if (wasMarked) {
+              setMedicationsRefreshKey(k => k + 1)
+            }
           }}
         />
       )}

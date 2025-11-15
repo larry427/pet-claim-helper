@@ -28,7 +28,7 @@ type DoseRow = {
   status: 'pending' | 'given'
 }
 
-export default function MedicationsDashboard({ userId, pets }: { userId: string | null; pets: PetProfile[] }) {
+export default function MedicationsDashboard({ userId, pets, refreshKey }: { userId: string | null; pets: PetProfile[]; refreshKey?: number }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [medications, setMedications] = useState<MedicationRow[]>([])
@@ -93,7 +93,7 @@ export default function MedicationsDashboard({ userId, pets }: { userId: string 
   useEffect(() => {
     refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId])
+  }, [userId, refreshKey])
 
   // Always show all medications; no expand/collapse needed
 

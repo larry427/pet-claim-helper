@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 interface DoseMarkingPageProps {
   medicationId: string
   userId: string | null
-  onClose: () => void
+  onClose: (wasMarked?: boolean) => void
 }
 
 export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseMarkingPageProps) {
@@ -20,22 +20,29 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   }, [medicationId, userId])
 
   async function loadMedicationDetails() {
-    if (!userId) {
-      setError('Please log in to mark medication as given')
-      setLoading(false)
-      return
-    }
-
+    // Don't check userId here - let the query fail if needed
+    // This prevents false "Please log in" errors when userId loads slowly from auth
     try {
       // Get medication details with pet information
       const { data: medData, error: medError } = await supabase
         .from('medications')
         .select('*, pets(name, species)')
         .eq('id', medicationId)
-        .eq('user_id', userId)
         .single()
 
       if (medError || !medData) {
+        // Only check userId for auth error if the query actually failed
+        if (!userId) {
+          setError('Please log in to mark medication as given')
+        } else {
+          setError('Medication not found')
+        }
+        setLoading(false)
+        return
+      }
+
+      // Verify user owns this medication
+      if (userId && medData.user_id !== userId) {
         setError('Medication not found')
         setLoading(false)
         return
@@ -80,8 +87,9 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       setMarking(false)
 
       // Redirect to medications dashboard after 2 seconds
+      // Pass true to indicate dose was successfully marked
       setTimeout(() => {
-        onClose()
+        onClose(true)
       }, 2000)
     } catch (err) {
       console.error('Error marking dose:', err)
