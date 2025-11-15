@@ -99,6 +99,25 @@ export async function runMedicationReminders(options = {}) {
       const result = await sendTwilioSMS(profile.phone, message)
 
       if (result.success) {
+        // Create a dose record for tracking (so deep link can mark it as given)
+        const scheduledTime = nowPST.toISO() // PST timestamp
+        const { data: dose, error: doseError } = await supabase
+          .from('medication_doses')
+          .insert({
+            medication_id: med.id,
+            user_id: med.user_id,
+            scheduled_time: scheduledTime,
+            status: 'pending'
+          })
+          .select()
+          .single()
+
+        if (doseError) {
+          console.error('[Medication Reminders] Error creating dose:', doseError)
+        } else {
+          console.log('[Medication Reminders] Created dose:', dose.id)
+        }
+
         // Log the sent reminder
         await supabase
           .from('medication_reminders_log')
@@ -114,14 +133,16 @@ export async function runMedicationReminders(options = {}) {
           petName,
           medName,
           phone: profile.phone,
-          messageId: result.messageId
+          messageId: result.messageId,
+          doseId: dose?.id
         })
 
         console.log('[Medication Reminders] Sent reminder:', {
           medicationId: med.id,
           petName,
           medName,
-          messageId: result.messageId
+          messageId: result.messageId,
+          doseId: dose?.id
         })
       } else {
         remindersSkipped.push({
