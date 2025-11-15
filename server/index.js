@@ -11,7 +11,7 @@ import { getReminderEmailHtml } from './emailTemplates.js'
 import multer from 'multer'
 import OpenAI from 'openai'
 import * as pdfjsLib from 'pdfjs-dist'
-// import medicationRemindersRouter from './routes/medication-reminders.js'
+import { runMedicationReminders } from './routes/medication-reminders.js'
 import deadlineNotifications from './routes/deadline-notifications.js'
 import schedule from 'node-schedule'
 import { sendSMS } from './utils/sendSMS.js'
@@ -354,7 +354,10 @@ if (error) {
   // eslint-disable-next-line no-console
   console.log('Deadline reminders route registered')
   
-  // Shared function to send medication reminders without HTTP round-trip
+  // OLD FUNCTION - DEPRECATED (used UTC time instead of PST)
+  // This has been replaced by runMedicationReminders() from ./routes/medication-reminders.js
+  // which correctly uses PST timezone via Luxon
+  /*
   const sendMedicationReminders = async () => {
     console.log('[Medication Reminders] start at', new Date().toISOString())
     const { data: meds, error: medsError } = await supabase
@@ -447,6 +450,7 @@ if (error) {
     }
     return { success: true, remindersSent, totalEligible: dueMeds.length, results }
   }
+  */
 
   // SMS medication reminders endpoint
   app.options('/api/send-medication-reminders', (req, res) => {
@@ -469,14 +473,14 @@ if (error) {
   })
 
   const port = process.env.PORT || 8787
-  // Cron: medication reminders every minute
+  // Cron: medication reminders every minute (using PST timezone)
   try {
     schedule.scheduleJob('* * * * *', async () => {
       // eslint-disable-next-line no-console
       console.log('[Cron] Medication reminders check at', new Date())
       try {
-        const result = await sendMedicationReminders()
-        console.log('[Cron] Medication reminders result:', { remindersSent: result.remindersSent, totalEligible: result.totalEligible })
+        const result = await runMedicationReminders({ supabase })
+        console.log('[Cron] Medication reminders result:', { sent: result.sent, skipped: result.skipped })
       } catch (error) {
         // eslint-disable-next-line no-console
         console.error('[Cron] Medication reminders failed:', error?.message || error)
