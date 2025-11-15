@@ -93,34 +93,50 @@ export async function runMedicationReminders(options = {}) {
         continue
       }
 
-      // Build SMS message with deep link
+      // Create a dose record FIRST (so we can generate a magic link token)
+      const scheduledTime = nowPST.toISO() // PST timestamp
+
+      // Generate one-time token for magic link authentication
+      // This allows users to mark as given without being logged in
+      const crypto = await import('crypto')
+      const oneTimeToken = crypto.randomUUID()
+      const tokenExpiresAt = nowPST.plus({ hours: 24 }).toISO() // Token valid for 24 hours
+
+      const { data: dose, error: doseError } = await supabase
+        .from('medication_doses')
+        .insert({
+          medication_id: med.id,
+          user_id: med.user_id,
+          scheduled_time: scheduledTime,
+          status: 'pending',
+          one_time_token: oneTimeToken,
+          token_expires_at: tokenExpiresAt
+        })
+        .select()
+        .single()
+
+      if (doseError) {
+        console.error('[Medication Reminders] Error creating dose:', doseError)
+        remindersSkipped.push({
+          medicationId: med.id,
+          reason: 'Failed to create dose',
+          error: doseError.message
+        })
+        continue
+      }
+
+      console.log('[Medication Reminders] Created dose:', dose.id, 'with magic link token')
+
+      // Build SMS message with magic link (includes token for passwordless auth)
       const petName = med.pets?.name || 'your pet'
       const medName = med.medication_name || 'medication'
-      const deepLink = `https://pet-claim-helper.vercel.app/dose/${med.id}?action=mark`
+      const deepLink = `https://pet-claim-helper.vercel.app/dose/${med.id}?token=${oneTimeToken}`
       const message = `🐾 Time to give ${petName} their ${medName}! Tap to mark as given: ${deepLink} Reply HELP for help.`
 
       // Send SMS
       const result = await sendTwilioSMS(profile.phone, message)
 
       if (result.success) {
-        // Create a dose record for tracking (so deep link can mark it as given)
-        const scheduledTime = nowPST.toISO() // PST timestamp
-        const { data: dose, error: doseError } = await supabase
-          .from('medication_doses')
-          .insert({
-            medication_id: med.id,
-            user_id: med.user_id,
-            scheduled_time: scheduledTime,
-            status: 'pending'
-          })
-          .select()
-          .single()
-
-        if (doseError) {
-          console.error('[Medication Reminders] Error creating dose:', doseError)
-        } else {
-          console.log('[Medication Reminders] Created dose:', dose.id)
-        }
 
         // Log the sent reminder (best effort - don't fail if table doesn't exist)
         const { error: logInsertError } = await supabase

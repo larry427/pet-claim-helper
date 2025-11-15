@@ -285,14 +285,14 @@ export default function App() {
     }
   }, [pets])
 
-  // Deep link detection for /dose/:id?action=mark
+  // Deep link detection for /dose/:id?token=xyz (magic link from SMS)
   useEffect(() => {
     const path = window.location.pathname
     const params = new URLSearchParams(window.location.search)
 
-    // Check if path matches /dose/:id and has action=mark
+    // Check if path matches /dose/:id and has token (magic link) or action=mark (legacy)
     const doseMatch = path.match(/^\/dose\/([a-f0-9-]+)$/i)
-    if (doseMatch && params.get('action') === 'mark') {
+    if (doseMatch && (params.get('token') || params.get('action') === 'mark')) {
       const medicationId = doseMatch[1]
       setDoseDeepLinkId(medicationId)
       setActiveView('medications')

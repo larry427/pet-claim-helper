@@ -14,8 +14,17 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   const [marking, setMarking] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Extract magic link token from URL if present
+  const [magicToken, setMagicToken] = useState<string | null>(null)
 
   useEffect(() => {
+    // Check for token in URL query params (for magic link authentication)
+    const urlParams = new URLSearchParams(window.location.search)
+    const token = urlParams.get('token')
+    if (token) {
+      setMagicToken(token)
+      console.log('[DoseMarkingPage] Magic link token detected')
+    }
     loadMedicationDetails()
   }, [medicationId, userId])
 
@@ -59,7 +68,8 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   }
 
   async function markAsGiven() {
-    if (!userId) {
+    // Magic link auth (token) OR session auth (userId) - one of them must be present
+    if (!magicToken && !userId) {
       setError('Please log in to mark medication as given')
       return
     }
@@ -69,10 +79,17 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
     try {
       // Call backend API to mark dose as given
+      // Pass either token (magic link) or userId (session auth)
+      const body = magicToken
+        ? { token: magicToken }
+        : { userId }
+
+      console.log('[DoseMarkingPage] Marking as given with:', magicToken ? 'magic link token' : 'session auth')
+
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8787'}/api/medications/${medicationId}/mark-given`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId })
+        body: JSON.stringify(body)
       })
 
       const result = await response.json()
@@ -83,6 +100,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         return
       }
 
+      console.log('[DoseMarkingPage] ✅ Successfully marked as given')
       setSuccess(true)
       setMarking(false)
 

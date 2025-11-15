@@ -648,20 +648,77 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
   })
 
   // Mark medication dose as given
+  // Supports two auth methods:
+  // 1. Magic link token (from SMS) - works without login
+  // 2. Traditional userId session auth
   app.post('/api/medications/:id/mark-given', async (req, res) => {
     try {
-      const { id } = req.params
-      const { userId } = req.body
+      const { id: medicationId } = req.params
+      const { userId, token } = req.body
+      const nowPST = DateTime.now().setZone('America/Los_Angeles')
 
-      if (!userId) {
-        return res.status(400).json({ ok: false, error: 'User ID required' })
+      // METHOD 1: Magic Link Token Authentication (passwordless)
+      if (token) {
+        console.log('[Mark Given] Magic link auth attempt:', { medicationId, token: token.slice(0, 8) + '...' })
+
+        // Find dose by token
+        const { data: dose, error: doseError } = await supabase
+          .from('medication_doses')
+          .select('*')
+          .eq('medication_id', medicationId)
+          .eq('one_time_token', token)
+          .eq('status', 'pending')
+          .single()
+
+        if (doseError || !dose) {
+          console.error('[Mark Given] Invalid or expired token:', doseError?.message)
+          return res.status(401).json({ ok: false, error: 'Invalid or expired link. Please check your recent SMS.' })
+        }
+
+        // Check token expiration
+        const expiresAt = DateTime.fromISO(dose.token_expires_at)
+        if (nowPST > expiresAt) {
+          console.error('[Mark Given] Token expired:', { expiresAt: expiresAt.toISO(), now: nowPST.toISO() })
+          return res.status(401).json({ ok: false, error: 'This link has expired. Please check for a newer SMS.' })
+        }
+
+        // Mark dose as given and DELETE token (single use)
+        const { error: updateError } = await supabase
+          .from('medication_doses')
+          .update({
+            status: 'given',
+            given_time: nowPST.toISO(),
+            one_time_token: null, // Delete token after use
+            token_expires_at: null
+          })
+          .eq('id', dose.id)
+
+        if (updateError) {
+          console.error('[Mark Given] Error updating dose:', updateError)
+          return res.status(500).json({ ok: false, error: 'Error marking dose as given' })
+        }
+
+        console.log('[Mark Given] ✅ Dose marked via magic link:', {
+          doseId: dose.id,
+          medicationId,
+          givenTime: nowPST.toISO()
+        })
+
+        return res.json({ ok: true, message: 'Medication marked as given' })
       }
 
-      // Get the medication to find today's dose
+      // METHOD 2: Traditional Session Authentication (requires userId)
+      if (!userId) {
+        return res.status(400).json({ ok: false, error: 'User ID or token required' })
+      }
+
+      console.log('[Mark Given] Session auth attempt:', { medicationId, userId })
+
+      // Get the medication to verify ownership
       const { data: medication, error: medError } = await supabase
         .from('medications')
         .select('*')
-        .eq('id', id)
+        .eq('id', medicationId)
         .eq('user_id', userId)
         .single()
 
@@ -670,21 +727,18 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
       }
 
       // Find today's pending dose for this medication (using PST timezone)
-      const nowPST = DateTime.now().setZone('America/Los_Angeles')
       const todayPST = nowPST.toISODate()
 
-      console.log('[Mark Given] Checking for dose:', {
-        medicationId: id,
+      console.log('[Mark Given] Finding dose:', {
+        medicationId,
         userId,
-        currentPSTTime: nowPST.toISO(),
-        todayPST,
-        searchRange: `${todayPST}T00:00:00 to ${todayPST}T23:59:59`
+        todayPST
       })
 
       const { data: doses, error: doseError } = await supabase
         .from('medication_doses')
         .select('*')
-        .eq('medication_id', id)
+        .eq('medication_id', medicationId)
         .eq('user_id', userId)
         .eq('status', 'pending')
         .gte('scheduled_time', `${todayPST}T00:00:00`)
@@ -697,31 +751,8 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         return res.status(500).json({ ok: false, error: 'Error finding dose' })
       }
 
-      console.log('[Mark Given] Dose query result:', {
-        foundDoses: doses?.length || 0,
-        doses: doses?.map(d => ({ id: d.id, scheduled_time: d.scheduled_time, status: d.status }))
-      })
-
       if (!doses || doses.length === 0) {
-        // Debug: check if ANY doses exist for this medication
-        const { data: allDoses } = await supabase
-          .from('medication_doses')
-          .select('*')
-          .eq('medication_id', id)
-          .eq('user_id', userId)
-          .order('scheduled_time', { ascending: false })
-          .limit(5)
-
-        console.error('[Mark Given] No pending dose found for today:', {
-          medicationId: id,
-          todayPST,
-          allRecentDoses: allDoses?.map(d => ({
-            id: d.id,
-            scheduled_time: d.scheduled_time,
-            status: d.status
-          }))
-        })
-
+        console.error('[Mark Given] No pending dose found for today')
         return res.status(404).json({ ok: false, error: 'No pending dose found for today' })
       }
 
@@ -731,7 +762,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         .from('medication_doses')
         .update({
           status: 'given',
-          given_time: nowPST.toISO() // Use PST time instead of UTC
+          given_time: nowPST.toISO()
         })
         .eq('id', dose.id)
 
@@ -740,9 +771,9 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         return res.status(500).json({ ok: false, error: 'Error marking dose as given' })
       }
 
-      console.log('[Mark Given] Successfully marked dose as given:', {
+      console.log('[Mark Given] ✅ Dose marked via session:', {
         doseId: dose.id,
-        medicationId: id,
+        medicationId,
         givenTime: nowPST.toISO()
       })
 
