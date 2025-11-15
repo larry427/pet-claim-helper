@@ -18,43 +18,52 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   const [magicToken, setMagicToken] = useState<string | null>(null)
 
   useEffect(() => {
-    // Check for token in URL query params (for magic link authentication)
+    // Extract token from URL and pass it directly to loadMedicationDetails
+    // This avoids a race condition where setState hasn't updated yet
     const urlParams = new URLSearchParams(window.location.search)
     const token = urlParams.get('token')
+
     if (token) {
       setMagicToken(token)
-      console.log('[DoseMarkingPage] Magic link token detected')
+      console.log('[DoseMarkingPage] Magic link token detected:', token.slice(0, 8) + '...')
     }
-    loadMedicationDetails()
+
+    // Pass token directly (don't rely on magicToken state which may not be updated yet)
+    loadMedicationDetails(token)
   }, [medicationId, userId])
 
-  async function loadMedicationDetails() {
+  async function loadMedicationDetails(tokenFromUrl: string | null = null) {
     try {
+      // Use tokenFromUrl (passed directly) OR magicToken (from state)
+      const effectiveToken = tokenFromUrl || magicToken
+
       // MAGIC LINK AUTH: If token is present, use it to load medication details
       // This works without requiring the user to be logged in
-      if (magicToken) {
-        console.log('[DoseMarkingPage] Loading via magic token')
+      if (effectiveToken) {
+        console.log('[DoseMarkingPage] Loading via magic token:', effectiveToken.slice(0, 8) + '...')
 
         // Get dose by token, which includes medication details
         const { data: doseData, error: doseError } = await supabase
           .from('medication_doses')
           .select('*, medications(*, pets(name, species))')
-          .eq('one_time_token', magicToken)
+          .eq('one_time_token', effectiveToken)
           .eq('status', 'pending')
           .single()
 
         if (doseError || !doseData) {
-          console.error('[DoseMarkingPage] Token validation failed:', doseError)
+          console.error('[DoseMarkingPage] Token validation failed:', doseError?.message, doseError?.code)
+          console.error('[DoseMarkingPage] Full error:', JSON.stringify(doseError))
           setError('This link is invalid or has expired. Please check for a newer SMS.')
           setLoading(false)
           return
         }
 
         // Token is valid - load medication details from the joined data
+        console.log('[DoseMarkingPage] ✅ Dose found via token:', doseData.id)
         setMedication(doseData.medications)
         setPet(doseData.medications?.pets)
         setLoading(false)
-        console.log('[DoseMarkingPage] ✅ Loaded via magic token')
+        console.log('[DoseMarkingPage] ✅ Loaded medication:', doseData.medications?.medication_name)
         return
       }
 
