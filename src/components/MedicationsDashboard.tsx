@@ -104,13 +104,19 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
     const g: Record<string, MedicationRow[]> = {}
     for (const m of medications) {
       // Filter for active medications only
-      const startDate = new Date(m.start_date)
-      const startDay = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
-      const endDate = m.end_date ? new Date(m.end_date) : null
-      const endDay = endDate ? new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()) : null
+      // Parse dates as local date, not UTC (to avoid timezone shift bugs)
+      const [startYear, startMonth, startDay] = m.start_date.split('-').map(Number)
+      const startDate = new Date(startYear, startMonth - 1, startDay)
+
+      const endDate = m.end_date
+        ? (() => {
+            const [endYear, endMonth, endDay] = m.end_date.split('-').map(Number)
+            return new Date(endYear, endMonth - 1, endDay)
+          })()
+        : null
 
       // Medication is active if today is >= start_date AND (end_date is null OR today <= end_date)
-      const isActive = todayDay >= startDay && (!endDay || todayDay <= endDay)
+      const isActive = todayDay >= startDate && (!endDate || todayDay <= endDate)
 
       if (isActive) {
         if (!g[m.pet_id]) g[m.pet_id] = []

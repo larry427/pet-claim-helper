@@ -141,11 +141,8 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       setSuccess(true)
       setMarking(false)
 
-      // Redirect to medications dashboard after 2 seconds
-      // Pass true to indicate dose was successfully marked
-      setTimeout(() => {
-        onClose(true)
-      }, 2000)
+      // Success modal will stay visible until user clicks button
+      // No auto-redirect - user controls when to leave
     } catch (err) {
       console.error('Error marking dose:', err)
       setError('Failed to mark dose as given')
@@ -212,11 +209,6 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
                 ✓ Your pet's medication has been recorded. You're all set!
               </p>
             </div>
-
-            {/* Only show redirect message if user is logged in */}
-            {userId && (
-              <p className="text-sm text-gray-500 mb-4">Taking you to the medications dashboard...</p>
-            )}
 
             <button
               onClick={() => {

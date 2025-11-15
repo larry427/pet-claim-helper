@@ -1018,6 +1018,17 @@ export default function App() {
               <div>Track Vet Bills. File Pet Insurance Instantly.</div>
               <div>Get Paid Faster.</div>
             </div>
+
+            {/* Auto-submission teaser banner */}
+            <div className="mt-3 mb-2 px-4 max-w-2xl mx-auto">
+              <div className="bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 shadow-sm">
+                <div className="flex items-center justify-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <span className="text-lg">🚀</span>
+                  <span className="font-medium">Coming Soon:</span>
+                  <span>One-click insurance claim submission. Track payments and never miss a deadline.</span>
+                </div>
+              </div>
+            </div>
           </div>
           {/* Navigation row - unified for mobile and desktop */}
           <div className="flex items-center justify-center gap-2 md:gap-3 flex-wrap mt-2 md:mt-0">
