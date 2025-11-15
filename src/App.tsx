@@ -10,6 +10,7 @@ import OnboardingModal from './components/OnboardingModal'
 import FinancialSummary from './components/FinancialSummary'
 import MedicationsDashboard from './components/MedicationsDashboard'
 import DoseMarkingPage from './components/DoseMarkingPage'
+import ClaimSubmissionModal from './components/ClaimSubmissionModal'
 import { createClaim, listClaims, updateClaim, deleteClaim as dbDeleteClaim } from './lib/claims'
 import { formatPhoneOnChange, formatPhoneForStorage, formatPhoneForDisplay } from './utils/phoneUtils'
 import React from 'react'
@@ -126,6 +127,8 @@ export default function App() {
   const [doseDeepLinkId, setDoseDeepLinkId] = useState<string | null>(null)
   // Medications refresh key - increment to force MedicationsDashboard to reload
   const [medicationsRefreshKey, setMedicationsRefreshKey] = useState(0)
+  // Claim auto-submission modal
+  const [submittingClaim, setSubmittingClaim] = useState<any | null>(null)
   // Pet photo upload state
   const [uploadingPhotoForPetId, setUploadingPhotoForPetId] = useState<string | null>(null)
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null)
@@ -2220,10 +2223,22 @@ export default function App() {
                         if (st === 'not_submitted') {
                           return (
                             <>
-                              <div className="flex items-center gap-3">
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                                {/* Auto-Submit Button - NEW! */}
                                 <button
                                   type="button"
-                                  className="text-xs px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  className="text-xs px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold whitespace-nowrap flex items-center gap-1.5"
+                                  onClick={() => setSubmittingClaim(c)}
+                                  title="Automatically generate PDF and email to insurance company"
+                                >
+                                  <span>🚀</span>
+                                  Auto-Submit to Insurance
+                                </button>
+
+                                {/* Manual Submit Button - Existing */}
+                                <button
+                                  type="button"
+                                  className="text-xs px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white whitespace-nowrap"
                                   onClick={async () => {
                                     try {
                                       const today = getLocalTodayYYYYMMDD()
@@ -2239,6 +2254,7 @@ export default function App() {
                                       }
                                     } catch (e) { console.error('[mark filed] error', e) }
                                   }}
+                                  title="Manually mark as submitted (if you filed yourself)"
                                 >
                                   Mark as Submitted
                                 </button>
@@ -2733,6 +2749,26 @@ export default function App() {
             if (wasMarked) {
               setMedicationsRefreshKey(k => k + 1)
             }
+          }}
+        />
+      )}
+
+      {/* Auto-Submit Claim Modal */}
+      {submittingClaim && userId && (
+        <ClaimSubmissionModal
+          claim={submittingClaim}
+          pet={submittingClaim.pets || {}}
+          userId={userId}
+          onClose={() => setSubmittingClaim(null)}
+          onSuccess={async (messageId) => {
+            console.log('[Auto-Submit] Success! Message ID:', messageId)
+            setSubmittingClaim(null)
+            // Refresh claims list to show updated status
+            if (userId) {
+              const updated = await listClaims(userId)
+              setClaims(updated)
+            }
+            showToast('✅ Claim submitted to insurance!')
           }}
         />
       )}

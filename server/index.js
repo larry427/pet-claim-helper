@@ -16,6 +16,8 @@ import deadlineNotifications from './routes/deadline-notifications.js'
 import schedule from 'node-schedule'
 import { sendSMS } from './utils/sendSMS.js'
 import { DateTime } from 'luxon'
+import { generateClaimFormPDF, validateClaimData } from './lib/generateClaimPDF.js'
+import { sendClaimEmail } from './lib/sendClaimEmail.js'
 
 // Validate required env vars
 const required = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'RESEND_API_KEY']
@@ -784,6 +786,142 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
       return res.status(500).json({ ok: false, error: error.message })
     }
   })
+
+  // Submit claim to insurance company
+  app.post('/api/claims/submit', async (req, res) => {
+    try {
+      const { claimId, userId } = req.body
+
+      if (!claimId || !userId) {
+        return res.status(400).json({ ok: false, error: 'claimId and userId required' })
+      }
+
+      console.log('[Submit Claim] Starting submission:', { claimId, userId })
+
+      // 1. Get claim data from database
+      const { data: claim, error: claimError } = await supabase
+        .from('claims')
+        .select(`
+          *,
+          pets (
+            name,
+            species,
+            breed,
+            date_of_birth
+          )
+        `)
+        .eq('id', claimId)
+        .eq('user_id', userId)
+        .single()
+
+      if (claimError || !claim) {
+        console.error('[Submit Claim] Claim not found:', claimError)
+        return res.status(404).json({ ok: false, error: 'Claim not found' })
+      }
+
+      // 2. Get user profile data
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+
+      if (profileError || !profile) {
+        console.error('[Submit Claim] Profile not found:', profileError)
+        return res.status(404).json({ ok: false, error: 'User profile not found' })
+      }
+
+      // 3. Calculate pet age
+      const petAge = claim.pets.date_of_birth
+        ? Math.floor((new Date() - new Date(claim.pets.date_of_birth)) / (365.25 * 24 * 60 * 60 * 1000))
+        : null
+
+      // 4. Build claim data object for PDF/email
+      const claimData = {
+        policyholderName: profile.full_name || profile.email,
+        policyholderAddress: profile.address || '',
+        policyholderPhone: profile.phone || '',
+        policyholderEmail: profile.email,
+        policyNumber: claim.policy_number || 'N/A',
+        petName: claim.pets.name,
+        petSpecies: claim.pets.species,
+        petBreed: claim.pets.breed || '',
+        petAge: petAge,
+        treatmentDate: claim.service_date || claim.created_at.split('T')[0],
+        vetClinicName: claim.clinic_name || 'Unknown Clinic',
+        vetClinicAddress: claim.clinic_address || '',
+        vetClinicPhone: '',
+        diagnosis: claim.diagnosis || claim.ai_diagnosis || 'See attached invoice',
+        totalAmount: claim.total_amount || 0,
+        itemizedCharges: claim.line_items || [],
+        invoiceAttached: false // For MVP, we're not attaching invoices yet
+      }
+
+      // 5. Validate claim data
+      try {
+        validateClaimData(claimData)
+      } catch (validationError) {
+        console.error('[Submit Claim] Validation failed:', validationError.message)
+        return res.status(400).json({ ok: false, error: `Invalid claim data: ${validationError.message}` })
+      }
+
+      // 6. Get insurer from claim (default to nationwide for now)
+      const insurer = claim.insurer?.toLowerCase() || 'nationwide'
+
+      // 7. Generate PDF
+      const pdfBuffer = await generateClaimFormPDF(
+        insurer,
+        claimData,
+        profile.signature || profile.full_name || profile.email.split('@')[0],
+        new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      )
+
+      console.log('[Submit Claim] PDF generated:', { size: pdfBuffer.length })
+
+      // 8. Send email to insurer
+      const emailResult = await sendClaimEmail(insurer, claimData, pdfBuffer)
+
+      if (!emailResult.success) {
+        console.error('[Submit Claim] Email failed:', emailResult.error)
+        return res.status(500).json({ ok: false, error: `Failed to send email: ${emailResult.error}` })
+      }
+
+      console.log('[Submit Claim] Email sent:', { messageId: emailResult.messageId })
+
+      // 9. Update claim status in database
+      const { error: updateError } = await supabase
+        .from('claims')
+        .update({
+          submission_status: 'submitted',
+          submitted_at: new Date().toISOString(),
+          submission_email_id: emailResult.messageId
+        })
+        .eq('id', claimId)
+
+      if (updateError) {
+        console.error('[Submit Claim] Failed to update claim status:', updateError)
+        // Don't fail the request - email was sent successfully
+      }
+
+      console.log('[Submit Claim] ✅ Claim submitted successfully:', {
+        claimId,
+        insurer,
+        messageId: emailResult.messageId
+      })
+
+      return res.json({
+        ok: true,
+        message: 'Claim submitted successfully',
+        messageId: emailResult.messageId,
+        insurer
+      })
+
+    } catch (error) {
+      console.error('[Submit Claim] Unexpected error:', error)
+      return res.status(500).json({ ok: false, error: error.message })
+    }
+  })
+
   app.listen(port, () => {
     console.log(`[server] listening on http://localhost:${port}`)
   })

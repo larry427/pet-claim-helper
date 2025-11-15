@@ -127,8 +127,43 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         return
       }
 
+      // Calculate TOTAL doses from medication schedule (NOT from database row count!)
+      // This fixes the bug where it showed "1 of 1 doses" instead of "1 of 7 doses"
+      let totalCount = 0
+      if (medication?.start_date && medication?.end_date) {
+        // Parse dates as local dates (not UTC) to avoid timezone bugs
+        const [startYear, startMonth, startDay] = medication.start_date.split('-').map(Number)
+        const startDate = new Date(startYear, startMonth - 1, startDay)
+
+        const [endYear, endMonth, endDay] = medication.end_date.split('-').map(Number)
+        const endDate = new Date(endYear, endMonth - 1, endDay)
+
+        // Calculate total days in treatment (inclusive)
+        const totalDays = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+
+        // Get doses per day from reminder_times array
+        const dosesPerDay = (medication.reminder_times && Array.isArray(medication.reminder_times))
+          ? medication.reminder_times.length
+          : 1
+
+        // Total doses = days * doses per day
+        totalCount = totalDays * dosesPerDay
+
+        console.log('[DoseMarkingPage] Progress calculation:', {
+          startDate: medication.start_date,
+          endDate: medication.end_date,
+          totalDays,
+          dosesPerDay,
+          totalCount,
+          dosesInDB: doses.length
+        })
+      } else {
+        // Fallback to database count if medication dates are missing
+        totalCount = doses.length
+        console.warn('[DoseMarkingPage] Missing medication dates, falling back to DB count')
+      }
+
       const givenCount = doses.filter(d => d.status === 'given').length
-      const totalCount = doses.length
       const percentage = totalCount > 0 ? Math.round((givenCount / totalCount) * 100) : 0
       const isComplete = givenCount === totalCount && totalCount > 0
 
