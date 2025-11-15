@@ -15,6 +15,7 @@ import { runMedicationReminders } from './routes/medication-reminders.js'
 import deadlineNotifications from './routes/deadline-notifications.js'
 import schedule from 'node-schedule'
 import { sendSMS } from './utils/sendSMS.js'
+import { DateTime } from 'luxon'
 
 // Validate required env vars
 const required = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'RESEND_API_KEY']
@@ -668,16 +669,26 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         return res.status(404).json({ ok: false, error: 'Medication not found' })
       }
 
-      // Find today's pending dose for this medication
-      const today = new Date().toISOString().split('T')[0]
+      // Find today's pending dose for this medication (using PST timezone)
+      const nowPST = DateTime.now().setZone('America/Los_Angeles')
+      const todayPST = nowPST.toISODate()
+
+      console.log('[Mark Given] Checking for dose:', {
+        medicationId: id,
+        userId,
+        currentPSTTime: nowPST.toISO(),
+        todayPST,
+        searchRange: `${todayPST}T00:00:00 to ${todayPST}T23:59:59`
+      })
+
       const { data: doses, error: doseError } = await supabase
         .from('medication_doses')
         .select('*')
         .eq('medication_id', id)
         .eq('user_id', userId)
         .eq('status', 'pending')
-        .gte('scheduled_time', `${today}T00:00:00`)
-        .lt('scheduled_time', `${today}T23:59:59`)
+        .gte('scheduled_time', `${todayPST}T00:00:00`)
+        .lt('scheduled_time', `${todayPST}T23:59:59`)
         .order('scheduled_time', { ascending: true })
         .limit(1)
 
@@ -686,7 +697,31 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         return res.status(500).json({ ok: false, error: 'Error finding dose' })
       }
 
+      console.log('[Mark Given] Dose query result:', {
+        foundDoses: doses?.length || 0,
+        doses: doses?.map(d => ({ id: d.id, scheduled_time: d.scheduled_time, status: d.status }))
+      })
+
       if (!doses || doses.length === 0) {
+        // Debug: check if ANY doses exist for this medication
+        const { data: allDoses } = await supabase
+          .from('medication_doses')
+          .select('*')
+          .eq('medication_id', id)
+          .eq('user_id', userId)
+          .order('scheduled_time', { ascending: false })
+          .limit(5)
+
+        console.error('[Mark Given] No pending dose found for today:', {
+          medicationId: id,
+          todayPST,
+          allRecentDoses: allDoses?.map(d => ({
+            id: d.id,
+            scheduled_time: d.scheduled_time,
+            status: d.status
+          }))
+        })
+
         return res.status(404).json({ ok: false, error: 'No pending dose found for today' })
       }
 
@@ -696,7 +731,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         .from('medication_doses')
         .update({
           status: 'given',
-          given_time: new Date().toISOString()
+          given_time: nowPST.toISO() // Use PST time instead of UTC
         })
         .eq('id', dose.id)
 
@@ -704,6 +739,12 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         console.error('[Mark Given] Error updating dose:', updateError)
         return res.status(500).json({ ok: false, error: 'Error marking dose as given' })
       }
+
+      console.log('[Mark Given] Successfully marked dose as given:', {
+        doseId: dose.id,
+        medicationId: id,
+        givenTime: nowPST.toISO()
+      })
 
       console.log('[Mark Given] Dose marked as given:', dose.id)
       return res.json({ ok: true, doseId: dose.id })
