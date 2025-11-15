@@ -1014,20 +1014,31 @@ export default function App() {
               alt="Pet Claim Helper"
               className="w-[70vw] max-w-[320px] md:w-[90vw] md:max-w-[500px] h-auto object-contain mt-1 mb-0 md:mt-0 md:mb-0"
             />
+
+            {/* Auto-submission teaser banner - PRIME LOCATION */}
+            <div className="w-full px-4 mt-4 mb-3 md:mt-6 md:mb-4 animate-fade-in">
+              <div className="max-w-3xl mx-auto">
+                <div className="relative bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl p-[2px] shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]">
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl px-6 py-4 md:px-8 md:py-5">
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-4">
+                      <span className="text-3xl md:text-4xl animate-pulse">🚀</span>
+                      <div className="text-center md:text-left">
+                        <div className="font-bold text-lg md:text-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                          Coming Soon: Auto-Submit Claims
+                        </div>
+                        <div className="text-sm md:text-base text-gray-600 dark:text-gray-300 mt-1">
+                          One-click submission. Track payments. Never miss deadlines.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="text-base md:text-lg font-bold text-gray-500 dark:text-gray-400 text-center max-w-xl px-4 leading-snug mt-1 mb-3 md:mt-0 md:mb-0">
               <div>Track Vet Bills. File Pet Insurance Instantly.</div>
               <div>Get Paid Faster.</div>
-            </div>
-
-            {/* Auto-submission teaser banner */}
-            <div className="mt-3 mb-2 px-4 max-w-2xl mx-auto">
-              <div className="bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 shadow-sm">
-                <div className="flex items-center justify-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <span className="text-lg">🚀</span>
-                  <span className="font-medium">Coming Soon:</span>
-                  <span>One-click insurance claim submission. Track payments and never miss a deadline.</span>
-                </div>
-              </div>
             </div>
           </div>
           {/* Navigation row - unified for mobile and desktop */}
