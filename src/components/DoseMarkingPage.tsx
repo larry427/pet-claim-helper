@@ -60,10 +60,16 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
         // Token is valid - load medication details from the joined data
         console.log('[DoseMarkingPage] ✅ Dose found via token:', doseData.id)
+        console.log('[DoseMarkingPage] Full dose data:', JSON.stringify(doseData, null, 2))
+        console.log('[DoseMarkingPage] Medications object:', doseData.medications)
+        console.log('[DoseMarkingPage] Pets object:', doseData.medications?.pets)
+
         setMedication(doseData.medications)
         setPet(doseData.medications?.pets)
         setLoading(false)
-        console.log('[DoseMarkingPage] ✅ Loaded medication:', doseData.medications?.medication_name)
+
+        console.log('[DoseMarkingPage] ✅ Medication name:', doseData.medications?.medication_name || 'MISSING')
+        console.log('[DoseMarkingPage] ✅ Pet name:', doseData.medications?.pets?.name || 'MISSING')
         return
       }
 
@@ -186,16 +192,47 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   }
 
   if (success) {
+    // Show standalone success page for unauthenticated users (magic link)
+    // They don't have access to the dashboard, so don't redirect
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
           <div className="text-center">
-            <div className="text-green-600 text-5xl mb-4">✓</div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Success!</h2>
-            <p className="text-gray-600 mb-2">
-              Marked <strong>{medication?.medication_name}</strong> as given for <strong>{pet?.name}</strong>
+            <div className="text-green-600 text-6xl mb-4">✓</div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Medication Marked!</h2>
+            <p className="text-gray-700 mb-2 text-lg">
+              <strong>{medication?.medication_name || 'Medication'}</strong>
             </p>
-            <p className="text-sm text-gray-500">Redirecting to medications dashboard...</p>
+            <p className="text-gray-600 mb-6">
+              has been marked as given for <strong>{pet?.name || 'your pet'}</strong>
+            </p>
+
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+              <p className="text-green-800 text-sm">
+                ✓ Your pet's medication has been recorded. You're all set!
+              </p>
+            </div>
+
+            {/* Only show redirect message if user is logged in */}
+            {userId && (
+              <p className="text-sm text-gray-500 mb-4">Taking you to the medications dashboard...</p>
+            )}
+
+            <button
+              onClick={() => {
+                // If logged in, redirect to medications (onClose will handle it)
+                // If logged out, just close and stay on current page
+                if (!userId && !magicToken) {
+                  // For magic link users, close the modal and show a message
+                  window.location.href = '/'
+                } else {
+                  onClose(true)
+                }
+              }}
+              className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-semibold"
+            >
+              {userId ? 'View Dashboard' : 'Done'}
+            </button>
           </div>
         </div>
       </div>
