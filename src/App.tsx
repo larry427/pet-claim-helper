@@ -2032,19 +2032,14 @@ export default function App() {
 
             {/* Coming Soon: Auto-Submit Banner */}
             <div className="mt-4 mb-4 p-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-md">
-              <div className="flex items-center justify-between text-white">
-                <div className="flex items-center space-x-3">
-                  <span className="text-3xl">🚀</span>
-                  <div>
-                    <h3 className="font-bold text-lg">Auto-Submit Coming Soon!</h3>
-                    <p className="text-sm text-blue-100">
-                      Soon we'll file claims directly with your insurance company. No more manual paperwork!
-                    </p>
-                  </div>
+              <div className="flex items-center space-x-3 text-white">
+                <span className="text-3xl">🚀</span>
+                <div>
+                  <h3 className="font-bold text-lg">Auto-Submit Coming Soon!</h3>
+                  <p className="text-sm text-blue-100">
+                    Soon we'll file claims directly with your insurance company. No more manual work!
+                  </p>
                 </div>
-                <button className="px-4 py-2 bg-white text-blue-600 rounded-md text-sm font-semibold hover:bg-blue-50 transition">
-                  Learn More
-                </button>
               </div>
             </div>
 
@@ -2108,7 +2103,9 @@ export default function App() {
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <div className={`px-2 py-1 rounded-full text-xs whitespace-nowrap ${catBadge.cls}`}>{catBadge.text}</div>
-                        <div className={`px-2 py-1 rounded-full text-xs whitespace-nowrap ${stBadge.cls}`}>{stBadge.text}</div>
+                        {!isNotInsured && (
+                          <div className={`px-2 py-1 rounded-full text-xs whitespace-nowrap ${stBadge.cls}`}>{stBadge.text}</div>
+                        )}
                       </div>
                     </div>
 
@@ -2198,68 +2195,70 @@ export default function App() {
                         }
                         if (st === 'not_submitted') {
                           return (
-                            <div className="flex items-center gap-3">
-                              <button
-                                type="button"
-                                className="text-xs px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white"
-                                onClick={async () => {
-                                  try {
-                                    const today = getLocalTodayYYYYMMDD()
-                                    const input = prompt('Enter filed date (YYYY-MM-DD):', today) || today
-                                    const filedDate = input
-                                    await updateClaim(c.id, { filing_status: 'filed', filed_date: filedDate })
-                                    setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: 'filed', filed_date: filedDate } : cl))
-                                    try { alert('✓ Claim marked as submitted') } catch {}
-                                    await new Promise((r) => setTimeout(r, 500))
-                                    if (userId) {
-                                      const updated = await listClaims(userId)
-                                      setClaims(updated)
-                                    }
-                                  } catch (e) { console.error('[mark filed] error', e) }
-                                }}
-                              >
-                                Mark as Submitted
-                              </button>
-                              {(['insured','maybe'].includes(String(c.expense_category || 'insured').toLowerCase())) && (
-                                <div className="flex flex-wrap items-center gap-1 text-xs text-slate-500 w-full sm:w-auto">
-                                  <span className="whitespace-nowrap">Change Status:</span>
-                                  <select
-                                    className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 w-full sm:w-auto max-w-xs"
-                                    value="not_submitted"
-                                    onChange={async (e) => {
-                                      try {
-                                        const next = e.target.value
-                                        const newStatus = next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next)
-                                        await updateClaim(c.id, { filing_status: newStatus })
-                                        // Optimistically update local UI to reflect new status immediately
-                                        setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: newStatus } : cl))
-                                        try { alert('✓ Status updated') } catch {}
-                                        await new Promise((r) => setTimeout(r, 400))
-                                        if (userId) listClaims(userId).then(setClaims)
-                                      } catch (er) { console.error('[edit status] error', er) }
-                                    }}
-                                  >
-                                    <option value="not_submitted">Not Submitted</option>
-                                    <option value="submitted">Submitted</option>
-                                    <option value="denied">Denied</option>
-                                  </select>
-                                </div>
-                              )}
-                            </div>
-                            {/* Coming Soon: Auto-Submit Teaser */}
-                            <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/30 border-l-4 border-blue-400 rounded">
-                              <div className="flex items-start">
-                                <span className="text-2xl mr-2">🚀</span>
-                                <div>
-                                  <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
-                                    Coming Soon: Auto-Submit
-                                  </p>
-                                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                                    We'll file claims directly with your insurance company - no more manual work!
-                                  </p>
+                            <>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  type="button"
+                                  className="text-xs px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  onClick={async () => {
+                                    try {
+                                      const today = getLocalTodayYYYYMMDD()
+                                      const input = prompt('Enter filed date (YYYY-MM-DD):', today) || today
+                                      const filedDate = input
+                                      await updateClaim(c.id, { filing_status: 'filed', filed_date: filedDate })
+                                      setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: 'filed', filed_date: filedDate } : cl))
+                                      try { alert('✓ Claim marked as submitted') } catch {}
+                                      await new Promise((r) => setTimeout(r, 500))
+                                      if (userId) {
+                                        const updated = await listClaims(userId)
+                                        setClaims(updated)
+                                      }
+                                    } catch (e) { console.error('[mark filed] error', e) }
+                                  }}
+                                >
+                                  Mark as Submitted
+                                </button>
+                                {(['insured','maybe'].includes(String(c.expense_category || 'insured').toLowerCase())) && (
+                                  <div className="flex flex-wrap items-center gap-1 text-xs text-slate-500 w-full sm:w-auto">
+                                    <span className="whitespace-nowrap">Change Status:</span>
+                                    <select
+                                      className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 w-full sm:w-auto max-w-xs"
+                                      value="not_submitted"
+                                      onChange={async (e) => {
+                                        try {
+                                          const next = e.target.value
+                                          const newStatus = next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next)
+                                          await updateClaim(c.id, { filing_status: newStatus })
+                                          // Optimistically update local UI to reflect new status immediately
+                                          setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: newStatus } : cl))
+                                          try { alert('✓ Status updated') } catch {}
+                                          await new Promise((r) => setTimeout(r, 400))
+                                          if (userId) listClaims(userId).then(setClaims)
+                                        } catch (er) { console.error('[edit status] error', er) }
+                                      }}
+                                    >
+                                      <option value="not_submitted">Not Submitted</option>
+                                      <option value="submitted">Submitted</option>
+                                      <option value="denied">Denied</option>
+                                    </select>
+                                  </div>
+                                )}
+                              </div>
+                              {/* Coming Soon: Auto-Submit Teaser */}
+                              <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/30 border-l-4 border-blue-400 rounded">
+                                <div className="flex items-start">
+                                  <span className="text-2xl mr-2">🚀</span>
+                                  <div>
+                                    <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
+                                      Coming Soon: Auto-Submit
+                                    </p>
+                                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                      We'll file claims directly with your insurance company - no more manual work!
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
+                            </>
                           )
                         }
                         if (st === 'submitted') {
@@ -2325,7 +2324,7 @@ export default function App() {
                         return null
                       })()}
                       <div className="flex items-center gap-2 flex-wrap justify-end">
-                        {c.pdf_path ? (
+                        {c.pdf_path && (
                           <a
                             href="#"
                             onClick={async (e) => {
@@ -2339,8 +2338,6 @@ export default function App() {
                           >
                             View PDF
                           </a>
-                        ) : (
-                          <span className="text-xs text-slate-400">No PDF stored</span>
                         )}
                         <button
                           type="button"
