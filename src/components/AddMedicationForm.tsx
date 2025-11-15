@@ -98,13 +98,23 @@ export default function AddMedicationForm({
   }
 
   const computeDates = (): { start: string; end: string | null } => {
+    // Use local date, not UTC date, to prevent timezone bugs
+    // When it's 8 PM PST on Nov 14, we want "2025-11-14" not "2025-11-15" (UTC)
     const today = new Date()
-    const start = today.toISOString().slice(0, 10)
+    const year = today.getFullYear()
+    const month = String(today.getMonth() + 1).padStart(2, '0')
+    const day = String(today.getDate()).padStart(2, '0')
+    const start = `${year}-${month}-${day}`
+
     let days = duration === 'custom' ? Math.max(1, Number(customDays || 1)) : Number(duration)
     if (!Number.isFinite(days) || days < 1) days = 1
     const endDate = new Date(today.getTime())
     endDate.setDate(endDate.getDate() + (days - 1))
-    const end = endDate.toISOString().slice(0, 10)
+    const endYear = endDate.getFullYear()
+    const endMonth = String(endDate.getMonth() + 1).padStart(2, '0')
+    const endDay = String(endDate.getDate()).padStart(2, '0')
+    const end = `${endYear}-${endMonth}-${endDay}`
+
     return { start, end }
   }
 
