@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { supabase } from '../lib/supabase'
 
 interface ClaimSubmissionModalProps {
   claim: any
@@ -12,9 +13,51 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
   const [step, setStep] = useState<'confirm' | 'submitting' | 'success' | 'error'>('confirm')
   const [messageId, setMessageId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false)
 
   const insurer = claim.insurer || 'Nationwide'
   const amount = claim.total_amount ? `$${parseFloat(claim.total_amount).toFixed(2)}` : '$0.00'
+
+  // Check for missing critical data
+  const missingData: string[] = []
+  if (!claim.policy_number || claim.policy_number === 'N/A') missingData.push('Policy Number')
+  if (!pet?.age && !pet?.date_of_birth) missingData.push('Pet Age')
+  if (!claim.clinic_name) missingData.push('Veterinary Clinic Name')
+  if (!claim.service_date) missingData.push('Service Date')
+  if (!claim.diagnosis && !claim.visit_title) missingData.push('Diagnosis/Reason for Visit')
+
+  async function handlePreviewPDF() {
+    try {
+      setIsLoadingPreview(true)
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787'
+
+      // Get auth token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        throw new Error('Not authenticated')
+      }
+
+      const response = await fetch(`${apiUrl}/api/claims/${claim.id}/preview-pdf`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
+
+      if (!response.ok) {
+        const result = await response.json()
+        throw new Error(result.error || 'Failed to generate preview')
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank')
+    } catch (err: any) {
+      console.error('[Preview PDF] Error:', err)
+      alert(`Could not generate preview: ${err.message}`)
+    } finally {
+      setIsLoadingPreview(false)
+    }
+  }
 
   async function handleSubmit() {
     setStep('submitting')
@@ -210,6 +253,53 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
               <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">{amount}</span>
             </div>
           </div>
+        </div>
+
+        {/* Missing Data Warning */}
+        {missingData.length > 0 && (
+          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-lg p-4 mb-4">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">⚠️</span>
+              <div>
+                <h4 className="font-semibold text-orange-800 dark:text-orange-300 mb-1">Missing Information</h4>
+                <p className="text-sm text-orange-700 dark:text-orange-400 mb-2">
+                  The following information is missing from your claim:
+                </p>
+                <ul className="text-sm text-orange-700 dark:text-orange-400 list-disc list-inside">
+                  {missingData.map((item, idx) => (
+                    <li key={idx}>{item}</li>
+                  ))}
+                </ul>
+                <p className="text-sm text-orange-700 dark:text-orange-400 mt-2">
+                  You can still submit, but the insurance company may request additional information.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Preview PDF Button */}
+        <div className="mb-6">
+          <button
+            onClick={handlePreviewPDF}
+            disabled={isLoadingPreview}
+            className="w-full py-3 px-4 border-2 border-blue-500 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center justify-center gap-2 font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isLoadingPreview ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                Generating Preview...
+              </>
+            ) : (
+              <>
+                <span>📄</span>
+                Preview Claim Form PDF
+              </>
+            )}
+          </button>
+          <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
+            Opens in new tab • Review before submitting
+          </p>
         </div>
 
         {/* What Will Happen */}

@@ -878,8 +878,32 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
 
       console.log('[Submit Claim] PDF generated:', { size: pdfBuffer.length })
 
-      // 8. Send email to insurer
-      const emailResult = await sendClaimEmail(insurer, claimData, pdfBuffer)
+      // 7.5. Fetch invoice PDF from storage if it exists
+      let invoiceBuffer = null
+      if (claim.pdf_path) {
+        try {
+          console.log('[Submit Claim] Fetching invoice PDF from storage:', claim.pdf_path)
+          const { data: invoiceData, error: storageError } = await supabase.storage
+            .from('claim-pdfs')
+            .download(claim.pdf_path)
+
+          if (storageError) {
+            console.error('[Submit Claim] Failed to fetch invoice PDF:', storageError)
+            // Continue without invoice - don't fail submission
+          } else if (invoiceData) {
+            invoiceBuffer = Buffer.from(await invoiceData.arrayBuffer())
+            console.log('[Submit Claim] Invoice PDF fetched:', { size: invoiceBuffer.length })
+          }
+        } catch (err) {
+          console.error('[Submit Claim] Error fetching invoice:', err)
+          // Continue without invoice - don't fail submission
+        }
+      } else {
+        console.log('[Submit Claim] No invoice PDF path in claim record')
+      }
+
+      // 8. Send email to insurer (with both claim form and invoice)
+      const emailResult = await sendClaimEmail(insurer, claimData, pdfBuffer, invoiceBuffer)
 
       if (!emailResult.success) {
         console.error('[Submit Claim] Email failed:', emailResult.error)
@@ -918,6 +942,112 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
 
     } catch (error) {
       console.error('[Submit Claim] Unexpected error:', error)
+      return res.status(500).json({ ok: false, error: error.message })
+    }
+  })
+
+  // Preview claim form PDF before submitting
+  app.get('/api/claims/:claimId/preview-pdf', async (req, res) => {
+    try {
+      const { claimId } = req.params
+      const authHeader = req.headers.authorization
+
+      if (!authHeader) {
+        return res.status(401).json({ ok: false, error: 'Missing authorization' })
+      }
+
+      const token = authHeader.replace('Bearer ', '')
+
+      // Verify user auth token with Supabase
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+
+      if (authError || !user) {
+        console.error('[Preview PDF] Auth error:', authError)
+        return res.status(401).json({ ok: false, error: 'Invalid or expired token' })
+      }
+
+      console.log('[Preview PDF] Authenticated user:', user.id)
+
+      // Fetch claim with pet info (same as submit endpoint)
+      const { data: claim, error: claimError } = await supabase
+        .from('claims')
+        .select(`
+          *,
+          pets (
+            name,
+            species,
+            breed,
+            date_of_birth
+          )
+        `)
+        .eq('id', claimId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (claimError || !claim) {
+        console.error('[Preview PDF] Claim not found:', claimError)
+        return res.status(404).json({ ok: false, error: 'Claim not found' })
+      }
+
+      // Fetch user profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+
+      if (profileError || !profile) {
+        console.error('[Preview PDF] Profile not found:', profileError)
+        return res.status(404).json({ ok: false, error: 'User profile not found' })
+      }
+
+      // Calculate pet age
+      const petAge = claim.pets.date_of_birth
+        ? Math.floor((new Date() - new Date(claim.pets.date_of_birth)) / (365.25 * 24 * 60 * 60 * 1000))
+        : null
+
+      // Build claim data (same as submit)
+      const claimData = {
+        policyholderName: profile.full_name || user.email,
+        policyholderAddress: profile.address || '',
+        policyholderPhone: profile.phone || '',
+        policyholderEmail: user.email,
+        policyNumber: claim.policy_number || 'N/A',
+        petName: claim.pets.name,
+        petSpecies: claim.pets.species,
+        petBreed: claim.pets.breed || '',
+        petAge: petAge,
+        treatmentDate: claim.service_date || claim.created_at.split('T')[0],
+        vetClinicName: claim.clinic_name || 'Unknown Clinic',
+        vetClinicAddress: claim.clinic_address || '',
+        vetClinicPhone: '',
+        diagnosis: claim.diagnosis || claim.ai_diagnosis || 'See attached invoice',
+        totalAmount: claim.total_amount || 0,
+        itemizedCharges: claim.line_items || [],
+        invoiceAttached: false
+      }
+
+      // Get insurer
+      const insurer = claim.insurer?.toLowerCase() || 'nationwide'
+
+      // Generate PDF
+      console.log('[Preview PDF] Generating PDF for claim:', claimId)
+      const pdfBuffer = await generateClaimFormPDF(
+        insurer,
+        claimData,
+        profile.signature || profile.full_name || user.email.split('@')[0],
+        new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      )
+
+      console.log('[Preview PDF] PDF generated successfully:', pdfBuffer.length, 'bytes')
+
+      // Return PDF for preview (inline, not download)
+      res.setHeader('Content-Type', 'application/pdf')
+      res.setHeader('Content-Disposition', 'inline; filename="claim-preview.pdf"')
+      res.send(pdfBuffer)
+
+    } catch (error) {
+      console.error('[Preview PDF] Unexpected error:', error)
       return res.status(500).json({ ok: false, error: error.message })
     }
   })

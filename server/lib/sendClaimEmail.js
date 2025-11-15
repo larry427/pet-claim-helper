@@ -7,10 +7,10 @@ import { getInsurerClaimEmail } from './generateClaimPDF.js'
  * @param {string} insurer - 'nationwide', 'healthypaws', or 'trupanion'
  * @param {object} claimData - All claim information
  * @param {Buffer} pdfBuffer - Generated claim form PDF
- * @param {string} invoicePdfPath - Path to vet invoice PDF (optional)
+ * @param {Buffer} invoiceBuffer - Vet invoice PDF buffer (optional)
  * @returns {object} { success: boolean, messageId?: string, error?: string }
  */
-export async function sendClaimEmail(insurer, claimData, pdfBuffer, invoicePdfPath = null) {
+export async function sendClaimEmail(insurer, claimData, pdfBuffer, invoiceBuffer = null) {
   try {
     ensureResendConfigured()
 
@@ -22,11 +22,14 @@ export async function sendClaimEmail(insurer, claimData, pdfBuffer, invoicePdfPa
     // Build email subject
     const subject = `Pet Insurance Claim Submission - ${claimData.policyNumber} - ${claimData.petName}`
 
+    // Update claimData to reflect whether invoice is attached
+    claimData.invoiceAttached = !!invoiceBuffer
+
     // Build email body
     const htmlBody = buildClaimEmailHTML(insurer, claimData)
     const textBody = buildClaimEmailText(insurer, claimData)
 
-    // Prepare attachments
+    // Prepare attachments - claim form is always attached
     const attachments = [
       {
         filename: `claim-form-${claimData.policyNumber}.pdf`,
@@ -34,9 +37,16 @@ export async function sendClaimEmail(insurer, claimData, pdfBuffer, invoicePdfPa
       }
     ]
 
-    // TODO: Add invoice PDF if provided
-    // For now, we'll just send the claim form
-    // In future phases, we can attach the uploaded invoice
+    // Add invoice PDF if provided
+    if (invoiceBuffer) {
+      attachments.push({
+        filename: `veterinary-invoice-${claimData.policyNumber}.pdf`,
+        content: invoiceBuffer
+      })
+      console.log('[Email] Attaching invoice PDF to email')
+    } else {
+      console.log('[Email] No invoice PDF to attach')
+    }
 
     // Send email via Resend
     const response = await resend.emails.send({
