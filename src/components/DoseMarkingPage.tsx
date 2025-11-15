@@ -29,29 +29,51 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   }, [medicationId, userId])
 
   async function loadMedicationDetails() {
-    // Don't check userId here - let the query fail if needed
-    // This prevents false "Please log in" errors when userId loads slowly from auth
     try {
-      // Get medication details with pet information
-      const { data: medData, error: medError } = await supabase
-        .from('medications')
-        .select('*, pets(name, species)')
-        .eq('id', medicationId)
-        .single()
+      // MAGIC LINK AUTH: If token is present, use it to load medication details
+      // This works without requiring the user to be logged in
+      if (magicToken) {
+        console.log('[DoseMarkingPage] Loading via magic token')
 
-      if (medError || !medData) {
-        // Only check userId for auth error if the query actually failed
-        if (!userId) {
-          setError('Please log in to mark medication as given')
-        } else {
-          setError('Medication not found')
+        // Get dose by token, which includes medication details
+        const { data: doseData, error: doseError } = await supabase
+          .from('medication_doses')
+          .select('*, medications(*, pets(name, species))')
+          .eq('one_time_token', magicToken)
+          .eq('status', 'pending')
+          .single()
+
+        if (doseError || !doseData) {
+          console.error('[DoseMarkingPage] Token validation failed:', doseError)
+          setError('This link is invalid or has expired. Please check for a newer SMS.')
+          setLoading(false)
+          return
         }
+
+        // Token is valid - load medication details from the joined data
+        setMedication(doseData.medications)
+        setPet(doseData.medications?.pets)
+        setLoading(false)
+        console.log('[DoseMarkingPage] ✅ Loaded via magic token')
+        return
+      }
+
+      // TRADITIONAL SESSION AUTH: Requires userId
+      if (!userId) {
+        setError('Please log in to mark medication as given')
         setLoading(false)
         return
       }
 
-      // Verify user owns this medication
-      if (userId && medData.user_id !== userId) {
+      // Get medication details with pet information (requires authentication)
+      const { data: medData, error: medError } = await supabase
+        .from('medications')
+        .select('*, pets(name, species)')
+        .eq('id', medicationId)
+        .eq('user_id', userId)
+        .single()
+
+      if (medError || !medData) {
         setError('Medication not found')
         setLoading(false)
         return
