@@ -16,6 +16,15 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   const [error, setError] = useState<string | null>(null)
   // Extract magic link token from URL if present
   const [magicToken, setMagicToken] = useState<string | null>(null)
+  // Progress stats for success modal
+  const [progressStats, setProgressStats] = useState<{
+    givenCount: number
+    totalCount: number
+    percentage: number
+    nextDoseTime: string | null
+    daysRemaining: number | null
+    isComplete: boolean
+  } | null>(null)
 
   useEffect(() => {
     // Extract token from URL and pass it directly to loadMedicationDetails
@@ -104,6 +113,80 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
     }
   }
 
+  async function calculateProgressStats() {
+    try {
+      // Fetch all doses for this medication to calculate progress
+      const { data: doses, error: dosesError } = await supabase
+        .from('medication_doses')
+        .select('*')
+        .eq('medication_id', medicationId)
+        .order('scheduled_time', { ascending: true })
+
+      if (dosesError || !doses) {
+        console.error('[DoseMarkingPage] Failed to fetch doses for stats:', dosesError)
+        return
+      }
+
+      const givenCount = doses.filter(d => d.status === 'given').length
+      const totalCount = doses.length
+      const percentage = totalCount > 0 ? Math.round((givenCount / totalCount) * 100) : 0
+      const isComplete = givenCount === totalCount && totalCount > 0
+
+      // Find next pending dose
+      const nextDose = doses.find(d => d.status === 'pending')
+      let nextDoseTime: string | null = null
+
+      if (nextDose && !isComplete) {
+        const doseDate = new Date(nextDose.scheduled_time)
+        const now = new Date()
+        const tomorrow = new Date(now)
+        tomorrow.setDate(tomorrow.getDate() + 1)
+
+        // Format as "Today 2:30 PM" or "Tomorrow 9:00 AM" or "Mon 12:00 PM"
+        const isToday = doseDate.toDateString() === now.toDateString()
+        const isTomorrow = doseDate.toDateString() === tomorrow.toDateString()
+
+        const timeStr = doseDate.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        })
+
+        if (isToday) {
+          nextDoseTime = `Today ${timeStr}`
+        } else if (isTomorrow) {
+          nextDoseTime = `Tomorrow ${timeStr}`
+        } else {
+          const dayStr = doseDate.toLocaleDateString('en-US', { weekday: 'short' })
+          nextDoseTime = `${dayStr} ${timeStr}`
+        }
+      }
+
+      // Calculate days remaining
+      let daysRemaining: number | null = null
+      if (medication?.end_date && !isComplete) {
+        const endDate = new Date(medication.end_date)
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        endDate.setHours(0, 0, 0, 0)
+        const diffTime = endDate.getTime() - today.getTime()
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        daysRemaining = diffDays >= 0 ? diffDays : 0
+      }
+
+      setProgressStats({
+        givenCount,
+        totalCount,
+        percentage,
+        nextDoseTime,
+        daysRemaining,
+        isComplete
+      })
+    } catch (err) {
+      console.error('[DoseMarkingPage] Error calculating progress stats:', err)
+    }
+  }
+
   async function markAsGiven() {
     // Magic link auth (token) OR session auth (userId) - one of them must be present
     if (!magicToken && !userId) {
@@ -138,6 +221,10 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       }
 
       console.log('[DoseMarkingPage] ✅ Successfully marked as given')
+
+      // Calculate progress stats for success modal
+      await calculateProgressStats()
+
       setSuccess(true)
       setMarking(false)
 
@@ -193,7 +280,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
     // They don't have access to the dashboard, so don't redirect
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+        <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
           <div className="text-center">
             <div className="text-green-600 text-6xl mb-4">✓</div>
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Medication Marked!</h2>
@@ -203,6 +290,67 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
             <p className="text-gray-600 mb-6">
               has been marked as given for <strong>{pet?.name || 'your pet'}</strong>
             </p>
+
+            {/* Progress Stats Section */}
+            {progressStats && (
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5 mb-6 text-left">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3 text-center">Treatment Progress</h3>
+
+                {/* Progress Bar */}
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-gray-700">
+                      {progressStats.givenCount} of {progressStats.totalCount} doses
+                    </span>
+                    <span className="text-sm font-bold text-indigo-600">
+                      {progressStats.percentage}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden shadow-inner">
+                    <div
+                      className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full transition-all duration-500 ease-out shadow-sm"
+                      style={{ width: `${progressStats.percentage}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Stats Grid */}
+                {progressStats.isComplete ? (
+                  <div className="bg-green-100 border border-green-300 rounded-lg p-4 text-center">
+                    <div className="text-2xl mb-2">🎉</div>
+                    <p className="text-green-800 font-semibold">
+                      All doses complete!
+                    </p>
+                    <p className="text-green-700 text-sm mt-1">
+                      Treatment finished
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {progressStats.nextDoseTime && (
+                      <div className="flex items-center justify-between py-2 px-3 bg-white/60 rounded-lg">
+                        <span className="text-sm text-gray-600">Next dose:</span>
+                        <span className="text-sm font-semibold text-gray-800">
+                          {progressStats.nextDoseTime}
+                        </span>
+                      </div>
+                    )}
+                    {progressStats.daysRemaining !== null && progressStats.daysRemaining >= 0 && (
+                      <div className="flex items-center justify-between py-2 px-3 bg-white/60 rounded-lg">
+                        <span className="text-sm text-gray-600">Days remaining:</span>
+                        <span className="text-sm font-semibold text-gray-800">
+                          {progressStats.daysRemaining === 0
+                            ? 'Last day'
+                            : progressStats.daysRemaining === 1
+                            ? '1 day'
+                            : `${progressStats.daysRemaining} days`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
               <p className="text-green-800 text-sm">
