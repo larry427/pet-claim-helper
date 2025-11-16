@@ -11,6 +11,7 @@ import FinancialSummary from './components/FinancialSummary'
 import MedicationsDashboard from './components/MedicationsDashboard'
 import DoseMarkingPage from './components/DoseMarkingPage'
 import ClaimSubmissionModal from './components/ClaimSubmissionModal'
+import { SignatureCapture } from './components/SignatureCapture'
 import { createClaim, listClaims, updateClaim, deleteClaim as dbDeleteClaim } from './lib/claims'
 import { formatPhoneOnChange, formatPhoneForStorage, formatPhoneForDisplay } from './utils/phoneUtils'
 import React from 'react'
@@ -2224,16 +2225,18 @@ export default function App() {
                           return (
                             <>
                               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                                {/* Auto-Submit Button - NEW! */}
-                                <button
-                                  type="button"
-                                  className="text-xs px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold whitespace-nowrap flex items-center gap-1.5"
-                                  onClick={() => setSubmittingClaim(c)}
-                                  title="Automatically generate PDF and email to insurance company"
-                                >
-                                  <span>🚀</span>
-                                  Auto-Submit to Insurance
-                                </button>
+                                {/* Auto-Submit Button - Feature Flagged */}
+                                {import.meta.env.VITE_ENABLE_AUTO_SUBMIT === 'true' && (
+                                  <button
+                                    type="button"
+                                    className="text-xs px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold whitespace-nowrap flex items-center gap-1.5"
+                                    onClick={() => setSubmittingClaim(c)}
+                                    title="Automatically generate PDF and email to insurance company"
+                                  >
+                                    <span>🚀</span>
+                                    Auto-Submit to Insurance
+                                  </button>
+                                )}
 
                                 {/* Manual Submit Button - Existing */}
                                 <button
@@ -3114,6 +3117,20 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
     const [loading, setLoading] = useState(false)
     const [fullName, setFullName] = useState('')
     const [phone, setPhone] = useState('')
+    const [address, setAddress] = useState('')
+    const [insuranceCompany, setInsuranceCompany] = useState('')
+    const [policyNumber, setPolicyNumber] = useState('')
+    const [signature, setSignature] = useState<string | null>(null)
+
+    // Missing state variables that are referenced
+    const [emailReminders, setEmailReminders] = useState(false)
+    const [weeklySummaries, setWeeklySummaries] = useState(false)
+    const [deadlineAlerts, setDeadlineAlerts] = useState(false)
+    const [defaultExpense, setDefaultExpense] = useState<'insured' | 'not_insured' | 'maybe_insured'>('insured')
+    const [defaultPeriod, setDefaultPeriod] = useState<'all' | '2025' | '2024' | 'last12'>('all')
+    const [insurer, setInsurer] = useState('')
+    const [customInsurer, setCustomInsurer] = useState('')
+    const [deadlineDays, setDeadlineDays] = useState(90)
 
     useEffect(() => {
       if (!userId) return
@@ -3124,8 +3141,11 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
           if (error) throw error
           if (data) {
             setFullName(data.full_name || '')
-            // Convert E.164 format phone to display format
             setPhone(data.phone ? formatPhoneForDisplay(data.phone) : '')
+            setAddress(data.address || '')
+            setInsuranceCompany(data.insurance_company || '')
+            setPolicyNumber(data.policy_number || '')
+            setSignature(data.signature || null)
             setEmailReminders(!!data.email_reminders)
             setWeeklySummaries(!!data.weekly_summaries)
             setDeadlineAlerts(!!data.deadline_alerts)
@@ -3150,7 +3170,6 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
       if (!userId) return
       setLoading(true)
       try {
-        // Convert phone to E.164 format for storage
         const phoneE164 = formatPhoneForStorage(phone)
 
         const { error } = await supabase.from('profiles').upsert({
@@ -3158,16 +3177,18 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
           email: userEmail || '',
           full_name: fullName,
           phone: phoneE164 || null,
+          address: address || null,
+          insurance_company: insuranceCompany || null,
+          policy_number: policyNumber || null,
         })
         if (error) throw error
-        alert('Profile saved')
-        onClose() // Auto-close Settings modal after success message
+        alert('Profile saved successfully!')
+        onClose()
       } catch (e) { console.error('[save profile] error', e); alert('Error saving profile') } finally { setLoading(false) }
     }
 
-
     return (
-      <section className="mx-auto max-w-3xl mt-6">
+      <section className="mx-auto max-w-3xl mt-6 pb-12">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">Settings</h2>
           <button type="button" onClick={onClose} className="text-sm text-slate-600 dark:text-slate-300">Close</button>
@@ -3182,17 +3203,79 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
               <input value={userEmail || ''} readOnly className="mt-1 w-full rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-slate-500">Full Name</label>
-              <input value={fullName} onChange={(e) => setFullName(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+              <label className="block text-xs text-slate-500">Full Name <span className="text-red-500">*</span></label>
+              <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="John Smith" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-slate-500">Phone Number</label>
+              <label className="block text-xs text-slate-500">Address <span className="text-red-500">*</span></label>
+              <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St, City, ST 12345" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+              <p className="mt-1 text-xs text-slate-500">Full address including city, state, and ZIP code</p>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500">Phone Number <span className="text-red-500">*</span></label>
               <input value={phone} onChange={(e) => setPhone(formatPhoneOnChange(e.target.value, phone))} placeholder="(123) 456-7890" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
             </div>
           </div>
-          <div className="mt-3">
-            <button type="button" onClick={saveProfile} disabled={loading} className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-sm disabled:opacity-60">Save Profile</button>
+        </div>
+
+        {/* Insurance Information */}
+        <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+          <div className="text-sm font-semibold">Insurance Information</div>
+          <p className="text-xs text-slate-500 mt-1">Required for automatic claim submission</p>
+          <div className="mt-3 grid grid-cols-1 gap-3">
+            <div>
+              <label className="block text-xs text-slate-500">Insurance Company <span className="text-red-500">*</span></label>
+              <select
+                value={insuranceCompany}
+                onChange={(e) => setInsuranceCompany(e.target.value)}
+                className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
+              >
+                <option value="">Select your insurance company...</option>
+                <option value="Nationwide">Nationwide</option>
+                <option value="Healthy Paws">Healthy Paws</option>
+                <option value="Trupanion">Trupanion</option>
+                <option value="Fetch">Fetch</option>
+                <option value="Embrace">Embrace</option>
+                <option value="ASPCA">ASPCA Pet Health Insurance</option>
+                <option value="Lemonade">Lemonade</option>
+                <option value="Figo">Figo</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500">Policy Number <span className="text-red-500">*</span></label>
+              <input
+                value={policyNumber}
+                onChange={(e) => setPolicyNumber(e.target.value)}
+                placeholder="Enter your policy number"
+                className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
+              />
+            </div>
           </div>
+        </div>
+
+        {/* Signature */}
+        <div className="mt-4">
+          <SignatureCapture
+            userId={userId!}
+            initialSignature={signature}
+            onSave={(sig) => setSignature(sig)}
+          />
+        </div>
+
+        {/* Save Button */}
+        <div className="mt-4 sticky bottom-4 bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 shadow-lg">
+          <button
+            type="button"
+            onClick={saveProfile}
+            disabled={loading}
+            className="w-full inline-flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 text-sm font-medium disabled:opacity-60 transition-colors"
+          >
+            {loading ? 'Saving...' : 'Save Profile'}
+          </button>
+          <p className="mt-2 text-xs text-center text-slate-500">
+            <span className="text-red-500">*</span> Required fields for claim submission
+          </p>
         </div>
       </section>
     )
