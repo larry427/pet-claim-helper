@@ -1375,7 +1375,54 @@ export default function App() {
                   </div>
                 </div>
                 <div className="mt-4 text-sm text-slate-700 dark:text-slate-300 space-y-1.5">
-                  <div><span className="text-slate-500">Insurance:</span> {pet.insuranceCompany}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-500">Insurance:</span>
+                    {(() => {
+                      const company = pet.insuranceCompany || 'Not Insured'
+                      const isNationwide = company.toLowerCase().includes('nationwide')
+                      const isHealthyPaws = company.toLowerCase().includes('healthy paws')
+                      const isTrupanion = company.toLowerCase().includes('trupanion')
+                      const isFetch = company.toLowerCase().includes('fetch')
+                      const isNotInsured = company.toLowerCase().includes('not insured') || company.toLowerCase().includes('none')
+
+                      let bgColor = 'bg-slate-100 dark:bg-slate-800'
+                      let textColor = 'text-slate-700 dark:text-slate-300'
+                      let borderColor = 'border-slate-200 dark:border-slate-700'
+
+                      if (isNationwide) {
+                        bgColor = 'bg-blue-50 dark:bg-blue-950'
+                        textColor = 'text-blue-700 dark:text-blue-300'
+                        borderColor = 'border-blue-200 dark:border-blue-800'
+                      } else if (isHealthyPaws) {
+                        bgColor = 'bg-green-50 dark:bg-green-950'
+                        textColor = 'text-green-700 dark:text-green-300'
+                        borderColor = 'border-green-200 dark:border-green-800'
+                      } else if (isTrupanion) {
+                        bgColor = 'bg-purple-50 dark:bg-purple-950'
+                        textColor = 'text-purple-700 dark:text-purple-300'
+                        borderColor = 'border-purple-200 dark:border-purple-800'
+                      } else if (isFetch) {
+                        bgColor = 'bg-amber-50 dark:bg-amber-950'
+                        textColor = 'text-amber-700 dark:text-amber-300'
+                        borderColor = 'border-amber-200 dark:border-amber-800'
+                      } else if (isNotInsured) {
+                        bgColor = 'bg-slate-100 dark:bg-slate-800'
+                        textColor = 'text-slate-600 dark:text-slate-400'
+                        borderColor = 'border-slate-300 dark:border-slate-700'
+                      }
+
+                      return (
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${bgColor} ${textColor} ${borderColor}`}>
+                          {isNationwide && '🏢'}
+                          {isHealthyPaws && '🐾'}
+                          {isTrupanion && '💜'}
+                          {isFetch && '🎾'}
+                          {isNotInsured && '—'}
+                          {company}
+                        </span>
+                      )
+                    })()}
+                  </div>
                 </div>
                 {editingPetId === pet.id && editPet && (
                   <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-800 p-3 max-w-3xl mx-auto overflow-x-hidden">
