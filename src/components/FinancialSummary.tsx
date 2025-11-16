@@ -114,6 +114,86 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
     return v === 'not_insured' || v === 'not insured'
   }
 
+  // Calculate premiums for a specific pet for the current filter period
+  const calculatePremiumsForPet = (pet: PetRow, filterYear: number | null): { total: number; monthsCount: number; context: string } => {
+    const monthly = Number(pet.monthly_premium) || 0
+    if (monthly === 0) {
+      return { total: 0, monthsCount: 0, context: 'No insurance' }
+    }
+
+    const coverageStart = parseYmdLocal(pet.coverage_start_date || null)
+    if (!coverageStart) {
+      return { total: 0, monthsCount: 0, context: 'No coverage start date' }
+    }
+
+    const today = new Date()
+    const currentYear = today.getFullYear()
+    const currentMonth = today.getMonth() // 0-11
+
+    // Determine the year we're calculating for
+    const targetYear = filterYear !== null ? filterYear : null // null means "All Time"
+
+    // If filtering by a specific year
+    if (targetYear !== null) {
+      // If coverage starts after the target year, return $0
+      if (coverageStart.getFullYear() > targetYear) {
+        return { total: 0, monthsCount: 0, context: `coverage started ${coverageStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` }
+      }
+
+      // If target year is in the future, return $0
+      if (targetYear > currentYear) {
+        return { total: 0, monthsCount: 0, context: 'future year' }
+      }
+
+      // Calculate months for the target year
+      const yearStart = new Date(targetYear, 0, 1) // Jan 1 of target year
+      const yearEnd = new Date(targetYear, 11, 31) // Dec 31 of target year
+
+      // Coverage started this year or earlier
+      const effectiveStart = coverageStart > yearStart ? coverageStart : yearStart
+
+      // If target year is current year, end at current month; otherwise end at Dec 31
+      const effectiveEnd = targetYear === currentYear
+        ? new Date(currentYear, currentMonth, today.getDate())
+        : yearEnd
+
+      // Calculate months between effectiveStart and effectiveEnd
+      const monthsDiff = (effectiveEnd.getFullYear() - effectiveStart.getFullYear()) * 12
+        + (effectiveEnd.getMonth() - effectiveStart.getMonth()) + 1 // +1 to include both start and end months
+
+      const months = Math.max(0, monthsDiff)
+      const total = monthly * months
+
+      // Build context string
+      let context = ''
+      if (coverageStart.getFullYear() === targetYear && coverageStart.getMonth() > 0) {
+        // Started mid-year
+        const startMonth = coverageStart.toLocaleDateString('en-US', { month: 'short' })
+        const endMonth = effectiveEnd.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+        context = `${startMonth} - ${endMonth}`
+      } else if (targetYear === currentYear && months < 12) {
+        // Current year, not full year yet
+        const endMonth = effectiveEnd.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+        context = `Jan - ${endMonth}`
+      } else {
+        // Full year
+        context = `${targetYear}`
+      }
+
+      return { total, monthsCount: months, context }
+    }
+
+    // "All Time" calculation
+    const monthsDiff = (today.getFullYear() - coverageStart.getFullYear()) * 12
+      + (today.getMonth() - coverageStart.getMonth()) + 1
+
+    const months = Math.max(0, monthsDiff)
+    const total = monthly * months
+    const context = `since ${coverageStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`
+
+    return { total, monthsCount: months, context }
+  }
+
   const overall = useMemo(() => {
     const nowYear = new Date().getFullYear()
     const viewYear = (() => {
@@ -124,8 +204,12 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
     })()
     const today = new Date()
 
-    // Premiums paid YTD (current year) from pets
-    const premiumsYTD = pets.reduce((sum, p) => sum + ((Number(p.monthly_premium) || 0) * monthsYTD(p.coverage_start_date || null)), 0)
+    // CRITICAL FIX: Calculate premiums using the SAME function as the breakdown
+    // This ensures the total always matches the sum of individual pet premiums shown below
+    const premiumsYTD = pets.reduce((sum, p) => {
+      const calc = calculatePremiumsForPet(p, viewYear)
+      return sum + calc.total
+    }, 0)
 
     // Non-insured visits up to today (current year)
     let nonInsuredTotal = 0
@@ -185,12 +269,13 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
       pendingBills: number
       filedClaims: number
     }> = {}
-    // Prime with premiums per pet
+    // Prime with premiums per pet - use same calculation as breakdown for consistency
     for (const p of pets) {
+      const calc = calculatePremiumsForPet(p, viewYear)
       byPet[p.id] = {
         claimed: 0,
         reimbursed: 0,
-        premiums: (Number(p.monthly_premium) || 0) * monthsYTD(p.coverage_start_date || null),
+        premiums: calc.total,
         nonInsured: 0,
         pendingBills: 0,
         filedClaims: 0,
@@ -274,9 +359,59 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
       <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5">
         <div className="text-sm sm:text-base font-semibold">YOUR OUT-OF-POCKET BREAKDOWN</div>
         <div className="mt-3 text-sm space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="text-slate-600">Insurance Premiums <span className="text-xs text-slate-500">(Monthly insurance cost)</span></div>
-            <div className="font-mono font-semibold">${overall.premiumsYTD.toFixed(2)}</div>
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="text-slate-600">Insurance Premiums <span className="text-xs text-slate-500">(Monthly insurance cost)</span></div>
+              <div className="font-mono font-semibold">${overall.premiumsYTD.toFixed(2)}</div>
+            </div>
+            {/* Per-pet premium breakdown */}
+            {(() => {
+              const nowYear = new Date().getFullYear()
+              const viewYear = (() => {
+                const p = String(period || '').toLowerCase()
+                if (p === '2024' || p === '2025') return Number(p)
+                if (p === 'all') return null
+                return nowYear
+              })()
+
+              // Calculate premiums for each pet
+              const petPremiums = pets.map(p => {
+                const calc = calculatePremiumsForPet(p, viewYear)
+                return { pet: p, ...calc }
+              }).filter(p => p.total > 0 || Number(p.pet.monthly_premium) > 0) // Show all pets with insurance
+
+              if (petPremiums.length === 0) return null
+
+              return (
+                <div className="ml-4 mt-2 space-y-1 text-xs text-slate-500">
+                  {petPremiums.map(({ pet, total, monthsCount, context }) => {
+                    const monthly = Number(pet.monthly_premium) || 0
+                    if (monthly === 0) {
+                      return (
+                        <div key={pet.id} className="flex items-center justify-between">
+                          <div>• {pet.name}: No insurance</div>
+                          <div></div>
+                        </div>
+                      )
+                    }
+                    if (total === 0) {
+                      return (
+                        <div key={pet.id} className="flex items-center justify-between">
+                          <div>• {pet.name}: $0 ({context})</div>
+                          <div></div>
+                        </div>
+                      )
+                    }
+                    return (
+                      <div key={pet.id} className="flex items-center justify-between">
+                        <div>• {pet.name}: ${monthly.toFixed(2)}/mo × {monthsCount} = ${total.toFixed(2)} ({context})</div>
+                        <div></div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </div>
           <div className="flex items-center justify-between">
             <div className="text-slate-600">Non-Insured Vet Visits <span className="text-xs text-slate-500">(Not covered by insurance)</span></div>

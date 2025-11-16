@@ -1,31 +1,279 @@
 import { jsPDF } from 'jspdf'
+import { PDFDocument } from 'pdf-lib'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import { getMappingForInsurer } from './claimFormMappings.js'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+// ================================================================================================
+// 🧪 TEST MODE - PREVENT ACCIDENTAL EMAILS TO REAL INSURERS
+// ================================================================================================
+// Set to false only when ready for production
+const TEST_MODE = true
+const TEST_EMAIL = 'larry@uglydogadventures.com'
+// ================================================================================================
 
 /**
- * Generate a claim form PDF for submission to insurance companies
+ * MAIN FUNCTION: Generate claim form PDF using official forms or generated PDF
  *
- * @param {string} insurer - 'nationwide', 'healthypaws', or 'trupanion'
- * @param {object} claimData - All claim information
- * @param {string} claimData.policyholderName
- * @param {string} claimData.policyholderAddress
- * @param {string} claimData.policyholderPhone
- * @param {string} claimData.policyholderEmail
- * @param {string} claimData.policyNumber
- * @param {string} claimData.petName
- * @param {string} claimData.petSpecies
- * @param {string} claimData.petBreed
- * @param {number} claimData.petAge
- * @param {string} claimData.treatmentDate
- * @param {string} claimData.vetClinicName
- * @param {string} claimData.vetClinicAddress
- * @param {string} claimData.vetClinicPhone
- * @param {string} claimData.diagnosis
- * @param {number} claimData.totalAmount
- * @param {array} claimData.itemizedCharges - [{description, amount}, ...]
- * @param {string} userSignature - Base64 image or text signature
- * @param {string} dateSigned - ISO date string
- * @returns {Buffer} PDF buffer ready to attach to email
+ * Routes to appropriate method based on insurer:
+ * - Nationwide: Official PDF form
+ * - Trupanion: Official PDF form
+ * - Healthy Paws: Generated PDF (their form has no fillable fields)
  */
 export async function generateClaimFormPDF(insurer, claimData, userSignature, dateSigned) {
+  const normalizedInsurer = insurer.toLowerCase()
+
+  console.log(`\n${'='.repeat(80)}`)
+  console.log(`📄 GENERATING CLAIM PDF`)
+  console.log(`${'='.repeat(80)}`)
+  console.log(`  Insurer: ${insurer}`)
+  console.log(`  Method: ${shouldUseOfficialForm(normalizedInsurer) ? 'Official PDF Form' : 'Generated PDF'}`)
+  console.log(`${'='.repeat(80)}\n`)
+
+  // Use official forms for Nationwide and Trupanion
+  if (shouldUseOfficialForm(normalizedInsurer)) {
+    return await fillOfficialForm(insurer, claimData, userSignature, dateSigned)
+  }
+
+  // Use generated PDF for Healthy Paws (and fallback)
+  return await generatePDFFromScratch(insurer, claimData, userSignature, dateSigned)
+}
+
+/**
+ * Check if we should use official form for this insurer
+ */
+function shouldUseOfficialForm(normalizedInsurer) {
+  return normalizedInsurer.includes('nationwide') || normalizedInsurer.includes('trupanion')
+}
+
+/**
+ * Fill official insurance company PDF form
+ */
+async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
+  const normalizedInsurer = insurer.toLowerCase()
+
+  // Determine which PDF to load
+  let pdfFilename
+  if (normalizedInsurer.includes('nationwide')) {
+    pdfFilename = 'nationwide-claim-form.pdf'
+  } else if (normalizedInsurer.includes('trupanion')) {
+    pdfFilename = 'trupanion-claim-form.pdf'
+  } else {
+    throw new Error(`No official form available for insurer: ${insurer}`)
+  }
+
+  // Load the official PDF
+  const pdfPath = path.join(__dirname, '..', 'claim-forms', pdfFilename)
+  if (!fs.existsSync(pdfPath)) {
+    console.error(`❌ Official PDF not found: ${pdfPath}`)
+    console.log(`   Falling back to generated PDF`)
+    return await generatePDFFromScratch(insurer, claimData, userSignature, dateSigned)
+  }
+
+  const pdfBytes = fs.readFileSync(pdfPath)
+  const pdfDoc = await PDFDocument.load(pdfBytes)
+  const form = pdfDoc.getForm()
+
+  // Get field mapping for this insurer
+  const mapping = getMappingForInsurer(insurer)
+  if (!mapping) {
+    console.error(`❌ No field mapping found for: ${insurer}`)
+    console.log(`   Falling back to generated PDF`)
+    return await generatePDFFromScratch(insurer, claimData, userSignature, dateSigned)
+  }
+
+  console.log(`✅ Loaded official PDF: ${pdfFilename}`)
+  console.log(`📝 Filling fields using mapping...\n`)
+
+  let fieldsFilled = 0
+  let fieldsSkipped = 0
+
+  // Fill each mapped field
+  for (const [ourFieldName, pdfFieldName] of Object.entries(mapping)) {
+    if (!pdfFieldName) continue // Skip null mappings
+
+    // Get the value for this field from our claim data
+    const value = getValueForField(ourFieldName, claimData, dateSigned)
+
+    if (!value && value !== false) {
+      fieldsSkipped++
+      continue // Skip empty values
+    }
+
+    try {
+      const field = form.getField(pdfFieldName)
+      const fieldType = field.constructor.name
+
+      if (fieldType === 'PDFTextField') {
+        form.getTextField(pdfFieldName).setText(String(value))
+        console.log(`   ✅ ${ourFieldName}: "${value}"`)
+        fieldsFilled++
+      } else if (fieldType === 'PDFCheckBox') {
+        if (value === true) {
+          form.getCheckBox(pdfFieldName).check()
+          console.log(`   ✅ ${ourFieldName}: CHECKED`)
+        } else {
+          form.getCheckBox(pdfFieldName).uncheck()
+          console.log(`   ✅ ${ourFieldName}: UNCHECKED`)
+        }
+        fieldsFilled++
+      } else if (fieldType === 'PDFRadioGroup') {
+        const radioGroup = form.getRadioGroup(pdfFieldName)
+        const options = radioGroup.getOptions()
+        if (options.length > 0 && value) {
+          // Select first option for truthy values
+          radioGroup.select(options[0])
+          console.log(`   ✅ ${ourFieldName}: Selected "${options[0]}"`)
+          fieldsFilled++
+        }
+      }
+    } catch (err) {
+      console.warn(`   ⚠️  ${ourFieldName} -> ${pdfFieldName}: ${err.message}`)
+    }
+  }
+
+  console.log(`\n${'─'.repeat(80)}`)
+  console.log(`📊 Form Filling Complete:`)
+  console.log(`   Fields filled: ${fieldsFilled}`)
+  console.log(`   Fields skipped: ${fieldsSkipped}`)
+  console.log('─'.repeat(80) + '\n')
+
+  // Flatten the form (make non-editable)
+  form.flatten()
+
+  // Save and return as buffer
+  const filledPdfBytes = await pdfDoc.save()
+  return Buffer.from(filledPdfBytes)
+}
+
+/**
+ * Map our claim data fields to PDF form field values
+ * Handles data transformation (dates, phone numbers, formatting)
+ */
+function getValueForField(fieldName, claimData, dateSigned) {
+  // Helper to format dates from ISO to MM/DD/YYYY
+  const formatDate = (isoDate) => {
+    if (!isoDate) return null
+    try {
+      // Parse date components directly to avoid timezone issues
+      // Input format: YYYY-MM-DD
+      if (typeof isoDate === 'string' && isoDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+        const [year, month, day] = isoDate.split('T')[0].split('-')
+        return `${month}/${day}/${year}`
+      }
+
+      // Fallback to Date object parsing
+      const date = new Date(isoDate)
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      const year = date.getFullYear()
+      return `${month}/${day}/${year}`
+    } catch {
+      return isoDate // Return as-is if parsing fails
+    }
+  }
+
+  // Helper to format phone numbers
+  const formatPhone = (phone) => {
+    if (!phone) return null
+    // Remove all non-digits
+    const digits = phone.replace(/\D/g, '')
+    if (digits.length === 10) {
+      return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+    }
+    return phone // Return as-is if not 10 digits
+  }
+
+  // Helper to format amounts
+  const formatAmount = (amount) => {
+    if (!amount && amount !== 0) return null
+    return parseFloat(amount).toFixed(2)
+  }
+
+  // Helper to parse address into components
+  const parseAddress = (address) => {
+    if (!address) return { street: '', city: '', state: '', zip: '' }
+
+    // Try to split address like "123 Main St, San Francisco, CA 94102"
+    const parts = address.split(',').map(p => p.trim())
+
+    if (parts.length >= 3) {
+      // Last part should be "STATE ZIP"
+      const lastPart = parts[parts.length - 1]
+      const stateZipMatch = lastPart.match(/([A-Z]{2})\s+(\d{5})/)
+
+      return {
+        street: parts[0],
+        city: parts[1],
+        state: stateZipMatch ? stateZipMatch[1] : '',
+        zip: stateZipMatch ? stateZipMatch[2] : ''
+      }
+    }
+
+    return { street: address, city: '', state: '', zip: '' }
+  }
+
+  // Parse addresses
+  const policyholderAddr = parseAddress(claimData.policyholderAddress)
+
+  // Field mappings
+  const fieldMap = {
+    // NATIONWIDE 2025 FORM FIELDS
+    policyholderName: claimData.policyholderName,
+    policyNumber: claimData.policyNumber,
+    petName: claimData.petName,
+    diagnosisOther: claimData.diagnosis,  // "Other" text field
+    bodyPartAffected: claimData.bodyPartAffected || null,
+    medicationRefill: claimData.medicationRefill || null,
+
+    // Itemized charges (3 line items)
+    treatmentDate1: claimData.itemizedCharges?.[0] ? formatDate(claimData.treatmentDate) : null,
+    totalAmount1: claimData.itemizedCharges?.[0]?.amount ? formatAmount(claimData.itemizedCharges[0].amount) : null,
+    treatmentDate2: claimData.itemizedCharges?.[1] ? formatDate(claimData.treatmentDate) : null,
+    totalAmount2: claimData.itemizedCharges?.[1]?.amount ? formatAmount(claimData.itemizedCharges[1].amount) : null,
+    treatmentDate3: claimData.itemizedCharges?.[2] ? formatDate(claimData.treatmentDate) : null,
+    totalAmount3: claimData.itemizedCharges?.[2]?.amount ? formatAmount(claimData.itemizedCharges[2].amount) : null,
+
+    signatureDate: dateSigned,
+
+    // Nationwide checkboxes (auto-detect from diagnosis)
+    checkboxEarInfection: claimData.diagnosis?.toLowerCase().includes('ear') || false,
+    checkboxSkinInfection: claimData.diagnosis?.toLowerCase().includes('skin') || false,
+    checkboxDental: claimData.diagnosis?.toLowerCase().includes('dental') || false,
+    checkboxVomiting: claimData.diagnosis?.toLowerCase().includes('vomit') || false,
+    checkboxDiarrhea: claimData.diagnosis?.toLowerCase().includes('diarrhea') || false,
+    checkboxOther: true,  // Always check "Other" since we fill the text field
+
+    // TRUPANION 2025 FORM FIELDS
+    policyholderPhone: formatPhone(claimData.policyholderPhone),
+    petDateOfBirth: claimData.petDateOfBirth ? formatDate(claimData.petDateOfBirth) : null,
+    diagnosis: claimData.diagnosis,
+    hospitalName: claimData.vetClinicName,
+    treatingVeterinarian: claimData.treatingVeterinarian || null,
+
+    // Trupanion radio groups - need to select options
+    previousClaimFiled: 'If no date of first signs',  // Select "No" option
+    dateOfFirstSigns: formatDate(claimData.treatmentDate),
+    paymentMethod: 'I have paid my bill in full',  // Select "paid in full" option
+    hasOtherProvider: 'No_2',  // Select "No" option
+
+    // Trupanion vet clinic fields
+    vetName1: claimData.vetClinicName,
+    vetCity1: policyholderAddr.city,
+  }
+
+  return fieldMap[fieldName]
+}
+
+/**
+ * LEGACY: Generate PDF from scratch using jsPDF
+ * Used for Healthy Paws (flattened form) and as fallback
+ */
+async function generatePDFFromScratch(insurer, claimData, userSignature, dateSigned) {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -243,14 +491,6 @@ export async function generateClaimFormPDF(insurer, claimData, userSignature, da
   const pdfBlob = doc.output('arraybuffer')
   return Buffer.from(pdfBlob)
 }
-
-// ================================================================================================
-// 🧪 TEST MODE - PREVENT ACCIDENTAL EMAILS TO REAL INSURERS
-// ================================================================================================
-// Set to false only when ready for production
-const TEST_MODE = true
-const TEST_EMAIL = 'larry@uglydogadventures.com'
-// ================================================================================================
 
 /**
  * Get the email address for submitting claims to each insurer

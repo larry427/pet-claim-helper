@@ -18,6 +18,7 @@ import { sendSMS } from './utils/sendSMS.js'
 import { DateTime } from 'luxon'
 import { generateClaimFormPDF, validateClaimData } from './lib/generateClaimPDF.js'
 import { sendClaimEmail } from './lib/sendClaimEmail.js'
+import { getMissingRequiredFields } from './lib/claimFormMappings.js'
 
 // Validate required env vars
 const required = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'RESEND_API_KEY']
@@ -787,6 +788,140 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
     }
   })
 
+  // Check for missing required fields before claim submission
+  app.post('/api/claims/validate-fields', async (req, res) => {
+    try {
+      const { claimId, userId, insurer } = req.body
+
+      if (!claimId || !userId || !insurer) {
+        return res.status(400).json({
+          ok: false,
+          error: 'claimId, userId, and insurer required'
+        })
+      }
+
+      console.log('[Validate Fields] Checking required fields:', { claimId, userId, insurer })
+
+      // 1. Get claim data
+      const { data: claim, error: claimError } = await supabase
+        .from('claims')
+        .select('*')
+        .eq('id', claimId)
+        .eq('user_id', userId)
+        .single()
+
+      if (claimError || !claim) {
+        return res.status(404).json({ ok: false, error: 'Claim not found' })
+      }
+
+      // 2. Get pet data
+      const { data: pet, error: petError } = await supabase
+        .from('pets')
+        .select('*')
+        .eq('id', claim.pet_id)
+        .single()
+
+      if (petError || !pet) {
+        return res.status(404).json({ ok: false, error: 'Pet not found' })
+      }
+
+      // 3. Get profile data
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+
+      if (profileError || !profile) {
+        return res.status(404).json({ ok: false, error: 'Profile not found' })
+      }
+
+      // 4. Check for missing required fields
+      const missingFields = getMissingRequiredFields(
+        insurer,
+        profile,
+        pet,
+        claim
+      )
+
+      // 5. AI extraction for fields with aiExtract flag
+      for (const fieldDef of missingFields) {
+        if (fieldDef.aiExtract && fieldDef.aiPrompt) {
+          try {
+            // Extract data using AI (e.g., body part from diagnosis)
+            const extractedValue = await extractFieldWithAI(
+              fieldDef,
+              { profile, pet, claim }
+            )
+
+            if (extractedValue) {
+              // Add the extracted value to the field definition
+              fieldDef.suggestedValue = extractedValue
+            }
+          } catch (err) {
+            console.error('[Validate Fields] AI extraction failed:', err)
+            // Continue without suggested value
+          }
+        }
+      }
+
+      return res.json({
+        ok: true,
+        missingFields,
+        allFieldsPresent: missingFields.length === 0
+      })
+
+    } catch (error) {
+      console.error('[Validate Fields] Error:', error)
+      return res.status(500).json({ ok: false, error: error.message })
+    }
+  })
+
+  // Helper function to extract field values using AI
+  async function extractFieldWithAI(fieldDef, data) {
+    if (!process.env.OPENAI_API_KEY) {
+      return null
+    }
+
+    const { claim } = data
+
+    // Build context for AI
+    let context = ''
+    if (fieldDef.field === 'bodyPartAffected') {
+      context = `Diagnosis: ${claim.diagnosis || claim.visit_title || 'Unknown'}`
+    }
+
+    if (!context) return null
+
+    try {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a medical data extraction assistant. ${fieldDef.aiPrompt}. Return ONLY the extracted value, nothing else. If you cannot extract the information with high confidence, return "UNABLE_TO_EXTRACT".`
+          },
+          {
+            role: 'user',
+            content: context
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 50
+      })
+
+      const extracted = completion.choices[0]?.message?.content?.trim()
+
+      if (extracted && extracted !== 'UNABLE_TO_EXTRACT') {
+        return extracted
+      }
+    } catch (err) {
+      console.error('[AI Extract] Error:', err)
+    }
+
+    return null
+  }
+
   // Submit claim to insurance company
   app.post('/api/claims/submit', async (req, res) => {
     try {
@@ -847,6 +982,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         petSpecies: claim.pets.species,
         petBreed: claim.pets.breed || '',
         petAge: petAge,
+        petDateOfBirth: claim.pets.date_of_birth, // For Trupanion form
         treatmentDate: claim.service_date || claim.created_at.split('T')[0],
         vetClinicName: claim.clinic_name || 'Unknown Clinic',
         vetClinicAddress: claim.clinic_address || '',
@@ -1017,6 +1153,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         petSpecies: claim.pets.species,
         petBreed: claim.pets.breed || '',
         petAge: petAge,
+        petDateOfBirth: claim.pets.date_of_birth, // For Trupanion form
         treatmentDate: claim.service_date || claim.created_at.split('T')[0],
         vetClinicName: claim.clinic_name || 'Unknown Clinic',
         vetClinicAddress: claim.clinic_address || '',
