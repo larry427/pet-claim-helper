@@ -339,17 +339,17 @@ export default function App() {
     }
   }, [])
 
-  // Persist financial period filter
+  // Financial period filter - always defaults to 'all' so users see ALL bills immediately
+  // Users can then filter down to specific years if they want
+  // NOTE: We intentionally DO NOT persist this filter to localStorage
+  // because users should see all their bills by default every time they open the app
+
+  // One-time cleanup: Remove old localStorage filter if it exists
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('pch.finPeriod') as 'all' | '2025' | '2024' | 'last12' | null
-      if (saved) setFinPeriod(saved)
+      localStorage.removeItem('pch.finPeriod')
     } catch {}
   }, [])
-
-  useEffect(() => {
-    try { localStorage.setItem('pch.finPeriod', finPeriod) } catch {}
-  }, [finPeriod])
 
   // Bump a refresh token when core datasets change so child summaries can refetch
   useEffect(() => {
@@ -724,7 +724,7 @@ export default function App() {
     if (days === null) return { color: 'border-slate-300 bg-white', msg: '' }
     if (days <= 30) return { color: 'border-emerald-300 bg-emerald-50', msg: "You're filing promptly - great!" }
     if (days <= 60) return { color: 'border-yellow-300 bg-yellow-50', msg: '⚠️ Check your deadline soon' }
-    if (days <= 90) return { color: 'border-orange-300 bg-orange-50', msg: '⚠️ File this claim immediately' }
+    if (days <= 90) return { color: 'border-orange-300 bg-orange-50', msg: '⚠️ Submit this bill immediately' }
     return { color: 'border-red-300 bg-red-50', msg: '🚨 URGENT - You may be past your deadline!' }
   }
 
@@ -1089,7 +1089,7 @@ export default function App() {
                 onClick={() => claimsSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
                 className="relative inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow"
               >
-                Bills & Claims ({claims.length})
+                Bills ({claims.length})
                 {claimsSummary.expiringSoon > 0 && (
                   <span className="ml-2 inline-block h-2 w-2 rounded-full bg-rose-500" aria-hidden />
                 )}
@@ -1458,8 +1458,8 @@ export default function App() {
   if (!editingPetId) return
   const petToDelete = pets.find(p => p.id === editingPetId)
   const petName = petToDelete?.name || 'this pet'
-  
-  if (!confirm(`⚠️ Delete ${petName}?\n\nThis will NOT delete claims for this pet, but you won't be able to file new claims.\n\nThis cannot be undone!`)) return
+
+  if (!confirm(`⚠️ Delete ${petName}?\n\nThis will NOT delete bills for this pet, but you won't be able to file new bills.\n\nThis cannot be undone!`)) return
   
   const remaining = pets.filter(p => p.id !== editingPetId)
   setPets(remaining)
@@ -1480,7 +1480,7 @@ export default function App() {
         {/* Upload section */}
         {authView === 'app' && (
         <section className="mx-auto max-w-3xl text-center mt-8 px-2">
-          <h2 className="text-2xl font-semibold">File Your Claim</h2>
+          <h2 className="text-2xl font-semibold">Upload Vet Bill</h2>
           <div className="mt-4">
             <div
               className={[
@@ -1584,7 +1584,7 @@ export default function App() {
                   <li key={idx}>{pg.petName || `Pet ${idx + 1}`} ({pg.petSpecies || 'Pet'}) — {pg.subtotal || computeSubtotal(pg.lineItems)}</li>
                 ))}
               </ul>
-              <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">We'll create a separate claim for each pet.</p>
+              <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">We'll create a separate bill for each pet.</p>
 
               <div className="mt-6 space-y-4">
                 <p className="text-sm font-medium">Match each pet to your saved profiles (or add new ones):</p>
@@ -1691,10 +1691,10 @@ export default function App() {
                     }
                     if (userId) listClaims(userId).then(setClaims).catch(() => {})
                     setShowClaims(true)
-                    alert(`✓ ${files.length} claims generated and downloaded!\n` + files.map(f => `- ${f.name} (${f.amount})`).join('\n') + '\n\nEmail each claim to your insurance company.')
+                    alert(`✓ ${files.length} bills generated and downloaded!\n` + files.map(f => `- ${f.name} (${f.amount})`).join('\n') + '\n\nEmail each bill to your insurance company.')
                   }}
                 >
-                  Generate Claims
+                  Generate Bills
                 </button>
               </div>
             </div>
@@ -1898,7 +1898,7 @@ export default function App() {
                     <div className={[ 'mt-8 rounded-2xl border p-5 shadow-sm bg-rose-50 border-rose-200' ].join(' ')}>
                       <div className="text-sm font-semibold text-rose-900">⚠️ DEADLINE PASSED</div>
                       <div className="mt-2 text-sm text-rose-900">This bill is from {extracted.dateOfService || '—'} ({howLong}).</div>
-                      <div className="mt-2 text-sm text-rose-900">Most insurers won't accept claims this old.</div>
+                      <div className="mt-2 text-sm text-rose-900">Most insurers won't accept bills this old.</div>
                       <div className="mt-1 text-xs text-rose-900/80">Contact your insurance company to verify if you can still file.</div>
                     </div>
                   )
@@ -2068,7 +2068,8 @@ export default function App() {
 
             {/* Per-Pet Breakdown */}
             <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-              <div className="text-sm font-semibold">🐕 PER-PET BREAKDOWN</div>
+              <div className="text-sm font-semibold">💰 TOTAL VET BILLS</div>
+              <div className="text-xs text-slate-500 mt-1">All veterinary expenses (whether insured or not)</div>
               <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3">
                 {Object.entries(financial.perPet).map(([petName, stats]) => {
                   const c = pets.find(p => p.name === petName)
@@ -2102,7 +2103,7 @@ export default function App() {
         {authView === 'app' && claims.length > 0 && (
           <section className="mx-auto mt-10 max-w-5xl">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Vet Bills & Claims</h2>
+              <h2 className="text-xl font-semibold">Vet Bills</h2>
             </div>
 
             {/* Coming Soon: Auto-Submit Banner */}
@@ -2433,7 +2434,7 @@ export default function App() {
                           type="button"
                           className="text-xs px-2 py-1 rounded border border-rose-200 text-rose-700 hover:bg-rose-50 dark:border-rose-800 shrink-0 whitespace-nowrap"
                           onClick={async () => {
-                            if (!confirm('Delete this claim?')) return
+                            if (!confirm('Delete this bill?')) return
                             try {
                               await dbDeleteClaim(c.id)
                               if (userId) listClaims(userId).then(setClaims)
@@ -2477,8 +2478,8 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setPetSelectError(false)}>
           <div className="relative mx-4 w-full max-w-md rounded-2xl border border-rose-200 bg-white p-6" onClick={(e) => e.stopPropagation()}>
             <div className="text-lg font-semibold text-rose-700">⚠️ Please Select a Pet</div>
-            <div className="mt-2 text-sm text-rose-800">You haven't selected a pet for this claim yet.</div>
-            <div className="mt-1 text-sm text-rose-800">Please go back and click 'Use This Pet' for the pet you want to file a claim for.</div>
+            <div className="mt-2 text-sm text-rose-800">You haven't selected a pet for this bill yet.</div>
+            <div className="mt-1 text-sm text-rose-800">Please go back and click 'Use This Pet' for the pet you want to add this bill for.</div>
             <div className="mt-4 flex justify-end">
               <button className="inline-flex items-center rounded-lg bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 text-sm" onClick={() => setPetSelectError(false)}>Go Back</button>
             </div>
@@ -2490,7 +2491,7 @@ export default function App() {
           <div className="relative mx-4 w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0 flex flex-col max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="text-lg font-semibold">Edit Claim</h3>
+              <h3 className="text-lg font-semibold">Edit Bill</h3>
               <button className="text-sm" onClick={() => setEditingClaim(null)}>Close</button>
             </div>
             {/* Warning (fixed under header) */}
@@ -2568,8 +2569,8 @@ export default function App() {
                     setClaims(refreshed)
                   }
                   setEditingClaim(null)
-                  alert('Claim updated')
-                } catch (e) { console.error('[update claim] error', e); alert('Error updating claim') }
+                  alert('Bill updated')
+                } catch (e) { console.error('[update claim] error', e); alert('Error updating bill') }
               }}>Save Changes</button>
             </div>
           </div>
@@ -2839,8 +2840,8 @@ export default function App() {
           <div className="relative mx-4 w-full max-w-md rounded-2xl border border-emerald-200 bg-white p-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800 flex flex-col items-center text-center">
               <div className="h-14 w-14 rounded-full bg-emerald-600 text-white flex items-center justify-center text-2xl shadow animate-pulse">✓</div>
-              <div className="mt-3 text-lg font-semibold text-emerald-800 dark:text-emerald-200">Claim Saved Successfully!</div>
-              <div className="mt-1 text-xs text-emerald-900/80 dark:text-emerald-300/80">Your claim was saved. You can generate the PDF now.</div>
+              <div className="mt-3 text-lg font-semibold text-emerald-800 dark:text-emerald-200">Vet Bill Saved Successfully!</div>
+              <div className="mt-1 text-xs text-emerald-900/80 dark:text-emerald-300/80">Your vet bill was saved. You can submit it to insurance when ready.</div>
             </div>
             <div className="p-6 text-sm">
               <div className="space-y-1">
@@ -2980,7 +2981,7 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
       {mode === 'signup' ? (
         <div className="text-center text-sm text-slate-700 dark:text-slate-200 mb-2">
           <div className="font-medium">Welcome! Create your account</div>
-          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">• Save pets • Auto-fill claims • Access anywhere</div>
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">• Save pets • Auto-fill bills • Access anywhere</div>
         </div>
       ) : (
         <div className="text-center text-sm text-slate-700 dark:text-slate-200 mb-2">
@@ -3254,9 +3255,9 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
               <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="John Smith" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-slate-500">Address <span className="text-red-500">*</span></label>
+              <label className="block text-xs text-slate-500">Address</label>
               <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St, City, ST 12345" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-              <p className="mt-1 text-xs text-slate-500">Full address including city, state, and ZIP code</p>
+              <p className="mt-1 text-xs text-slate-500">Optional - will be requested when submitting to insurance if not provided</p>
             </div>
             <div>
               <label className="block text-xs text-slate-500">Phone Number <span className="text-red-500">*</span></label>
