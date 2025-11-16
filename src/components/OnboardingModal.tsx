@@ -400,7 +400,11 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
             <button
               type="button"
               className="w-full h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
-              onClick={onClose}
+              onClick={() => {
+                // Set flag to show photo upload tooltip on first dashboard visit
+                localStorage.setItem('justCompletedOnboarding', 'true')
+                onClose()
+              }}
             >
               Get Started
             </button>

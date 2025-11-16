@@ -133,6 +133,8 @@ export default function App() {
   // Pet photo upload state
   const [uploadingPhotoForPetId, setUploadingPhotoForPetId] = useState<string | null>(null)
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null)
+  // Onboarding photo tooltip
+  const [showPhotoTooltip, setShowPhotoTooltip] = useState(false)
 
   // --- Name similarity helpers for auto-suggestions ---
   const normalizeName = (s: string): string => s.trim().toLowerCase()
@@ -286,6 +288,40 @@ export default function App() {
   useEffect(() => {
     if (pets && pets.length === 1) {
       setSelectedPetId((prev) => prev || pets[0].id)
+    }
+  }, [pets])
+
+  // Photo upload tooltip after onboarding completion
+  useEffect(() => {
+    const justCompleted = localStorage.getItem('justCompletedOnboarding')
+    if (justCompleted === 'true' && pets && pets.length > 0) {
+      // Check if any pet doesn't have a photo
+      const hasPetWithoutPhoto = pets.some(p => !p.photo_url)
+      if (hasPetWithoutPhoto) {
+        setShowPhotoTooltip(true)
+
+        // Auto-dismiss after 5 seconds
+        const timer = setTimeout(() => {
+          setShowPhotoTooltip(false)
+          localStorage.removeItem('justCompletedOnboarding')
+        }, 5000)
+
+        // Also dismiss on click anywhere
+        const handleClick = () => {
+          setShowPhotoTooltip(false)
+          localStorage.removeItem('justCompletedOnboarding')
+          document.removeEventListener('click', handleClick)
+        }
+        document.addEventListener('click', handleClick)
+
+        return () => {
+          clearTimeout(timer)
+          document.removeEventListener('click', handleClick)
+        }
+      } else {
+        // All pets have photos, clear the flag
+        localStorage.removeItem('justCompletedOnboarding')
+      }
     }
   }, [pets])
 
@@ -1278,6 +1314,17 @@ export default function App() {
                       </svg>
                     )}
                   </label>
+
+                  {/* Onboarding tooltip - show only for first pet without photo */}
+                  {showPhotoTooltip && !pet.photo_url && pets.indexOf(pet) === 0 && (
+                    <div className="absolute -top-16 -right-2 pointer-events-none animate-bounce">
+                      <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-lg shadow-xl whitespace-nowrap text-sm font-medium">
+                        Upload the cutest picture of {pet.name}! 📸
+                      </div>
+                      {/* Arrow pointing down at camera icon */}
+                      <div className="absolute top-full right-6 w-0 h-0 border-l-[8px] border-r-[8px] border-t-[8px] border-l-transparent border-r-transparent border-t-pink-500"></div>
+                    </div>
+                  )}
                 </div>
 
                 <div>
