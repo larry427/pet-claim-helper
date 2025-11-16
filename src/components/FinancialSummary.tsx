@@ -429,7 +429,8 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
       </div>
 
       <div className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5">
-        <div className="text-sm sm:text-base font-semibold">{`Per-Pet Breakdown (${String(period || '').toLowerCase() === 'all' ? 'All Time' : String(period || new Date().getFullYear())})`}</div>
+        <div className="text-sm sm:text-base font-semibold">💰 TOTAL VET BILLS</div>
+        <div className="text-xs text-slate-500 mt-1">All veterinary expenses (whether insured or not)</div>
         {pets.length === 0 && (
           <div className="mt-3 text-sm text-slate-600">No pets yet. Add a pet to see per-pet costs.</div>
         )}
