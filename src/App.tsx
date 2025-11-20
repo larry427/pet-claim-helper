@@ -12,6 +12,7 @@ import MedicationsDashboard from './components/MedicationsDashboard'
 import DoseMarkingPage from './components/DoseMarkingPage'
 import ClaimSubmissionModal from './components/ClaimSubmissionModal'
 import { SignatureCapture } from './components/SignatureCapture'
+import AdminDashboard from './components/AdminDashboard'
 import { createClaim, listClaims, updateClaim, deleteClaim as dbDeleteClaim } from './lib/claims'
 import { formatPhoneOnChange, formatPhoneForStorage, formatPhoneForDisplay } from './utils/phoneUtils'
 import React from 'react'
@@ -35,7 +36,7 @@ export default function App() {
   const [visitTitle, setVisitTitle] = useState('')  // NEW: User friendly title
   const [expenseCategory, setExpenseCategory] = useState<'insured' | 'not_insured' | 'maybe_insured'>('insured')
   const [addingPet, setAddingPet] = useState(false)
-  const [newPet, setNewPet] = useState<{ name: string; species: PetSpecies; insuranceCompany: InsuranceCompany; filing_deadline_days?: number | ''; monthly_premium?: number | ''; deductible_per_claim?: number | ''; insurance_pays_percentage?: number | ''; coverage_start_date?: string }>(
+  const [newPet, setNewPet] = useState<{ name: string; species: PetSpecies; insuranceCompany: InsuranceCompany; filing_deadline_days?: number | ''; monthly_premium?: number | ''; deductible_per_claim?: number | ''; insurance_pays_percentage?: number | ''; coverage_start_date?: string; policyNumber?: string }>(
     {
     name: '',
     species: 'dog',
@@ -44,7 +45,8 @@ export default function App() {
       monthly_premium: '',
       deductible_per_claim: '',
       insurance_pays_percentage: '',
-      coverage_start_date: ''
+      coverage_start_date: '',
+      policyNumber: ''
     }
   )
   const [editingPetId, setEditingPetId] = useState<string | null>(null)
@@ -57,9 +59,10 @@ export default function App() {
     deductible_per_claim?: number | '';
     coverage_start_date?: string;
     insurance_pays_percentage?: number | '';
+    policyNumber?: string;
   } | null>(null)
-  const [newPetInsurer, setNewPetInsurer] = useState<'Trupanion' | 'Nationwide' | 'Healthy Paws' | 'Fetch' | 'Custom Insurance' | ''>('')
-  const [editPetInsurer, setEditPetInsurer] = useState<'Trupanion' | 'Nationwide' | 'Healthy Paws' | 'Fetch' | 'Custom Insurance' | ''>('')
+  const [newPetInsurer, setNewPetInsurer] = useState<'Trupanion' | 'Nationwide' | 'Healthy Paws' | 'Fetch' | 'Custom Insurance' | 'NO_INSURANCE' | ''>('')
+  const [editPetInsurer, setEditPetInsurer] = useState<'Trupanion' | 'Nationwide' | 'Healthy Paws' | 'Fetch' | 'Custom Insurance' | 'NO_INSURANCE' | ''>('')
   const [customInsurerNameNew, setCustomInsurerNameNew] = useState('')
   const [customDeadlineNew, setCustomDeadlineNew] = useState<string>('')
   const [customInsurerNameEdit, setCustomInsurerNameEdit] = useState('')
@@ -79,7 +82,8 @@ export default function App() {
   const [showClaims, setShowClaims] = useState(false)
   
   const [finPeriod, setFinPeriod] = useState<'all' | '2025' | '2024' | 'last12'>('all')
-  const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications'>('app')
+  const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications' | 'admin'>('app')
+  const [isAdmin, setIsAdmin] = useState(false)
   const [editingClaim, setEditingClaim] = useState<any | null>(null)
   const [editPetId, setEditPetId] = useState<string | null>(null)
   const [editServiceDate, setEditServiceDate] = useState('')
@@ -284,6 +288,29 @@ export default function App() {
     return () => { sub.subscription.unsubscribe() }
   }, [])
 
+  // Load admin status from profile
+  useEffect(() => {
+    if (!userId) {
+      setIsAdmin(false)
+      return
+    }
+
+    supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', userId)
+      .single()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('[admin] Failed to load admin status:', error)
+          setIsAdmin(false)
+          return
+        }
+        setIsAdmin(data?.is_admin === true)
+      })
+      .catch(() => setIsAdmin(false))
+  }, [userId])
+
   // Auto-select pet when there is exactly one
   useEffect(() => {
     if (pets && pets.length === 1) {
@@ -371,7 +398,11 @@ export default function App() {
     const trimmedName = newPet.name.trim()
     if (!trimmedName) return
     if (!newPetInsurer) { alert('Please select an insurance company'); return }
-    if (newPetInsurer === 'Custom Insurance') {
+    if (newPetInsurer === 'NO_INSURANCE') {
+      newPet.insuranceCompany = '' as any
+      newPet.filing_deadline_days = ''
+      newPet.policyNumber = ''
+    } else if (newPetInsurer === 'Custom Insurance') {
       const nm = customInsurerNameNew.trim()
       const dd = Number(customDeadlineNew)
       if (!nm) { alert('Enter custom insurance company name'); return }
@@ -387,8 +418,8 @@ export default function App() {
       id,
       name: trimmedName,
       species: newPet.species,
-      insuranceCompany: newPet.insuranceCompany,
-      policyNumber: '',
+      insuranceCompany: newPet.insuranceCompany || '',
+      policyNumber: (newPet.policyNumber || '').trim(),
       ownerName: '',
       ownerPhone: '',
       filing_deadline_days: (newPet as any).filing_deadline_days as any,
@@ -413,7 +444,7 @@ export default function App() {
       setSelectedPetId(id)
     }
     setAddingPet(false)
-    setNewPet({ name: '', species: 'dog', insuranceCompany: '', filing_deadline_days: '', monthly_premium: '', deductible_per_claim: '', insurance_pays_percentage: '', coverage_start_date: '' })
+    setNewPet({ name: '', species: 'dog', insuranceCompany: '', filing_deadline_days: '', monthly_premium: '', deductible_per_claim: '', insurance_pays_percentage: '', coverage_start_date: '', policyNumber: '' })
     setNewPetInsurer('')
     setCustomInsurerNameNew('')
     setCustomDeadlineNew('')
@@ -429,10 +460,15 @@ export default function App() {
       monthly_premium: (pet as any).monthly_premium ?? '',
       deductible_per_claim: (pet as any).deductible_per_claim ?? '',
       coverage_start_date: (pet as any).coverage_start_date || '',
-      insurance_pays_percentage: (pet as any).insurance_pays_percentage != null ? Math.round(Number((pet as any).insurance_pays_percentage) * 100) : ''
+      insurance_pays_percentage: (pet as any).insurance_pays_percentage != null ? Math.round(Number((pet as any).insurance_pays_percentage) * 100) : '',
+      policyNumber: pet.policyNumber || ''
     })
     const known = ['Trupanion','Nationwide','Healthy Paws','Fetch']
-    if (known.includes(pet.insuranceCompany)) {
+    if (!pet.insuranceCompany || pet.insuranceCompany === '') {
+      setEditPetInsurer('NO_INSURANCE')
+      setCustomInsurerNameEdit('')
+      setCustomDeadlineEdit('')
+    } else if (known.includes(pet.insuranceCompany)) {
       setEditPetInsurer(pet.insuranceCompany as any)
       setCustomInsurerNameEdit('')
       setCustomDeadlineEdit(String((pet as any).filing_deadline_days || ''))
@@ -448,7 +484,10 @@ export default function App() {
     if (!editPetInsurer) { alert('Please select an insurance company'); return }
     let finalCompany = ''
     let finalDays: number | '' = ''
-    if (editPetInsurer === 'Custom Insurance') {
+    if (editPetInsurer === 'NO_INSURANCE') {
+      finalCompany = ''
+      finalDays = ''
+    } else if (editPetInsurer === 'Custom Insurance') {
       const nm = customInsurerNameEdit.trim()
       const dd = Number(customDeadlineEdit)
       if (!nm) { alert('Enter custom insurance company name'); return }
@@ -466,7 +505,7 @@ export default function App() {
             name: editPet.name.trim(),
             species: editPet.species,
             insuranceCompany: finalCompany as any,
-            policyNumber: p.policyNumber || '',
+            policyNumber: (editPet.policyNumber || '').trim(),
             ownerName: p.ownerName || '',
             ownerPhone: p.ownerPhone || '',
             filing_deadline_days: finalDays as any,
@@ -621,14 +660,22 @@ export default function App() {
 
   const uploadClaimPdf = async (uid: string, claimId: string, blob: Blob): Promise<string | null> => {
     try {
+      console.log('[uploadClaimPdf] Starting upload...', {
+        uid,
+        claimId,
+        blobSize: blob.size,
+        blobType: blob.type
+      })
       const path = `${uid}/${claimId}.pdf`
       const { error } = await supabase.storage.from('claim-pdfs').upload(path, blob, { upsert: true, contentType: 'application/pdf' })
       if (error) throw error
+      console.log('[uploadClaimPdf] ✅ Storage upload successful, updating claim record...')
       await updateClaim(claimId, { pdf_path: path })
+      console.log('[uploadClaimPdf] ✅ Claim record updated with pdf_path:', path)
       return path
     } catch (e) {
       // eslint-disable-next-line no-console
-      console.error('[uploadClaimPdf] error', e)
+      console.error('[uploadClaimPdf] ❌ ERROR:', e)
       return null
     }
   }
@@ -1113,6 +1160,15 @@ export default function App() {
                 💊 Medications
               </button>
             )}
+            {authView === 'app' && isAdmin && (
+              <button
+                type="button"
+                onClick={() => setActiveView(v => v === 'admin' ? 'app' : 'admin')}
+                className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow"
+              >
+                📊 Admin Dashboard
+              </button>
+            )}
             {authView === 'app' && (
               <a
                 href={`mailto:support@petclaimhelper.com?subject=Pet Claim Helper Support Request&body=Hi Pet Claim Helper Team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0A----%0D%0AUser: ${userEmail || 'Not logged in'}%0D%0AUser ID: ${userId || 'N/A'}`}
@@ -1144,6 +1200,26 @@ export default function App() {
           <section className="mx-auto mt-8 max-w-6xl px-2">
             <MedicationsDashboard userId={userId} pets={pets} refreshKey={medicationsRefreshKey} />
           </section>
+        )}
+        {authView === 'app' && activeView === 'admin' && (
+          <>
+            {isAdmin ? (
+              <AdminDashboard />
+            ) : (
+              <section className="mx-auto max-w-2xl mt-8">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+                  <h2 className="text-red-800 font-semibold text-lg">Access Denied</h2>
+                  <p className="text-red-600 mt-2">You do not have admin privileges to access this page.</p>
+                  <button
+                    onClick={() => setActiveView('app')}
+                    className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                  >
+                    Return to Dashboard
+                  </button>
+                </div>
+              </section>
+            )}
+          </>
         )}
         {authView !== 'app' && (
           <section className="mx-auto max-w-md mt-8">
@@ -1221,13 +1297,16 @@ export default function App() {
                         <select id="pet-insurance" value={newPetInsurer} onChange={(e) => {
                           const v = e.target.value as any
                           setNewPetInsurer(v)
-                          if (v === 'Custom Insurance') {
+                          if (v === 'NO_INSURANCE') {
+                            setNewPet({ ...newPet, insuranceCompany: '' as any, filing_deadline_days: '', policyNumber: '' })
+                          } else if (v === 'Custom Insurance') {
                             setNewPet({ ...newPet, insuranceCompany: '' as any, filing_deadline_days: '' })
                           } else if (v) {
                             setNewPet({ ...newPet, insuranceCompany: v as any, filing_deadline_days: 90 })
                           }
                         }} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm">
                           <option value="">— Select —</option>
+                          <option value="NO_INSURANCE">Not Insured</option>
                           <option value="Trupanion">Trupanion (90 days)</option>
                           <option value="Nationwide">Nationwide (90 days)</option>
                           <option value="Healthy Paws">Healthy Paws (90 days)</option>
@@ -1235,7 +1314,11 @@ export default function App() {
                           <option value="Custom Insurance">Custom Insurance</option>
                         </select>
                       </div>
-                      {newPetInsurer === 'Custom Insurance' ? (
+                      {newPetInsurer === 'NO_INSURANCE' ? (
+                        <div className="sm:col-span-1 flex items-center text-xs text-slate-500 bg-blue-50/50 dark:bg-blue-900/10 px-3 py-2 rounded-md border border-blue-200 dark:border-blue-800">
+                          <span>✓ No insurance selected. You can still track vet bills and file claims manually.</span>
+                        </div>
+                      ) : newPetInsurer === 'Custom Insurance' ? (
                         <>
                           <div>
                             <label htmlFor="pet-insurance-custom-name" className="block text-xs text-slate-500">Insurance Company Name</label>
@@ -1249,29 +1332,45 @@ export default function App() {
                       ) : (
                         <div className="sm:col-span-1 flex items-end text-xs text-slate-600">{newPetInsurer ? 'Filing Deadline: 90 days' : ''}</div>
                       )}
+                      {newPetInsurer && newPetInsurer !== 'NO_INSURANCE' && (
+                        <div className="sm:col-span-2">
+                          <label htmlFor="pet-policy-number" className="block text-xs text-slate-500">Policy Number <span className="text-slate-400">(optional)</span></label>
+                          <input
+                            id="pet-policy-number"
+                            value={newPet.policyNumber || ''}
+                            onChange={(e) => setNewPet({ ...newPet, policyNumber: e.target.value })}
+                            placeholder="e.g., NW12345 or TP123456"
+                            className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
-                <div>
-                  <label htmlFor="pet-premium" className="block text-xs">Monthly Premium (USD)</label>
-                  <input id="pet-premium" type="number" step="0.01" value={String(newPet.monthly_premium ?? '')} onChange={(e) => setNewPet({ ...newPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                  <div className="mt-1 text-[11px] text-slate-500">Your monthly insurance payment</div>
-                </div>
-                <div>
-                  <label htmlFor="pet-deductible" className="block text-xs">Deductible (Annual) (USD)</label>
-                  <input id="pet-deductible" type="number" step="0.01" value={String(newPet.deductible_per_claim ?? '')} onChange={(e) => setNewPet({ ...newPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                  <div className="mt-1 text-[11px] text-slate-500">Amount you pay before insurance kicks in (resets yearly)</div>
-                </div>
-                <div>
-                  <label htmlFor="pet-insurance-pays" className="block text-xs">Insurance Pays (%)</label>
-                  <input id="pet-insurance-pays" type="number" min={0} max={100} value={String(newPet.insurance_pays_percentage ?? '')} onChange={(e) => setNewPet({ ...newPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                  <div className="mt-1 text-[11px] text-slate-500">What percentage your insurance covers (e.g., 80% means you pay 20%)</div>
-                </div>
-                <div className="min-w-0">
-                  <label htmlFor="pet-coverage-start" className="block text-xs">Coverage Start Date</label>
-                  <input id="pet-coverage-start" type="date" value={newPet.coverage_start_date || ''} onChange={(e) => setNewPet({ ...newPet, coverage_start_date: e.target.value })} className="mt-1 w-full max-w-xs rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                  <div className="mt-1 text-[11px] text-slate-500">When your insurance policy began (used to calculate deductible reset)</div>
-                </div>
+                {newPetInsurer !== 'NO_INSURANCE' && (
+                  <>
+                    <div>
+                      <label htmlFor="pet-premium" className="block text-xs">Monthly Premium (USD)</label>
+                      <input id="pet-premium" type="number" step="0.01" value={String(newPet.monthly_premium ?? '')} onChange={(e) => setNewPet({ ...newPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                      <div className="mt-1 text-[11px] text-slate-500">Your monthly insurance payment</div>
+                    </div>
+                    <div>
+                      <label htmlFor="pet-deductible" className="block text-xs">Deductible (Annual) (USD)</label>
+                      <input id="pet-deductible" type="number" step="0.01" value={String(newPet.deductible_per_claim ?? '')} onChange={(e) => setNewPet({ ...newPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                      <div className="mt-1 text-[11px] text-slate-500">Amount you pay before insurance kicks in (resets yearly)</div>
+                    </div>
+                    <div>
+                      <label htmlFor="pet-insurance-pays" className="block text-xs">Insurance Pays (%)</label>
+                      <input id="pet-insurance-pays" type="number" min={0} max={100} value={String(newPet.insurance_pays_percentage ?? '')} onChange={(e) => setNewPet({ ...newPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                      <div className="mt-1 text-[11px] text-slate-500">What percentage your insurance covers (e.g., 80% means you pay 20%)</div>
+                    </div>
+                    <div className="min-w-0">
+                      <label htmlFor="pet-coverage-start" className="block text-xs">Coverage Start Date</label>
+                      <input id="pet-coverage-start" type="date" value={newPet.coverage_start_date || ''} onChange={(e) => setNewPet({ ...newPet, coverage_start_date: e.target.value })} className="mt-1 w-full max-w-xs rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                      <div className="mt-1 text-[11px] text-slate-500">When your insurance policy began (used to calculate deductible reset)</div>
+                    </div>
+                  </>
+                )}
               </div>
               <div className="mt-3 flex items-center gap-3">
                 <button type="button" onClick={addPet} className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-sm">Save Pet</button>
@@ -1447,13 +1546,16 @@ export default function App() {
                               <select id="edit-pet-insurance" value={editPetInsurer} onChange={(e) => {
                                 const v = e.target.value as any
                                 setEditPetInsurer(v)
-                                if (v === 'Custom Insurance') {
+                                if (v === 'NO_INSURANCE') {
+                                  setEditPet({ ...editPet, insuranceCompany: '' as any, filing_deadline_days: '', policyNumber: '' })
+                                } else if (v === 'Custom Insurance') {
                                   setEditPet({ ...editPet, insuranceCompany: '' as any, filing_deadline_days: '' })
                                 } else if (v) {
                                   setEditPet({ ...editPet, insuranceCompany: v as any, filing_deadline_days: 90 })
                                 }
                               }} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm">
                                 <option value="">— Select —</option>
+                                <option value="NO_INSURANCE">Not Insured</option>
                                 <option value="Trupanion">Trupanion (90 days)</option>
                                 <option value="Nationwide">Nationwide (90 days)</option>
                                 <option value="Healthy Paws">Healthy Paws (90 days)</option>
@@ -1461,7 +1563,11 @@ export default function App() {
                                 <option value="Custom Insurance">Custom Insurance</option>
                               </select>
                             </div>
-                            {editPetInsurer === 'Custom Insurance' ? (
+                            {editPetInsurer === 'NO_INSURANCE' ? (
+                              <div className="sm:col-span-1 flex items-center text-xs text-slate-500 bg-blue-50/50 dark:bg-blue-900/10 px-3 py-2 rounded-md border border-blue-200 dark:border-blue-800">
+                                <span>✓ No insurance selected. You can still track vet bills and file claims manually.</span>
+                              </div>
+                            ) : editPetInsurer === 'Custom Insurance' ? (
                               <>
                                 <div>
                                   <label htmlFor="edit-pet-insurance-custom-name" className="block text-xs text-slate-500">Insurance Company Name</label>
@@ -1475,29 +1581,45 @@ export default function App() {
                             ) : (
                               <div className="sm:col-span-1 flex items-end text-xs text-slate-600">{editPetInsurer ? 'Filing Deadline: 90 days' : ''}</div>
                             )}
+                            {editPetInsurer && editPetInsurer !== 'NO_INSURANCE' && (
+                              <div className="sm:col-span-2">
+                                <label htmlFor="edit-pet-policy-number" className="block text-xs text-slate-500">Policy Number <span className="text-slate-400">(optional)</span></label>
+                                <input
+                                  id="edit-pet-policy-number"
+                                  value={editPet.policyNumber || ''}
+                                  onChange={(e) => setEditPet({ ...editPet, policyNumber: e.target.value })}
+                                  placeholder="e.g., NW12345 or TP123456"
+                                  className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
+                                />
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
-                      <div>
-                        <label htmlFor="edit-pet-premium" className="block text-xs">Monthly Premium (USD)</label>
-                        <input id="edit-pet-premium" type="number" step="0.01" placeholder="e.g., 38.00" value={String(editPet.monthly_premium ?? '')} onChange={(e) => setEditPet({ ...editPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                        <div className="mt-1 text-[11px] text-slate-500">Monthly insurance premium cost</div>
-                      </div>
-                      <div>
-                        <label htmlFor="edit-pet-deductible" className="block text-xs">Deductible (Annual) (USD)</label>
-                        <input id="edit-pet-deductible" type="number" step="0.01" placeholder="e.g., 250.00" value={String(editPet.deductible_per_claim ?? '')} onChange={(e) => setEditPet({ ...editPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                        <div className="mt-1 text-[11px] text-slate-500">Amount you pay before insurance kicks in (resets yearly)</div>
-                      </div>
-                      <div>
-                        <label htmlFor="edit-pet-insurance-pays" className="block text-xs">Insurance Pays (%)</label>
-                        <input id="edit-pet-insurance-pays" type="number" min={0} max={100} placeholder="80" value={String(editPet.insurance_pays_percentage ?? '')} onChange={(e) => setEditPet({ ...editPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                        <div className="mt-1 text-[11px] text-slate-500">What percentage your insurance covers (e.g., 80% means you pay 20%)</div>
-                      </div>
-                      <div>
-                        <label htmlFor="edit-pet-coverage-start" className="block text-xs">Coverage Start Date</label>
-                        <input id="edit-pet-coverage-start" type="date" value={editPet.coverage_start_date || ''} onChange={(e) => setEditPet({ ...editPet, coverage_start_date: e.target.value })} className="mt-1 w-full min-w-[220px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                        <div className="mt-1 text-[11px] text-slate-500">When did your coverage start?</div>
-                      </div>
+                      {editPetInsurer !== 'NO_INSURANCE' && (
+                        <>
+                          <div>
+                            <label htmlFor="edit-pet-premium" className="block text-xs">Monthly Premium (USD)</label>
+                            <input id="edit-pet-premium" type="number" step="0.01" placeholder="e.g., 38.00" value={String(editPet.monthly_premium ?? '')} onChange={(e) => setEditPet({ ...editPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                            <div className="mt-1 text-[11px] text-slate-500">Monthly insurance premium cost</div>
+                          </div>
+                          <div>
+                            <label htmlFor="edit-pet-deductible" className="block text-xs">Deductible (Annual) (USD)</label>
+                            <input id="edit-pet-deductible" type="number" step="0.01" placeholder="e.g., 250.00" value={String(editPet.deductible_per_claim ?? '')} onChange={(e) => setEditPet({ ...editPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                            <div className="mt-1 text-[11px] text-slate-500">Amount you pay before insurance kicks in (resets yearly)</div>
+                          </div>
+                          <div>
+                            <label htmlFor="edit-pet-insurance-pays" className="block text-xs">Insurance Pays (%)</label>
+                            <input id="edit-pet-insurance-pays" type="number" min={0} max={100} placeholder="80" value={String(editPet.insurance_pays_percentage ?? '')} onChange={(e) => setEditPet({ ...editPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                            <div className="mt-1 text-[11px] text-slate-500">What percentage your insurance covers (e.g., 80% means you pay 20%)</div>
+                          </div>
+                          <div>
+                            <label htmlFor="edit-pet-coverage-start" className="block text-xs">Coverage Start Date</label>
+                            <input id="edit-pet-coverage-start" type="date" value={editPet.coverage_start_date || ''} onChange={(e) => setEditPet({ ...editPet, coverage_start_date: e.target.value })} className="mt-1 w-full min-w-[220px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                            <div className="mt-1 text-[11px] text-slate-500">When did your coverage start?</div>
+                          </div>
+                        </>
+                      )}
                     </div>
                     <div className="mt-3 flex items-center gap-3">
                       <button type="button" onClick={saveEdit} className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-sm">Save</button>
@@ -2053,6 +2175,20 @@ export default function App() {
                           visit_notes: visitNotes || null,
                           expense_category: expenseCategory,
                         })
+                        // Upload the vet bill PDF to storage and save path to claim
+                        console.log('[createClaim single] Checking for vet bill upload...', {
+                          hasClaimId: !!row?.id,
+                          hasSelectedFile: !!selectedFile,
+                          hasFile: !!selectedFile?.file,
+                          selectedFileType: selectedFile?.file?.type
+                        })
+                        if (row?.id && selectedFile?.file) {
+                          console.log('[createClaim single] Uploading vet bill PDF to storage...')
+                          await uploadClaimPdf(userId, row.id, selectedFile.file)
+                          console.log('[createClaim single] ✅ Uploaded vet bill PDF for claim:', row.id)
+                        } else {
+                          console.warn('[createClaim single] ⚠️  No vet bill PDF to upload - selectedFile or file is missing')
+                        }
                       } catch (e) { console.error('[createClaim single] error', e) }
                     }
                     // Prepare success details and open medication question flow
@@ -2324,19 +2460,19 @@ export default function App() {
                                 {import.meta.env.VITE_ENABLE_AUTO_SUBMIT === 'true' && (
                                   <button
                                     type="button"
-                                    className="text-xs px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold whitespace-nowrap flex items-center gap-1.5"
+                                    className="text-xs px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold whitespace-nowrap flex items-center gap-1.5"
                                     onClick={() => setSubmittingClaim(c)}
                                     title="Automatically generate PDF and email to insurance company"
                                   >
                                     <span>🚀</span>
-                                    Auto-Submit to Insurance
+                                    Auto-Submit
                                   </button>
                                 )}
 
                                 {/* Manual Submit Button - Existing */}
                                 <button
                                   type="button"
-                                  className="text-xs px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white whitespace-nowrap"
+                                  className="text-xs px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white whitespace-nowrap"
                                   onClick={async () => {
                                     try {
                                       const today = getLocalTodayYYYYMMDD()
@@ -2354,7 +2490,7 @@ export default function App() {
                                   }}
                                   title="Manually mark as submitted (if you filed yourself)"
                                 >
-                                  Mark as Submitted
+                                  Mark Submitted
                                 </button>
                                 {(['insured','maybe'].includes(String(c.expense_category || 'insured').toLowerCase())) && (
                                   <div className="flex flex-wrap items-center gap-1 text-xs text-slate-500 w-full sm:w-auto">
