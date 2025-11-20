@@ -7,11 +7,5 @@
       "path": "/api/send-deadline-reminders",
       "schedule": "0 9 * * *"
     }
-  ],
-  "typescript": {
-    "ignoreBuildErrors": true
-  },
-  "eslint": {
-    "ignoreDuringBuilds": true
-  }
+  ]
 }
