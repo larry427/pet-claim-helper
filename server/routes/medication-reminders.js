@@ -10,11 +10,76 @@ export async function runMedicationReminders(options = {}) {
     return { ok: false, error: 'No supabase client provided' }
   }
 
+  // FIX #3: DISTRIBUTED LOCKING - Prevent multiple instances from running simultaneously
+  const lockKey = 'medication_reminders_cron_lock'
+  const lockDuration = 120 // 2 minutes
+  const crypto = await import('crypto')
+  const lockId = crypto.randomUUID()
+
   try {
+    console.log('[Medication Reminders] Attempting to acquire distributed lock...')
+
+    // Try to acquire lock
+    const nowPST = DateTime.now().setZone('America/Los_Angeles')
+    const lockExpiresAt = nowPST.plus({ seconds: lockDuration }).toISO()
+
+    const { data: existingLock, error: lockCheckError } = await supabase
+      .from('medication_reminders_log')
+      .select('id')
+      .eq('medication_id', lockKey) // Use medication_id as lock key
+      .gte('sent_at', nowPST.minus({ seconds: lockDuration }).toISO())
+      .limit(1)
+      .single()
+
+    if (existingLock) {
+      console.log('[Medication Reminders] 🔒 Lock already held by another instance, skipping...')
+      return { ok: true, message: 'Skipped - another instance is running', sent: 0 }
+    }
+
+    // Acquire lock by inserting a record
+    // Note: We use a special "lock" entry that's not tied to a real medication
+    const { error: lockAcquireError } = await supabase
+      .rpc('acquire_reminder_lock', {
+        lock_id: lockId,
+        lock_key: lockKey,
+        lock_expires: lockExpiresAt
+      })
+      .then(() => ({ error: null }), async () => {
+        // If RPC doesn't exist, try direct insert (may fail due to FK constraints)
+        // Use the first available user as a workaround
+        const { data: anyUser } = await supabase
+          .from('profiles')
+          .select('id')
+          .limit(1)
+          .single()
+
+        if (!anyUser) {
+          return { error: new Error('No users found for lock') }
+        }
+
+        return await supabase
+          .from('medication_reminders_log')
+          .insert({
+            id: lockId,
+            medication_id: lockKey,
+            user_id: anyUser.id, // Use first user as dummy
+            reminder_date: nowPST.toISODate(),
+            reminder_time: 'LOCK',
+            message_id: `lock_${lockId}`
+          })
+      })
+
+    if (lockAcquireError) {
+      console.log('[Medication Reminders] ⚠️  Could not acquire lock (race condition), skipping...')
+      return { ok: true, message: 'Skipped - race condition', sent: 0 }
+    }
+
+    console.log('[Medication Reminders] ✅ Lock acquired:', lockId)
+
+    // Proceed with reminder processing
     console.log('[Medication Reminders] Starting medication reminder check...')
 
     // Get current time in PST (America/Los_Angeles)
-    const nowPST = DateTime.now().setZone('America/Los_Angeles')
     const currentHour = nowPST.hour
     const currentMinute = nowPST.minute
     const currentTime = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`
@@ -76,21 +141,26 @@ export async function runMedicationReminders(options = {}) {
         continue // Not time yet for this medication
       }
 
-      // Check if we already sent a reminder for this medication today
-      // Note: This table may not exist yet - if query fails, proceed anyway
-      const { data: logCheck, error: logError } = await supabase
+      // FIX #2: Check if we already sent a reminder for this medication today
+      // This prevents duplicates even if multiple instances somehow bypass the lock
+      const { data: logCheck, error: logError} = await supabase
         .from('medication_reminders_log')
         .select('id')
         .eq('medication_id', med.id)
         .eq('reminder_date', today)
         .eq('reminder_time', currentTime)
+        .limit(1)
+        .single()
 
-      if (logError) {
-        console.warn('[Medication Reminders] Log check failed (table may not exist):', logError.message)
-        // Continue anyway - better to send duplicate than miss a reminder
-      } else if (logCheck && logCheck.length > 0) {
+      if (logCheck) {
+        console.log(`[Medication Reminders] Skipping ${med.medication_name} - already sent today at ${currentTime}`)
         remindersSkipped.push({ medicationId: med.id, reason: 'Already sent today' })
         continue
+      }
+
+      // If error is anything other than "no rows", log it but continue
+      if (logError && logError.code !== 'PGRST116') {
+        console.warn('[Medication Reminders] Log check warning:', logError.message)
       }
 
       // Create a dose record FIRST (so we can generate a magic link token)
@@ -137,19 +207,24 @@ export async function runMedicationReminders(options = {}) {
       const result = await sendTwilioSMS(profile.phone, message)
 
       if (result.success) {
-
-        // Log the sent reminder (best effort - don't fail if table doesn't exist)
+        // FIX #2: Log the sent reminder with message_id to prevent duplicates
         const { error: logInsertError } = await supabase
           .from('medication_reminders_log')
           .insert({
             medication_id: med.id,
             user_id: med.user_id,
             reminder_date: today,
-            reminder_time: currentTime
+            reminder_time: currentTime,
+            message_id: result.messageId, // Track Twilio message SID
+            sent_at: nowPST.toISO()
           })
 
         if (logInsertError) {
-          console.warn('[Medication Reminders] Failed to log reminder (table may not exist):', logInsertError.message)
+          // This is critical - if we can't log, we might send duplicates
+          console.error('[Medication Reminders] ⚠️  CRITICAL: Failed to log reminder:', logInsertError.message)
+          console.error('[Medication Reminders] This could cause duplicate SMS on next run!')
+        } else {
+          console.log('[Medication Reminders] ✅ Logged reminder to prevent duplicates')
         }
 
         remindersSent.push({
@@ -187,6 +262,13 @@ export async function runMedicationReminders(options = {}) {
       skipped: remindersSkipped.length
     })
 
+    // FIX #3: Release the distributed lock
+    await supabase
+      .from('medication_reminders_log')
+      .delete()
+      .eq('id', lockId)
+    console.log('[Medication Reminders] 🔓 Lock released:', lockId)
+
     return {
       ok: true,
       sent: remindersSent.length,
@@ -195,6 +277,18 @@ export async function runMedicationReminders(options = {}) {
     }
   } catch (error) {
     console.error('[Medication Reminders] Unexpected error:', error)
+
+    // FIX #3: Release lock on error
+    try {
+      await supabase
+        .from('medication_reminders_log')
+        .delete()
+        .eq('id', lockId)
+      console.log('[Medication Reminders] 🔓 Lock released on error:', lockId)
+    } catch (lockErr) {
+      console.error('[Medication Reminders] Failed to release lock:', lockErr.message)
+    }
+
     return { ok: false, error: error.message }
   }
 }

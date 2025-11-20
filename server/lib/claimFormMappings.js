@@ -73,7 +73,8 @@ const FORM_FIELD_MAPPINGS = {
   },
 
   trupanion: {
-    // ✅ ACTUAL FIELD NAMES from 2025 form (27 fields discovered)
+    // ✅ EXACT FIELD NAMES from Trupanion PDF inspection (27 fields discovered)
+    // Updated to match actual PDF field names character-for-character
 
     // Core Member/Pet Information
     policyholderName: 'Policyholder name',
@@ -90,7 +91,9 @@ const FORM_FIELD_MAPPINGS = {
     // Claim History (Radio groups)
     previousClaimFiled: 'Have you filed a claim for this condition previously',  // Radio: "If yes claim number" or "If no date of first signs"
     previousClaimNumber: 'Claim number',
-    dateOfFirstSigns: 'Date of first signs',
+    // REMOVED: dateOfFirstSigns - LEGAL LIABILITY RISK
+    // Never auto-fill "date of first signs" - creates legal liability for policyholders
+    // Let insurance company ask policyholder directly if they need this information
 
     // Additional Condition (2nd condition if applicable)
     additionalIllness: 'Illnessinjury 2 if applicable',
@@ -98,8 +101,10 @@ const FORM_FIELD_MAPPINGS = {
     additionalClaimNumber: 'Claim number condition 2',
     additionalDateOfFirstSigns: 'Date of first signs 2',
 
-    // Payment Method (Radio group)
-    paymentMethod: 'Reimburse by my selected payment method',  // Radio: "I have paid my bill in full" or "I have not yet paid my bill"
+    // Payment Method - INTENTIONALLY OMITTED
+    // Trupanion form states: "Leaving this section unmarked will result in payment to you, the policyholder"
+    // We do NOT fill this field - leaving it blank is the correct behavior
+    // paymentMethod: 'Reimburse by my selected payment method',  // COMMENTED OUT - DO NOT USE
 
     // Other Insurance Provider (Radio group)
     hasOtherProvider: 'Iswas your pet insured under any other insurance provider',  // Radio: "Yes" or "No_2"
@@ -118,11 +123,93 @@ const FORM_FIELD_MAPPINGS = {
     spayNeuterDate: 'Spay/Neuter Date',
     spayNeuter: 'Spay Neuter',  // Radio: "No" or "Yes Date"
 
-    // MISSING FIELDS THAT DON'T EXIST IN TRUPANION FORM:
-    // - No policyholder address/city/state/zip/email
-    // - No total amount or itemized charges
+    // NOTES:
+    // - No signature field exists (signature must be drawn directly on page)
+    // - No policyholder address/city/state/zip/email fields
+    // - No total amount or itemized charges fields
     // - Invoice must be attached separately
   }
+}
+
+/**
+ * EXACT Radio Option Values from PDF Forms
+ * These MUST match the exact strings in the PDF radio groups
+ */
+export const TRUPANION_RADIO_OPTIONS = {
+  // Spay/Neuter Status Radio
+  spayNeuter: {
+    yes: 'Yes Date',       // Use when spay/neuter date exists
+    yesNoDate: 'Yes no date',  // Use when status is Yes but no date provided
+    no: 'No'               // Use when not spayed/neutered
+  },
+
+  // Payment Method - INTENTIONALLY OMITTED
+  // Trupanion form states: "Leaving this section unmarked will result in payment to you, the policyholder"
+  // We do NOT select any payment option - leaving it blank is correct
+  // paymentMethod: { ... }  // REMOVED - DO NOT USE
+
+  // Previous Insurance Provider Radio
+  hasOtherProvider: {
+    yes: 'Yes',
+    no: 'No_2'  // NOTE: Trupanion uses "No_2" not "No"
+  },
+
+  // Previous Claim Filed Radio
+  previousClaim: {
+    yesHasClaimNumber: 'If yes claim number',
+    noHasDateOfFirstSigns: 'If no date of first signs'
+  }
+}
+
+export const NATIONWIDE_RADIO_OPTIONS = {
+  // Add Nationwide radio options here if needed
+}
+
+/**
+ * Date Formatting Helper for PDF Forms
+ * Converts ISO date string to MM/DD/YYYY format
+ */
+export function formatDateForPDF(dateString) {
+  if (!dateString) return null
+
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return null
+
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const year = date.getFullYear()
+
+  return `${month}/${day}/${year}`
+}
+
+/**
+ * Currency Formatting Helper for PDF Forms
+ * Converts number to currency string (e.g., "123.45" or "$123.45")
+ */
+export function formatCurrencyForPDF(amount) {
+  if (amount === null || amount === undefined) return null
+
+  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount
+  if (isNaN(numAmount)) return null
+
+  return numAmount.toFixed(2)
+}
+
+/**
+ * Phone Formatting Helper for PDF Forms
+ * Converts phone to (XXX) XXX-XXXX format
+ */
+export function formatPhoneForPDF(phone) {
+  if (!phone) return null
+
+  // Remove all non-digit characters
+  const digits = phone.replace(/\D/g, '')
+
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+  }
+
+  return phone // Return as-is if not 10 digits
 }
 
 /**
@@ -233,11 +320,11 @@ export const INSURER_REQUIRED_FIELDS = {
     },
     {
       field: 'policyNumber',
-      source: 'profiles.policy_number',
+      source: 'pets.policy_number',
       required: true,
       type: 'text',
-      prompt: 'Policy number',
-      placeholder: 'NW1234567'
+      prompt: 'What is your pet insurance policy number?',
+      placeholder: 'e.g., NW12345 or C-234567'
     },
     {
       field: 'bodyPartAffected',
@@ -248,16 +335,8 @@ export const INSURER_REQUIRED_FIELDS = {
       placeholder: 'e.g., Ear, Eye, Leg, Stomach',
       aiExtract: true,  // Try to extract from diagnosis
       aiPrompt: 'Extract the affected body part from this diagnosis'
-    },
-    // Optional fields
-    {
-      field: 'treatingVet',
-      source: 'pets.preferred_vet_name',
-      required: false,
-      type: 'text',
-      prompt: 'Treating veterinarian name (optional)',
-      placeholder: 'Dr. Smith'
     }
+    // NOTE: Nationwide form has NO phone number field - do not require it
   ],
 
   trupanion: [
@@ -288,11 +367,20 @@ export const INSURER_REQUIRED_FIELDS = {
     },
     {
       field: 'policyNumber',
-      source: 'profiles.policy_number',
-      required: false,  // "if known"
+      source: 'pets.policy_number',
+      required: true,
       type: 'text',
-      prompt: 'Policy number (if known)',
-      placeholder: 'TP1234567'
+      prompt: 'What is your pet insurance policy number?',
+      placeholder: 'e.g., TP12345 or TR67890'
+    },
+    {
+      field: 'dateOfBirth',
+      source: 'pets.date_of_birth',
+      required: true,
+      type: 'date',
+      prompt: 'What is {petName}\'s date of birth?',
+      placeholder: 'MM/DD/YYYY',
+      description: 'Required by Trupanion to verify pet age and coverage'
     },
     {
       field: 'treatingVet',
@@ -326,6 +414,78 @@ export const INSURER_REQUIRED_FIELDS = {
       type: 'date',
       prompt: 'Spay/neuter date (if known)',
       conditional: { field: 'spayNeuterStatus', value: 'Yes' }
+    },
+
+    // ========== OTHER INSURANCE HISTORY ==========
+    {
+      field: 'hadOtherInsurance',
+      source: 'pets.had_other_insurance',
+      required: true,
+      type: 'radio',
+      prompt: 'Has {petName} been insured by another provider?',
+      description: 'Required by Trupanion for underwriting purposes',
+      options: ['Yes', 'No']
+    },
+    // Conditional field - only required if hadOtherInsurance = 'Yes'
+    {
+      field: 'otherInsuranceProvider',
+      source: 'pets.other_insurance_provider',
+      required: false,
+      type: 'text',
+      prompt: 'Previous insurance provider name',
+      placeholder: 'e.g., Nationwide, Healthy Paws',
+      conditional: { field: 'hadOtherInsurance', value: 'Yes' }
+    },
+    // Conditional field - only required if hadOtherInsurance = 'Yes'
+    {
+      field: 'otherInsuranceCancelDate',
+      source: 'pets.other_insurance_cancel_date',
+      required: false,
+      type: 'date',
+      prompt: 'When was the previous policy cancelled?',
+      description: 'If still active, leave blank',
+      conditional: { field: 'hadOtherInsurance', value: 'Yes' }
+    },
+
+    // ========== HOSPITAL HISTORY ==========
+    {
+      field: 'otherHospitalsVisited',
+      source: 'pets.other_hospitals_visited',
+      required: true,
+      type: 'textarea',
+      rows: 3,
+      prompt: 'List all other hospitals/clinics where {petName} has been treated',
+      description: 'Include hospital names and cities. Trupanion may request records from these locations.',
+      placeholder: 'e.g., Paws & Whiskers Vet (San Francisco), Animal Care Center (Oakland)'
+    },
+
+    // ========== CLAIM-SPECIFIC FIELDS ==========
+    {
+      field: 'previousClaimSameCondition',
+      source: 'claim.previous_claim_same_condition',
+      required: true,
+      type: 'radio',
+      prompt: 'Have you filed a claim for this same condition before?',
+      options: ['Yes', 'No']
+    },
+    // Conditional field - only required if previousClaimSameCondition = 'Yes'
+    {
+      field: 'previousClaimNumber',
+      source: 'claim.previous_claim_number',
+      required: false,
+      type: 'text',
+      prompt: 'Previous claim number',
+      placeholder: 'e.g., TP-123456',
+      conditional: { field: 'previousClaimSameCondition', value: 'Yes' }
+    },
+    {
+      field: 'paymentMethod',
+      source: 'claim.payment_method',
+      required: true,
+      type: 'radio',
+      prompt: 'Payment status',
+      description: 'Trupanion can reimburse you directly OR pay the clinic directly if you haven\'t paid yet',
+      options: ['I have paid in full', 'I have not yet paid']
     }
   ],
 
@@ -349,7 +509,7 @@ export const INSURER_REQUIRED_FIELDS = {
     },
     {
       field: 'policyNumber',
-      source: 'profiles.policy_number',
+      source: 'pets.policy_number',  // Policy number is stored in pets table
       required: true,
       type: 'text',
       prompt: 'Policy number',
@@ -384,26 +544,14 @@ export function getMissingRequiredFields(insurerName, profileData, petData, clai
   const missing = []
 
   for (const fieldDef of requiredFields) {
-    // Skip if not required
-    if (!fieldDef.required) continue
-
-    // Check conditional requirements
-    if (fieldDef.conditional) {
-      const condField = fieldDef.conditional.field
-      const condValue = fieldDef.conditional.value
-
-      // Find the conditional field's current value
-      const currentValue = getFieldValue(condField, profileData, petData, claimData)
-
-      // Skip if condition not met
-      if (currentValue !== condValue) continue
-    }
-
     // Get the current value
     const value = getFieldValue(fieldDef.field, profileData, petData, claimData)
 
     // Check if missing
     if (!value || value === '' || value === null || value === undefined) {
+      // Include ALL missing fields (including conditional ones)
+      // The React component will handle showing/hiding conditional fields
+      // based on user input in the form
       missing.push(fieldDef)
     }
   }
@@ -422,19 +570,31 @@ function getFieldValue(fieldName, profileData, petData, claimData) {
     'policyholderName': profileData?.full_name,
     'policyholderPhone': profileData?.phone,
     'policyholderAddress': profileData?.address,
-    'policyNumber': profileData?.policy_number,
 
-    // Pet fields
+    // Pet fields (policy_number is stored in pets table, not profiles!)
+    'policyNumber': petData?.policy_number,
     'adoptionDate': petData?.adoption_date,
     'spayNeuterStatus': petData?.spay_neuter_status,
     'spayNeuterDate': petData?.spay_neuter_date,
     'treatingVet': petData?.preferred_vet_name,
+    'hadOtherInsurance': petData?.had_other_insurance,
+    'otherInsuranceProvider': petData?.other_insurance_provider,
+    'otherInsuranceCancelDate': petData?.other_insurance_cancel_date,
+    'otherHospitalsVisited': petData?.other_hospitals_visited,
 
     // Claim fields
     'bodyPartAffected': claimData?.body_part,
+    'previousClaimSameCondition': claimData?.previous_claim_same_condition,
+    'previousClaimNumber': claimData?.previous_claim_number,
+    'paymentMethod': claimData?.payment_method,
   }
 
-  return fieldMap[fieldName]
+  const value = fieldMap[fieldName]
+  console.log(`[getFieldValue] ${fieldName} = ${value} (from ${
+    fieldName === 'signature' || fieldName === 'policyholderName' || fieldName === 'policyholderPhone' || fieldName === 'policyholderAddress' ? 'profile' :
+    fieldName === 'bodyPartAffected' || fieldName === 'previousClaimSameCondition' || fieldName === 'previousClaimNumber' || fieldName === 'paymentMethod' ? 'claim' : 'pet'
+  })`)
+  return value
 }
 
 export default FORM_FIELD_MAPPINGS

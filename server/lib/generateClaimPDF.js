@@ -1,9 +1,16 @@
 import { jsPDF } from 'jspdf'
-import { PDFDocument } from 'pdf-lib'
+import { PDFDocument, PDFName } from 'pdf-lib'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { getMappingForInsurer } from './claimFormMappings.js'
+import {
+  getMappingForInsurer,
+  TRUPANION_RADIO_OPTIONS,
+  NATIONWIDE_RADIO_OPTIONS,
+  formatDateForPDF,
+  formatCurrencyForPDF,
+  formatPhoneForPDF
+} from './claimFormMappings.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -13,7 +20,7 @@ const __dirname = path.dirname(__filename)
 // ================================================================================================
 // Set to false only when ready for production
 const TEST_MODE = true
-const TEST_EMAIL = 'larry@uglydogadventures.com'
+const TEST_EMAIL = 'larry@vrexistence.com'
 // ================================================================================================
 
 /**
@@ -78,6 +85,22 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
   const pdfDoc = await PDFDocument.load(pdfBytes)
   const form = pdfDoc.getForm()
 
+  // Remove unwanted pages from Nationwide form (keep only page 1)
+  if (normalizedInsurer.includes('nationwide')) {
+    const pageCount = pdfDoc.getPageCount()
+    console.log(`📄 Nationwide PDF has ${pageCount} pages`)
+
+    // Remove all pages except the first one
+    if (pageCount > 1) {
+      console.log(`🗑️  Removing pages 2-${pageCount} (legal disclaimers/boilerplate)...`)
+      // Remove pages from the end to avoid index shifting
+      for (let i = pageCount - 1; i >= 1; i--) {
+        pdfDoc.removePage(i)
+      }
+      console.log(`✅ Kept only page 1 (claim form)\n`)
+    }
+  }
+
   // Get field mapping for this insurer
   const mapping = getMappingForInsurer(insurer)
   if (!mapping) {
@@ -88,6 +111,30 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
 
   console.log(`✅ Loaded official PDF: ${pdfFilename}`)
   console.log(`📝 Filling fields using mapping...\n`)
+
+  // CRITICAL: Clear ALL text field placeholders before filling
+  // Trupanion forms have GRAY PLACEHOLDERS in the appearance stream (AP)
+  // These are NOT text values - they're visual appearances!
+  console.log('🧹 Clearing all placeholder APPEARANCES from form fields...')
+  console.log('   Removing appearance streams (AP) where gray placeholders live\n')
+  const allFields = form.getFields()
+  let placeholdersCleared = 0
+  for (const field of allFields) {
+    if (field.constructor.name === 'PDFTextField') {
+      try {
+        // CRITICAL: Delete the appearance stream (where gray placeholders are stored)
+        field.acroField.dict.delete(PDFName.of('AP'))
+
+        // Clear the text value
+        field.setText('')
+
+        placeholdersCleared++
+      } catch (e) {
+        // Some fields may not have an AP entry or may be read-only
+      }
+    }
+  }
+  console.log(`   ✅ Cleared ${placeholdersCleared} text field appearances\n`)
 
   let fieldsFilled = 0
   let fieldsSkipped = 0
@@ -109,7 +156,20 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
       const fieldType = field.constructor.name
 
       if (fieldType === 'PDFTextField') {
-        form.getTextField(pdfFieldName).setText(String(value))
+        const textField = form.getTextField(pdfFieldName)
+
+        // CRITICAL: Delete appearance stream to remove gray placeholders
+        // Don't call updateAppearances() yet - will do it once at the end
+        try {
+          textField.acroField.dict.delete(PDFName.of('AP'))
+        } catch (e) {
+          // Field may not have an AP entry
+        }
+
+        // Set the actual value
+        textField.setText('')
+        textField.setText(String(value))
+
         console.log(`   ✅ ${ourFieldName}: "${value}"`)
         fieldsFilled++
       } else if (fieldType === 'PDFCheckBox') {
@@ -124,10 +184,21 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
       } else if (fieldType === 'PDFRadioGroup') {
         const radioGroup = form.getRadioGroup(pdfFieldName)
         const options = radioGroup.getOptions()
-        if (options.length > 0 && value) {
-          // Select first option for truthy values
+        console.log(`   📻 Radio group "${ourFieldName}" options:`, options)
+
+        if (value && typeof value === 'string') {
+          // Try to select the exact option value
+          if (options.includes(value)) {
+            radioGroup.select(value)
+            console.log(`   ✅ ${ourFieldName}: Selected "${value}"`)
+            fieldsFilled++
+          } else {
+            console.warn(`   ⚠️  ${ourFieldName}: Option "${value}" not found in [${options.join(', ')}]`)
+          }
+        } else if (options.length > 0 && value) {
+          // Fallback: Select first option for truthy values
           radioGroup.select(options[0])
-          console.log(`   ✅ ${ourFieldName}: Selected "${options[0]}"`)
+          console.log(`   ✅ ${ourFieldName}: Selected "${options[0]}" (default)`)
           fieldsFilled++
         }
       }
@@ -141,6 +212,72 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
   console.log(`   Fields filled: ${fieldsFilled}`)
   console.log(`   Fields skipped: ${fieldsSkipped}`)
   console.log('─'.repeat(80) + '\n')
+
+  // CRITICAL: Update all field appearances after filling to ensure placeholders are gone
+  console.log('🔄 Updating all field appearances to finalize placeholder removal...')
+  try {
+    form.updateFieldAppearances()
+    console.log('   ✅ Field appearances updated\n')
+  } catch (e) {
+    console.log('   ⚠️  Could not update field appearances:', e.message, '\n')
+  }
+
+  // Embed signature image if provided (Trupanion doesn't need signatures)
+  if (normalizedInsurer.includes('trupanion')) {
+    console.log('ℹ️  Trupanion forms do not require signatures - skipping signature embedding')
+  } else if (userSignature && typeof userSignature === 'string' && userSignature.startsWith('data:image')) {
+    try {
+      console.log('🖊️  Embedding signature image...')
+      console.log('   Signature data (first 50 chars):', userSignature.substring(0, 50))
+
+      // Extract base64 data from data URL (data:image/png;base64,...)
+      const base64Data = userSignature.split(',')[1]
+      const signatureBytes = Buffer.from(base64Data, 'base64')
+
+      console.log('   Signature bytes length:', signatureBytes.length)
+
+      // Embed the PNG image
+      const signatureImage = await pdfDoc.embedPng(signatureBytes)
+
+      // Get the first page (signature is on page 1 for Nationwide)
+      const pages = pdfDoc.getPages()
+      const firstPage = pages[0]
+      const { width: pageWidth, height: pageHeight } = firstPage.getSize()
+
+      console.log(`   Page dimensions: ${pageWidth} x ${pageHeight}`)
+
+      // Nationwide form signature positioning
+      // Position in the "Pet parent signature ___" field near bottom of page 1
+      // Based on PDF inspection: Date field is at y=201.886
+      // Signature line appears to be around y=200-210
+      const signatureWidth = 200
+      const signatureHeight = 35
+      const signatureX = 150  // Left-aligned in signature area
+      const signatureY = 205  // Aligned with Date field (y=201.886)
+      console.log('   Using Nationwide signature position')
+
+      console.log(`   Attempting to draw signature at (${signatureX}, ${signatureY})`)
+      console.log(`   Signature size: ${signatureWidth} x ${signatureHeight}`)
+
+      firstPage.drawImage(signatureImage, {
+        x: signatureX,
+        y: signatureY,
+        width: signatureWidth,
+        height: signatureHeight
+      })
+
+      console.log(`   ✅ Signature embedded successfully at (${signatureX}, ${signatureY})`)
+      fieldsFilled++
+
+    } catch (signatureError) {
+      console.error(`   ❌ Failed to embed signature: ${signatureError.message}`)
+      console.error('   Full error:', signatureError)
+    }
+  } else {
+    console.log('ℹ️  No signature provided or invalid format')
+    console.log('   userSignature type:', typeof userSignature)
+    console.log('   userSignature value (first 100 chars):', userSignature?.substring(0, 100))
+  }
 
   // Flatten the form (make non-editable)
   form.flatten()
@@ -217,8 +354,40 @@ function getValueForField(fieldName, claimData, dateSigned) {
     return { street: address, city: '', state: '', zip: '' }
   }
 
+  // Helper to parse hospital name from otherHospitalsVisited field
+  // Format: "Hospital Name - City\nAnother Hospital - Another City"
+  // Index: 0 for first hospital, 1 for second hospital
+  const parseHospitalName = (hospitalsText, index) => {
+    if (!hospitalsText) return null
+    const lines = hospitalsText.split('\n').filter(line => line.trim())
+    if (index >= lines.length) return null
+    const parts = lines[index].split('-').map(p => p.trim())
+    return parts[0] || null
+  }
+
+  // Helper to parse hospital city from otherHospitalsVisited field
+  const parseHospitalCity = (hospitalsText, index) => {
+    if (!hospitalsText) return null
+    const lines = hospitalsText.split('\n').filter(line => line.trim())
+    if (index >= lines.length) return null
+    const parts = lines[index].split('-').map(p => p.trim())
+    return parts[1] || null
+  }
+
   // Parse addresses
   const policyholderAddr = parseAddress(claimData.policyholderAddress)
+
+  console.log('\n' + '='.repeat(80))
+  console.log('🔍 DEBUG: getValueForField - claimData received:')
+  console.log('='.repeat(80))
+  console.log('policyNumber:', claimData.policyNumber)
+  console.log('bodyPartAffected:', claimData.bodyPartAffected)
+  console.log('diagnosis:', claimData.diagnosis)
+  console.log('🔍 TRUPANION DATE FIELDS:')
+  console.log('petDateOfBirth:', claimData.petDateOfBirth, '(type:', typeof claimData.petDateOfBirth + ')')
+  console.log('petAdoptionDate:', claimData.petAdoptionDate, '(type:', typeof claimData.petAdoptionDate + ')')
+  console.log('petSpayNeuterDate:', claimData.petSpayNeuterDate, '(type:', typeof claimData.petSpayNeuterDate + ')')
+  console.log('='.repeat(80) + '\n')
 
   // Field mappings
   const fieldMap = {
@@ -231,12 +400,15 @@ function getValueForField(fieldName, claimData, dateSigned) {
     medicationRefill: claimData.medicationRefill || null,
 
     // Itemized charges (3 line items)
-    treatmentDate1: claimData.itemizedCharges?.[0] ? formatDate(claimData.treatmentDate) : null,
-    totalAmount1: claimData.itemizedCharges?.[0]?.amount ? formatAmount(claimData.itemizedCharges[0].amount) : null,
-    treatmentDate2: claimData.itemizedCharges?.[1] ? formatDate(claimData.treatmentDate) : null,
-    totalAmount2: claimData.itemizedCharges?.[1]?.amount ? formatAmount(claimData.itemizedCharges[1].amount) : null,
-    treatmentDate3: claimData.itemizedCharges?.[2] ? formatDate(claimData.treatmentDate) : null,
-    totalAmount3: claimData.itemizedCharges?.[2]?.amount ? formatAmount(claimData.itemizedCharges[2].amount) : null,
+    // Nationwide form expects: Date + Total per invoice
+    // Current implementation: We only have ONE invoice with multiple line items
+    // Solution: Show the treatment date ONCE with the total invoice amount
+    treatmentDate1: claimData.treatmentDate ? formatDate(claimData.treatmentDate) : null,
+    totalAmount1: claimData.totalAmount ? formatAmount(claimData.totalAmount) : null,
+    treatmentDate2: null,  // Reserved for additional invoices from different visit dates
+    totalAmount2: null,
+    treatmentDate3: null,  // Reserved for additional invoices from different visit dates
+    totalAmount3: null,
 
     signatureDate: dateSigned,
 
@@ -253,17 +425,43 @@ function getValueForField(fieldName, claimData, dateSigned) {
     petDateOfBirth: claimData.petDateOfBirth ? formatDate(claimData.petDateOfBirth) : null,
     diagnosis: claimData.diagnosis,
     hospitalName: claimData.vetClinicName,
-    treatingVeterinarian: claimData.treatingVeterinarian || null,
+    treatingVeterinarian: claimData.vetClinicName,  // Use clinic name as treating veterinarian
+    // REMOVED: dateOfFirstSigns - LEGAL LIABILITY RISK
+    // Never auto-fill "date of first signs" - this creates legal liability for policyholders
+    // If insurance company wants this info, they will ask the policyholder directly
+    dateOfAdoption: claimData.petAdoptionDate ? formatDate(claimData.petAdoptionDate) : null,
+    spayNeuterDate: claimData.petSpayNeuterDate ? formatDate(claimData.petSpayNeuterDate) : null,
+    // spayNeuter radio: Use EXPLICIT radio option constants
+    spayNeuter: claimData.petSpayNeuterStatus === 'Yes'
+      ? (claimData.petSpayNeuterDate ? TRUPANION_RADIO_OPTIONS.spayNeuter.yes : TRUPANION_RADIO_OPTIONS.spayNeuter.yesNoDate)
+      : TRUPANION_RADIO_OPTIONS.spayNeuter.no,
 
-    // Trupanion radio groups - need to select options
-    previousClaimFiled: 'If no date of first signs',  // Select "No" option
-    dateOfFirstSigns: formatDate(claimData.treatmentDate),
-    paymentMethod: 'I have paid my bill in full',  // Select "paid in full" option
-    hasOtherProvider: 'No_2',  // Select "No" option
+    // Trupanion: Other insurance provider fields - Use EXPLICIT radio option constants
+    hasOtherProvider: (claimData.hadOtherInsurance === 'Yes' || claimData.hadOtherInsurance === true)
+      ? TRUPANION_RADIO_OPTIONS.hasOtherProvider.yes
+      : TRUPANION_RADIO_OPTIONS.hasOtherProvider.no,
+    otherProviderName: claimData.otherInsuranceProvider || null,
+    cancelDate: claimData.otherInsuranceCancelDate ? formatDate(claimData.otherInsuranceCancelDate) : null,
+    policyStillActive: claimData.otherInsuranceCancelDate ? false : true,  // Checkbox - true if no cancel date
 
-    // Trupanion vet clinic fields
-    vetName1: claimData.vetClinicName,
-    vetCity1: policyholderAddr.city,
+    // Trupanion: Hospital history (veterinary clinic details)
+    // Parse otherHospitalsVisited into Name/City pairs
+    // Format: "Hospital Name - City\nAnother Hospital - Another City"
+    vetName1: claimData.otherHospitalsVisited ? parseHospitalName(claimData.otherHospitalsVisited, 0) : null,
+    vetCity1: claimData.otherHospitalsVisited ? parseHospitalCity(claimData.otherHospitalsVisited, 0) : null,
+    vetName2: claimData.otherHospitalsVisited ? parseHospitalName(claimData.otherHospitalsVisited, 1) : null,
+    vetCity2: claimData.otherHospitalsVisited ? parseHospitalCity(claimData.otherHospitalsVisited, 1) : null,
+
+    // Trupanion: Claim history - Use EXPLICIT radio option constants
+    previousClaimFiled: claimData.previousClaimSameCondition === 'Yes'
+      ? TRUPANION_RADIO_OPTIONS.previousClaim.yesHasClaimNumber
+      : TRUPANION_RADIO_OPTIONS.previousClaim.noHasDateOfFirstSigns,
+    previousClaimNumber: claimData.previousClaimNumber || null
+
+    // Payment method - INTENTIONALLY OMITTED
+    // Trupanion form states: "Leaving this section unmarked will result in payment to you, the policyholder"
+    // This is the desired default behavior, so we do NOT include this field in the mapping
+    // The field will remain blank on the PDF, which is correct per Trupanion's instructions
   }
 
   return fieldMap[fieldName]
@@ -347,8 +545,14 @@ async function generatePDFFromScratch(insurer, claimData, userSignature, dateSig
 
   yPos = addField('Pet Name:', claimData.petName, yPos)
   yPos = addField('Species:', claimData.petSpecies, yPos)
-  yPos = addField('Breed:', claimData.petBreed, yPos)
-  yPos = addField('Age:', `${claimData.petAge} years`, yPos)
+  // Only show breed if it's available and not "Unknown"
+  if (claimData.petBreed && claimData.petBreed !== 'Unknown') {
+    yPos = addField('Breed:', claimData.petBreed, yPos)
+  }
+  // Only show age if it's available and not null
+  if (claimData.petAge !== null && claimData.petAge !== undefined) {
+    yPos = addField('Age:', `${claimData.petAge} years`, yPos)
+  }
   yPos += 5
 
   checkPageBreak()
@@ -533,13 +737,13 @@ function getProductionEmail(insurer) {
 
 /**
  * Validate claim data before generating PDF
+ * NOTE: This is LEGACY validation - kept minimal for backwards compatibility
+ * Insurer-specific validation happens in claimFormMappings.js via getMissingRequiredFields()
  */
 export function validateClaimData(claimData) {
+  // Minimal validation - only check fields that ALL insurers require
   const required = [
     'policyholderName',
-    'policyholderAddress',
-    'policyholderPhone',
-    'policyholderEmail',
     'policyNumber',
     'petName',
     'petSpecies',
@@ -547,6 +751,8 @@ export function validateClaimData(claimData) {
     'vetClinicName',
     'diagnosis',
     'totalAmount'
+    // NOTE: policyholderPhone, policyholderAddress, policyholderEmail removed
+    // These are NOT required by all insurers (e.g., Nationwide has no phone field)
   ]
 
   const missing = required.filter(field => !claimData[field])
