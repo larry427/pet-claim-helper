@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Environment Check</title>
+</head>
+<body>
+  <h1>Environment Variables Check</h1>
+  <div id="output"></div>
+  <script type="module">
+    const url = import.meta.env.VITE_SUPABASE_URL
+    const key = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+    const output = document.getElementById('output')
+    output.innerHTML = `
+      <p><strong>VITE_SUPABASE_URL:</strong> ${url || 'MISSING'}</p>
+      <p><strong>VITE_SUPABASE_ANON_KEY present:</strong> ${Boolean(key)}</p>
+      <p><strong>VITE_SUPABASE_ANON_KEY length:</strong> ${key?.length || 0}</p>
+      <p><strong>VITE_SUPABASE_ANON_KEY first 50 chars:</strong> ${key?.substring(0, 50) || 'MISSING'}...</p>
+      <p><strong>VITE_SUPABASE_ANON_KEY last 20 chars:</strong> ...${key?.substring(key.length - 20) || 'MISSING'}</p>
+    `
+  </script>
+</body>
+</html>
