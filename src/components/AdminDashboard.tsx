@@ -60,12 +60,26 @@ export default function AdminDashboard() {
 
       if (profilesError) throw profilesError;
 
+      // Filter out Larry's test accounts
+      const realProfiles = profiles.filter(profile => {
+        const email = (profile.email || '').toLowerCase();
+        return !email.includes('larry') &&
+               !email.includes('uglydogadventures') &&
+               !email.includes('dogstrainedright');
+      });
+
+      // Get IDs of real users for filtering pets and claims
+      const realUserIds = new Set(realProfiles.map(p => p.id));
+
       // Load all pets
       const { data: pets, error: petsError } = await supabase
         .from('pets')
         .select('*');
 
       if (petsError) throw petsError;
+
+      // Filter pets to only those belonging to real users
+      const realPets = pets.filter(pet => realUserIds.has(pet.user_id));
 
       // Load all claims
       const { data: claims, error: claimsError } = await supabase
@@ -74,10 +88,13 @@ export default function AdminDashboard() {
 
       if (claimsError) throw claimsError;
 
-      // Combine data
-      const usersWithStats: UserWithStats[] = profiles.map(profile => {
-        const userPets = pets.filter(p => p.user_id === profile.id);
-        const userClaims = claims.filter(c => c.user_id === profile.id);
+      // Filter claims to only those belonging to real users
+      const realClaims = claims.filter(claim => realUserIds.has(claim.user_id));
+
+      // Combine data (using filtered data only)
+      const usersWithStats: UserWithStats[] = realProfiles.map(profile => {
+        const userPets = realPets.filter(p => p.user_id === profile.id);
+        const userClaims = realClaims.filter(c => c.user_id === profile.id);
         const totalAmount = userClaims.reduce((sum, c) => sum + (c.total_amount || 0), 0);
 
         let status: 'active' | 'pet-only' | 'inactive' = 'inactive';
@@ -99,10 +116,10 @@ export default function AdminDashboard() {
         };
       });
 
-      // Create claims with details
-      const claimsWithDetails: ClaimWithDetails[] = claims.map(claim => {
-        const user = profiles.find(p => p.id === claim.user_id);
-        const pet = pets.find(p => p.id === claim.pet_id);
+      // Create claims with details (using filtered data only)
+      const claimsWithDetails: ClaimWithDetails[] = realClaims.map(claim => {
+        const user = realProfiles.find(p => p.id === claim.user_id);
+        const pet = realPets.find(p => p.id === claim.pet_id);
 
         return {
           ...claim,
