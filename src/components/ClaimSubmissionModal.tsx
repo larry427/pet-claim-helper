@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import MissingFieldsModal from './MissingFieldsModal'
 
 interface ClaimSubmissionModalProps {
   claim: any
@@ -10,21 +11,132 @@ interface ClaimSubmissionModalProps {
 }
 
 export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSuccess }: ClaimSubmissionModalProps) {
-  const [step, setStep] = useState<'confirm' | 'submitting' | 'success' | 'error'>('confirm')
+  const [step, setStep] = useState<'validating' | 'collect-missing-fields' | 'confirm' | 'submitting' | 'success' | 'error' | 'missing-data'>('validating')
   const [messageId, setMessageId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
+  const [profile, setProfile] = useState<any>(null)
+  const [missingFieldsData, setMissingFieldsData] = useState<{
+    insurerName: string
+    missingFields: any[]
+    existingData: any
+    suggestedValues: any
+  } | null>(null)
 
-  const insurer = claim.insurer || 'Nationwide'
+  const insurer = pet?.insurance_company || 'Nationwide'
   const amount = claim.total_amount ? `$${parseFloat(claim.total_amount).toFixed(2)}` : '$0.00'
 
-  // Check for missing critical data
+  // Validate required data using API
+  useEffect(() => {
+    async function validateData() {
+      try {
+        setStep('validating')
+
+        console.log('[ClaimSubmissionModal] Starting validation...')
+        console.log('[ClaimSubmissionModal] claim:', claim)
+        console.log('[ClaimSubmissionModal] pet:', pet)
+        console.log('[ClaimSubmissionModal] pet.insurance_company:', pet?.insurance_company)
+
+        // Fetch user profile for reference
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single()
+
+        if (profileError) throw profileError
+        setProfile(profileData)
+
+        // Determine insurer name from pet's insurance_company
+        const insurerName = pet?.insurance_company?.toLowerCase() || ''
+
+        console.log('[ClaimSubmissionModal] insurerName:', insurerName)
+
+        if (!insurerName || insurerName === 'not insured' || insurerName === 'none') {
+          console.log('[ClaimSubmissionModal] No insurance company found')
+          setError('Pet does not have an insurance company set. Please update pet information in Settings.')
+          setStep('missing-data')
+          return
+        }
+
+        // Call validation API to check what fields are missing for this insurer
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787'
+        console.log('[ClaimSubmissionModal] Calling validation API:', `${apiUrl}/api/claims/validate-fields`)
+        console.log('[ClaimSubmissionModal] Request body:', {
+          claimId: claim.id,
+          userId: userId,
+          insurer: insurerName
+        })
+
+        const response = await fetch(`${apiUrl}/api/claims/validate-fields`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            claimId: claim.id,
+            userId: userId,
+            insurer: insurerName
+          })
+        })
+
+        console.log('[ClaimSubmissionModal] Response status:', response.status)
+        console.log('[ClaimSubmissionModal] Response ok:', response.ok)
+        console.log('[ClaimSubmissionModal] Response headers:', {
+          'content-type': response.headers.get('content-type'),
+          'content-length': response.headers.get('content-length')
+        })
+
+        const responseText = await response.text()
+        console.log('[ClaimSubmissionModal] Response text (first 500 chars):', responseText.substring(0, 500))
+
+        let validation
+        try {
+          validation = JSON.parse(responseText)
+          console.log('[ClaimSubmissionModal] Validation response:', validation)
+        } catch (parseError) {
+          console.error('[ClaimSubmissionModal] Failed to parse JSON response:', parseError)
+          console.error('[ClaimSubmissionModal] Full response text:', responseText)
+          throw new Error(`API returned non-JSON response (status ${response.status}): ${responseText.substring(0, 200)}`)
+        }
+
+        if (!validation.ok) {
+          console.error('[ClaimSubmissionModal] Validation failed:', validation.error)
+          setError(`Error validating claim requirements: ${validation.error}`)
+          setStep('error')
+          return
+        }
+
+        console.log('[Validation] Result:', validation)
+
+        // If there are missing fields, show collection modal
+        if (validation.missingFields && validation.missingFields.length > 0) {
+          console.log('[ClaimSubmissionModal] Missing fields detected:', validation.missingFields)
+          setMissingFieldsData({
+            insurerName: pet.insurance_company,
+            missingFields: validation.missingFields,
+            existingData: validation.existingData || {},
+            suggestedValues: validation.suggestedValues || {}
+          })
+          setStep('collect-missing-fields')
+          return
+        }
+
+        // No missing fields, proceed to confirm
+        console.log('[ClaimSubmissionModal] All fields present, proceeding to confirm')
+        setStep('confirm')
+
+      } catch (err) {
+        console.error('[Validation] Error:', err)
+        setError(`Failed to validate claim: ${err.message}`)
+        setStep('error')
+      }
+    }
+
+    validateData()
+  }, [userId, pet, claim])
+
+  // No longer needed - validation is now handled by API
+  // Legacy warning has been removed in favor of the MissingFieldsModal flow
   const missingData: string[] = []
-  if (!claim.policy_number || claim.policy_number === 'N/A') missingData.push('Policy Number')
-  if (!pet?.age && !pet?.date_of_birth) missingData.push('Pet Age')
-  if (!claim.clinic_name) missingData.push('Veterinary Clinic Name')
-  if (!claim.service_date) missingData.push('Service Date')
-  if (!claim.diagnosis && !claim.visit_title) missingData.push('Diagnosis/Reason for Visit')
 
   async function handlePreviewPDF() {
     try {
@@ -37,6 +149,7 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
         throw new Error('Not authenticated')
       }
 
+      // 1. Fetch generated claim form PDF from backend
       const response = await fetch(`${apiUrl}/api/claims/${claim.id}/preview-pdf`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
@@ -48,9 +161,41 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
         throw new Error(result.error || 'Failed to generate preview')
       }
 
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      window.open(url, '_blank')
+      const claimFormBlob = await response.blob()
+      const claimFormUrl = URL.createObjectURL(claimFormBlob)
+
+      // 2. Open claim form PDF in new tab
+      window.open(claimFormUrl, '_blank', 'noopener,noreferrer')
+
+      // 3. Fetch and open vet invoice PDF if it exists
+      if (claim.pdf_path) {
+        try {
+          const { data: invoiceData, error: storageError } = await supabase.storage
+            .from('claim-pdfs')
+            .download(claim.pdf_path)
+
+          if (storageError) {
+            console.error('[Preview] Could not fetch vet invoice:', storageError)
+            alert('✓ Claim Form PDF opened\n⚠️  Vet invoice could not be loaded - please verify it was uploaded correctly')
+          } else if (invoiceData) {
+            const invoiceBlob = new Blob([invoiceData], { type: 'application/pdf' })
+            const invoiceUrl = URL.createObjectURL(invoiceBlob)
+
+            // Open invoice in another new tab
+            setTimeout(() => {
+              window.open(invoiceUrl, '_blank', 'noopener,noreferrer')
+            }, 500) // Small delay to ensure both tabs open
+
+            console.log('[Preview] Opened both PDFs: claim form + vet invoice')
+          }
+        } catch (invoiceErr) {
+          console.error('[Preview] Error loading invoice:', invoiceErr)
+          alert('✓ Claim Form PDF opened\n⚠️  Vet invoice could not be loaded')
+        }
+      } else {
+        console.log('[Preview] No vet invoice attached to this claim')
+        alert('✓ Claim Form PDF opened\n\nNote: No vet invoice is attached to this claim. The insurer may request it separately.')
+      }
     } catch (err: any) {
       console.error('[Preview PDF] Error:', err)
       alert(`Could not generate preview: ${err.message}`)
@@ -84,16 +229,132 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
       setMessageId(result.messageId)
       setStep('success')
 
-      // Notify parent component
-      setTimeout(() => {
-        onSuccess(result.messageId)
-      }, 2000)
+      // Don't auto-close - let user click "Done" button
+      // onSuccess will be called when user clicks Done
 
     } catch (err: any) {
       console.error('[ClaimSubmission] Error:', err)
       setError(err.message || 'Failed to submit claim')
       setStep('error')
     }
+  }
+
+  async function handleMissingFieldsComplete(collectedData: any) {
+    try {
+      setStep('validating')
+
+      // Save collected data to database
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787'
+      const saveResponse = await fetch(`${apiUrl}/api/claims/${claim.id}/save-collected-fields`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collectedData })
+      })
+
+      const saveResult = await saveResponse.json()
+
+      if (!saveResult.ok) {
+        setError('Failed to save claim information')
+        setStep('error')
+        return
+      }
+
+      console.log('[Save Fields] Success:', saveResult)
+
+      // Data saved successfully, proceed to confirm step
+      setStep('confirm')
+
+    } catch (error) {
+      console.error('[Save Fields] Error:', error)
+      setError('Failed to save claim information')
+      setStep('error')
+    }
+  }
+
+  if (step === 'validating') {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 max-w-md w-full text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <h2 className="text-xl font-bold text-gray-800 dark:text-white">Validating Requirements...</h2>
+          <p className="text-gray-600 dark:text-gray-300 mt-2">Checking if all required information is complete</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (step === 'collect-missing-fields' && missingFieldsData) {
+    return (
+      <MissingFieldsModal
+        open={true}
+        onClose={onClose}
+        insurerName={missingFieldsData.insurerName}
+        petId={pet.id}
+        petName={pet.name}
+        claimId={claim.id}
+        missingFields={missingFieldsData.missingFields}
+        existingData={missingFieldsData.existingData}
+        suggestedValues={missingFieldsData.suggestedValues}
+        onComplete={handleMissingFieldsComplete}
+      />
+    )
+  }
+
+  if (step === 'missing-data') {
+    const handleGoToSettings = () => {
+      onClose()
+      // Trigger settings navigation in parent component
+      window.location.hash = '#settings'
+    }
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 max-w-md w-full">
+          <div className="text-orange-500 text-6xl mb-4 text-center">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-4 text-center">Missing Required Information</h2>
+          <p className="text-gray-700 dark:text-gray-300 mb-6 text-center">
+            Please complete your profile and pet information before submitting claims.
+          </p>
+
+          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4 mb-6">
+            <h3 className="font-semibold text-orange-800 dark:text-orange-300 mb-3">Missing:</h3>
+            <ul className="text-sm text-orange-700 dark:text-orange-400 space-y-1.5">
+              {error?.split('\n').slice(1).map((line, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <span className="text-orange-500 mt-0.5">▪</span>
+                  <span>{line.replace('- ', '')}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+            <h3 className="font-semibold text-blue-800 dark:text-blue-300 mb-2">How to complete:</h3>
+            <ul className="text-sm text-blue-700 dark:text-blue-400 space-y-1">
+              <li>1. Go to Settings (click button below)</li>
+              <li>2. Fill in your signature, insurance info, and address</li>
+              <li>3. Update your pet's breed and date of birth</li>
+              <li>4. Return here and submit your claim</li>
+            </ul>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-6 py-3 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleGoToSettings}
+              className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-semibold"
+            >
+              Go to Settings
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (step === 'submitting') {
@@ -153,7 +414,10 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
           )}
 
           <button
-            onClick={() => onClose()}
+            onClick={() => {
+              onSuccess(messageId)
+              onClose()
+            }}
             className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-semibold w-full"
           >
             Done
