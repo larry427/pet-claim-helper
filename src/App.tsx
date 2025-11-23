@@ -2425,9 +2425,18 @@ export default function App() {
                 const isNotInsured = String(c.expense_category || 'insured') === 'not_insured'
                 const catBadge = (() => {
                   const v = (c.expense_category || 'insured') as 'insured' | 'not_insured' | 'maybe_insured'
-                  if (v === 'insured') return { text: 'Insured', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' }
+                  const insuranceCompany = pet?.insuranceCompany || ''
+
+                  if (v === 'insured') {
+                    // Show "Insured • [Company Name]" if insurance company exists
+                    const text = insuranceCompany ? `Insured • ${insuranceCompany}` : 'Insured'
+                    return { text, cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' }
+                  }
                   if (v === 'not_insured') return { text: 'Not Insured', cls: 'bg-amber-50 text-amber-700 border border-amber-200' }
-                  return { text: 'Maybe Insured', cls: 'bg-amber-50 text-amber-700 border border-amber-200' }
+
+                  // Maybe insured - also show company if available
+                  const text = insuranceCompany ? `Maybe Insured • ${insuranceCompany}` : 'Maybe Insured'
+                  return { text, cls: 'bg-amber-50 text-amber-700 border border-amber-200' }
                 })()
                 return (
                   <div key={c.id} className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 shadow-sm min-h-[180px] w-full" style={{ border: `2px solid ${petColor}`, touchAction: 'pan-y', overscrollBehaviorX: 'none' }}>
