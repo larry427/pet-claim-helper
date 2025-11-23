@@ -2425,7 +2425,8 @@ export default function App() {
                 const isNotInsured = String(c.expense_category || 'insured') === 'not_insured'
                 const catBadge = (() => {
                   const v = (c.expense_category || 'insured') as 'insured' | 'not_insured' | 'maybe_insured'
-                  const insuranceCompany = pet?.insuranceCompany || ''
+                  // Database returns insurance_company (snake_case), not insuranceCompany
+                  const insuranceCompany = (pet as any)?.insurance_company || ''
 
                   if (v === 'insured') {
                     // Show "Insured • [Company Name]" if insurance company exists
