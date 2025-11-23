@@ -8,6 +8,7 @@ export type NewClaim = {
   invoice_number?: string | null
   clinic_name?: string | null
   clinic_address?: string | null
+  clinic_phone?: string | null
   diagnosis?: string | null
   total_amount?: number | null
   line_items?: any
@@ -42,7 +43,7 @@ export async function listClaims(userId: string) {
     console.log('[listClaims] START - userId=', userId)
     const { data, error } = await supabase
       .from('claims')
-      .select('*, pets(id, name, species)')
+      .select('*, pets(id, name, species, insurance_company)')
       .eq('user_id', userId)
       .order('service_date', { ascending: false })
     console.log('[listClaims] QUERY RESULT - data:', data, 'error:', error)
