@@ -22,6 +22,13 @@ type SelectedFile = {
   objectUrl?: string
 }
 
+// Auto-Submit Feature Flag Whitelist
+// Only these email addresses can see the Auto-Submit button
+const AUTOSUB_WHITELIST = [
+  'test-automation@petclaimhelper.com',
+  'larry@uglydogadventures.com',
+]
+
 export default function App() {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null)
@@ -137,6 +144,17 @@ export default function App() {
   // Pet photo upload state
   const [uploadingPhotoForPetId, setUploadingPhotoForPetId] = useState<string | null>(null)
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null)
+
+  // Force re-render when extracted data changes - fix for mobile Safari
+  useEffect(() => {
+    if (extracted) {
+      // Force a repaint on mobile Safari to ensure form fields update
+      requestAnimationFrame(() => {
+        // Trigger a layout recalculation
+        document.body.offsetHeight // eslint-disable-line no-unused-expressions
+      })
+    }
+  }, [extracted])
   // Onboarding photo tooltip
   const [showPhotoTooltip, setShowPhotoTooltip] = useState(false)
 
@@ -539,23 +557,44 @@ export default function App() {
   }
 
   const processFile = (file: File | undefined | null) => {
+    // eslint-disable-next-line no-console
+    console.log('[MOBILE DEBUG] ========== processFile CALLED ==========')
+    // eslint-disable-next-line no-console
+    console.log('[MOBILE DEBUG] file:', file)
+    // eslint-disable-next-line no-console
+    console.log('[MOBILE DEBUG] file type:', file?.type)
+    // eslint-disable-next-line no-console
+    console.log('[MOBILE DEBUG] file size:', file?.size)
+
     if (!file) {
+      // eslint-disable-next-line no-console
+      console.log('[MOBILE DEBUG] No file provided, setting selectedFile to null')
       setSelectedFile(null)
       return
     }
     const isAllowed = file.type.startsWith('image/') || file.type === 'application/pdf'
     if (!isAllowed) {
+      // eslint-disable-next-line no-console
+      console.log('[MOBILE DEBUG] File type not allowed:', file.type)
       setSelectedFile(null)
       return
     }
     const isImage = file.type.startsWith('image/')
     const objectUrl = isImage ? URL.createObjectURL(file) : undefined
+    // eslint-disable-next-line no-console
+    console.log('[MOBILE DEBUG] Setting selectedFile:', { fileName: file.name, fileType: file.type, isImage, objectUrl })
     setSelectedFile({ file, objectUrl })
     setExtracted(null)
     setErrorMessage(null)
   }
 
   const handleChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+    // eslint-disable-next-line no-console
+    console.log('[MOBILE DEBUG] ========== handleChange CALLED ==========')
+    // eslint-disable-next-line no-console
+    console.log('[MOBILE DEBUG] e.target.files:', e.target.files)
+    // eslint-disable-next-line no-console
+    console.log('[MOBILE DEBUG] e.target.files?.[0]:', e.target.files?.[0])
     processFile(e.target.files?.[0])
   }
 
@@ -601,6 +640,7 @@ export default function App() {
     // Accept both camelCase and snake_case per prompt
     const clinicName = typeof raw?.clinicName === 'string' ? raw.clinicName : (typeof raw?.clinic_name === 'string' ? raw.clinic_name : '')
     const clinicAddress = typeof raw?.clinicAddress === 'string' ? raw.clinicAddress : (typeof raw?.clinic_address === 'string' ? raw.clinic_address : '')
+    const clinicPhone = typeof raw?.clinicPhone === 'string' ? raw.clinicPhone : (typeof raw?.clinic_phone === 'string' ? raw.clinic_phone : undefined)
     const petName = typeof raw?.petName === 'string' ? raw.petName : (typeof raw?.pet_name === 'string' ? raw.pet_name : '')
     const serviceDate = typeof raw?.dateOfService === 'string' ? raw.dateOfService : (typeof raw?.service_date === 'string' ? raw.service_date : '')
     const totalAmount = typeof raw?.totalAmount === 'string' ? raw.totalAmount : (raw?.total_amount != null ? String(raw.total_amount) : '')
@@ -615,6 +655,7 @@ export default function App() {
     return {
       clinicName,
       clinicAddress,
+      clinicPhone,
       petName,
       dateOfService: serviceDate,
       totalAmount,
@@ -640,6 +681,7 @@ export default function App() {
     return {
       clinicName: typeof raw?.clinicName === 'string' ? raw.clinicName : '',
       clinicAddress: typeof raw?.clinicAddress === 'string' ? raw.clinicAddress : '',
+      clinicPhone: typeof raw?.clinicPhone === 'string' ? raw.clinicPhone : (typeof raw?.clinic_phone === 'string' ? raw.clinic_phone : undefined),
       dateOfService: typeof raw?.dateOfService === 'string' ? raw.dateOfService : '',
       diagnosis: typeof raw?.diagnosis === 'string' ? raw.diagnosis : '',
       pets,
@@ -776,13 +818,31 @@ export default function App() {
   }
 
   const handleProcess = async () => {
-    if (!selectedFile) return
+    // eslint-disable-next-line no-console
+    console.log('[MOBILE DEBUG] ========== handleProcess CALLED ==========')
+    // eslint-disable-next-line no-console
+    console.log('[MOBILE DEBUG] selectedFile:', selectedFile)
+    // eslint-disable-next-line no-console
+    console.log('[MOBILE DEBUG] typeof selectedFile:', typeof selectedFile)
+    // eslint-disable-next-line no-console
+    console.log('[MOBILE DEBUG] selectedFile?.file:', selectedFile?.file)
+
+    if (!selectedFile) {
+      // eslint-disable-next-line no-console
+      console.log('[MOBILE DEBUG] ❌ EARLY RETURN - No selectedFile!')
+      return
+    }
+
     setIsProcessing(true)
     setErrorMessage(null)
     try {
       // eslint-disable-next-line no-console
       console.log('[extract] starting server-side extraction, file type:', selectedFile.file.type)
-      const apiBase = 'https://pet-claim-helper.onrender.com'  
+      // eslint-disable-next-line no-console
+      console.log('[extract] file size:', selectedFile.file.size)
+      // eslint-disable-next-line no-console
+      console.log('[extract] file name:', selectedFile.file.name)
+      const apiBase = import.meta.env.DEV ? 'http://localhost:8787' : 'https://pet-claim-helper.onrender.com'
       const form = new FormData()
       form.append('file', selectedFile.file)
       const controller = new AbortController()
@@ -799,12 +859,16 @@ export default function App() {
         throw new Error(text || `Server error (${resp.status})`)
       }
       const json = await resp.json()
+      // eslint-disable-next-line no-console
+      console.log('[MOBILE DEBUG] Full JSON response:', JSON.stringify(json, null, 2))
       if (!json || json.ok !== true || !json.data) {
         // eslint-disable-next-line no-console
         console.error('[extract] bad response shape', json)
         throw new Error('Invalid extraction response')
       }
       const parsed: any = json.data
+      // eslint-disable-next-line no-console
+      console.log('[MOBILE DEBUG] Parsed data from server:', JSON.stringify(parsed, null, 2))
       if (!parsed) {
         // eslint-disable-next-line no-console
         console.error('[extract] empty parsed data from server response')
@@ -814,6 +878,8 @@ export default function App() {
       // Try multi-pet first
       const maybeMulti = normalizeMultiExtracted(parsed)
       if (maybeMulti && maybeMulti.pets.length > 1) {
+        // eslint-disable-next-line no-console
+        console.log('[MOBILE DEBUG] Multi-pet extraction detected:', maybeMulti)
         setMultiExtracted(maybeMulti)
         setExtracted(null)
         // Auto-suggest matches by name similarity
@@ -824,9 +890,13 @@ export default function App() {
 
       // Fallback to single pet
       const normalized = normalizeExtracted(parsed)
+      // eslint-disable-next-line no-console
+      console.log('[MOBILE DEBUG] Normalized extraction result:', JSON.stringify(normalized, null, 2))
       if (selectedPet) {
         normalized.petName = selectedPet.name
       }
+      // eslint-disable-next-line no-console
+      console.log('[MOBILE DEBUG] Final extraction being set to state:', JSON.stringify(normalized, null, 2))
       setExtracted(normalized)
       setMultiExtracted(null)
     } catch (err: any) {
@@ -850,6 +920,7 @@ export default function App() {
       const blank: ExtractedBill = {
         clinicName: '',
         clinicAddress: '',
+        clinicPhone: '',
         petName: selectedPet ? selectedPet.name : '',
         dateOfService: '',
         totalAmount: '',
@@ -1712,7 +1783,15 @@ export default function App() {
                     <div className="mt-5">
                       <button
                         type="button"
-                        onClick={handleProcess}
+                        onClick={(e) => {
+                          // eslint-disable-next-line no-console
+                          console.log('[MOBILE DEBUG] ========== PROCESS BILL BUTTON CLICKED ==========')
+                          // eslint-disable-next-line no-console
+                          console.log('[MOBILE DEBUG] Event:', e)
+                          // eslint-disable-next-line no-console
+                          console.log('[MOBILE DEBUG] isProcessing:', isProcessing)
+                          handleProcess()
+                        }}
                         disabled={isProcessing}
                         className="inline-flex items-center justify-center w-full h-14 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 text-base sm:text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
                       >
@@ -1839,6 +1918,7 @@ export default function App() {
                             invoice_number: multiExtracted.invoiceNumber || null,
                             clinic_name: multiExtracted.clinicName || null,
                             clinic_address: multiExtracted.clinicAddress || null,
+                            clinic_phone: multiExtracted.clinicPhone || null,
                             diagnosis: multiExtracted.diagnosis || null,
                             total_amount: totalNum,
                             line_items: pg.lineItems,
@@ -1871,7 +1951,7 @@ export default function App() {
         )}
 
         {extracted && (
-          <section className="mx-auto mt-8 max-w-3xl">
+          <section key={JSON.stringify(extracted)} className="mx-auto mt-8 max-w-3xl">
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-sm p-5 sm:p-8">
               <div className="flex items-center justify-between">
                 <button
@@ -1929,12 +2009,16 @@ export default function App() {
                   <input value={extracted.clinicAddress} onChange={(e) => setExtracted({ ...extracted, clinicAddress: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
                 <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Clinic Phone</label>
+                  <input value={extracted.clinicPhone || ''} onChange={(e) => setExtracted({ ...extracted, clinicPhone: e.target.value })} placeholder="(XXX) XXX-XXXX" type="tel" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                </div>
+                <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Pet Name</label>
                   <input value={extracted.petName} onChange={(e) => setExtracted({ ...extracted, petName: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Date of Service</label>
-                  <input value={extracted.dateOfService} onChange={(e) => setExtracted({ ...extracted, dateOfService: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <input type="date" value={extracted.dateOfService} onChange={(e) => setExtracted({ ...extracted, dateOfService: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Invoice Number</label>
@@ -2166,6 +2250,7 @@ export default function App() {
                           invoice_number: extracted.invoiceNumber || null,
                           clinic_name: extracted.clinicName || null,
                           clinic_address: extracted.clinicAddress || null,
+                          clinic_phone: extracted.clinicPhone || null,
                           visit_title: visitTitle || null,
                           diagnosis: extracted.diagnosis || null,
                           total_amount: totalNum,
@@ -2453,11 +2538,14 @@ export default function App() {
                           )
                         }
                         if (st === 'not_submitted') {
+                          // Check if user is whitelisted for Auto-Submit feature
+                          const showAutoSubmit = userEmail && AUTOSUB_WHITELIST.includes(userEmail)
+
                           return (
                             <>
                               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                                {/* Auto-Submit Button - Feature Flagged */}
-                                {import.meta.env.VITE_ENABLE_AUTO_SUBMIT === 'true' && (
+                                {/* Auto-Submit Button - Whitelisted Users Only */}
+                                {showAutoSubmit && (
                                   <button
                                     type="button"
                                     className="text-xs px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold whitespace-nowrap flex items-center gap-1.5"
@@ -2492,32 +2580,33 @@ export default function App() {
                                 >
                                   Mark Submitted
                                 </button>
-                                {(['insured','maybe'].includes(String(c.expense_category || 'insured').toLowerCase())) && (
-                                  <div className="flex flex-wrap items-center gap-1 text-xs text-slate-500 w-full sm:w-auto">
-                                    <span className="whitespace-nowrap">Change Status:</span>
-                                    <select
-                                      className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 w-full sm:w-auto max-w-xs"
-                                      value="not_submitted"
-                                      onChange={async (e) => {
-                                        try {
-                                          const next = e.target.value
-                                          const newStatus = next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next)
-                                          await updateClaim(c.id, { filing_status: newStatus })
-                                          // Optimistically update local UI to reflect new status immediately
-                                          setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: newStatus } : cl))
-                                          try { alert('✓ Status updated') } catch {}
-                                          await new Promise((r) => setTimeout(r, 400))
-                                          if (userId) listClaims(userId).then(setClaims)
-                                        } catch (er) { console.error('[edit status] error', er) }
-                                      }}
-                                    >
-                                      <option value="not_submitted">Not Submitted</option>
-                                      <option value="submitted">Submitted</option>
-                                      <option value="denied">Denied</option>
-                                    </select>
-                                  </div>
-                                )}
                               </div>
+                              {/* Change Status Dropdown - Separate Row */}
+                              {(['insured','maybe'].includes(String(c.expense_category || 'insured').toLowerCase())) && (
+                                <div className="flex items-center gap-2 mt-2">
+                                  <span className="text-xs text-slate-500 whitespace-nowrap">Change Status:</span>
+                                  <select
+                                    className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                                    value="not_submitted"
+                                    onChange={async (e) => {
+                                      try {
+                                        const next = e.target.value
+                                        const newStatus = next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next)
+                                        await updateClaim(c.id, { filing_status: newStatus })
+                                        // Optimistically update local UI to reflect new status immediately
+                                        setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: newStatus } : cl))
+                                        try { alert('✓ Status updated') } catch {}
+                                        await new Promise((r) => setTimeout(r, 400))
+                                        if (userId) listClaims(userId).then(setClaims)
+                                      } catch (er) { console.error('[edit status] error', er) }
+                                    }}
+                                  >
+                                    <option value="not_submitted">Not Submitted</option>
+                                    <option value="submitted">Submitted</option>
+                                    <option value="denied">Denied</option>
+                                  </select>
+                                </div>
+                              )}
                               {/* Coming Soon: Auto-Submit Teaser */}
                               <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/30 border-l-4 border-blue-400 rounded">
                                 <div className="flex items-start">
@@ -2566,31 +2655,32 @@ export default function App() {
                                 >
                                   Deny Claim
                                 </button>
-                                {(['insured','maybe'].includes(String(c.expense_category || 'insured').toLowerCase())) && (
-                                  <div className="flex flex-wrap items-center gap-1 text-xs text-slate-500 w-full sm:w-auto">
-                                    <span className="whitespace-nowrap">Change Status:</span>
-                                    <select
-                                      className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 w-full sm:w-auto max-w-xs"
-                                      value="submitted"
-                                      onChange={async (e) => {
-                                        try {
-                                          const next = e.target.value
-                                          const newStatus = next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next)
-                                          await updateClaim(c.id, { filing_status: newStatus })
-                                          // Optimistically update local UI to reflect new status immediately
-                                          setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: newStatus } : cl))
-                                          try { alert('✓ Status updated') } catch {}
-                                          if (userId) listClaims(userId).then(setClaims)
-                                        } catch (er) { console.error('[edit status] error', er) }
-                                      }}
-                                    >
-                                      <option value="submitted">Submitted</option>
-                                      <option value="not_submitted">Not Submitted</option>
-                                      <option value="denied">Denied</option>
-                                    </select>
-                                  </div>
-                                )}
                               </div>
+                              {/* Change Status Dropdown - Separate Row */}
+                              {(['insured','maybe'].includes(String(c.expense_category || 'insured').toLowerCase())) && (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-slate-500 whitespace-nowrap">Change Status:</span>
+                                  <select
+                                    className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                                    value="submitted"
+                                    onChange={async (e) => {
+                                      try {
+                                        const next = e.target.value
+                                        const newStatus = next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next)
+                                        await updateClaim(c.id, { filing_status: newStatus })
+                                        // Optimistically update local UI to reflect new status immediately
+                                        setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: newStatus } : cl))
+                                        try { alert('✓ Status updated') } catch {}
+                                        if (userId) listClaims(userId).then(setClaims)
+                                      } catch (er) { console.error('[edit status] error', er) }
+                                    }}
+                                  >
+                                    <option value="submitted">Submitted</option>
+                                    <option value="not_submitted">Not Submitted</option>
+                                    <option value="denied">Denied</option>
+                                  </select>
+                                </div>
+                              )}
                             </div>
                           )
                         }
