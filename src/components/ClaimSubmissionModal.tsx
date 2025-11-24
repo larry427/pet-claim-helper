@@ -166,13 +166,26 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
       const pdfBlob = await response.blob()
       const pdfUrl = URL.createObjectURL(pdfBlob)
 
-      // 2. Open merged PDF in new tab
-      window.open(pdfUrl, '_blank', 'noopener,noreferrer')
+      // 2. Detect mobile device
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768
 
-      if (claim.pdf_path) {
-        console.log('[Preview] Opened merged PDF (claim form + vet invoice)')
+      if (isMobile) {
+        // On mobile: download PDF instead of opening in new tab
+        const link = document.createElement('a')
+        link.href = pdfUrl
+        link.download = `claim-${pet.name}-${new Date().toISOString().split('T')[0]}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        console.log('[Preview] Downloaded PDF on mobile device')
       } else {
-        console.log('[Preview] Opened claim form PDF (no vet invoice attached)')
+        // On desktop: open in new tab
+        window.open(pdfUrl, '_blank', 'noopener,noreferrer')
+        if (claim.pdf_path) {
+          console.log('[Preview] Opened merged PDF (claim form + vet invoice)')
+        } else {
+          console.log('[Preview] Opened claim form PDF (no vet invoice attached)')
+        }
       }
     } catch (err: any) {
       console.error('[Preview PDF] Error:', err)
@@ -540,7 +553,7 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
             )}
           </button>
           <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
-            Opens in new tab • Review before submitting
+            Review before submitting
           </p>
         </div>
 
