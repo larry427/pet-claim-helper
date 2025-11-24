@@ -66,25 +66,52 @@ function shouldUseOfficialForm(normalizedInsurer) {
 async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
   const normalizedInsurer = insurer.toLowerCase()
 
+  console.log('🔍 DEBUG fillOfficialForm:')
+  console.log(`   Raw insurer: "${insurer}"`)
+  console.log(`   Normalized: "${normalizedInsurer}"`)
+  console.log(`   includes('healthy'): ${normalizedInsurer.includes('healthy')}`)
+  console.log(`   includes('paws'): ${normalizedInsurer.includes('paws')}`)
+
   // Determine which PDF to load
   let pdfFilename
   if (normalizedInsurer.includes('nationwide')) {
     pdfFilename = 'nationwide-claim-form.pdf'
+    console.log(`   ✅ Matched: Nationwide`)
   } else if (normalizedInsurer.includes('trupanion')) {
     pdfFilename = 'trupanion-claim-form.pdf'
+    console.log(`   ✅ Matched: Trupanion`)
   } else if (normalizedInsurer.includes('healthy') || normalizedInsurer.includes('paws')) {
     pdfFilename = 'Healthy Paws blank form.pdf'
+    console.log(`   ✅ Matched: Healthy Paws`)
   } else {
+    console.log(`   ❌ NO MATCH for insurer: "${insurer}"`)
     throw new Error(`No official form available for insurer: ${insurer}`)
   }
 
+  console.log(`   Selected PDF: "${pdfFilename}"`)
+
   // Load the official PDF
   const pdfPath = path.join(__dirname, '..', 'claim-forms', pdfFilename)
+  console.log(`   Full path: "${pdfPath}"`)
+  console.log(`   __dirname: "${__dirname}"`)
+
   if (!fs.existsSync(pdfPath)) {
     console.error(`❌ Official PDF not found: ${pdfPath}`)
+    console.log(`   Listing claim-forms directory:`)
+    try {
+      const dirPath = path.join(__dirname, '..', 'claim-forms')
+      const files = fs.readdirSync(dirPath)
+      console.log(`   Files in ${dirPath}:`)
+      files.forEach(file => console.log(`     - ${file}`))
+    } catch (e) {
+      console.error(`   Could not list directory: ${e.message}`)
+    }
     console.log(`   Falling back to generated PDF`)
     return await generatePDFFromScratch(insurer, claimData, userSignature, dateSigned)
   }
+
+  console.log(`   ✅ PDF file exists`)
+
 
   const pdfBytes = fs.readFileSync(pdfPath)
   const pdfDoc = await PDFDocument.load(pdfBytes)
