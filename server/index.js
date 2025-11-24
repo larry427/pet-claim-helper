@@ -1320,6 +1320,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         policyholderPhone: profile.phone || '',
         policyholderEmail: profile.email,
         policyNumber: claim.pets.policy_number || 'N/A',  // Get from pets table, not claims table
+        healthyPawsPetId: claim.pets.healthy_paws_pet_id || '',  // For Healthy Paws form
         petName: claim.pets.name,
         petSpecies: claim.pets.species,
         petBreed: claim.pets.breed || '',
@@ -1336,6 +1337,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         bodyPartAffected: bodyPart,  // Extracted from diagnosis
         totalAmount: claim.total_amount || 0,
         itemizedCharges: claim.line_items || [],
+        invoiceNumber: claim.invoice_number || '',  // Invoice/receipt number for HP and other insurers
         invoiceAttached: false, // For MVP, we're not attaching invoices yet
 
         // Trupanion: Payment method and other claim-specific fields
@@ -1540,6 +1542,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         policyholderPhone: profile.phone || '',
         policyholderEmail: user.email,
         policyNumber: claim.pets.policy_number || 'N/A',
+        healthyPawsPetId: claim.pets.healthy_paws_pet_id || '',  // For Healthy Paws form
         petName: claim.pets.name,
         petSpecies: claim.pets.species,
         petBreed: claim.pets.breed || '',
@@ -1553,6 +1556,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         bodyPartAffected: '',  // TODO: Add body_part column to claims table for Nationwide
         totalAmount: claim.total_amount || 0,
         itemizedCharges: claim.line_items || [],
+        invoiceNumber: claim.invoice_number || '',  // Invoice/receipt number for HP and other insurers
         invoiceAttached: false,
 
         // Trupanion-specific fields
