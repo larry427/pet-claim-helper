@@ -192,18 +192,13 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
         const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
         console.log('[Preview] Is iOS:', isIOS)
 
-        // TEMPORARY DEBUG ALERT - REMOVE AFTER TESTING
-        alert(`🐛 MOBILE DEBUG:\n\nMobile detected: ${isMobile}\nIs iOS: ${isIOS}\nPDF URL exists: ${pdfUrl ? 'yes' : 'no'}\nUser Agent: ${navigator.userAgent.substring(0, 50)}...`)
-
         if (isIOS) {
           // For iOS: Open in same window (will open PDF viewer)
           console.log('[Preview] Opening PDF in same window (iOS)')
-          alert('🍎 Taking iOS path - opening PDF URL directly')
           window.location.href = pdfUrl
         } else {
           // For Android: Try download
           console.log('[Preview] Attempting download (Android)')
-          alert('🤖 Taking Android path - triggering download')
           const link = document.createElement('a')
           link.href = pdfUrl
           link.download = `claim-${pet.name}-${new Date().toISOString().split('T')[0]}.pdf`
