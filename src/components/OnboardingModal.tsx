@@ -94,7 +94,9 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         profileUpdate.address = address.trim()
       }
 
-      // Save profile (Step 1)
+      // Save profile (Step 1) - also mark onboarding as complete
+      profileUpdate.onboarding_complete = true
+
       const { error: profErr } = await supabase
         .from('profiles')
         .update(profileUpdate)

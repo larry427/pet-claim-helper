@@ -88,7 +88,7 @@ export default function App() {
   const [dataRefreshToken, setDataRefreshToken] = useState(0)
   const [showClaims, setShowClaims] = useState(false)
   
-  const [finPeriod, setFinPeriod] = useState<'all' | '2025' | '2024' | 'last12'>('all')
+  const [finPeriod, setFinPeriod] = useState<'all' | '2026' | '2025' | '2024' | 'last12'>('all')
   const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications' | 'admin'>('app')
   const [isAdmin, setIsAdmin] = useState(false)
   const [editingClaim, setEditingClaim] = useState<any | null>(null)
@@ -104,6 +104,7 @@ export default function App() {
   const [paidAmount, setPaidAmount] = useState<string>('')
   const [paidDate, setPaidDate] = useState<string>(getLocalTodayYYYYMMDD())
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null) // null = not loaded yet
   const [successModal, setSuccessModal] = useState<null | {
     claimId: string | null
     petName: string
@@ -224,7 +225,22 @@ export default function App() {
           updateUserTimezone(userTimezone).catch(() => {})
         } catch {}
         try { console.log('[auth] calling dbLoadPets for user:', s.user.id) } catch {}
-        dbLoadPets(s.user.id).then((p) => { setPets(p); if ((p || []).length === 0) setShowOnboarding(true) }).catch((err) => { console.error('[auth] dbLoadPets failed:', err); setPets([]) })
+        // Load pets and profile to check onboarding status
+        Promise.all([
+          dbLoadPets(s.user.id),
+          supabase.from('profiles').select('onboarding_complete').eq('id', s.user.id).single()
+        ]).then(([petsData, profileData]) => {
+          setPets(petsData)
+          const completed = profileData.data?.onboarding_complete ?? false
+          setOnboardingComplete(completed)
+          // Only show onboarding if no pets AND onboarding not completed
+          if ((petsData || []).length === 0 && !completed) {
+            setShowOnboarding(true)
+          }
+        }).catch((err) => {
+          console.error('[auth] dbLoadPets failed:', err)
+          setPets([])
+        })
         listClaims(s.user.id).then(setClaims).catch((err) => { console.error('[auth] listClaims failed:', err); setClaims([]) })
       } else {
         try { console.log('[auth] getSession() no session found - showing signup') } catch {}
@@ -293,7 +309,22 @@ export default function App() {
           updateUserTimezone(userTimezone).catch(() => {})
         } catch {}
         try { console.log('[auth] calling dbLoadPets for user:', session.user.id) } catch {}
-        dbLoadPets(session.user.id).then((p) => { setPets(p); if ((p || []).length === 0) setShowOnboarding(true) }).catch((err) => { console.error('[auth] dbLoadPets failed:', err); setPets([]) })
+        // Load pets and profile to check onboarding status
+        Promise.all([
+          dbLoadPets(session.user.id),
+          supabase.from('profiles').select('onboarding_complete').eq('id', session.user.id).single()
+        ]).then(([petsData, profileData]) => {
+          setPets(petsData)
+          const completed = profileData.data?.onboarding_complete ?? false
+          setOnboardingComplete(completed)
+          // Only show onboarding if no pets AND onboarding not completed
+          if ((petsData || []).length === 0 && !completed) {
+            setShowOnboarding(true)
+          }
+        }).catch((err) => {
+          console.error('[auth] dbLoadPets failed:', err)
+          setPets([])
+        })
         listClaims(session.user.id).then(setClaims).catch((err) => { console.error('[auth] listClaims failed:', err); setClaims([]) })
       } else {
         setUserEmail(null)
@@ -415,8 +446,8 @@ export default function App() {
   const addPet = () => {
     const trimmedName = newPet.name.trim()
     if (!trimmedName) return
-    if (!newPetInsurer) { alert('Please select an insurance company'); return }
-    if (newPetInsurer === 'NO_INSURANCE') {
+    // Treat empty string as NO_INSURANCE (insurance is optional)
+    if (!newPetInsurer || newPetInsurer === 'NO_INSURANCE') {
       newPet.insuranceCompany = '' as any
       newPet.filing_deadline_days = ''
       newPet.policyNumber = ''
@@ -499,10 +530,10 @@ export default function App() {
 
   const saveEdit = () => {
     if (!editingPetId || !editPet) return
-    if (!editPetInsurer) { alert('Please select an insurance company'); return }
+    // Treat empty string as NO_INSURANCE (insurance is optional)
     let finalCompany = ''
     let finalDays: number | '' = ''
-    if (editPetInsurer === 'NO_INSURANCE') {
+    if (!editPetInsurer || editPetInsurer === 'NO_INSURANCE') {
       finalCompany = ''
       finalDays = ''
     } else if (editPetInsurer === 'Custom Insurance') {
@@ -1029,6 +1060,13 @@ export default function App() {
       const start = parseYmdLocal(startIso)
       if (!start) return 0
       const now = new Date()
+      if (finPeriod === '2026') {
+        const year = 2026
+        if (start.getFullYear() > year) return 0
+        const startMonth = start.getFullYear() < year ? 0 : start.getMonth()
+        const endMonth = (now.getFullYear() === year) ? now.getMonth() : 11
+        return Math.max(0, endMonth - startMonth + 1)
+      }
       if (finPeriod === '2025') {
         const year = 2025
         if (start.getFullYear() > year) return 0
@@ -1053,6 +1091,7 @@ export default function App() {
       const d = c.service_date ? new Date(c.service_date) : null
       if (!d || Number.isNaN(d.getTime())) return false
       if (finPeriod === 'all') return true
+      if (finPeriod === '2026') return d.getFullYear() === 2026
       if (finPeriod === '2025') return d.getFullYear() === 2025
       if (finPeriod === '2024') return d.getFullYear() === 2024
       if (finPeriod === 'last12') {
@@ -2342,6 +2381,7 @@ export default function App() {
                   className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-sm"
                 >
                   <option value="all">All Time</option>
+                  <option value="2026">2026</option>
                   <option value="2025">2025</option>
                   <option value="2024">2024</option>
                   <option value="last12">Last 12 Months</option>
@@ -3469,7 +3509,7 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
     userEmail: string | null;
     onClose: () => void;
     onDefaultExpenseChange: (v: 'insured' | 'not_insured' | 'maybe_insured') => void;
-    onDefaultPeriodChange: (v: 'all' | '2025' | '2024' | 'last12') => void;
+    onDefaultPeriodChange: (v: 'all' | '2026' | '2025' | '2024' | 'last12') => void;
   }) {
     const [loading, setLoading] = useState(false)
     const [fullName, setFullName] = useState('')
