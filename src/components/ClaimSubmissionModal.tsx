@@ -149,8 +149,10 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
         throw new Error('Not authenticated')
       }
 
-      // 1. Fetch generated claim form PDF from backend
-      const response = await fetch(`${apiUrl}/api/claims/${claim.id}/preview-pdf`, {
+      // 1. Fetch merged PDF (claim form + vet invoice) from backend
+      // Use ?merged=true to request both PDFs merged into one
+      const mergedParam = claim.pdf_path ? '?merged=true' : ''
+      const response = await fetch(`${apiUrl}/api/claims/${claim.id}/preview-pdf${mergedParam}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         }
@@ -161,40 +163,16 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
         throw new Error(result.error || 'Failed to generate preview')
       }
 
-      const claimFormBlob = await response.blob()
-      const claimFormUrl = URL.createObjectURL(claimFormBlob)
+      const pdfBlob = await response.blob()
+      const pdfUrl = URL.createObjectURL(pdfBlob)
 
-      // 2. Open claim form PDF in new tab
-      window.open(claimFormUrl, '_blank', 'noopener,noreferrer')
+      // 2. Open merged PDF in new tab
+      window.open(pdfUrl, '_blank', 'noopener,noreferrer')
 
-      // 3. Fetch and open vet invoice PDF if it exists
       if (claim.pdf_path) {
-        try {
-          const { data: invoiceData, error: storageError } = await supabase.storage
-            .from('claim-pdfs')
-            .download(claim.pdf_path)
-
-          if (storageError) {
-            console.error('[Preview] Could not fetch vet invoice:', storageError)
-            alert('✓ Claim Form PDF opened\n⚠️  Vet invoice could not be loaded - please verify it was uploaded correctly')
-          } else if (invoiceData) {
-            const invoiceBlob = new Blob([invoiceData], { type: 'application/pdf' })
-            const invoiceUrl = URL.createObjectURL(invoiceBlob)
-
-            // Open invoice in another new tab
-            setTimeout(() => {
-              window.open(invoiceUrl, '_blank', 'noopener,noreferrer')
-            }, 500) // Small delay to ensure both tabs open
-
-            console.log('[Preview] Opened both PDFs: claim form + vet invoice')
-          }
-        } catch (invoiceErr) {
-          console.error('[Preview] Error loading invoice:', invoiceErr)
-          alert('✓ Claim Form PDF opened\n⚠️  Vet invoice could not be loaded')
-        }
+        console.log('[Preview] Opened merged PDF (claim form + vet invoice)')
       } else {
-        console.log('[Preview] No vet invoice attached to this claim')
-        alert('✓ Claim Form PDF opened\n\nNote: No vet invoice is attached to this claim. The insurer may request it separately.')
+        console.log('[Preview] Opened claim form PDF (no vet invoice attached)')
       }
     } catch (err: any) {
       console.error('[Preview PDF] Error:', err)
