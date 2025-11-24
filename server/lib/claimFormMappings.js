@@ -51,25 +51,30 @@ const FORM_FIELD_MAPPINGS = {
   },
 
   healthypaws: {
-    // TODO: Update these with actual field names from inspectPdfFields.js
-    // Placeholder mappings - replace with actual PDF field names
+    // ✅ COORDINATE-BASED MAPPING (Flat PDF - no fillable fields)
+    // Healthy Paws form is 612 x 792 points. Origin (0,0) is bottom-left.
+    // Use pdf-lib drawText() to overlay text at these coordinates
+    // FINAL coordinates after Canva form redesign - adjusted down
 
-    policyholderName: null,  // Will be filled after inspection
-    policyholderAddress: null,
-    policyholderPhone: null,
-    policyholderEmail: null,
-    policyNumber: null,
-    petName: null,
-    petSpecies: null,
-    petBreed: null,
-    petAge: null,
-    treatmentDate: null,
-    veterinaryClinic: null,
-    clinicAddress: null,
-    clinicPhone: null,
-    diagnosis: null,
-    totalAmount: null,
-    signatureDate: null,
+    // YOUR POLICY INFORMATION SECTION
+    policyNumber: { x: 175, y: 535, size: 10 },  // Policy Number
+    petName: { x: 500, y: 535, size: 10 },       // Pet Name
+    policyholderName: { x: 175, y: 500, size: 10 },  // Pet Parent Name
+    healthyPawsPetId: { x: 500, y: 500, size: 10 },  // Pet Id
+    policyholderPhone: { x: 175, y: 465, size: 10 }, // Phone Number
+    policyholderEmail: { x: 500, y: 465, size: 10 }, // Email
+
+    // YOUR CLAIM INFORMATION SECTION
+    invoiceNumber: { x: 175, y: 405, size: 10 },    // Invoice Number
+    treatmentDate: { x: 460, y: 400, size: 10 },    // Invoice Date (moved left and down)
+    veterinaryClinic: { x: 230, y: 375, size: 10 }, // Veterinary Hospital Name
+    totalAmount: { x: 500, y: 375, size: 10 },      // Invoice Total
+    // dateFirstSymptoms - REMOVED - don't auto-fill this field (legal liability)
+    diagnosis: { x: 85, y: 305, size: 10 },         // What was pet treated for
+
+    // SIGNATURE SECTION
+    signature: { x: 175, y: 175, width: 150, height: 40 },  // Policyholder Signature
+    signatureDate: { x: 480, y: 175, size: 10 },    // Date Signed
   },
 
   trupanion: {
@@ -490,7 +495,7 @@ export const INSURER_REQUIRED_FIELDS = {
   ],
 
   healthypaws: [
-    // Healthy Paws generates a custom PDF, so requirements are simpler
+    // Healthy Paws uses coordinate-based text overlay on official form
     {
       field: 'signature',
       source: 'profiles.signature',
@@ -508,12 +513,37 @@ export const INSURER_REQUIRED_FIELDS = {
       placeholder: 'John Smith'
     },
     {
+      field: 'policyholderPhone',
+      source: 'profiles.phone',
+      required: true,
+      type: 'phone',
+      prompt: 'Your phone number',
+      placeholder: '(555) 123-4567'
+    },
+    {
+      field: 'policyholderEmail',
+      source: 'profiles.email',
+      required: true,
+      type: 'email',
+      prompt: 'Your email address',
+      placeholder: 'john@example.com'
+    },
+    {
       field: 'policyNumber',
-      source: 'pets.policy_number',  // Policy number is stored in pets table
+      source: 'pets.policy_number',
       required: true,
       type: 'text',
       prompt: 'Policy number',
       placeholder: 'HP1234567'
+    },
+    {
+      field: 'healthyPawsPetId',
+      source: 'pets.healthy_paws_pet_id',
+      required: true,
+      type: 'text',
+      prompt: 'Healthy Paws Pet ID',
+      placeholder: 'e.g., 1400806-1',
+      description: 'Found on your Healthy Paws insurance card or policy documents'
     }
   ]
 }
@@ -570,9 +600,11 @@ function getFieldValue(fieldName, profileData, petData, claimData) {
     'policyholderName': profileData?.full_name,
     'policyholderPhone': profileData?.phone,
     'policyholderAddress': profileData?.address,
+    'policyholderEmail': profileData?.email,
 
     // Pet fields (policy_number is stored in pets table, not profiles!)
     'policyNumber': petData?.policy_number,
+    'healthyPawsPetId': petData?.healthy_paws_pet_id,
     'adoptionDate': petData?.adoption_date,
     'spayNeuterStatus': petData?.spay_neuter_status,
     'spayNeuterDate': petData?.spay_neuter_date,

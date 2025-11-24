@@ -27,9 +27,9 @@ const TEST_EMAIL = 'larry@vrexistence.com'
  * MAIN FUNCTION: Generate claim form PDF using official forms or generated PDF
  *
  * Routes to appropriate method based on insurer:
- * - Nationwide: Official PDF form
- * - Trupanion: Official PDF form
- * - Healthy Paws: Generated PDF (their form has no fillable fields)
+ * - Nationwide: Official PDF form (fillable fields)
+ * - Trupanion: Official PDF form (fillable fields)
+ * - Healthy Paws: Official PDF form (text overlay - no fillable fields)
  */
 export async function generateClaimFormPDF(insurer, claimData, userSignature, dateSigned) {
   const normalizedInsurer = insurer.toLowerCase()
@@ -54,7 +54,10 @@ export async function generateClaimFormPDF(insurer, claimData, userSignature, da
  * Check if we should use official form for this insurer
  */
 function shouldUseOfficialForm(normalizedInsurer) {
-  return normalizedInsurer.includes('nationwide') || normalizedInsurer.includes('trupanion')
+  return normalizedInsurer.includes('nationwide') ||
+         normalizedInsurer.includes('trupanion') ||
+         normalizedInsurer.includes('healthy') ||
+         normalizedInsurer.includes('paws')
 }
 
 /**
@@ -69,6 +72,8 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
     pdfFilename = 'nationwide-claim-form.pdf'
   } else if (normalizedInsurer.includes('trupanion')) {
     pdfFilename = 'trupanion-claim-form.pdf'
+  } else if (normalizedInsurer.includes('healthy') || normalizedInsurer.includes('paws')) {
+    pdfFilename = 'Healthy Paws blank form.pdf'
   } else {
     throw new Error(`No official form available for insurer: ${insurer}`)
   }
@@ -83,7 +88,16 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
 
   const pdfBytes = fs.readFileSync(pdfPath)
   const pdfDoc = await PDFDocument.load(pdfBytes)
+
+  // Check if this is a flat PDF (no form fields) - use text overlay instead
   const form = pdfDoc.getForm()
+  const fields = form.getFields()
+
+  if (fields.length === 0) {
+    console.log(`📄 Flat PDF detected (no form fields)`)
+    console.log(`   Using text overlay method for ${insurer}\n`)
+    return await fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignature, dateSigned)
+  }
 
   // Remove unwanted pages from Nationwide form (keep only page 1)
   if (normalizedInsurer.includes('nationwide')) {
@@ -314,6 +328,29 @@ function getValueForField(fieldName, claimData, dateSigned) {
     }
   }
 
+  // Helper to format dates for Healthy Paws (spaces instead of slashes)
+  // HP forms have pre-printed slashes, so we just need the numbers separated by spaces
+  const formatDateHealthyPaws = (isoDate) => {
+    if (!isoDate) return null
+    try {
+      // Parse date components directly to avoid timezone issues
+      // Input format: YYYY-MM-DD
+      if (typeof isoDate === 'string' && isoDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+        const [year, month, day] = isoDate.split('T')[0].split('-')
+        return `${month}  ${day}  ${year}` // Double spaces for better spacing
+      }
+
+      // Fallback to Date object parsing
+      const date = new Date(isoDate)
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      const year = date.getFullYear()
+      return `${month}  ${day}  ${year}` // Double spaces for better spacing
+    } catch {
+      return isoDate // Return as-is if parsing fails
+    }
+  }
+
   // Helper to format phone numbers
   const formatPhone = (phone) => {
     if (!phone) return null
@@ -391,6 +428,18 @@ function getValueForField(fieldName, claimData, dateSigned) {
 
   // Field mappings
   const fieldMap = {
+    // HEALTHY PAWS COORDINATE-BASED FIELDS
+    healthyPawsPetId: claimData.healthyPawsPetId,
+    policyholderEmail: claimData.policyholderEmail,
+    veterinaryClinic: claimData.vetClinicName,
+    invoiceNumber: claimData.invoiceNumber,
+    // dateFirstSymptoms - REMOVED - Legal liability risk, let policyholder fill manually
+    policyholderPhone: formatPhone(claimData.policyholderPhone),
+    treatmentDate: claimData.treatmentDate ? formatDate(claimData.treatmentDate) : null,
+    totalAmount: claimData.totalAmount ? '$' + formatAmount(claimData.totalAmount) : null,
+    signatureDate: dateSigned,  // Standard MM/DD/YYYY format (form has no pre-printed slashes)
+    diagnosis: claimData.diagnosis,
+
     // NATIONWIDE 2025 FORM FIELDS
     policyholderName: claimData.policyholderName,
     policyNumber: claimData.policyNumber,
@@ -409,8 +458,6 @@ function getValueForField(fieldName, claimData, dateSigned) {
     totalAmount2: null,
     treatmentDate3: null,  // Reserved for additional invoices from different visit dates
     totalAmount3: null,
-
-    signatureDate: dateSigned,
 
     // Nationwide checkboxes (auto-detect from diagnosis)
     checkboxEarInfection: claimData.diagnosis?.toLowerCase().includes('ear') || false,
@@ -468,8 +515,138 @@ function getValueForField(fieldName, claimData, dateSigned) {
 }
 
 /**
+ * Fill flat PDF (no form fields) using text overlay at coordinates
+ * Used for Healthy Paws and other insurers with non-fillable forms
+ */
+async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignature, dateSigned) {
+  const normalizedInsurer = insurer.toLowerCase()
+
+  console.log(`\n${'='.repeat(80)}`)
+  console.log(`📝 FILLING FLAT PDF WITH TEXT OVERLAY`)
+  console.log(`${'='.repeat(80)}`)
+  console.log(`  Insurer: ${insurer}`)
+  console.log(`  Method: Coordinate-based text overlay`)
+  console.log(`${'='.repeat(80)}\n`)
+
+  // Get coordinate mapping for this insurer
+  const mapping = getMappingForInsurer(insurer)
+  if (!mapping) {
+    console.error(`❌ No coordinate mapping found for: ${insurer}`)
+    console.log(`   Falling back to generated PDF`)
+    return await generatePDFFromScratch(insurer, claimData, userSignature, dateSigned)
+  }
+
+  // Get the first page
+  const pages = pdfDoc.getPages()
+  const firstPage = pages[0]
+  const { width, height } = firstPage.getSize()
+
+  console.log(`📄 Page dimensions: ${width} x ${height} points\n`)
+
+  // Embed fonts
+  const { StandardFonts } = await import('pdf-lib')
+  const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica)
+  const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+
+  console.log(`✅ Fonts embedded\n`)
+  console.log(`📝 Overlaying text fields...\n`)
+
+  let fieldsFilled = 0
+  let fieldsSkipped = 0
+
+  // Fill each mapped field using coordinates
+  for (const [ourFieldName, coordinates] of Object.entries(mapping)) {
+    if (!coordinates) {
+      fieldsSkipped++
+      continue
+    }
+
+    // Handle signature image separately (doesn't use getValueForField)
+    if (ourFieldName === 'signature' && coordinates.width && coordinates.height) {
+      console.log(`🖊️  Processing signature field...`)
+      console.log(`   Has userSignature: ${!!userSignature}`)
+      console.log(`   Signature type: ${typeof userSignature}`)
+      console.log(`   Signature preview: ${userSignature?.substring(0, 30)}...`)
+
+      if (userSignature && typeof userSignature === 'string' && userSignature.startsWith('data:image')) {
+        try {
+          console.log(`   ✅ Valid signature data URL detected`)
+          console.log(`   Embedding signature at (${coordinates.x}, ${coordinates.y}) with size ${coordinates.width}x${coordinates.height}`)
+
+          // Extract base64 data from data URL
+          const base64Data = userSignature.split(',')[1]
+          const signatureBytes = Buffer.from(base64Data, 'base64')
+          console.log(`   Signature bytes length: ${signatureBytes.length}`)
+
+          // Embed the PNG image
+          const signatureImage = await pdfDoc.embedPng(signatureBytes)
+
+          firstPage.drawImage(signatureImage, {
+            x: coordinates.x,
+            y: coordinates.y,
+            width: coordinates.width,
+            height: coordinates.height
+          })
+
+          console.log(`   ✅ Signature embedded successfully!`)
+          fieldsFilled++
+        } catch (sigError) {
+          console.error(`   ❌ Failed to embed signature: ${sigError.message}`)
+          fieldsSkipped++
+        }
+      } else {
+        console.log(`   ⚠️  No valid signature provided`)
+        console.log(`   Expected format: data:image/png;base64,...`)
+        fieldsSkipped++
+      }
+      continue
+    }
+
+    // Get the value for this field from our claim data
+    const value = getValueForField(ourFieldName, claimData, dateSigned)
+
+    if (!value && value !== false) {
+      fieldsSkipped++
+      continue
+    }
+
+    try {
+
+      // Draw text at coordinates
+      const fontSize = coordinates.size || 10
+      const textValue = String(value)
+
+      firstPage.drawText(textValue, {
+        x: coordinates.x,
+        y: coordinates.y,
+        size: fontSize,
+        font: helveticaFont,
+        color: { type: 'RGB', red: 0, green: 0, blue: 0 }
+      })
+
+      console.log(`   ✅ ${ourFieldName}: "${textValue}" at (${coordinates.x}, ${coordinates.y})`)
+      fieldsFilled++
+
+    } catch (err) {
+      console.warn(`   ⚠️  ${ourFieldName}: ${err.message}`)
+      fieldsSkipped++
+    }
+  }
+
+  console.log(`\n${'─'.repeat(80)}`)
+  console.log(`📊 Text Overlay Complete:`)
+  console.log(`   Fields filled: ${fieldsFilled}`)
+  console.log(`   Fields skipped: ${fieldsSkipped}`)
+  console.log('─'.repeat(80) + '\n')
+
+  // Save and return as buffer
+  const filledPdfBytes = await pdfDoc.save()
+  return Buffer.from(filledPdfBytes)
+}
+
+/**
  * LEGACY: Generate PDF from scratch using jsPDF
- * Used for Healthy Paws (flattened form) and as fallback
+ * Used as fallback when no official form is available
  */
 async function generatePDFFromScratch(insurer, claimData, userSignature, dateSigned) {
   const doc = new jsPDF({
