@@ -1083,6 +1083,20 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         }
       }
 
+      // Save healthy_paws_pet_id to pets table
+      if (collectedData.healthyPawsPetId) {
+        const { error: hpPetIdError } = await supabase
+          .from('pets')
+          .update({ healthy_paws_pet_id: collectedData.healthyPawsPetId })
+          .eq('id', petId)
+
+        if (hpPetIdError) {
+          console.error('[Save Collected Fields] Error saving HP Pet ID:', hpPetIdError)
+        } else {
+          console.log('[Save Collected Fields] Saved HP Pet ID:', collectedData.healthyPawsPetId)
+        }
+      }
+
       // Save spay/neuter info to pets table
       if (collectedData.spayNeuterStatus) {
         const updateData = {
@@ -1209,7 +1223,8 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
             preferred_vet_name,
             adoption_date,
             spay_neuter_status,
-            spay_neuter_date
+            spay_neuter_date,
+            healthy_paws_pet_id
           )
         `)
         .eq('id', claimId)
