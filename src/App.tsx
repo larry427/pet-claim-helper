@@ -1346,105 +1346,118 @@ export default function App() {
           )}
 
           {addingPet && (
-            <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 max-w-3xl mx-auto overflow-x-hidden">
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div className="sm:col-span-1">
-                  <label htmlFor="pet-name" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Pet Name</label>
-                  <input id="pet-name" value={newPet.name} onChange={(e) => setNewPet({ ...newPet, name: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+            <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 max-w-2xl mx-auto">
+              <div className="space-y-3">
+                <div>
+                  <label htmlFor="pet-name" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Pet Name <span className="text-red-500">*</span></label>
+                  <input id="pet-name" value={newPet.name} onChange={(e) => setNewPet({ ...newPet, name: e.target.value })} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
                 </div>
-                <div className="sm:col-span-1">
-                  <label htmlFor="pet-species" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Species</label>
-                  <select id="pet-species" value={newPet.species} onChange={(e) => setNewPet({ ...newPet, species: e.target.value as PetSpecies })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm">
+                <div>
+                  <label htmlFor="pet-species" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Species <span className="text-red-500">*</span></label>
+                  <select id="pet-species" value={newPet.species} onChange={(e) => setNewPet({ ...newPet, species: e.target.value as PetSpecies })} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3">
                     <option value="dog">Dog</option>
                     <option value="cat">Cat</option>
+                    <option value="other">Other</option>
                   </select>
                 </div>
-                <div className="sm:col-span-2">
-                  <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
-                    <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Insurance Information</div>
-                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                {/* Insurance Section - OPTIONAL */}
+                <div className="mt-5 pt-4 border-t border-slate-200 dark:border-slate-700">
+                  <div className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Insurance Information (Optional)</div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Skip this section if your pet doesn't have insurance</p>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label htmlFor="pet-insurance" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Insurance Company</label>
+                      <select id="pet-insurance" value={newPetInsurer} onChange={(e) => {
+                        const v = e.target.value as any
+                        setNewPetInsurer(v)
+                        if (v === 'NO_INSURANCE') {
+                          setNewPet({ ...newPet, insuranceCompany: '' as any, filing_deadline_days: '', policyNumber: '' })
+                        } else if (v === 'Custom Insurance') {
+                          setNewPet({ ...newPet, insuranceCompany: '' as any, filing_deadline_days: '' })
+                        } else if (v) {
+                          setNewPet({ ...newPet, insuranceCompany: v as any, filing_deadline_days: 90 })
+                        }
+                      }} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3">
+                        <option value="">— Select —</option>
+                        <option value="Nationwide">Nationwide</option>
+                        <option value="Trupanion">Trupanion</option>
+                        <option value="Fetch">Fetch</option>
+                        <option value="Healthy Paws">Healthy Paws</option>
+                        <option value="Pets Best">Pets Best</option>
+                        <option value="ASPCA">ASPCA</option>
+                        <option value="Embrace">Embrace</option>
+                        <option value="Figo">Figo</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+
+                    {newPetInsurer === 'Healthy Paws' && (
                       <div>
-                        <label htmlFor="pet-insurance" className="block text-xs text-slate-500">Insurance Company</label>
-                        <select id="pet-insurance" value={newPetInsurer} onChange={(e) => {
-                          const v = e.target.value as any
-                          setNewPetInsurer(v)
-                          if (v === 'NO_INSURANCE') {
-                            setNewPet({ ...newPet, insuranceCompany: '' as any, filing_deadline_days: '', policyNumber: '' })
-                          } else if (v === 'Custom Insurance') {
-                            setNewPet({ ...newPet, insuranceCompany: '' as any, filing_deadline_days: '' })
-                          } else if (v) {
-                            setNewPet({ ...newPet, insuranceCompany: v as any, filing_deadline_days: 90 })
-                          }
-                        }} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm">
-                          <option value="">— Select —</option>
-                          <option value="NO_INSURANCE">Not Insured</option>
-                          <option value="Trupanion">Trupanion (90 days)</option>
-                          <option value="Nationwide">Nationwide (90 days)</option>
-                          <option value="Healthy Paws">Healthy Paws (90 days)</option>
-                          <option value="Fetch">Fetch (90 days)</option>
-                          <option value="Custom Insurance">Custom Insurance</option>
-                        </select>
+                        <label htmlFor="pet-healthy-paws-id" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Healthy Paws Pet ID</label>
+                        <input
+                          id="pet-healthy-paws-id"
+                          value={newPet.healthy_paws_pet_id || ''}
+                          onChange={(e) => setNewPet({ ...newPet, healthy_paws_pet_id: e.target.value })}
+                          placeholder="e.g., 1400806-1"
+                          className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                        />
+                        <p className="mt-1 text-xs text-slate-500">Find this on your Healthy Paws policy card or portal</p>
                       </div>
-                      {newPetInsurer === 'NO_INSURANCE' ? (
-                        <div className="sm:col-span-1 flex items-center text-xs text-slate-500 bg-blue-50/50 dark:bg-blue-900/10 px-3 py-2 rounded-md border border-blue-200 dark:border-blue-800">
-                          <span>✓ No insurance selected. You can still track vet bills and file claims manually.</span>
-                        </div>
-                      ) : newPetInsurer === 'Custom Insurance' ? (
-                        <>
-                          <div>
-                            <label htmlFor="pet-insurance-custom-name" className="block text-xs text-slate-500">Insurance Company Name</label>
-                            <input id="pet-insurance-custom-name" value={customInsurerNameNew} onChange={(e) => setCustomInsurerNameNew(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                          </div>
-                          <div>
-                            <label htmlFor="pet-insurance-custom-deadline" className="block text-xs text-slate-500">Filing Deadline (days)</label>
-                            <input id="pet-insurance-custom-deadline" type="number" min={1} max={365} value={customDeadlineNew} onChange={(e) => setCustomDeadlineNew(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                          </div>
-                        </>
-                      ) : (
-                        <div className="sm:col-span-1 flex items-end text-xs text-slate-600">{newPetInsurer ? 'Filing Deadline: 90 days' : ''}</div>
-                      )}
-                      {newPetInsurer && newPetInsurer !== 'NO_INSURANCE' && (
-                        <div className="sm:col-span-2">
-                          <label htmlFor="pet-policy-number" className="block text-xs text-slate-500">Policy Number <span className="text-slate-400">(optional)</span></label>
+                    )}
+
+                    {newPetInsurer && (
+                      <>
+                        <div>
+                          <label htmlFor="pet-policy-number" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Policy Number</label>
                           <input
                             id="pet-policy-number"
                             value={newPet.policyNumber || ''}
                             onChange={(e) => setNewPet({ ...newPet, policyNumber: e.target.value })}
                             placeholder="e.g., NW12345 or TP123456"
-                            className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
+                            className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
                           />
                         </div>
-                      )}
-                    </div>
+                        <div>
+                          <label htmlFor="pet-premium" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Monthly Premium (USD)</label>
+                          <input id="pet-premium" type="number" min={0} value={String(newPet.monthly_premium ?? '')} onChange={(e) => setNewPet({ ...newPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="50" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
+                        </div>
+                        <div>
+                          <label htmlFor="pet-deductible" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Deductible (Annual) (USD)</label>
+                          <input id="pet-deductible" type="number" min={0} value={String(newPet.deductible_per_claim ?? '')} onChange={(e) => setNewPet({ ...newPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="250" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
+                        </div>
+                        <div>
+                          <label htmlFor="pet-insurance-pays" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Insurance Pays (%)</label>
+                          <input
+                            id="pet-insurance-pays"
+                            type="number"
+                            min={50}
+                            max={100}
+                            value={String(newPet.insurance_pays_percentage ?? '')}
+                            onChange={(e) => setNewPet({ ...newPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })}
+                            placeholder="80"
+                            className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="pet-coverage-start" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Coverage Start Date</label>
+                          <input
+                            id="pet-coverage-start"
+                            type="date"
+                            value={newPet.coverage_start_date || ''}
+                            onChange={(e) => setNewPet({ ...newPet, coverage_start_date: e.target.value })}
+                            onClick={(e) => (e.currentTarget as any).showPicker?.()}
+                            className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
-                {newPetInsurer !== 'NO_INSURANCE' && (
-                  <>
-                    <div>
-                      <label htmlFor="pet-premium" className="block text-xs">Monthly Premium (USD)</label>
-                      <input id="pet-premium" type="number" step="0.01" value={String(newPet.monthly_premium ?? '')} onChange={(e) => setNewPet({ ...newPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                      <div className="mt-1 text-[11px] text-slate-500">Your monthly insurance payment</div>
-                    </div>
-                    <div>
-                      <label htmlFor="pet-deductible" className="block text-xs">Deductible (Annual) (USD)</label>
-                      <input id="pet-deductible" type="number" step="0.01" value={String(newPet.deductible_per_claim ?? '')} onChange={(e) => setNewPet({ ...newPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                      <div className="mt-1 text-[11px] text-slate-500">Amount you pay before insurance kicks in (resets yearly)</div>
-                    </div>
-                    <div>
-                      <label htmlFor="pet-insurance-pays" className="block text-xs">Insurance Pays (%)</label>
-                      <input id="pet-insurance-pays" type="number" min={0} max={100} value={String(newPet.insurance_pays_percentage ?? '')} onChange={(e) => setNewPet({ ...newPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                      <div className="mt-1 text-[11px] text-slate-500">What percentage your insurance covers (e.g., 80% means you pay 20%)</div>
-                    </div>
-                    <div className="min-w-0">
-                      <label htmlFor="pet-coverage-start" className="block text-xs">Coverage Start Date</label>
-                      <input id="pet-coverage-start" type="date" value={newPet.coverage_start_date || ''} onChange={(e) => setNewPet({ ...newPet, coverage_start_date: e.target.value })} className="mt-1 w-full max-w-xs rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                      <div className="mt-1 text-[11px] text-slate-500">When your insurance policy began (used to calculate deductible reset)</div>
-                    </div>
-                  </>
-                )}
               </div>
-              <div className="mt-3 flex items-center gap-3">
-                <button type="button" onClick={addPet} className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-sm">Save Pet</button>
+              <div className="mt-6 flex items-center gap-3">
+                <button type="button" onClick={addPet} className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4">Save Pet</button>
                 <button type="button" onClick={() => setAddingPet(false)} className="text-sm text-slate-600 dark:text-slate-300">Cancel</button>
               </div>
             </div>
@@ -1651,6 +1664,19 @@ export default function App() {
                               </>
                             ) : (
                               <div className="sm:col-span-1 flex items-end text-xs text-slate-600">{editPetInsurer ? 'Filing Deadline: 90 days' : ''}</div>
+                            )}
+                            {editPetInsurer === 'Healthy Paws' && (
+                              <div className="sm:col-span-2">
+                                <label htmlFor="edit-pet-healthy-paws-id" className="block text-xs text-slate-500">Healthy Paws Pet ID</label>
+                                <input
+                                  id="edit-pet-healthy-paws-id"
+                                  value={editPet.healthy_paws_pet_id || ''}
+                                  onChange={(e) => setEditPet({ ...editPet, healthy_paws_pet_id: e.target.value })}
+                                  placeholder="e.g., 1400806-1"
+                                  className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
+                                />
+                                <div className="mt-1 text-[11px] text-slate-500">Find this on your Healthy Paws policy card or portal</div>
+                              </div>
                             )}
                             {editPetInsurer && editPetInsurer !== 'NO_INSURANCE' && (
                               <div className="sm:col-span-2">
@@ -3449,19 +3475,7 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
     const [fullName, setFullName] = useState('')
     const [phone, setPhone] = useState('')
     const [address, setAddress] = useState('')
-    const [insuranceCompany, setInsuranceCompany] = useState('')
-    const [policyNumber, setPolicyNumber] = useState('')
     const [signature, setSignature] = useState<string | null>(null)
-
-    // Missing state variables that are referenced
-    const [emailReminders, setEmailReminders] = useState(false)
-    const [weeklySummaries, setWeeklySummaries] = useState(false)
-    const [deadlineAlerts, setDeadlineAlerts] = useState(false)
-    const [defaultExpense, setDefaultExpense] = useState<'insured' | 'not_insured' | 'maybe_insured'>('insured')
-    const [defaultPeriod, setDefaultPeriod] = useState<'all' | '2025' | '2024' | 'last12'>('all')
-    const [insurer, setInsurer] = useState('')
-    const [customInsurer, setCustomInsurer] = useState('')
-    const [deadlineDays, setDeadlineDays] = useState(90)
 
     useEffect(() => {
       if (!userId) return
@@ -3474,24 +3488,7 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
             setFullName(data.full_name || '')
             setPhone(data.phone ? formatPhoneForDisplay(data.phone) : '')
             setAddress(data.address || '')
-            setInsuranceCompany(data.insurance_company || '')
-            setPolicyNumber(data.policy_number || '')
             setSignature(data.signature || null)
-            setEmailReminders(!!data.email_reminders)
-            setWeeklySummaries(!!data.weekly_summaries)
-            setDeadlineAlerts(!!data.deadline_alerts)
-            setDefaultExpense((data.default_expense_category as any) || 'insured')
-            setDefaultPeriod((data.default_time_period as any) || 'all')
-            if (data.insurance_company) {
-              if (['Trupanion','Nationwide','Healthy Paws','Fetch'].includes(data.insurance_company)) {
-                setInsurer(data.insurance_company)
-                setDeadlineDays(Number(data.filing_deadline_days || 90))
-              } else {
-                setInsurer('Custom Insurance')
-                setCustomInsurer(data.insurance_company)
-                setDeadlineDays(Number(data.filing_deadline_days || 90))
-              }
-            }
           }
         } catch (e) { console.error('[settings load] error', e) } finally { setLoading(false) }
       })()
@@ -3509,8 +3506,6 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
           full_name: fullName,
           phone: phoneE164 || null,
           address: address || null,
-          insurance_company: insuranceCompany || null,
-          policy_number: policyNumber || null,
         })
         if (error) throw error
         alert('Profile saved successfully!')
@@ -3528,6 +3523,7 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
         {/* Profile Information */}
         <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
           <div className="text-sm font-semibold">Profile Information</div>
+          <p className="text-xs text-slate-500 mt-1">Manage your personal information</p>
           <div className="mt-3 grid grid-cols-1 gap-3">
             <div>
               <label className="block text-xs text-slate-500">Email</label>
@@ -3545,42 +3541,6 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
             <div>
               <label className="block text-xs text-slate-500">Phone Number <span className="text-red-500">*</span></label>
               <input value={phone} onChange={(e) => setPhone(formatPhoneOnChange(e.target.value, phone))} placeholder="(123) 456-7890" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-            </div>
-          </div>
-        </div>
-
-        {/* Insurance Information */}
-        <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-          <div className="text-sm font-semibold">Insurance Information</div>
-          <p className="text-xs text-slate-500 mt-1">Required for automatic claim submission</p>
-          <div className="mt-3 grid grid-cols-1 gap-3">
-            <div>
-              <label className="block text-xs text-slate-500">Insurance Company <span className="text-red-500">*</span></label>
-              <select
-                value={insuranceCompany}
-                onChange={(e) => setInsuranceCompany(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
-              >
-                <option value="">Select your insurance company...</option>
-                <option value="Nationwide">Nationwide</option>
-                <option value="Healthy Paws">Healthy Paws</option>
-                <option value="Trupanion">Trupanion</option>
-                <option value="Fetch">Fetch</option>
-                <option value="Embrace">Embrace</option>
-                <option value="ASPCA">ASPCA Pet Health Insurance</option>
-                <option value="Lemonade">Lemonade</option>
-                <option value="Figo">Figo</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500">Policy Number <span className="text-red-500">*</span></label>
-              <input
-                value={policyNumber}
-                onChange={(e) => setPolicyNumber(e.target.value)}
-                placeholder="Enter your policy number"
-                className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
-              />
             </div>
           </div>
         </div>
