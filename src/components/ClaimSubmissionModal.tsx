@@ -139,6 +139,10 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
   const missingData: string[] = []
 
   async function handlePreviewPDF() {
+    console.log('[Preview] ========== PREVIEW PDF CLICKED ==========')
+    console.log('[Preview] User Agent:', navigator.userAgent)
+    console.log('[Preview] Window width:', window.innerWidth)
+
     try {
       setIsLoadingPreview(true)
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787'
@@ -152,11 +156,15 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
       // 1. Fetch merged PDF (claim form + vet invoice) from backend
       // Use ?merged=true to request both PDFs merged into one
       const mergedParam = claim.pdf_path ? '?merged=true' : ''
+      console.log('[Preview] Fetching PDF from:', `${apiUrl}/api/claims/${claim.id}/preview-pdf${mergedParam}`)
+
       const response = await fetch(`${apiUrl}/api/claims/${claim.id}/preview-pdf${mergedParam}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         }
       })
+
+      console.log('[Preview] Response status:', response.status)
 
       if (!response.ok) {
         const result = await response.json()
@@ -164,23 +172,44 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
       }
 
       const pdfBlob = await response.blob()
+      console.log('[Preview] PDF blob size:', pdfBlob.size)
+
       const pdfUrl = URL.createObjectURL(pdfBlob)
+      console.log('[Preview] Blob URL created:', pdfUrl)
 
       // 2. Detect mobile device
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768
+      console.log('[Preview] Mobile detected:', isMobile)
 
       if (isMobile) {
-        // On mobile: download PDF instead of opening in new tab
-        const link = document.createElement('a')
-        link.href = pdfUrl
-        link.download = `claim-${pet.name}-${new Date().toISOString().split('T')[0]}.pdf`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        console.log('[Preview] Downloaded PDF on mobile device')
+        console.log('[Preview] Using mobile-specific PDF handling')
+
+        // iOS Safari doesn't support programmatic downloads well
+        // Try multiple approaches
+        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+        console.log('[Preview] Is iOS:', isIOS)
+
+        if (isIOS) {
+          // For iOS: Open in same window (will open PDF viewer)
+          console.log('[Preview] Opening PDF in same window (iOS)')
+          window.location.href = pdfUrl
+        } else {
+          // For Android: Try download
+          console.log('[Preview] Attempting download (Android)')
+          const link = document.createElement('a')
+          link.href = pdfUrl
+          link.download = `claim-${pet.name}-${new Date().toISOString().split('T')[0]}.pdf`
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          console.log('[Preview] Download triggered')
+        }
       } else {
         // On desktop: open in new tab
-        window.open(pdfUrl, '_blank', 'noopener,noreferrer')
+        console.log('[Preview] Opening PDF in new tab (desktop)')
+        const newWindow = window.open(pdfUrl, '_blank', 'noopener,noreferrer')
+        console.log('[Preview] New window opened:', !!newWindow)
+
         if (claim.pdf_path) {
           console.log('[Preview] Opened merged PDF (claim form + vet invoice)')
         } else {
@@ -188,9 +217,11 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
         }
       }
     } catch (err: any) {
-      console.error('[Preview PDF] Error:', err)
+      console.error('[Preview PDF] ERROR:', err)
+      console.error('[Preview PDF] Error stack:', err.stack)
       alert(`Could not generate preview: ${err.message}`)
     } finally {
+      console.log('[Preview] Cleaning up, setting loading to false')
       setIsLoadingPreview(false)
     }
   }
