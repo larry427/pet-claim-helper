@@ -16,6 +16,7 @@ import deadlineNotifications from './routes/deadline-notifications.js'
 import schedule from 'node-schedule'
 import { sendSMS } from './utils/sendSMS.js'
 import { DateTime } from 'luxon'
+import { PDFDocument } from 'pdf-lib'
 import { generateClaimFormPDF, validateClaimData } from './lib/generateClaimPDF.js'
 import { sendClaimEmail } from './lib/sendClaimEmail.js'
 import { getMissingRequiredFields } from './lib/claimFormMappings.js'
@@ -81,13 +82,21 @@ const startServer = async () => {
       const prompt = `Extract ALL fields from this veterinary invoice and return as JSON:\n{
   "clinic_name": "full clinic name",
   "clinic_address": "complete address with city, state, zip",
+  "clinic_phone": "veterinary clinic phone number in format (XXX) XXX-XXXX or XXX-XXX-XXXX",
   "pet_name": "pet's name",
   "service_date": "YYYY-MM-DD format",
   "total_amount": numeric value,
   "invoice_number": "invoice number if visible",
   "diagnosis": "reason for visit or diagnosis",
   "line_items": [{"description": "service name", "amount": numeric value}]
-}\n\nExtract EVERY visible field from the image. If a field is not visible, use null. Return ONLY valid JSON.`
+}\n\nIMPORTANT INSTRUCTIONS:
+- The clinic_phone is CRITICAL - look carefully in the invoice header/top section for phone numbers
+- Common formats: (949) 936-0066, 949-936-0066, (949)936-0066
+- The clinic phone is usually displayed near the clinic name and address at the top of the invoice
+- Extract the COMPLETE phone number including area code
+- If you see multiple phone numbers, extract the main clinic phone (usually the first/largest one)
+- If a field is not visible, use null
+- Return ONLY valid JSON with no additional text or explanations.`
 
       let completion
       if (mime === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf')) {
@@ -163,6 +172,24 @@ const startServer = async () => {
         console.error('[extract-pdf] could not parse JSON from model response:', content)
         return res.status(422).json({ ok: false, error: 'Could not parse JSON from AI response', raw: content })
       }
+
+      // 🔥 CRITICAL DEBUG LOGGING - CHECK WHAT OPENAI ACTUALLY RETURNED
+      console.log('='.repeat(80))
+      console.log('[extract-pdf] ✅ OPENAI VISION EXTRACTION RESULT')
+      console.log('='.repeat(80))
+      console.log('Raw OpenAI response:', content)
+      console.log('-'.repeat(80))
+      console.log('Parsed JSON:', JSON.stringify(parsed, null, 2))
+      console.log('-'.repeat(80))
+      console.log('🔍 CRITICAL FIELD CHECK:')
+      console.log('  clinic_name:', parsed.clinic_name || '(NULL)')
+      console.log('  clinic_address:', parsed.clinic_address || '(NULL)')
+      console.log('  clinic_phone:', parsed.clinic_phone || '❌ NULL/MISSING')
+      console.log('  pet_name:', parsed.pet_name || '(NULL)')
+      console.log('  service_date:', parsed.service_date || '(NULL)')
+      console.log('  total_amount:', parsed.total_amount || '(NULL)')
+      console.log('='.repeat(80))
+
       return res.json({ ok: true, data: parsed })
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -802,7 +829,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
 
       console.log('[Validate Fields] Checking required fields:', { claimId, userId, insurer })
 
-      // 1. Get claim data
+      // 1. Get claim data from claims table
       const { data: claim, error: claimError } = await supabase
         .from('claims')
         .select('*')
@@ -811,8 +838,11 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         .single()
 
       if (claimError || !claim) {
-        return res.status(404).json({ ok: false, error: 'Claim not found' })
+        console.error('[Validate Fields] Claim not found:', claimError)
+        return res.status(404).json({ ok: false, error: `Claim not found: ${claimError?.message || 'Unknown error'}` })
       }
+
+      console.log('[Validate Fields] Found claim:', { id: claim.id, pet_id: claim.pet_id })
 
       // 2. Get pet data
       const { data: pet, error: petError } = await supabase
@@ -822,8 +852,11 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         .single()
 
       if (petError || !pet) {
-        return res.status(404).json({ ok: false, error: 'Pet not found' })
+        console.error('[Validate Fields] Pet not found:', petError)
+        return res.status(404).json({ ok: false, error: `Pet not found: ${petError?.message || 'Unknown error'}` })
       }
+
+      console.log('[Validate Fields] Found pet:', { id: pet.id, name: pet.name, insurance_company: pet.insurance_company })
 
       // 3. Get profile data
       const { data: profile, error: profileError } = await supabase
@@ -833,8 +866,11 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         .single()
 
       if (profileError || !profile) {
-        return res.status(404).json({ ok: false, error: 'Profile not found' })
+        console.error('[Validate Fields] Profile not found:', profileError)
+        return res.status(404).json({ ok: false, error: `Profile not found: ${profileError?.message || 'Unknown error'}` })
       }
+
+      console.log('[Validate Fields] Found profile:', { id: profile.id, has_signature: !!profile.signature, has_address: !!profile.address })
 
       // 4. Check for missing required fields
       const missingFields = getMissingRequiredFields(
@@ -868,7 +904,8 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
       return res.json({
         ok: true,
         missingFields,
-        allFieldsPresent: missingFields.length === 0
+        allFieldsPresent: missingFields.length === 0,
+        petName: pet.name  // For dynamic prompt replacement in MissingFieldsModal
       })
 
     } catch (error) {
@@ -922,6 +959,230 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
     return null
   }
 
+  // Save collected fields from missing fields modal
+  app.post('/api/claims/:claimId/save-collected-fields', async (req, res) => {
+    try {
+      const { claimId } = req.params
+      const { collectedData } = req.body
+
+      console.log('[Save Collected Fields] claimId:', claimId, 'data:', collectedData)
+
+      // Get claim to find user_id and pet_id
+      const { data: claim, error: claimError } = await supabase
+        .from('claims')
+        .select('user_id, pet_id')
+        .eq('id', claimId)
+        .single()
+
+      if (claimError || !claim) {
+        console.error('[Save Collected Fields] Claim not found:', claimError)
+        return res.status(404).json({ ok: false, error: 'Claim not found' })
+      }
+
+      const userId = claim.user_id
+      const petId = claim.pet_id
+
+      console.log('[Save Collected Fields] userId:', userId, 'petId:', petId)
+
+      // Save policyholder name to profiles table
+      if (collectedData.policyholderName) {
+        const { error: nameError } = await supabase
+          .from('profiles')
+          .update({ full_name: collectedData.policyholderName })
+          .eq('id', userId)
+
+        if (nameError) {
+          console.error('[Save Collected Fields] Error saving policyholder name:', nameError)
+        } else {
+          console.log('[Save Collected Fields] Saved policyholder name:', collectedData.policyholderName)
+        }
+      }
+
+      // Save signature to profiles table
+      if (collectedData.signature) {
+        const { error: sigError } = await supabase
+          .from('profiles')
+          .update({ signature: collectedData.signature })
+          .eq('id', userId)
+
+        if (sigError) {
+          console.error('[Save Collected Fields] Error saving signature:', sigError)
+        } else {
+          console.log('[Save Collected Fields] Saved signature')
+        }
+      }
+
+      // Save address to profiles table (handle both 'address' and 'policyholderAddress')
+      const addressValue = collectedData.policyholderAddress || collectedData.address
+      if (addressValue) {
+        const { error: addrError } = await supabase
+          .from('profiles')
+          .update({ address: addressValue })
+          .eq('id', userId)
+
+        if (addrError) {
+          console.error('[Save Collected Fields] Error saving address:', addrError)
+        } else {
+          console.log('[Save Collected Fields] Saved address:', addressValue)
+        }
+      }
+
+      // Save phone to profiles table
+      if (collectedData.policyholderPhone) {
+        const { error: phoneError } = await supabase
+          .from('profiles')
+          .update({ phone: collectedData.policyholderPhone })
+          .eq('id', userId)
+
+        if (phoneError) {
+          console.error('[Save Collected Fields] Error saving phone:', phoneError)
+        } else {
+          console.log('[Save Collected Fields] Saved phone:', collectedData.policyholderPhone)
+        }
+      }
+
+      // Save adoption_date to pets table
+      if (collectedData.adoptionDate) {
+        const { error: adoptError } = await supabase
+          .from('pets')
+          .update({ adoption_date: collectedData.adoptionDate })
+          .eq('id', petId)
+
+        if (adoptError) {
+          console.error('[Save Collected Fields] Error saving adoption date:', adoptError)
+        } else {
+          console.log('[Save Collected Fields] Saved adoption date')
+        }
+      }
+
+      // Save date_of_birth to pets table
+      if (collectedData.dateOfBirth) {
+        const { error: dobError } = await supabase
+          .from('pets')
+          .update({ date_of_birth: collectedData.dateOfBirth })
+          .eq('id', petId)
+
+        if (dobError) {
+          console.error('[Save Collected Fields] Error saving date of birth:', dobError)
+        } else {
+          console.log('[Save Collected Fields] Saved date of birth:', collectedData.dateOfBirth)
+        }
+      }
+
+      // Save policy_number to pets table
+      if (collectedData.policyNumber) {
+        const { error: policyError } = await supabase
+          .from('pets')
+          .update({ policy_number: collectedData.policyNumber })
+          .eq('id', petId)
+
+        if (policyError) {
+          console.error('[Save Collected Fields] Error saving policy number:', policyError)
+        } else {
+          console.log('[Save Collected Fields] Saved policy number:', collectedData.policyNumber)
+        }
+      }
+
+      // Save spay/neuter info to pets table
+      if (collectedData.spayNeuterStatus) {
+        const updateData = {
+          spay_neuter_status: collectedData.spayNeuterStatus
+        }
+
+        // Only save date if status is "Yes"
+        if (collectedData.spayNeuterStatus === 'Yes' && collectedData.spayNeuterDate) {
+          updateData.spay_neuter_date = collectedData.spayNeuterDate
+        }
+
+        const { error: spayError } = await supabase
+          .from('pets')
+          .update(updateData)
+          .eq('id', petId)
+
+        if (spayError) {
+          console.error('[Save Collected Fields] Error saving spay/neuter info:', spayError)
+        } else {
+          console.log('[Save Collected Fields] Saved spay/neuter info')
+        }
+      }
+
+      // Save preferred_vet_name to pets table
+      if (collectedData.treatingVet) {
+        const { error: vetError } = await supabase
+          .from('pets')
+          .update({ preferred_vet_name: collectedData.treatingVet })
+          .eq('id', petId)
+
+        if (vetError) {
+          console.error('[Save Collected Fields] Error saving vet name:', vetError)
+        } else {
+          console.log('[Save Collected Fields] Saved vet name')
+        }
+      }
+
+      // ========== TRUPANION-SPECIFIC FIELDS ==========
+
+      // Save other insurance history to pets table
+      if (collectedData.hadOtherInsurance !== undefined) {
+        const updateData = {
+          had_other_insurance: collectedData.hadOtherInsurance === 'Yes'
+        }
+
+        // Only save provider and cancel date if had other insurance
+        if (collectedData.hadOtherInsurance === 'Yes') {
+          if (collectedData.otherInsuranceProvider) {
+            updateData.other_insurance_provider = collectedData.otherInsuranceProvider
+          }
+          if (collectedData.otherInsuranceCancelDate) {
+            updateData.other_insurance_cancel_date = collectedData.otherInsuranceCancelDate
+          }
+        }
+
+        const { error: insuranceError } = await supabase
+          .from('pets')
+          .update(updateData)
+          .eq('id', petId)
+
+        if (insuranceError) {
+          console.error('[Save Collected Fields] Error saving insurance history:', insuranceError)
+        } else {
+          console.log('[Save Collected Fields] Saved insurance history')
+        }
+      }
+
+      // Save other hospitals visited to pets table
+      if (collectedData.otherHospitalsVisited) {
+        const { error: hospitalsError } = await supabase
+          .from('pets')
+          .update({ other_hospitals_visited: collectedData.otherHospitalsVisited })
+          .eq('id', petId)
+
+        if (hospitalsError) {
+          console.error('[Save Collected Fields] Error saving hospital history:', hospitalsError)
+        } else {
+          console.log('[Save Collected Fields] Saved hospital history')
+        }
+      }
+
+      // Note: These are claim-specific, don't save to database
+      // They will be passed directly to PDF generation:
+      // - bodyPartAffected (Nationwide)
+      // - previousClaimSameCondition (Trupanion)
+      // - previousClaimNumber (Trupanion)
+      // - paymentMethod (Trupanion)
+
+      res.json({
+        ok: true,
+        savedData: collectedData,
+        message: 'Fields saved successfully'
+      })
+
+    } catch (error) {
+      console.error('[Save Collected Fields] Error:', error)
+      res.status(500).json({ ok: false, error: error.message })
+    }
+  })
+
   // Submit claim to insurance company
   app.post('/api/claims/submit', async (req, res) => {
     try {
@@ -942,7 +1203,13 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
             name,
             species,
             breed,
-            date_of_birth
+            date_of_birth,
+            policy_number,
+            insurance_company,
+            preferred_vet_name,
+            adoption_date,
+            spay_neuter_status,
+            spay_neuter_date
           )
         `)
         .eq('id', claimId)
@@ -966,10 +1233,70 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         return res.status(404).json({ ok: false, error: 'User profile not found' })
       }
 
+      console.log('[Submit Claim] 📧 Profile email:', profile.email)
+
       // 3. Calculate pet age
       const petAge = claim.pets.date_of_birth
         ? Math.floor((new Date() - new Date(claim.pets.date_of_birth)) / (365.25 * 24 * 60 * 60 * 1000))
         : null
+
+      // 3.5. Extract body part from diagnosis (for Nationwide form)
+      const extractBodyPart = (diagnosis) => {
+        if (!diagnosis) return null
+
+        const diagnosisLower = diagnosis.toLowerCase()
+
+        // Common body parts to look for
+        const bodyParts = {
+          'ear': 'Ear',
+          'eye': 'Eye',
+          'leg': 'Leg',
+          'paw': 'Paw',
+          'skin': 'Skin',
+          'stomach': 'Stomach',
+          'abdomen': 'Abdomen',
+          'dental': 'Teeth',
+          'teeth': 'Teeth',
+          'tooth': 'Teeth',
+          'mouth': 'Mouth',
+          'throat': 'Throat',
+          'nose': 'Nose',
+          'tail': 'Tail',
+          'back': 'Back',
+          'hip': 'Hip',
+          'knee': 'Knee',
+          'bladder': 'Bladder',
+          'kidney': 'Kidney',
+          'liver': 'Liver',
+          'heart': 'Heart',
+          'lung': 'Lung',
+          'intestine': 'Intestine',
+          'urinary': 'Urinary Tract',
+          'anal': 'Anal Gland'
+        }
+
+        // Check for body part keywords
+        for (const [keyword, bodyPart] of Object.entries(bodyParts)) {
+          if (diagnosisLower.includes(keyword)) {
+            return bodyPart
+          }
+        }
+
+        return null
+      }
+
+      const diagnosis = claim.diagnosis || claim.ai_diagnosis || 'See attached invoice'
+      const bodyPart = extractBodyPart(diagnosis)
+
+      console.log('\n' + '='.repeat(80))
+      console.log('🔍 DEBUG: CLAIM DATA EXTRACTION')
+      console.log('='.repeat(80))
+      console.log('claim.pets:', JSON.stringify(claim.pets, null, 2))
+      console.log('claim.pets.policy_number:', claim.pets.policy_number)
+      console.log('diagnosis:', diagnosis)
+      console.log('bodyPart extracted:', bodyPart)
+      console.log('profile.signature (first 50 chars):', profile.signature?.substring(0, 50))
+      console.log('='.repeat(80) + '\n')
 
       // 4. Build claim data object for PDF/email
       const claimData = {
@@ -977,21 +1304,42 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         policyholderAddress: profile.address || '',
         policyholderPhone: profile.phone || '',
         policyholderEmail: profile.email,
-        policyNumber: claim.policy_number || 'N/A',
+        policyNumber: claim.pets.policy_number || 'N/A',  // Get from pets table, not claims table
         petName: claim.pets.name,
         petSpecies: claim.pets.species,
         petBreed: claim.pets.breed || '',
         petAge: petAge,
         petDateOfBirth: claim.pets.date_of_birth, // For Trupanion form
+        petAdoptionDate: claim.pets.adoption_date, // For Trupanion form
+        petSpayNeuterStatus: claim.pets.spay_neuter_status, // For Trupanion form
+        petSpayNeuterDate: claim.pets.spay_neuter_date, // For Trupanion form
         treatmentDate: claim.service_date || claim.created_at.split('T')[0],
-        vetClinicName: claim.clinic_name || 'Unknown Clinic',
+        vetClinicName: claim.clinic_name || claim.pets.preferred_vet_name || 'Unknown Clinic',
         vetClinicAddress: claim.clinic_address || '',
-        vetClinicPhone: '',
-        diagnosis: claim.diagnosis || claim.ai_diagnosis || 'See attached invoice',
+        vetClinicPhone: claim.clinic_phone || '',
+        diagnosis: diagnosis,
+        bodyPartAffected: bodyPart,  // Extracted from diagnosis
         totalAmount: claim.total_amount || 0,
         itemizedCharges: claim.line_items || [],
-        invoiceAttached: false // For MVP, we're not attaching invoices yet
+        invoiceAttached: false, // For MVP, we're not attaching invoices yet
+
+        // Trupanion: Payment method and other claim-specific fields
+        paymentMethod: claim.payment_method || 'I have paid my bill in full',
+        hadOtherInsurance: claim.had_other_insurance || 'No',
+        previousClaimSameCondition: claim.previous_claim_same_condition || 'No'
       }
+
+      console.log('\n' + '='.repeat(80))
+      console.log('📦 DEBUG: CLAIM DATA OBJECT FOR PDF')
+      console.log('='.repeat(80))
+      console.log('policyNumber:', claimData.policyNumber)
+      console.log('bodyPartAffected:', claimData.bodyPartAffected)
+      console.log('diagnosis:', claimData.diagnosis)
+      console.log('🔍 TRUPANION DATE FIELDS:')
+      console.log('petDateOfBirth:', claimData.petDateOfBirth, '(from claim.pets.date_of_birth:', claim.pets.date_of_birth + ')')
+      console.log('petAdoptionDate:', claimData.petAdoptionDate, '(from claim.pets.adoption_date:', claim.pets.adoption_date + ')')
+      console.log('petSpayNeuterDate:', claimData.petSpayNeuterDate, '(from claim.pets.spay_neuter_date:', claim.pets.spay_neuter_date + ')')
+      console.log('='.repeat(80) + '\n')
 
       // 5. Validate claim data
       try {
@@ -1001,8 +1349,28 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         return res.status(400).json({ ok: false, error: `Invalid claim data: ${validationError.message}` })
       }
 
-      // 6. Get insurer from claim (default to nationwide for now)
-      const insurer = claim.insurer?.toLowerCase() || 'nationwide'
+      // 6. Get insurer from pet's insurance company
+      const rawInsurer = claim.pets?.insurance_company
+      console.log('🏢 INSURER DETECTION - RAW VALUE')
+      console.log('   claim.pets.insurance_company:', rawInsurer)
+      console.log('   Type:', typeof rawInsurer)
+      console.log('   Is null:', rawInsurer === null)
+      console.log('   Is undefined:', rawInsurer === undefined)
+      console.log('   Is empty string:', rawInsurer === '')
+
+      const insurer = rawInsurer?.toLowerCase()
+      if (!insurer) {
+        const petName = claim.pets?.name || 'Unknown'
+        console.error(`❌ Pet ${petName} has no insurance company set`)
+        return res.status(400).json({
+          ok: false,
+          error: `Pet ${petName} has no insurance company set. Please update the pet's insurance company before submitting.`
+        })
+      }
+
+      console.log('🏢 INSURER DETECTION - NORMALIZED')
+      console.log('   insurer (normalized):', insurer)
+      console.log('   Will generate PDF for:', insurer)
 
       // 7. Generate PDF
       const pdfBuffer = await generateClaimFormPDF(
@@ -1052,7 +1420,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
       const { error: updateError } = await supabase
         .from('claims')
         .update({
-          submission_status: 'submitted',
+          filing_status: 'submitted',  // Frontend reads this field
           submitted_at: new Date().toISOString(),
           submission_email_id: emailResult.messageId
         })
@@ -1061,6 +1429,8 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
       if (updateError) {
         console.error('[Submit Claim] Failed to update claim status:', updateError)
         // Don't fail the request - email was sent successfully
+      } else {
+        console.log('[Submit Claim] ✅ Claim status updated to "submitted"')
       }
 
       console.log('[Submit Claim] ✅ Claim submitted successfully:', {
@@ -1113,7 +1483,13 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
             name,
             species,
             breed,
-            date_of_birth
+            date_of_birth,
+            policy_number,
+            insurance_company,
+            preferred_vet_name,
+            adoption_date,
+            spay_neuter_status,
+            spay_neuter_date
           )
         `)
         .eq('id', claimId)
@@ -1148,7 +1524,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         policyholderAddress: profile.address || '',
         policyholderPhone: profile.phone || '',
         policyholderEmail: user.email,
-        policyNumber: claim.policy_number || 'N/A',
+        policyNumber: claim.pets.policy_number || 'N/A',
         petName: claim.pets.name,
         petSpecies: claim.pets.species,
         petBreed: claim.pets.breed || '',
@@ -1157,15 +1533,39 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         treatmentDate: claim.service_date || claim.created_at.split('T')[0],
         vetClinicName: claim.clinic_name || 'Unknown Clinic',
         vetClinicAddress: claim.clinic_address || '',
-        vetClinicPhone: '',
+        vetClinicPhone: claim.clinic_phone || '',
         diagnosis: claim.diagnosis || claim.ai_diagnosis || 'See attached invoice',
+        bodyPartAffected: '',  // TODO: Add body_part column to claims table for Nationwide
         totalAmount: claim.total_amount || 0,
         itemizedCharges: claim.line_items || [],
-        invoiceAttached: false
+        invoiceAttached: false,
+
+        // Trupanion-specific fields
+        petAdoptionDate: claim.pets?.adoption_date,
+        petSpayNeuterStatus: claim.pets?.spay_neuter_status,
+        petSpayNeuterDate: claim.pets?.spay_neuter_date,
+        hadOtherInsurance: claim.had_other_insurance || 'No',
+        previousClaimSameCondition: claim.previous_claim_same_condition || 'No',
+        paymentMethod: claim.payment_method || 'I have paid in full'
       }
 
-      // Get insurer
-      const insurer = claim.insurer?.toLowerCase() || 'nationwide'
+      // Get insurer from pet's insurance company
+      const rawInsurer = claim.pets?.insurance_company
+      console.log('[Preview PDF] 🏢 INSURER DETECTION')
+      console.log('   claim.pets.insurance_company:', rawInsurer)
+
+      const insurer = rawInsurer?.toLowerCase()
+      if (!insurer) {
+        const petName = claim.pets?.name || 'Unknown'
+        console.error(`❌ Pet ${petName} has no insurance company set`)
+        return res.status(400).json({
+          ok: false,
+          error: `Pet ${petName} has no insurance company set. Please update the pet's insurance company.`
+        })
+      }
+
+      console.log('   insurer (normalized):', insurer)
+      console.log('   Will generate PDF for:', insurer)
 
       // Generate PDF
       console.log('[Preview PDF] Generating PDF for claim:', claimId)
@@ -1177,6 +1577,70 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
       )
 
       console.log('[Preview PDF] PDF generated successfully:', pdfBuffer.length, 'bytes')
+
+      // Check if we should merge with vet invoice
+      const merged = req.query.merged === 'true'
+
+      if (merged && claim.pdf_path) {
+        console.log('[Preview PDF] Merging with vet invoice:', claim.pdf_path)
+
+        try {
+          // Download vet invoice from storage
+          const { data: invoiceData, error: storageError } = await supabase.storage
+            .from('claim-pdfs')
+            .download(claim.pdf_path)
+
+          if (storageError) {
+            console.error('[Preview PDF] Could not fetch vet invoice:', storageError)
+            // Fall back to claim form only
+            res.setHeader('Content-Type', 'application/pdf')
+            res.setHeader('Content-Disposition', 'inline; filename="claim-preview.pdf"')
+            return res.send(pdfBuffer)
+          }
+
+          // Merge PDFs using pdf-lib (imported at top of file)
+          // Load both PDFs
+          const claimFormPdf = await PDFDocument.load(pdfBuffer)
+          console.log('[Preview PDF] Claim form loaded:', claimFormPdf.getPageCount(), 'pages')
+
+          const invoiceBuffer = Buffer.from(await invoiceData.arrayBuffer())
+          const invoicePdf = await PDFDocument.load(invoiceBuffer)
+          console.log('[Preview PDF] Original vet invoice loaded:', invoicePdf.getPageCount(), 'pages')
+
+          // Create new merged PDF
+          const mergedPdf = await PDFDocument.create()
+
+          // Copy all pages from claim form FIRST
+          const claimPages = await mergedPdf.copyPages(claimFormPdf, claimFormPdf.getPageIndices())
+          claimPages.forEach((page) => mergedPdf.addPage(page))
+          console.log('[Preview PDF] Added', claimPages.length, 'pages from claim form')
+
+          // Copy all pages from original vet invoice SECOND
+          const invoicePages = await mergedPdf.copyPages(invoicePdf, invoicePdf.getPageIndices())
+          invoicePages.forEach((page) => mergedPdf.addPage(page))
+          console.log('[Preview PDF] Added', invoicePages.length, 'pages from original vet invoice')
+
+          // Save merged PDF
+          const mergedPdfBytes = await mergedPdf.save()
+
+          console.log('[Preview PDF] ✅ Merged PDF created successfully!')
+          console.log('[Preview PDF]    Total size:', mergedPdfBytes.length, 'bytes')
+          console.log('[Preview PDF]    Total pages:', mergedPdf.getPageCount())
+          console.log('[Preview PDF]    Structure: Claim form (pages 1-' + claimPages.length + ') + Original vet invoice (pages ' + (claimPages.length + 1) + '-' + mergedPdf.getPageCount() + ')')
+
+          // Return merged PDF
+          res.setHeader('Content-Type', 'application/pdf')
+          res.setHeader('Content-Disposition', 'inline; filename="claim-with-invoice.pdf"')
+          return res.send(Buffer.from(mergedPdfBytes))
+
+        } catch (mergeError) {
+          console.error('[Preview PDF] Error merging PDFs:', mergeError)
+          // Fall back to claim form only
+          res.setHeader('Content-Type', 'application/pdf')
+          res.setHeader('Content-Disposition', 'inline; filename="claim-preview.pdf"')
+          return res.send(pdfBuffer)
+        }
+      }
 
       // Return PDF for preview (inline, not download)
       res.setHeader('Content-Type', 'application/pdf')
