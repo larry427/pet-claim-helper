@@ -54,27 +54,27 @@ const FORM_FIELD_MAPPINGS = {
     // ✅ COORDINATE-BASED MAPPING (Flat PDF - no fillable fields)
     // Healthy Paws form is 612 x 792 points. Origin (0,0) is bottom-left.
     // Use pdf-lib drawText() to overlay text at these coordinates
-    // FINAL coordinates after Canva form redesign - adjusted down
+    // Updated with exact measured coordinates - Nov 2024
 
     // YOUR POLICY INFORMATION SECTION
-    policyNumber: { x: 175, y: 535, size: 10 },  // Policy Number
-    petName: { x: 500, y: 535, size: 10 },       // Pet Name
-    policyholderName: { x: 175, y: 500, size: 10 },  // Pet Parent Name
-    healthyPawsPetId: { x: 500, y: 500, size: 10 },  // Pet Id
-    policyholderPhone: { x: 175, y: 465, size: 10 }, // Phone Number
-    policyholderEmail: { x: 500, y: 465, size: 10 }, // Email
+    policyNumber: { x: 110, y: 525, size: 10 },  // Policy Number
+    petName: { x: 355, y: 525, size: 10 },       // Pet Name
+    policyholderName: { x: 120, y: 500, size: 10 },  // Pet Parent Name
+    healthyPawsPetId: { x: 355, y: 500, size: 10 },  // Pet Id
+    policyholderPhone: { x: 120, y: 480, size: 10 }, // Phone Number
+    policyholderEmail: { x: 350, y: 480, size: 10 }, // Email
 
     // YOUR CLAIM INFORMATION SECTION
-    invoiceNumber: { x: 175, y: 405, size: 10 },    // Invoice Number
-    treatmentDate: { x: 460, y: 400, size: 10 },    // Invoice Date (moved left and down)
-    veterinaryClinic: { x: 230, y: 375, size: 10 }, // Veterinary Hospital Name
-    totalAmount: { x: 500, y: 375, size: 10 },      // Invoice Total
+    invoiceNumber: { x: 110, y: 420, size: 10 },    // Invoice Number
+    treatmentDate: { x: 380, y: 420, size: 10 },    // Invoice Date
+    veterinaryClinic: { x: 165, y: 390, size: 10 }, // Veterinary Hospital Name
+    totalAmount: { x: 400, y: 390, size: 10 },      // Invoice Total (Dollar Amount)
     // dateFirstSymptoms - REMOVED - don't auto-fill this field (legal liability)
-    diagnosis: { x: 85, y: 305, size: 10 },         // What was pet treated for
+    diagnosis: { x: 180, y: 300, size: 10 },        // What was pet treated for
 
     // SIGNATURE SECTION
-    signature: { x: 175, y: 175, width: 150, height: 40 },  // Policyholder Signature
-    signatureDate: { x: 480, y: 175, size: 10 },    // Date Signed
+    signature: { x: 170, y: 150, width: 150, height: 40 },  // Policyholder Signature
+    signatureDate: { x: 460, y: 170, size: 10 },    // Date Signed
   },
 
   trupanion: {
