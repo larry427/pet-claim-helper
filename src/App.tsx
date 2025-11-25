@@ -510,7 +510,8 @@ export default function App() {
       deductible_per_claim: (pet as any).deductible_per_claim ?? '',
       coverage_start_date: (pet as any).coverage_start_date || '',
       insurance_pays_percentage: (pet as any).insurance_pays_percentage != null ? Math.round(Number((pet as any).insurance_pays_percentage) * 100) : '',
-      policyNumber: pet.policyNumber || ''
+      policyNumber: pet.policyNumber || '',
+      healthy_paws_pet_id: (pet as any).healthy_paws_pet_id || ''
     })
     const known = ['Trupanion','Nationwide','Healthy Paws','Fetch']
     if (!pet.insuranceCompany || pet.insuranceCompany === '') {
