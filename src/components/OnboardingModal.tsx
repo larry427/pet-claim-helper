@@ -184,9 +184,10 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         {error && <div className="mb-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</div>}
 
         {step === 1 && (
-          <div>
-            <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">Welcome to Pet Claim Helper!</div>
-            <div className="mt-4 space-y-3">
+          <div className="animate-fadeIn">
+            <div className="text-xl font-bold text-gray-900 dark:text-gray-100">Welcome to Pet Claim Helper! 🎉</div>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Quick setup - then we'll handle the insurance headaches for you.</p>
+            <div className="mt-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Full Name <span className="text-red-500">*</span></label>
                 <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="John Smith" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
@@ -198,15 +199,33 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
               </div>
             </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
-              <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4" onClick={onClose}>Cancel</button>
-              <button type="button" disabled={!canNextFrom1} className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 disabled:opacity-60" onClick={() => setStep(2)}>Next</button>
+              <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" onClick={onClose}>Cancel</button>
+              <button type="button" disabled={!canNextFrom1} className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 hover:scale-[1.02] hover:shadow-lg text-white px-6 disabled:opacity-60 disabled:hover:scale-100 disabled:hover:shadow-none transition-all duration-200" onClick={() => setStep(2)}>Next</button>
             </div>
           </div>
         )}
 
         {step === 2 && (
-          <div>
-            <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">Add Your First Pet</div>
+          <div className="animate-fadeIn">
+            <div className="text-xl font-bold text-gray-900 dark:text-gray-100">Meet your new claim-filing sidekick</div>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Add your pet and insurance details. We'll use this to:</p>
+
+            <div className="mt-4 mb-6 bg-gradient-to-r from-emerald-50 to-blue-50 dark:from-emerald-900/20 dark:to-blue-900/20 rounded-lg p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <span className="text-emerald-600 dark:text-emerald-400">⚡</span>
+                <span className="font-medium">Auto-submit claims in 2 minutes</span>
+                <span className="text-xs text-slate-500">(not 30-45)</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <span className="text-blue-600 dark:text-blue-400">📊</span>
+                <span>Track every vet visit - insured or not</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <span className="text-purple-600 dark:text-purple-400">💰</span>
+                <span>See exactly what you spend on your pet</span>
+              </div>
+            </div>
+
             <div className="mt-4 space-y-3">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Pet Name <span className="text-red-500">*</span></label>
@@ -294,20 +313,21 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
               </div>
             </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
-              <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4" onClick={() => setStep(1)}>Back</button>
-              <button type="button" disabled={!canNextFrom2} className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 disabled:opacity-60" onClick={() => setStep(3)}>Next</button>
+              <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" onClick={() => setStep(1)}>Back</button>
+              <button type="button" disabled={!canNextFrom2} className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 hover:scale-[1.02] hover:shadow-lg text-white px-6 disabled:opacity-60 disabled:hover:scale-100 disabled:hover:shadow-none transition-all duration-200" onClick={() => setStep(3)}>Next</button>
             </div>
           </div>
         )}
 
         {step === 3 && (
-          <div>
-            <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">Get Medication Reminders?</div>
-            <div className="mt-4 space-y-4">
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="animate-fadeIn">
+            <div className="text-xl font-bold text-gray-900 dark:text-gray-100">🐾 Never forget a dose!</div>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Get a friendly text when it's medication time. <span className="text-slate-500 italic">(Optional - skip if you don't need reminders)</span></p>
+            <div className="mt-6 space-y-4">
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <div className="text-sm text-blue-900 dark:text-blue-200">
-                  <div className="font-semibold mb-2">🐾 Never forget a dose!</div>
-                  <div className="text-xs">Get a friendly text when it's time to give {petName || 'your pet'} their medicine. (optional)</div>
+                  <div className="font-semibold mb-1">Stay on track with {petName || 'your pet'}'s meds</div>
+                  <div className="text-xs text-slate-600 dark:text-slate-400">We'll text you at the right time - no more missed doses!</div>
                 </div>
               </div>
 
@@ -364,11 +384,11 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
               )}
             </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
-              <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4" onClick={() => setStep(2)}>Back</button>
+              <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" onClick={() => setStep(2)}>Back</button>
               <button
                 type="button"
                 disabled={!canNextFrom3 || saving}
-                className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 disabled:opacity-60"
+                className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 hover:scale-[1.02] hover:shadow-lg text-white px-6 disabled:opacity-60 disabled:hover:scale-100 disabled:hover:shadow-none transition-all duration-200"
                 onClick={handleFinish}
               >
                 {saving ? 'Saving…' : 'Finish Setup'}
@@ -378,49 +398,44 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         )}
 
         {step === 4 && (
-          <div className="text-center py-4">
-            <div className="text-5xl mb-4">✅</div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">You're all set!</div>
+          <div className="text-center py-4 animate-fadeIn">
+            <div className="text-6xl mb-4 animate-bounce">🚀</div>
+            <div className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">You're all set!</div>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-8">Time to start saving money and never miss a deadline.</p>
 
-            <div className="text-left bg-slate-50 dark:bg-slate-800/50 rounded-lg p-5 mb-6">
-              <div className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Here's how Pet Claim Helper works:</div>
+            <div className="text-left bg-gradient-to-br from-emerald-50 to-blue-50 dark:from-emerald-900/20 dark:to-blue-900/20 rounded-xl p-6 mb-6 border border-emerald-200 dark:border-emerald-800">
+              <div className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-4">Your quick wins:</div>
               <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="text-xl">1.</div>
-                  <div className="text-sm text-slate-600 dark:text-slate-400">Upload your vet bill</div>
+                <div className="flex items-start gap-3 animate-slideIn">
+                  <div className="text-emerald-600 dark:text-emerald-400 text-lg font-bold">✓</div>
+                  <div className="text-sm text-slate-700 dark:text-slate-300">
+                    <span className="font-semibold">Claims auto-submitted</span> to {insuranceCompany && insuranceCompany !== 'None' ? insuranceCompany : 'your insurance'}
+                  </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <div className="text-xl">2.</div>
-                  <div className="text-sm text-slate-600 dark:text-slate-400">We fill out the official claim form</div>
+                <div className="flex items-start gap-3 animate-slideIn" style={{animationDelay: '100ms'}}>
+                  <div className="text-emerald-600 dark:text-emerald-400 text-lg font-bold">✓</div>
+                  <div className="text-sm text-slate-700 dark:text-slate-300">
+                    <span className="font-semibold">Deadline tracking active</span> - never miss a filing date
+                  </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <div className="text-xl">3.</div>
-                  <div className="text-sm text-slate-600 dark:text-slate-400 font-semibold">YOU review and approve</div>
+                <div className="flex items-start gap-3 animate-slideIn" style={{animationDelay: '200ms'}}>
+                  <div className="text-emerald-600 dark:text-emerald-400 text-lg font-bold">✓</div>
+                  <div className="text-sm text-slate-700 dark:text-slate-300">
+                    <span className="font-semibold">Financial dashboard ready</span> - see exactly what you spend
+                  </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <div className="text-xl">4.</div>
-                  <div className="text-sm text-slate-600 dark:text-slate-400">We submit to your insurance</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
-              <div className="text-sm text-blue-900 dark:text-blue-200">
-                <div className="font-semibold mb-1">Time savings:</div>
-                <div className="text-xs">Traditional way: 20-30 minutes of paperwork per claim</div>
-                <div className="text-xs font-semibold">With Pet Claim Helper: Less than 2 minutes</div>
               </div>
             </div>
 
             <button
               type="button"
-              className="w-full h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+              className="w-full h-14 rounded-lg bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-700 hover:to-blue-700 hover:scale-[1.02] hover:shadow-xl text-white font-bold text-lg transition-all duration-200"
               onClick={() => {
                 localStorage.setItem('justCompletedOnboarding', 'true')
                 onClose()
               }}
             >
-              Get Started
+              Let's Go! 🎉
             </button>
           </div>
         )}
