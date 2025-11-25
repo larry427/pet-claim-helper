@@ -1506,7 +1506,8 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
             preferred_vet_name,
             adoption_date,
             spay_neuter_status,
-            spay_neuter_date
+            spay_neuter_date,
+            healthy_paws_pet_id
           )
         `)
         .eq('id', claimId)
