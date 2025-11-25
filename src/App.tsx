@@ -1007,12 +1007,12 @@ export default function App() {
     const rem = getDaysRemaining(c)
     const stRaw = (c.filing_status || 'not_submitted').toLowerCase()
     const st = stRaw === 'filed' ? 'submitted' : stRaw
-    
+
     // Different badges for different statuses
+    if (st === 'denied') return { text: '❌ Claim Denied', cls: 'bg-red-100 text-red-800 border border-red-300 font-semibold' }
+    if (st === 'approved') return { text: '✅ Approved', cls: 'bg-green-100 text-green-800 border border-green-200 font-semibold' }
+    if (st === 'paid') return { text: '✅ Paid', cls: 'bg-green-100 text-green-800 border border-green-200 font-semibold' }
     if (st === 'submitted') return { text: '✓ Deadline met', cls: 'bg-green-100 text-green-800 border border-green-200' }
-    if (st === 'approved') return { text: '✓ Deadline met', cls: 'bg-green-100 text-green-800 border border-green-200' }
-    if (st === 'paid') return { text: '✓ Deadline met', cls: 'bg-green-100 text-green-800 border border-green-200' }
-    if (st === 'denied') return { text: '✓ Deadline met', cls: 'bg-green-100 text-green-800 border border-green-200' }
     
     // Deadline urgency for not submitted
     if (rem === null) return { text: 'No date', cls: 'bg-slate-100 text-slate-600' }
