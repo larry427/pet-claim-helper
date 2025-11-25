@@ -141,33 +141,46 @@ export async function runMedicationReminders(options = {}) {
         continue // Not time yet for this medication
       }
 
-      // FIX #2: Check if we already sent a reminder for this medication today
-      // This prevents duplicates even if multiple instances somehow bypass the lock
-      const { data: logCheck, error: logError} = await supabase
-        .from('medication_reminders_log')
-        .select('id')
-        .eq('medication_id', med.id)
-        .eq('reminder_date', today)
-        .eq('reminder_time', currentTime)
-        .limit(1)
-        .single()
+      // CRITICAL FIX: Insert log entry FIRST, then send SMS
+      // The UNIQUE constraint on (medication_id, reminder_date, reminder_time) acts as an atomic lock
+      // If two instances try to process the same medication, only the first insert succeeds
+      // The second insert fails with a constraint violation, preventing duplicate SMS
 
-      if (logCheck) {
-        console.log(`[Medication Reminders] Skipping ${med.medication_name} - already sent today at ${currentTime}`)
-        remindersSkipped.push({ medicationId: med.id, reason: 'Already sent today' })
+      const { error: logInsertError } = await supabase
+        .from('medication_reminders_log')
+        .insert({
+          medication_id: med.id,
+          user_id: med.user_id,
+          reminder_date: today,
+          reminder_time: currentTime,
+          message_id: null, // Will update after SMS is sent
+          sent_at: nowPST.toISO()
+        })
+
+      if (logInsertError) {
+        // UNIQUE constraint violation means another instance already sent this reminder
+        if (logInsertError.code === '23505') {
+          console.log(`[Medication Reminders] ✅ Skipping ${med.medication_name} - already sent by another instance`)
+          remindersSkipped.push({ medicationId: med.id, reason: 'Already sent (constraint)' })
+          continue
+        }
+
+        // Other error - log and skip
+        console.error('[Medication Reminders] Failed to insert log:', logInsertError.message)
+        remindersSkipped.push({
+          medicationId: med.id,
+          reason: 'Log insert failed',
+          error: logInsertError.message
+        })
         continue
       }
 
-      // If error is anything other than "no rows", log it but continue
-      if (logError && logError.code !== 'PGRST116') {
-        console.warn('[Medication Reminders] Log check warning:', logError.message)
-      }
+      console.log(`[Medication Reminders] ✅ Claimed ${med.medication_name} - safe to send`)
 
-      // Create a dose record FIRST (so we can generate a magic link token)
+      // Create a dose record (so we can generate a magic link token)
       const scheduledTime = nowPST.toISO() // PST timestamp
 
       // Generate one-time token for magic link authentication
-      // This allows users to mark as given without being logged in
       const crypto = await import('crypto')
       const oneTimeToken = crypto.randomUUID()
       const tokenExpiresAt = nowPST.plus({ hours: 24 }).toISO() // Token valid for 24 hours
@@ -187,6 +200,14 @@ export async function runMedicationReminders(options = {}) {
 
       if (doseError) {
         console.error('[Medication Reminders] Error creating dose:', doseError)
+        // We already logged, so delete the log entry to allow retry
+        await supabase
+          .from('medication_reminders_log')
+          .delete()
+          .eq('medication_id', med.id)
+          .eq('reminder_date', today)
+          .eq('reminder_time', currentTime)
+
         remindersSkipped.push({
           medicationId: med.id,
           reason: 'Failed to create dose',
@@ -197,7 +218,7 @@ export async function runMedicationReminders(options = {}) {
 
       console.log('[Medication Reminders] Created dose:', dose.id, 'with magic link token')
 
-      // Build SMS message with magic link (includes token for passwordless auth)
+      // Build SMS message with magic link
       const petName = med.pets?.name || 'your pet'
       const medName = med.medication_name || 'medication'
       const deepLink = `https://pet-claim-helper.vercel.app/dose/${med.id}?token=${oneTimeToken}`
@@ -207,25 +228,15 @@ export async function runMedicationReminders(options = {}) {
       const result = await sendTwilioSMS(profile.phone, message)
 
       if (result.success) {
-        // FIX #2: Log the sent reminder with message_id to prevent duplicates
-        const { error: logInsertError } = await supabase
+        // Update log with Twilio message SID
+        await supabase
           .from('medication_reminders_log')
-          .insert({
-            medication_id: med.id,
-            user_id: med.user_id,
-            reminder_date: today,
-            reminder_time: currentTime,
-            message_id: result.messageId, // Track Twilio message SID
-            sent_at: nowPST.toISO()
-          })
+          .update({ message_id: result.messageId })
+          .eq('medication_id', med.id)
+          .eq('reminder_date', today)
+          .eq('reminder_time', currentTime)
 
-        if (logInsertError) {
-          // This is critical - if we can't log, we might send duplicates
-          console.error('[Medication Reminders] ⚠️  CRITICAL: Failed to log reminder:', logInsertError.message)
-          console.error('[Medication Reminders] This could cause duplicate SMS on next run!')
-        } else {
-          console.log('[Medication Reminders] ✅ Logged reminder to prevent duplicates')
-        }
+        console.log('[Medication Reminders] ✅ SMS sent and logged:', result.messageId)
 
         remindersSent.push({
           medicationId: med.id,
@@ -244,6 +255,15 @@ export async function runMedicationReminders(options = {}) {
           doseId: dose?.id
         })
       } else {
+        // SMS failed - delete log entry to allow retry
+        console.error('[Medication Reminders] SMS send failed, removing log entry for retry')
+        await supabase
+          .from('medication_reminders_log')
+          .delete()
+          .eq('medication_id', med.id)
+          .eq('reminder_date', today)
+          .eq('reminder_time', currentTime)
+
         remindersSkipped.push({
           medicationId: med.id,
           reason: 'SMS send failed',
