@@ -453,6 +453,13 @@ function getValueForField(fieldName, claimData, dateSigned) {
   console.log('petSpayNeuterDate:', claimData.petSpayNeuterDate, '(type:', typeof claimData.petSpayNeuterDate + ')')
   console.log('='.repeat(80) + '\n')
 
+  // DEBUG: Log HP Pet ID to verify it's being received
+  if (claimData.healthyPawsPetId) {
+    console.log('[PDF Generation] healthyPawsPetId received:', claimData.healthyPawsPetId)
+  } else {
+    console.log('[PDF Generation] healthyPawsPetId is MISSING or BLANK')
+  }
+
   // Field mappings
   const fieldMap = {
     // HEALTHY PAWS COORDINATE-BASED FIELDS
