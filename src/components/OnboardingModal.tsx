@@ -21,7 +21,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
   // Step 2 - Pet + Insurance
   const [petName, setPetName] = useState('')
   const [species, setSpecies] = useState<'dog' | 'cat' | 'other' | ''>('')
-  const [insuranceCompany, setInsuranceCompany] = useState('')
+  const [insuranceCompany, setInsuranceCompany] = useState('None')
   const [healthyPawsPetId, setHealthyPawsPetId] = useState('')
   const [policyNumber, setPolicyNumber] = useState('')
   const [monthlyPremium, setMonthlyPremium] = useState<string>('')
@@ -44,7 +44,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
     setAddress('')
     setPetName('')
     setSpecies('')
-    setInsuranceCompany('')
+    setInsuranceCompany('None')
     setHealthyPawsPetId('')
     setPolicyNumber('')
     setMonthlyPremium('')
@@ -152,7 +152,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         user_id: userId,
         name: petName.trim(),
         species: species || 'other',
-        insurance_company: insuranceCompany || null,
+        insurance_company: (insuranceCompany && insuranceCompany !== 'None') ? insuranceCompany : null,
         healthy_paws_pet_id: healthyPawsPetId.trim() || null,
         policy_number: policyNumber.trim() || null,
         monthly_premium: monthlyPremium === '' ? null : parseFloat(monthlyPremium),
@@ -231,7 +231,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Insurance Company</label>
                     <select value={insuranceCompany} onChange={(e) => setInsuranceCompany(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3">
-                      <option value="">— Select —</option>
+                      <option value="None">None - No Insurance</option>
                       <option value="Nationwide">Nationwide</option>
                       <option value="Trupanion">Trupanion</option>
                       <option value="Fetch">Fetch</option>
@@ -252,7 +252,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
                     </div>
                   )}
 
-                  {insuranceCompany && (
+                  {insuranceCompany && insuranceCompany !== 'None' && (
                     <>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Policy Number</label>
