@@ -198,7 +198,7 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
     const nowYear = new Date().getFullYear()
     const viewYear = (() => {
       const p = String(period || '').toLowerCase()
-      if (p === '2024' || p === '2025') return Number(p)
+      if (p === '2024' || p === '2025' || p === '2026') return Number(p)
       if (p === 'all') return null
       return nowYear
     })()
@@ -256,7 +256,7 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
     const nowYear = new Date().getFullYear()
     const viewYear = (() => {
       const p = String(period || '').toLowerCase()
-      if (p === '2024' || p === '2025') return Number(p)
+      if (p === '2024' || p === '2025' || p === '2026') return Number(p)
       if (p === 'all') return null
       return nowYear
     })()
@@ -369,7 +369,7 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
               const nowYear = new Date().getFullYear()
               const viewYear = (() => {
                 const p = String(period || '').toLowerCase()
-                if (p === '2024' || p === '2025') return Number(p)
+                if (p === '2024' || p === '2025' || p === '2026') return Number(p)
                 if (p === 'all') return null
                 return nowYear
               })()
