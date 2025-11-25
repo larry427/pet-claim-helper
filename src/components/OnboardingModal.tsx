@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { createPet } from '../lib/petStorage'
+import { formatPhoneOnChange, formatPhoneForStorage } from '../utils/phoneUtils'
 
 type Props = {
   open: boolean
@@ -9,16 +10,15 @@ type Props = {
 }
 
 export default function OnboardingModal({ open, onClose, userId }: Props) {
-  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Step 1 - Profile
+  // Step 1 - Profile (removed phone)
   const [fullName, setFullName] = useState('')
-  const [phone, setPhone] = useState('')
   const [address, setAddress] = useState('')
 
-  // Step 2 - Pet + Insurance (all in one step)
+  // Step 2 - Pet + Insurance
   const [petName, setPetName] = useState('')
   const [species, setSpecies] = useState<'dog' | 'cat' | 'other' | ''>('')
   const [insuranceCompany, setInsuranceCompany] = useState('')
@@ -29,6 +29,11 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
   const [coverageStartDate, setCoverageStartDate] = useState('')
   const [insurancePaysPct, setInsurancePaysPct] = useState<string>('')
 
+  // Step 3 - SMS Reminders (optional)
+  const [wantsSMS, setWantsSMS] = useState(false)
+  const [phone, setPhone] = useState('')
+  const [smsConsent, setSmsConsent] = useState(false)
+
   useEffect(() => {
     if (!open) return
     // Reset state when opened
@@ -36,7 +41,6 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
     setSaving(false)
     setError(null)
     setFullName('')
-    setPhone('')
     setAddress('')
     setPetName('')
     setSpecies('')
@@ -47,20 +51,27 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
     setDeductiblePerClaim('')
     setCoverageStartDate('')
     setInsurancePaysPct('')
+    setWantsSMS(false)
+    setPhone('')
+    setSmsConsent(false)
   }, [open])
 
   const canNextFrom1 = useMemo(() => fullName.trim().length > 0, [fullName])
   const canNextFrom2 = useMemo(() => petName.trim().length > 0 && !!species, [petName, species])
+  const canNextFrom3 = useMemo(() => {
+    // Step 3 is optional - can always proceed
+    // But if they want SMS, must provide phone and consent
+    if (!wantsSMS) return true
+    return phone.trim().length > 0 && smsConsent
+  }, [wantsSMS, phone, smsConsent])
 
   // Prevent body scroll and handle escape key when modal is open
   useEffect(() => {
     if (!open) return
-    // Prevent body scroll
     const originalOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    // Handle escape key (only allow closing before step 3 - success)
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && step !== 3) onClose()
+      if (e.key === 'Escape' && step !== 4) onClose()
     }
     window.addEventListener('keydown', handleEscape)
     return () => {
@@ -81,21 +92,24 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         coverageStartDateISO = d.toISOString().slice(0, 10)
       }
 
-      // Prepare profile update data with proper null handling
+      // Prepare profile update data
       const profileUpdate: any = {
-        full_name: fullName.trim()
+        full_name: fullName.trim(),
+        onboarding_complete: true
       }
 
-      // Only add optional fields if they have values
-      if (phone.trim()) {
-        profileUpdate.phone = phone.trim()
+      // Add phone only if SMS opted in
+      if (wantsSMS && phone.trim()) {
+        const phoneE164 = formatPhoneForStorage(phone)
+        if (phoneE164) {
+          profileUpdate.phone = phoneE164
+          profileUpdate.sms_opt_in = true
+        }
       }
+
       if (address.trim()) {
         profileUpdate.address = address.trim()
       }
-
-      // Save profile (Step 1) - also mark onboarding as complete
-      profileUpdate.onboarding_complete = true
 
       const { error: profErr } = await supabase
         .from('profiles')
@@ -103,7 +117,37 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         .eq('id', userId)
       if (profErr) throw profErr
 
-      // Save pet (Step 2 - with optional insurance)
+      // Save SMS consent if opted in
+      if (wantsSMS && phone.trim() && smsConsent) {
+        const phoneE164 = formatPhoneForStorage(phone)
+        if (phoneE164) {
+          // Get IP address
+          let ipAddress = null
+          try {
+            const ipResponse = await fetch('https://api.ipify.org?format=json')
+            const ipData = await ipResponse.json()
+            ipAddress = ipData.ip
+          } catch {
+            // Ignore IP fetch errors
+          }
+
+          const { error: consentErr } = await supabase
+            .from('sms_consent')
+            .insert({
+              user_id: userId,
+              phone_number: phoneE164,
+              consented: true,
+              consent_text: "I agree to receive SMS medication reminders. Reply STOP to opt out, HELP for support.",
+              ip_address: ipAddress
+            })
+          if (consentErr) {
+            console.error('[OnboardingModal] Failed to save SMS consent:', consentErr)
+            // Don't fail onboarding if consent logging fails
+          }
+        }
+      }
+
+      // Save pet
       const petPayload: any = {
         user_id: userId,
         name: petName.trim(),
@@ -116,17 +160,10 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         coverage_start_date: coverageStartDateISO,
         insurance_pays_percentage: insurancePaysPct === '' ? null : Math.max(50, Math.min(100, Number(insurancePaysPct))),
       }
-      // Debug payload before sending
-      // eslint-disable-next-line no-console
-      console.log('[OnboardingModal] petPayload about to send:', {
-        monthlyPremium,
-        deductiblePerClaim,
-        coverageStartDate,
-        fullPayload: petPayload,
-      })
-      const data = await createPet(petPayload)
 
-      setStep(3) // Success step
+      await createPet(petPayload)
+
+      setStep(4) // Success step
     } catch (e: any) {
       setError(e?.message || 'Failed to save your info. Please try again.')
     } finally {
@@ -136,12 +173,12 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
 
   if (!open) return null
 
-  const stepLabel = step === 1 ? 'Step 1 of 2' : step === 2 ? 'Step 2 of 2' : ''
+  const stepLabel = step === 1 ? 'Step 1 of 3' : step === 2 ? 'Step 2 of 3' : step === 3 ? 'Step 3 of 3' : ''
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="relative mx-4 w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6 shadow-2xl max-h-[calc(100vh-40px)] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        {step !== 3 && (
+        {step !== 4 && (
           <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">{stepLabel}</div>
         )}
         {error && <div className="mb-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</div>}
@@ -153,11 +190,6 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Full Name <span className="text-red-500">*</span></label>
                 <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="John Smith" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Phone Number <span className="text-xs text-slate-500">(optional)</span></label>
-                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
-                <p className="mt-1 text-xs text-slate-500">Required for some insurance forms</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Mailing Address <span className="text-xs text-slate-500">(optional)</span></label>
@@ -262,15 +294,90 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
               </div>
             </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
-              <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4" onClick={onClose}>Cancel</button>
-              <button type="button" disabled={!canNextFrom2 || saving} className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 disabled:opacity-60" onClick={handleFinish}>
+              <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4" onClick={() => setStep(1)}>Back</button>
+              <button type="button" disabled={!canNextFrom2} className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 disabled:opacity-60" onClick={() => setStep(3)}>Next</button>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div>
+            <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">Get Medication Reminders?</div>
+            <div className="mt-4 space-y-4">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <div className="text-sm text-blue-900 dark:text-blue-200">
+                  <div className="font-semibold mb-2">🐾 Never forget a dose!</div>
+                  <div className="text-xs">Get a friendly text when it's time to give {petName || 'your pet'} their medicine. (optional)</div>
+                </div>
+              </div>
+
+              <label className="flex items-start gap-3 cursor-pointer p-4 rounded-lg border-2 border-slate-200 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-500 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={wantsSMS}
+                  onChange={(e) => setWantsSMS(e.target.checked)}
+                  className="mt-1 w-5 h-5 rounded border-2 border-slate-400 dark:border-slate-500 checked:bg-emerald-600 checked:border-emerald-600"
+                />
+                <div>
+                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Yes, text me when it's medication time</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">We'll send you a quick reminder so you never miss a dose</div>
+                </div>
+              </label>
+
+              {wantsSMS && (
+                <div className="space-y-3 pl-4 border-l-2 border-emerald-500">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Phone Number <span className="text-red-500">*</span></label>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(formatPhoneOnChange(e.target.value, phone))}
+                      placeholder="(555) 123-4567"
+                      className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                    />
+                  </div>
+
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={smsConsent}
+                      onChange={(e) => setSmsConsent(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded border-2 border-slate-400 dark:border-slate-500 checked:bg-emerald-600 checked:border-emerald-600"
+                    />
+                    <span className="text-xs text-slate-700 dark:text-slate-300">
+                      I agree to receive SMS medication reminders <span className="text-red-500">*</span>
+                    </span>
+                  </label>
+
+                  {smsConsent && (
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                      <p>Reply STOP to opt out anytime, or HELP for support.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!wantsSMS && (
+                <div className="text-xs text-slate-500 dark:text-slate-400 italic">
+                  You can always enable medication reminders later in your settings.
+                </div>
+              )}
+            </div>
+            <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
+              <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4" onClick={() => setStep(2)}>Back</button>
+              <button
+                type="button"
+                disabled={!canNextFrom3 || saving}
+                className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 disabled:opacity-60"
+                onClick={handleFinish}
+              >
                 {saving ? 'Saving…' : 'Finish Setup'}
               </button>
             </div>
           </div>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <div className="text-center py-4">
             <div className="text-5xl mb-4">✅</div>
             <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">You're all set!</div>
@@ -309,7 +416,6 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
               type="button"
               className="w-full h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
               onClick={() => {
-                // Set flag to show photo upload tooltip on first dashboard visit
                 localStorage.setItem('justCompletedOnboarding', 'true')
                 onClose()
               }}
@@ -322,5 +428,3 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
     </div>
   )
 }
-
-
