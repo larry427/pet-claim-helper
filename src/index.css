@@ -48,3 +48,13 @@ html, body {
 .animate-fade-in {
   animation: fade-in 0.6s ease-out;
 }
+
+/* Auto-Submit button shimmer animation */
+@keyframes shimmer {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}

@@ -142,6 +142,8 @@ export default function App() {
   const [medicationsRefreshKey, setMedicationsRefreshKey] = useState(0)
   // Claim auto-submission modal
   const [submittingClaim, setSubmittingClaim] = useState<any | null>(null)
+  // Auto-Submit button animation state
+  const [autoSubmitAnimating, setAutoSubmitAnimating] = useState<string | null>(null) // claim ID being animated
   // Pet photo upload state
   const [uploadingPhotoForPetId, setUploadingPhotoForPetId] = useState<string | null>(null)
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null)
@@ -2626,12 +2628,47 @@ export default function App() {
                                 {showAutoSubmit && (
                                   <button
                                     type="button"
-                                    className="text-xs px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold whitespace-nowrap flex items-center gap-1.5"
-                                    onClick={() => setSubmittingClaim(c)}
+                                    className={`
+                                      text-xs px-2 py-1 rounded font-semibold whitespace-nowrap flex items-center gap-1.5
+                                      transition-all duration-200 ease-out
+                                      ${autoSubmitAnimating === c.id
+                                        ? 'scale-95 bg-gradient-to-r from-teal-600 via-teal-500 to-teal-600 bg-[length:200%_100%] animate-[shimmer_1s_ease-in-out_infinite]'
+                                        : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
+                                      }
+                                      text-white
+                                    `}
+                                    onClick={async () => {
+                                      // Haptic feedback (if supported)
+                                      if (navigator.vibrate) {
+                                        navigator.vibrate(10) // Light impact
+                                      }
+
+                                      // Step 1: Button press animation (0-200ms)
+                                      setAutoSubmitAnimating(c.id)
+
+                                      // Step 2: Wait for animation before opening modal (200-500ms)
+                                      await new Promise(resolve => setTimeout(resolve, 300))
+
+                                      // Step 3: Open modal
+                                      setSubmittingClaim(c)
+                                      setAutoSubmitAnimating(null)
+                                    }}
                                     title="Automatically generate PDF and email to insurance company"
                                   >
-                                    <span>🚀</span>
-                                    Auto-Submit
+                                    {autoSubmitAnimating === c.id ? (
+                                      <>
+                                        <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <span className="animate-pulse">Preparing...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span>🚀</span>
+                                        Auto-Submit
+                                      </>
+                                    )}
                                   </button>
                                 )}
 
