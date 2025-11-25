@@ -58,3 +58,5 @@ html, body {
     background-position: -200% center;
   }
 }
+
+/* Slower shimmer for better visibility during 1s loading state */

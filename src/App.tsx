@@ -2632,7 +2632,7 @@ export default function App() {
                                       text-xs px-2 py-1 rounded font-semibold whitespace-nowrap flex items-center gap-1.5
                                       transition-all duration-200 ease-out
                                       ${autoSubmitAnimating === c.id
-                                        ? 'scale-95 bg-gradient-to-r from-teal-600 via-teal-500 to-teal-600 bg-[length:200%_100%] animate-[shimmer_1s_ease-in-out_infinite]'
+                                        ? 'scale-95 bg-gradient-to-r from-teal-600 via-teal-500 to-teal-600 bg-[length:200%_100%] animate-[shimmer_1.5s_ease-in-out_infinite]'
                                         : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
                                       }
                                       text-white
@@ -2643,14 +2643,18 @@ export default function App() {
                                         navigator.vibrate(10) // Light impact
                                       }
 
-                                      // Step 1: Button press animation (0-200ms)
+                                      // Step 1: Button press animation (0-300ms)
                                       setAutoSubmitAnimating(c.id)
 
-                                      // Step 2: Wait for animation before opening modal (200-500ms)
-                                      await new Promise(resolve => setTimeout(resolve, 300))
+                                      // Step 2: Loading state with shimmer (300-1000ms = 700ms visible)
+                                      // Let users see the gradient shimmer, spinner, and "Preparing..." text
+                                      await new Promise(resolve => setTimeout(resolve, 1000))
 
-                                      // Step 3: Open modal
+                                      // Step 3: Modal transition (1000-1200ms)
                                       setSubmittingClaim(c)
+
+                                      // Keep animation state briefly for smooth modal transition
+                                      await new Promise(resolve => setTimeout(resolve, 200))
                                       setAutoSubmitAnimating(null)
                                     }}
                                     title="Automatically generate PDF and email to insurance company"
