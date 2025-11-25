@@ -7,7 +7,7 @@ export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
     console.log('[dbLoadPets] START - userId=', userId)
     const { data, error} = await supabase
       .from('pets')
-      .select('id, name, species, color, photo_url, insurance_company, policy_number, owner_name, owner_phone, filing_deadline_days, monthly_premium, deductible_per_claim, coverage_start_date, insurance_pays_percentage, annual_coverage_limit')
+      .select('id, name, species, color, photo_url, insurance_company, policy_number, owner_name, owner_phone, filing_deadline_days, monthly_premium, deductible_per_claim, coverage_start_date, insurance_pays_percentage, annual_coverage_limit, healthy_paws_pet_id')
       .eq('user_id', userId)
       .order('created_at', { ascending: true })
     console.log('[dbLoadPets] QUERY RESULT - data:', data, 'error:', error)
@@ -31,6 +31,7 @@ export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
       coverage_start_date: p.coverage_start_date || null,
       insurance_pays_percentage: p.insurance_pays_percentage ?? null,
       annual_coverage_limit: p.annual_coverage_limit ?? null,
+      healthy_paws_pet_id: p.healthy_paws_pet_id || null,
     }))
     console.log('[dbLoadPets] SUCCESS - count=', mapped.length, 'pets:', mapped)
     return mapped
@@ -59,6 +60,7 @@ export async function dbUpsertPet(userId: string, pet: PetProfile): Promise<void
     coverage_start_date: (pet as any).coverage_start_date || null,
     insurance_pays_percentage: (pet as any).insurance_pays_percentage ?? null,
     annual_coverage_limit: (pet as any).annual_coverage_limit ?? null,
+    healthy_paws_pet_id: (pet as any).healthy_paws_pet_id || null,
   }
   // Debug
   // eslint-disable-next-line no-console

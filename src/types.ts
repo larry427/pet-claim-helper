@@ -6,6 +6,7 @@ export type LineItem = {
 export type ExtractedBill = {
   clinicName: string
   clinicAddress: string
+  clinicPhone?: string
   petName: string
   dateOfService: string
   totalAmount: string
@@ -36,6 +37,7 @@ export type PetProfile = {
   coverage_start_date?: string | null
   insurance_pays_percentage?: number | null // decimal 0-1
   annual_coverage_limit?: number | null
+  healthy_paws_pet_id?: string | null
 }
 
 export type ExtractedPetGroup = {
@@ -48,6 +50,7 @@ export type ExtractedPetGroup = {
 export type MultiPetExtracted = {
   clinicName: string
   clinicAddress: string
+  clinicPhone?: string
   dateOfService: string
   diagnosis: string
   pets: ExtractedPetGroup[]

@@ -563,6 +563,7 @@ export default function App() {
             coverage_start_date: editPet.coverage_start_date || null,
             insurance_pays_percentage: editPet.insurance_pays_percentage === '' ? null : (Number(editPet.insurance_pays_percentage) / 100),
             annual_coverage_limit: p.annual_coverage_limit ?? null,
+            healthy_paws_pet_id: (editPet as any).healthy_paws_pet_id || null,
           }
         : p,
     )
