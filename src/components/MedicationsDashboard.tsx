@@ -143,7 +143,24 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
     const dDate = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate())
     const tDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
     const diffDays = Math.round((dDate.getTime() - tDate.getTime()) / (1000 * 60 * 60 * 24))
-    const label = diffDays === 0 ? 'Today' : diffDays === 1 ? 'Tomorrow' : dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+    // CRITICAL FIX: If the time is in the past today, treat it as tomorrow
+    // This prevents showing "Today 11:01 PM" when it's already 11:21 PM
+    let label: string
+    if (diffDays === 0) {
+      // Same day - but check if time has passed
+      if (dt.getTime() <= today.getTime()) {
+        // Time is in the past, this shouldn't happen but handle it gracefully
+        label = 'Tomorrow'
+      } else {
+        label = 'Today'
+      }
+    } else if (diffDays === 1) {
+      label = 'Tomorrow'
+    } else {
+      label = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }
+
     const time = dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
     return `${label} ${time}`
   }
@@ -170,19 +187,34 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
       ? m.reminder_times.filter(Boolean)
       : (m.frequency === '1x daily' ? ['07:00'] : m.frequency === '2x daily' ? ['07:00', '19:00'] : ['08:00', '14:00', '20:00'])
     let next: Date | null = null
-    const cursor = new Date(today)
+
+    // Create a fresh reference time for comparison
+    const now = new Date()
+
+    // Start searching from today
+    let searchDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
     // Search up to 7 days ahead to find the next scheduled time within the course
     for (let i = 0; i < 7; i++) {
-      const curDate = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate())
-      if (curDate < startDay) { cursor.setDate(cursor.getDate() + 1); continue }
-      if (endDay && curDate > endDay) break
+      if (searchDate < startDay) {
+        searchDate.setDate(searchDate.getDate() + 1)
+        continue
+      }
+      if (endDay && searchDate > endDay) break
+
       for (const t of schedule) {
         const [hh, mm] = t.split(':').map(n => Number(n))
-        const candidate = new Date(curDate.getFullYear(), curDate.getMonth(), curDate.getDate(), hh, mm, 0)
-        if (candidate.getTime() > today.getTime()) { next = candidate; break }
+        const candidate = new Date(searchDate.getFullYear(), searchDate.getMonth(), searchDate.getDate(), hh, mm, 0)
+
+        // CRITICAL FIX: Ensure candidate is strictly in the future
+        if (candidate.getTime() > now.getTime()) {
+          next = candidate
+          break
+        }
       }
+
       if (next) break
-      cursor.setDate(cursor.getDate() + 1)
+      searchDate.setDate(searchDate.getDate() + 1)
     }
 
     return {
@@ -190,7 +222,7 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
       given,
       pct,
       daysRemaining,
-      nextDoseLabel: next ? formatRelativeNext(next, today) : (endDay && todayDay > endDay ? 'Completed' : '—'),
+      nextDoseLabel: next ? formatRelativeNext(next, now) : (endDay && todayDay > endDay ? 'Completed' : '—'),
       endLabel: endDay ? endDay.toISOString().slice(0, 10) : '—'
     }
   }

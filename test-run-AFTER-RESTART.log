@@ -1,0 +1,101 @@
+[dotenv@17.2.3] injecting env (9) from .env.local -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+🔥 EMPIRICAL BUG TESTING - PROVE BUGS ARE FIXED
+================================================================================
+Testing with REAL data and REAL API calls
+Will provide CONCRETE EVIDENCE with logs and database queries
+================================================================================
+
+🚀 Starting empirical bug tests...
+
+
+📱 BUG #1: PHONE NUMBER EXTRACTION
+================================================================================
+✅ Found Al's vet bill: /Users/larrylevin/Downloads/pet-claim-helper/tests/al test bill for phone number extraction.pdf
+   File size: 21658 bytes
+
+📤 Uploading Al's vet bill to test extraction...
+✅ Test user ID: 725b4a88-89bb-4b4d-9e57-552c9b1522e2
+✅ Test pet ID: a9850598-d935-4dd9-8a46-53a91df246c8 (name: Al Test Dog )
+Creating test claim...
+✅ Test claim ID: 3ef819b2-153a-4b69-8827-be6289e725fa
+
+🔄 Calling extraction API endpoint...
+✅ Upload API responded successfully
+   Response: {
+  "ok": true,
+  "data": {
+    "clinic_name": "Animal Dermatology Clinic -Tustin",
+    "clinic_address": "2965 Edinger Avenue, Tustin, CA 92780",
+    "clinic_phone": "(949) 936-0066",
+    "pet_name": "Jaeger",
+    "service_date": "2024-12-31",
+    "total_amount": 235.76,
+    "invoice_number": "1112911",
+    "diagnosis": "Exam - Medical Progress",
+    "line_items": [
+      {
+        "description": "Examination - Medical Progress",
+        "amount": 160
+      },
+      {
+        "description": "Clindamycin 150mg capsule",
+        "amount": 45.32
+      },
+      {
+        "description": "Clindamycin 300mg capsule",
+        "amount": 30.44
+      }
+    ]
+  }
+}
+
+📊 EXTRACTED DATA:
+   Clinic Name: Animal Dermatology Clinic -Tustin
+   Clinic Address: 2965 Edinger Avenue, Tustin, CA 92780
+   Clinic Phone: (949) 936-0066
+   Service Date: 2024-12-31
+   Total Amount: 235.76
+
+✅ SUCCESS: clinic_phone extracted from Al's vet bill!
+   Extracted phone: (949) 936-0066
+
+💾 Saving extracted data to database...
+✅ Updated claim with extracted data
+
+🔍 Verifying data saved to database...
+📊 DATABASE VALUES:
+   clinic_name: Animal Dermatology Clinic -Tustin
+   clinic_address: 2965 Edinger Avenue, Tustin, CA 92780
+   clinic_phone: (949) 936-0066
+   total_amount: 235.76
+
+✅ ✅ ✅ BUG #1 FIXED! Phone number saved to database!
+   Value: (949) 936-0066
+
+
+📄 BUG #2: PDF MERGE INCLUDING ORIGINAL VET BILL
+================================================================================
+✅ Found test claim with invoice:
+   Claim ID: 2b92d388-2e07-47b7-ae87-117c3be4fcca
+   Invoice path: c4419d0e-a234-4b93-bdbd-23e07090e57d/2b92d388-2e07-47b7-ae87-117c3be4fcca.pdf
+   Pet: TestDog-Nationwide
+   Insurance: Nationwide
+   User ID: c4419d0e-a234-4b93-bdbd-23e07090e57d
+
+🔐 Creating auth session for user...
+⚠️  Using alternative approach: testing with newly created claim from Bug #1 test
+
+
+================================================================================
+📊 FINAL REPORT - EMPIRICAL EVIDENCE
+================================================================================
+
+📱 BUG #1: Phone Number Extraction
+   ✅ FIXED - Phone number extracted and saved to database
+
+📄 BUG #2: PDF Merge Including Original Vet Bill
+   ❌ BROKEN - Merged PDF does not include original invoice
+
+================================================================================
+❌ BUGS STILL BROKEN - FURTHER DEBUGGING NEEDED
+================================================================================

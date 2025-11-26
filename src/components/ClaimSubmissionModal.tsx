@@ -59,6 +59,14 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
           return
         }
 
+        // Get user session for authentication
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) {
+          setError('Please log in to submit claims')
+          setStep('error')
+          return
+        }
+
         // Call validation API to check what fields are missing for this insurer
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787'
         console.log('[ClaimSubmissionModal] Calling validation API:', `${apiUrl}/api/claims/validate-fields`)
@@ -70,7 +78,10 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
 
         const response = await fetch(`${apiUrl}/api/claims/validate-fields`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
           body: JSON.stringify({
             claimId: claim.id,
             userId: userId,
@@ -234,10 +245,21 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
     setError(null)
 
     try {
+      // Get user session for authentication
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        setError('Please log in to submit claims')
+        setStep('error')
+        return
+      }
+
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787'
       const response = await fetch(`${apiUrl}/api/claims/submit`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
         body: JSON.stringify({
           claimId: claim.id,
           userId: userId
@@ -268,17 +290,28 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
     try {
       setStep('validating')
 
+      // Get user session for authentication
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        setError('Please log in to save claim information')
+        setStep('error')
+        return
+      }
+
       // Save collected data to database
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787'
       const saveResponse = await fetch(`${apiUrl}/api/claims/${claim.id}/save-collected-fields`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
         body: JSON.stringify({ collectedData })
       })
 
       const saveResult = await saveResponse.json()
 
-      if (!saveResult.ok) {
+      if (!saveResponse.ok || !saveResult.ok) {
         setError('Failed to save claim information')
         setStep('error')
         return

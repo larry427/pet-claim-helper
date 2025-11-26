@@ -202,6 +202,17 @@ const startServer = async () => {
   // Send reminder emails for expiring claims
   app.post('/api/send-reminders', async (req, res) => {
     try {
+      // AUTHENTICATION: Server-only endpoint (for cron jobs/admin)
+      const authHeader = req.headers.authorization
+      if (!process.env.SERVER_SECRET) {
+        console.error('[Send Reminders] SERVER_SECRET not configured')
+        return res.status(500).json({ ok: false, error: 'Server misconfigured' })
+      }
+      if (authHeader !== `Bearer ${process.env.SERVER_SECRET}`) {
+        console.error('[Send Reminders] Unauthorized access attempt')
+        return res.status(401).json({ ok: false, error: 'Unauthorized' })
+      }
+
       console.log('Checking for expiring claims...')
       
       const today = new Date()
@@ -325,8 +336,19 @@ if (error) {
   app.post('/api/test-email', async (req, res) => {
     res.set('Access-Control-Allow-Origin', '*')
     res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    res.set('Access-Control-Allow-Headers', 'Content-Type')
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
     try {
+      // AUTHENTICATION: Server-only endpoint (for testing/admin)
+      const authHeader = req.headers.authorization
+      if (!process.env.SERVER_SECRET) {
+        console.error('[Test Email] SERVER_SECRET not configured')
+        return res.status(500).json({ ok: false, error: 'Server misconfigured' })
+      }
+      if (authHeader !== `Bearer ${process.env.SERVER_SECRET}`) {
+        console.error('[Test Email] Unauthorized access attempt')
+        return res.status(401).json({ ok: false, error: 'Unauthorized' })
+      }
+
       const from = 'Pet Claim Helper <onboarding@resend.dev>'
       const to = ['larry@vrexistence.com']
       const subject = 'Pet Claim Helper - Test Email'
@@ -493,8 +515,19 @@ if (error) {
   app.post('/api/send-medication-reminders', async (req, res) => {
     res.set('Access-Control-Allow-Origin', '*')
     res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    res.set('Access-Control-Allow-Headers', 'Content-Type')
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
     try {
+      // AUTHENTICATION: Server-only endpoint (deprecated - use cron job)
+      const authHeader = req.headers.authorization
+      if (!process.env.SERVER_SECRET) {
+        console.error('[Send Medication Reminders] SERVER_SECRET not configured')
+        return res.status(500).json({ success: false, error: 'Server misconfigured' })
+      }
+      if (authHeader !== `Bearer ${process.env.SERVER_SECRET}`) {
+        console.error('[Send Medication Reminders] Unauthorized access attempt')
+        return res.status(401).json({ success: false, error: 'Unauthorized' })
+      }
+
       const result = await sendMedicationReminders()
       return res.json(result)
     } catch (err) {
@@ -652,7 +685,27 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
   // Welcome SMS endpoint - called after user completes onboarding
   app.post('/api/sms/welcome', async (req, res) => {
     try {
+      // AUTHENTICATION: Verify user session (user must be logged in to send welcome SMS)
+      const authHeader = req.headers.authorization
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.error('[SMS Welcome] No authorization header')
+        return res.status(401).json({ ok: false, error: 'Unauthorized - no valid session' })
+      }
+
+      const token = authHeader.replace('Bearer ', '')
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+      if (authError || !user) {
+        console.error('[SMS Welcome] Invalid token:', authError?.message)
+        return res.status(401).json({ ok: false, error: 'Unauthorized - invalid token' })
+      }
+
       const { userId, phoneNumber } = req.body
+
+      // AUTHORIZATION: Verify the authenticated user matches the userId
+      if (userId && user.id !== userId) {
+        console.error('[SMS Welcome] User mismatch:', { authenticated: user.id, requested: userId })
+        return res.status(403).json({ ok: false, error: 'Forbidden - user mismatch' })
+      }
 
       if (!phoneNumber) {
         return res.status(400).json({ ok: false, error: 'Phone number required' })
@@ -818,6 +871,20 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
   // Check for missing required fields before claim submission
   app.post('/api/claims/validate-fields', async (req, res) => {
     try {
+      // AUTHENTICATION: Verify user session
+      const authHeader = req.headers.authorization
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.error('[Validate Fields] No authorization header')
+        return res.status(401).json({ ok: false, error: 'Unauthorized - no valid session' })
+      }
+
+      const token = authHeader.replace('Bearer ', '')
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+      if (authError || !user) {
+        console.error('[Validate Fields] Invalid token:', authError?.message)
+        return res.status(401).json({ ok: false, error: 'Unauthorized - invalid token' })
+      }
+
       const { claimId, userId, insurer } = req.body
 
       if (!claimId || !userId || !insurer) {
@@ -825,6 +892,12 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
           ok: false,
           error: 'claimId, userId, and insurer required'
         })
+      }
+
+      // AUTHORIZATION: Verify the authenticated user matches the userId in the request
+      if (user.id !== userId) {
+        console.error('[Validate Fields] User mismatch:', { authenticated: user.id, requested: userId })
+        return res.status(403).json({ ok: false, error: 'Forbidden - user mismatch' })
       }
 
       console.log('[Validate Fields] Checking required fields:', { claimId, userId, insurer })
@@ -962,6 +1035,20 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
   // Save collected fields from missing fields modal
   app.post('/api/claims/:claimId/save-collected-fields', async (req, res) => {
     try {
+      // AUTHENTICATION: Verify user session
+      const authHeader = req.headers.authorization
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.error('[Save Collected Fields] No authorization header')
+        return res.status(401).json({ ok: false, error: 'Unauthorized - no valid session' })
+      }
+
+      const token = authHeader.replace('Bearer ', '')
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+      if (authError || !user) {
+        console.error('[Save Collected Fields] Invalid token:', authError?.message)
+        return res.status(401).json({ ok: false, error: 'Unauthorized - invalid token' })
+      }
+
       const { claimId } = req.params
       const { collectedData } = req.body
 
@@ -977,6 +1064,12 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
       if (claimError || !claim) {
         console.error('[Save Collected Fields] Claim not found:', claimError)
         return res.status(404).json({ ok: false, error: 'Claim not found' })
+      }
+
+      // AUTHORIZATION: Verify the authenticated user owns this claim
+      if (user.id !== claim.user_id) {
+        console.error('[Save Collected Fields] User mismatch:', { authenticated: user.id, claimOwner: claim.user_id })
+        return res.status(403).json({ ok: false, error: 'Forbidden - you do not own this claim' })
       }
 
       const userId = claim.user_id
@@ -1200,10 +1293,30 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
   // Submit claim to insurance company
   app.post('/api/claims/submit', async (req, res) => {
     try {
+      // AUTHENTICATION: Verify user session
+      const authHeader = req.headers.authorization
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.error('[Submit Claim] No authorization header')
+        return res.status(401).json({ ok: false, error: 'Unauthorized - no valid session' })
+      }
+
+      const token = authHeader.replace('Bearer ', '')
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+      if (authError || !user) {
+        console.error('[Submit Claim] Invalid token:', authError?.message)
+        return res.status(401).json({ ok: false, error: 'Unauthorized - invalid token' })
+      }
+
       const { claimId, userId } = req.body
 
       if (!claimId || !userId) {
         return res.status(400).json({ ok: false, error: 'claimId and userId required' })
+      }
+
+      // AUTHORIZATION: Verify the authenticated user matches the userId in the request
+      if (user.id !== userId) {
+        console.error('[Submit Claim] User mismatch:', { authenticated: user.id, requested: userId })
+        return res.status(403).json({ ok: false, error: 'Forbidden - user mismatch' })
       }
 
       console.log('[Submit Claim] Starting submission:', { claimId, userId })

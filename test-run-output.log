@@ -1,0 +1,100 @@
+[dotenv@17.2.3] injecting env (9) from .env.local -- tip: ⚙️  override existing env vars with { override: true }
+🔥 EMPIRICAL BUG TESTING - PROVE BUGS ARE FIXED
+================================================================================
+Testing with REAL data and REAL API calls
+Will provide CONCRETE EVIDENCE with logs and database queries
+================================================================================
+
+🚀 Starting empirical bug tests...
+
+
+📱 BUG #1: PHONE NUMBER EXTRACTION
+================================================================================
+✅ Found Al's vet bill: /Users/larrylevin/Downloads/pet-claim-helper/tests/al test bill for phone number extraction.pdf
+   File size: 21658 bytes
+
+📤 Uploading Al's vet bill to test extraction...
+✅ Test user ID: 725b4a88-89bb-4b4d-9e57-552c9b1522e2
+✅ Test pet ID: a9850598-d935-4dd9-8a46-53a91df246c8 (name: Al Test Dog )
+Creating test claim...
+✅ Test claim ID: d0624339-fa78-4cea-8cb0-905ab2df7f07
+
+🔄 Calling extraction API endpoint...
+✅ Upload API responded successfully
+   Response: {
+  "ok": true,
+  "data": {
+    "clinic_name": "Animal Dermatology Clinic -Tustin",
+    "clinic_address": "2965 Edinger Avenue, Tustin, CA 92780",
+    "clinic_phone": "(949) 936-0066",
+    "pet_name": "Jaeger",
+    "service_date": "2024-12-31",
+    "total_amount": 235.76,
+    "invoice_number": "1112911",
+    "diagnosis": "Exam - Medical Progress",
+    "line_items": [
+      {
+        "description": "Exam - Medical Progress",
+        "amount": 160
+      },
+      {
+        "description": "Clindamycin 150mg capsule",
+        "amount": 45.32
+      },
+      {
+        "description": "Clindamycin 300mg capsule",
+        "amount": 30.44
+      },
+      {
+        "description": "Patient Cared for by Vanessa",
+        "amount": 0
+      },
+      {
+        "description": "Recheck 6 Months",
+        "amount": 0
+      }
+    ]
+  }
+}
+
+🔍 Verifying data saved to database...
+📊 DATABASE VALUES:
+   clinic_name: Test Clinic
+   clinic_address: (null)
+   clinic_phone: (null)
+   total_amount: 150
+
+❌ ❌ ❌ BUG #1 STILL BROKEN! clinic_phone is null in database!
+
+
+📄 BUG #2: PDF MERGE INCLUDING ORIGINAL VET BILL
+================================================================================
+✅ Found test claim with invoice:
+   Claim ID: 2b92d388-2e07-47b7-ae87-117c3be4fcca
+   Invoice path: c4419d0e-a234-4b93-bdbd-23e07090e57d/2b92d388-2e07-47b7-ae87-117c3be4fcca.pdf
+   Pet: TestDog-Nationwide
+   Insurance: Nationwide
+
+📥 Downloading original vet invoice from storage...
+✅ Original invoice downloaded: 22303 bytes
+   Original invoice pages: 1
+
+🔄 Requesting merged PDF from API endpoint...
+   URL: http://localhost:8787/api/claims/2b92d388-2e07-47b7-ae87-117c3be4fcca/preview-pdf?merged=true
+❌ FAIL: PDF API returned error: 401 Unauthorized
+   Error details: {"ok":false,"error":"Missing authorization"}
+
+
+================================================================================
+📊 FINAL REPORT - EMPIRICAL EVIDENCE
+================================================================================
+
+📱 BUG #1: Phone Number Extraction
+   ❌ BROKEN - Phone extraction still returning null
+
+📄 BUG #2: PDF Merge Including Original Vet Bill
+   ❌ BROKEN - Merged PDF does not include original invoice
+
+================================================================================
+❌ BUGS STILL BROKEN - FURTHER DEBUGGING NEEDED
+================================================================================

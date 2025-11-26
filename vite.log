@@ -1,0 +1,42 @@
+
+> pet-claim-helper@0.0.1 dev
+> concurrently -k "vite" "node -r dotenv/config server/index.js dotenv_config_path=server/.env.local"
+
+[0] 
+[0]   VITE v5.4.20  ready in 173 ms
+[0] 
+[0]   ➜  Local:   http://localhost:5173/
+[0]   ➜  Network: use --host to expose
+[1] Warning: Please use the `legacy` build in Node.js environments.
+[1] RESEND_API_KEY: Found re_9C3oP1b
+[1] [dotenv@17.2.3] injecting env (5) from .env.local -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+[1] Deadline reminders route registered
+[1] [Cron] Deadline reminders scheduled for 9 AM Pacific Time daily (0 17 * * * UTC = 9 AM PST/PDT)
+[1] node:events:497
+[1]       throw er; // Unhandled 'error' event
+[1]       ^
+[1] 
+[1] Error: listen EADDRINUSE: address already in use :::8787
+[1]     at Server.setupListenHandle [as _listen2] (node:net:1940:16)
+[1]     at listenInCluster (node:net:1997:12)
+[1]     at Server.listen (node:net:2102:7)
+[1]     at Function.listen (/Users/larrylevin/Downloads/pet-claim-helper/server/node_modules/express/lib/application.js:635:24)
+[1]     at startServer (file:///Users/larrylevin/Downloads/pet-claim-helper/server/index.js:1639:7)
+[1]     at file:///Users/larrylevin/Downloads/pet-claim-helper/server/index.js:1644:1
+[1]     at ModuleJob.run (node:internal/modules/esm/module_job:345:25)
+[1]     at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:665:26)
+[1]     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+[1] Emitted 'error' event on Server instance at:
+[1]     at emitErrorNT (node:net:1976:8)
+[1]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+[1]   code: 'EADDRINUSE',
+[1]   errno: -48,
+[1]   syscall: 'listen',
+[1]   address: '::',
+[1]   port: 8787
+[1] }
+[1] 
+[1] Node.js v22.20.0
+[1] node -r dotenv/config server/index.js dotenv_config_path=server/.env.local exited with code 1
+--> Sending SIGTERM to other processes..
+[0] vite exited with code 0

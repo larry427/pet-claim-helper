@@ -23,11 +23,11 @@ Environment variables (.env.local):
 # Client (Vite)
 VITE_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
 VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
-VITE_OPENAI_API_KEY=sk-...
 
-# Server
+# Server (server/.env.local)
 SUPABASE_URL=https://YOUR-PROJECT.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=YOUR_SUPABASE_SERVICE_ROLE_KEY
+OPENAI_API_KEY=sk-...
 RESEND_API_KEY=re_...
 MAIL_FROM="Pet Claim Helper <noreply@your-domain>"
 PORT=8787

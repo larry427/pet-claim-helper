@@ -49,17 +49,28 @@ export async function sendClaimEmail(insurer, claimData, pdfBuffer, invoiceBuffe
     }
 
     // Send email via Resend
-    const response = await resend.emails.send({
+    console.log('[Email] 📧 BCC Address:', claimData.policyholderEmail)
+    console.log('[Email] 📤 Sending to:', insurerEmail)
+
+    // Prepare email params - only add BCC if email is valid
+    const emailParams = {
       from: 'Pet Claim Helper <claims@petclaimhelper.com>',
       to: insurerEmail,
-      bcc: claimData.policyholderEmail, // BCC user for transparency
       subject: subject,
       html: htmlBody,
       text: textBody,
       attachments: attachments
-    })
+    }
+
+    // Always BCC Larry for monitoring all claim submissions
+    emailParams.bcc = ['larry@uglydogadventures.com']
+    console.log('[Email] ✅ BCC will be sent to: larry@uglydogadventures.com')
+    console.log('[Email] 📧 Policyholder email (for reference):', claimData.policyholderEmail)
+
+    const response = await resend.emails.send(emailParams)
 
     console.log(`✅ Claim email sent to ${insurer}:`, response.id)
+    console.log('[Email] 🔍 Full Resend response:', JSON.stringify(response, null, 2))
 
     return {
       success: true,

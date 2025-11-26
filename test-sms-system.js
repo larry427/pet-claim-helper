@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
+import { DateTime } from 'luxon'
 import dotenv from 'dotenv'
-import fetch from 'node-fetch'
 
 dotenv.config({ path: '.env.local' })
 
@@ -9,225 +9,198 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-const API_URL = process.env.API_URL || 'http://localhost:8787'
-const TEST_PHONE = process.env.TEST_PHONE || '+1234567890' // Replace with real phone for testing
+async function testMedicationReminderSystem() {
+  console.log('='.repeat(80))
+  console.log('MEDICATION REMINDER SYSTEM TEST')
+  console.log('='.repeat(80))
+  console.log()
 
-async function testSMSSystem() {
-  console.log('🧪 TESTING SMS MEDICATION REMINDER SYSTEM\n')
-  console.log('=' .repeat(80))
+  // Get current time in PST
+  const nowPST = DateTime.now().setZone('America/Los_Angeles')
+  const currentHour = nowPST.hour
+  const currentMinute = nowPST.minute
+  const currentTime = String(currentHour).padStart(2, '0') + ':' + String(currentMinute).padStart(2, '0')
+  const today = nowPST.toISODate()
 
-  // Test 1: Check database schema
-  console.log('\n📋 TEST 1: Verify database schema')
-  console.log('-'.repeat(80))
+  console.log('📅 CURRENT TIME (PST):')
+  console.log('   Full timestamp: ' + nowPST.toISO())
+  console.log('   Time: ' + currentTime)
+  console.log('   Date: ' + today)
+  console.log()
 
-  try {
-    // Check if sms_opt_in column exists
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, email, phone, sms_opt_in')
-      .limit(1)
+  // Query all medications with reminder times
+  const { data: medications, error: medsError } = await supabase
+    .from('medications')
+    .select('*, pets(name, species), profiles(phone, email, sms_opt_in)')
+    .not('reminder_times', 'is', null)
 
-    console.log('✅ profiles table has sms_opt_in column')
-
-    // Check medications table
-    const { data: meds } = await supabase
-      .from('medications')
-      .select('id, medication_name, reminder_times')
-      .limit(1)
-
-    console.log('✅ medications table accessible')
-
-    // Check medication_reminders_log table
-    const { data: logs } = await supabase
-      .from('medication_reminders_log')
-      .select('id')
-      .limit(1)
-
-    console.log('✅ medication_reminders_log table accessible')
-  } catch (error) {
-    console.error('❌ Schema check failed:', error.message)
+  if (medsError) {
+    console.error('❌ ERROR fetching medications:', medsError)
     return
   }
 
-  // Test 2: Test welcome SMS endpoint
-  console.log('\n📧 TEST 2: Test welcome SMS endpoint')
-  console.log('-'.repeat(80))
-
-  try {
-    const response = await fetch(`${API_URL}/api/sms/welcome`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: 'test-user-id',
-        phoneNumber: TEST_PHONE
-      })
-    })
-
-    const result = await response.json()
-
-    if (result.ok) {
-      console.log('✅ Welcome SMS endpoint works')
-      console.log(`   Message ID: ${result.messageId}`)
-    } else {
-      console.log('⚠️  Welcome SMS endpoint returned error:', result.error)
-    }
-  } catch (error) {
-    console.error('❌ Welcome SMS test failed:', error.message)
+  if (!medications || medications.length === 0) {
+    console.log('⚠️  NO MEDICATIONS WITH REMINDERS FOUND')
+    console.log('   Create a medication with reminder times to test the system.')
+    return
   }
 
-  // Test 3: Test HELP/STOP webhook endpoint
-  console.log('\n📲 TEST 3: Test HELP/STOP webhook endpoint')
-  console.log('-'.repeat(80))
+  console.log('✅ FOUND ' + medications.length + ' MEDICATION(S) WITH REMINDERS')
+  console.log()
 
-  try {
-    // Test HELP command
-    const helpResponse = await fetch(`${API_URL}/api/sms/incoming`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        Body: 'HELP',
-        From: TEST_PHONE
-      })
-    })
+  let activeMeds = 0
+  let wouldTriggerNow = 0
 
-    const helpText = await helpResponse.text()
-    if (helpText.includes('Pet Claim Helper medication reminders')) {
-      console.log('✅ HELP command works')
-    } else {
-      console.log('⚠️  HELP command response unexpected:', helpText)
+  for (const med of medications) {
+    const petName = med.pets?.name || 'Unknown Pet'
+    const medName = med.medication_name || 'Unknown Medication'
+
+    console.log('-'.repeat(80))
+    console.log('🐾 PET: ' + petName)
+    console.log('💊 MEDICATION: ' + medName)
+    console.log('   ID: ' + med.id)
+    console.log()
+
+    // Check if medication is active (within start/end date range)
+    const startDate = med.start_date
+    const endDate = med.end_date
+    const isActive = startDate <= today && (!endDate || endDate >= today)
+
+    console.log('📆 DATE RANGE:')
+    console.log('   Start: ' + startDate)
+    console.log('   End: ' + (endDate || 'Ongoing'))
+    console.log('   Status: ' + (isActive ? '✅ ACTIVE' : '❌ INACTIVE'))
+    console.log()
+
+    if (!isActive) {
+      console.log('   ⏭️  Skipping - medication not active')
+      continue
     }
 
-    // Test STOP command
-    const stopResponse = await fetch(`${API_URL}/api/sms/incoming`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        Body: 'STOP',
-        From: TEST_PHONE
-      })
-    })
+    activeMeds++
 
-    const stopText = await stopResponse.text()
-    console.log('✅ STOP command processed')
-  } catch (error) {
-    console.error('❌ Webhook test failed:', error.message)
-  }
+    // Check reminder times
+    const reminderTimes = Array.isArray(med.reminder_times) ? med.reminder_times : []
+    console.log('⏰ REMINDER TIMES (' + reminderTimes.length + '):')
 
-  // Test 4: Test mark-given endpoint
-  console.log('\n💊 TEST 4: Test mark-given endpoint')
-  console.log('-'.repeat(80))
-
-  try {
-    // Create a test medication first
-    const { data: user } = await supabase
-      .from('profiles')
-      .select('id, email')
-      .eq('email', 'larry@uglydogadventures.com')
-      .single()
-
-    if (!user) {
-      console.log('⚠️  Test user not found, skipping medication tests')
+    if (reminderTimes.length === 0) {
+      console.log('   ⚠️  No reminder times set')
     } else {
-      // Get or create a test pet
-      const { data: pets } = await supabase
-        .from('pets')
-        .select('id, name')
-        .eq('user_id', user.id)
-        .limit(1)
+      reminderTimes.forEach((time, idx) => {
+        const isPSTFormat = /^\d{2}:\d{2}$/.test(time)
+        const matchesNow = time === currentTime
 
-      if (!pets || pets.length === 0) {
-        console.log('⚠️  No pets found for test user, skipping medication tests')
-      } else {
-        const pet = pets[0]
-        console.log(`   Using pet: ${pet.name}`)
-
-        // Create a test medication
-        const today = new Date().toISOString().split('T')[0]
-        const { data: medication, error: medError } = await supabase
-          .from('medications')
-          .insert({
-            user_id: user.id,
-            pet_id: pet.id,
-            medication_name: 'Test Medication',
-            dosage: '10mg',
-            frequency: '1x daily',
-            reminder_times: ['09:00'],
-            start_date: today,
-            end_date: null
-          })
-          .select()
-          .single()
-
-        if (medError) {
-          console.error('❌ Failed to create test medication:', medError.message)
+        if (matchesNow) {
+          console.log('   ' + (idx + 1) + '. ' + time + ' ⭐ WOULD TRIGGER NOW!')
         } else {
-          console.log(`✅ Created test medication: ${medication.id}`)
+          console.log('   ' + (idx + 1) + '. ' + time + ' ' + (isPSTFormat ? '✅' : '❌ INVALID FORMAT'))
+        }
+      })
+    }
+    console.log()
 
-          // Create a test dose
-          const { data: dose } = await supabase
-            .from('medication_doses')
-            .insert({
-              medication_id: medication.id,
-              user_id: user.id,
-              scheduled_time: new Date().toISOString(),
-              status: 'pending'
-            })
-            .select()
-            .single()
+    // Check if user has phone and SMS opt-in
+    const profile = med.profiles
+    const hasPhone = profile && profile.phone
+    const hasOptIn = profile && profile.sms_opt_in !== false
 
-          if (dose) {
-            console.log(`✅ Created test dose: ${dose.id}`)
+    console.log('📱 USER INFO:')
+    console.log('   Phone: ' + (profile?.phone || 'Not set'))
+    console.log('   Email: ' + (profile?.email || 'Not set'))
+    console.log('   SMS Opt-in: ' + (hasOptIn ? '✅ Yes' : '❌ No'))
+    console.log()
 
-            // Test mark-given endpoint
-            const response = await fetch(`${API_URL}/api/medications/${medication.id}/mark-given`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ userId: user.id })
-            })
+    // Check if any reminder time matches current time
+    const shouldSendNow = reminderTimes.some(time => {
+      const parts = time.split(':')
+      const hour = parts[0]
+      const minute = parts[1]
+      return hour === String(currentHour).padStart(2, '0') &&
+             minute === String(currentMinute).padStart(2, '0')
+    })
 
-            const result = await response.json()
+    if (shouldSendNow) {
+      console.log('🎯 TRIGGER STATUS: WOULD SEND NOW')
+      wouldTriggerNow++
 
-            if (result.ok) {
-              console.log('✅ Mark-given endpoint works')
-              console.log(`   Dose marked: ${result.doseId}`)
-            } else {
-              console.log('⚠️  Mark-given error:', result.error)
-            }
+      if (!hasPhone || !hasOptIn) {
+        console.log('   ⚠️  But BLOCKED due to missing phone or SMS opt-out')
+      } else {
+        // Check if already sent today
+        const { data: logCheck } = await supabase
+          .from('medication_reminders_log')
+          .select('id')
+          .eq('medication_id', med.id)
+          .eq('reminder_date', today)
+          .eq('reminder_time', currentTime)
 
-            // Cleanup: delete test data
-            await supabase.from('medication_doses').delete().eq('medication_id', medication.id)
-            await supabase.from('medications').delete().eq('id', medication.id)
-            console.log('✅ Cleaned up test medication')
-          }
+        if (logCheck && logCheck.length > 0) {
+          console.log('   ⚠️  Already sent today (found in log)')
+        } else {
+          console.log('   ✅ WOULD SEND SMS TO: ' + profile.phone)
+          const deepLink = 'https://pet-claim-helper.vercel.app/dose/' + med.id + '?action=mark'
+          console.log('   📲 Message: 🐾 Time to give ' + petName + ' their ' + medName + '!')
+          console.log('   🔗 Deep link: ' + deepLink)
         }
       }
+    } else {
+      console.log('⏸️  TRIGGER STATUS: Not scheduled for current time')
+
+      // Find next scheduled reminder
+      const nextReminder = reminderTimes
+        .map(time => {
+          const parts = time.split(':').map(n => Number(n))
+          const h = parts[0]
+          const m = parts[1]
+          let nextTime = nowPST.set({ hour: h, minute: m, second: 0 })
+          if (nextTime <= nowPST) {
+            nextTime = nextTime.plus({ days: 1 })
+          }
+          return { time: time, datetime: nextTime }
+        })
+        .sort((a, b) => a.datetime.toMillis() - b.datetime.toMillis())[0]
+
+      if (nextReminder) {
+        const diff = nextReminder.datetime.diff(nowPST, ['hours', 'minutes'])
+        const hours = Math.floor(diff.hours)
+        const minutes = Math.floor(diff.minutes % 60)
+        console.log('   Next reminder: ' + nextReminder.time + ' (in ' + hours + 'h ' + minutes + 'm)')
+      }
     }
-  } catch (error) {
-    console.error('❌ Mark-given test failed:', error.message)
+    console.log()
   }
 
-  // Test 5: Test deep link URL
-  console.log('\n🔗 TEST 5: Test deep link URL format')
-  console.log('-'.repeat(80))
-
-  const testMedicationId = 'abc123-def456-ghi789'
-  const deepLink = `https://pet-claim-helper.vercel.app/dose/${testMedicationId}?action=mark`
-  console.log(`   Deep link format: ${deepLink}`)
-  console.log('✅ Deep link URL structure correct')
-
-  // Summary
-  console.log('\n' + '='.repeat(80))
-  console.log('✅ SMS SYSTEM TESTING COMPLETE')
   console.log('='.repeat(80))
-  console.log('\n📝 MANUAL TESTING STEPS:')
-  console.log('1. Run migration: Execute add-sms-opt-in-migration.sql in Supabase')
-  console.log('2. Set up Twilio webhook: POST https://your-domain.com/api/sms/incoming')
-  console.log('3. Test onboarding: Sign up with phone number')
-  console.log('4. Test medication reminder: Create medication with reminder time')
-  console.log('5. Test deep link: Click link from SMS to mark dose as given')
-  console.log('6. Test HELP: Text "HELP" to +18446256781')
-  console.log('7. Test STOP: Text "STOP" to +18446256781')
-  console.log('\n')
+  console.log('SUMMARY')
+  console.log('='.repeat(80))
+  console.log('Total medications with reminders: ' + medications.length)
+  console.log('Active medications: ' + activeMeds)
+  console.log('Would trigger at current time: ' + wouldTriggerNow)
+  console.log()
+
+  if (activeMeds === 0) {
+    console.log('⚠️  No active medications found. Create a medication with:')
+    console.log('   - start_date <= today')
+    console.log('   - end_date >= today (or null)')
+    console.log('   - reminder_times array with PST times (e.g., ["07:00", "19:00"])')
+  }
+
+  if (wouldTriggerNow === 0) {
+    console.log('💡 TIP: To test SMS sending, create a medication with:')
+    console.log('   - reminder_times including current time: ["' + currentTime + '"]')
+    console.log('   - start_date: today or earlier')
+    console.log('   - end_date: today or later (or null)')
+    console.log('   - User must have phone number and SMS opt-in enabled')
+  }
+  console.log()
 }
 
-testSMSSystem().then(() => process.exit(0))
+testMedicationReminderSystem()
+  .then(() => {
+    console.log('✅ Test completed')
+    process.exit(0)
+  })
+  .catch(err => {
+    console.error('❌ Test failed:', err)
+    process.exit(1)
+  })

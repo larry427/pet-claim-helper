@@ -1,0 +1,19 @@
+
+  VITE v5.4.20  ready in 91 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+8:22:11 PM [vite] hmr update /src/App.tsx, /src/index.css
+10:49:09 AM [vite] hmr update /src/App.tsx, /src/index.css
+3:27:32 PM [vite] hmr update /src/App.tsx, /src/index.css
+3:29:53 PM [vite] hmr update /src/App.tsx, /src/index.css
+3:31:22 PM [vite] hmr update /src/App.tsx, /src/index.css
+3:37:22 PM [vite] hmr update /src/App.tsx, /src/index.css
+3:37:39 PM [vite] hmr update /src/App.tsx, /src/index.css
+3:58:39 PM [vite] hmr update /src/App.tsx, /src/index.css
+3:59:18 PM [vite] hmr update /src/App.tsx, /src/index.css
+11:33:39 PM [vite] vite.config.ts changed, restarting server...
+11:33:39 PM [vite] server restarted.
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://192.168.1.243:5173/
