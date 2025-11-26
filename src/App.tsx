@@ -3282,8 +3282,11 @@ export default function App() {
                 <div><span className="text-slate-500 dark:text-slate-400">Pet:</span> <span className="text-slate-900 dark:text-slate-100 font-semibold">{successModal.petName} ({successModal.species})</span></div>
                 <div><span className="text-slate-500 dark:text-slate-400">Amount:</span> <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">{fmtMoney(successModal.amount || 0)}</span></div>
                 <div><span className="text-slate-500 dark:text-slate-400">Service Date:</span> <span className="text-slate-900 dark:text-slate-100">{successModal.serviceDate || '—'}</span></div>
-                <div><span className="text-slate-500 dark:text-slate-400">Insurance:</span> <span className="text-slate-900 dark:text-slate-100">{successModal.insurance || '—'}</span></div>
-                <div><span className="text-slate-500 dark:text-slate-400">Filing Deadline:</span> <span className="text-slate-900 dark:text-slate-100">{successModal.deadlineDate || '—'} ({successModal.deadlineDays} days)</span></div>
+                <div><span className="text-slate-500 dark:text-slate-400">Insurance:</span> <span className="text-slate-900 dark:text-slate-100">{successModal.insurance || 'Not Insured'}</span></div>
+                {/* Only show Filing Deadline if pet has insurance */}
+                {successModal.insurance && successModal.insurance.trim() !== '' && (
+                  <div><span className="text-slate-500 dark:text-slate-400">Filing Deadline:</span> <span className="text-slate-900 dark:text-slate-100">{successModal.deadlineDate || '—'} ({successModal.deadlineDays} days)</span></div>
+                )}
               </div>
                   <div className="mt-5 flex justify-center">
                 <button
