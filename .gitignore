@@ -4,3 +4,11 @@
 .env.local
 .env*.local
 .vercel
+
+# Testing artifacts and browser cache
+playwright-report/
+test-results/
+.playwright-mcp/
+**/Cache/
+**/.cache/
+**/*-session/
