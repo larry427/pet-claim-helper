@@ -33,9 +33,11 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
   const [pets, setPets] = useState<PetRow[]>([])
 
   useEffect(() => {
+    console.log('[FinancialSummary] 🔄 useEffect triggered | userId:', userId, '| refreshToken:', refreshToken)
     if (!userId) return
     setLoading(true)
     setError(null)
+    console.log('[FinancialSummary] 📡 Fetching claims and pets from database...')
     Promise.all([
       supabase
         .from('claims')

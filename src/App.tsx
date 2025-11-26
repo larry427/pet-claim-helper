@@ -431,7 +431,10 @@ export default function App() {
 
   // Bump a refresh token when core datasets change so child summaries can refetch
   useEffect(() => {
-    setDataRefreshToken((t) => t + 1)
+    setDataRefreshToken((t) => {
+      console.log('[App] 🔄 Incrementing dataRefreshToken:', t, '→', t + 1, '| pets count:', pets.length)
+      return t + 1
+    })
   }, [claims, pets, finPeriod])
 
   useEffect(() => {
@@ -531,7 +534,8 @@ export default function App() {
     }
   }
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
+    console.log('[saveEdit] 🚀 Save started', { editingPetId, editPet })
     if (!editingPetId || !editPet) return
     // Treat empty string as NO_INSURANCE (insurance is optional)
     let finalCompany = ''
@@ -570,13 +574,48 @@ export default function App() {
           }
         : p,
     )
-    setPets(updated)
+
+    const petToSave = updated.find(p => p.id === editingPetId)
+    console.log('[saveEdit] 📝 Pet data to save:', petToSave)
+
     if (userId) {
       const toSave = updated.find(p => p.id === editingPetId)
-      if (toSave) dbUpsertPet(userId, toSave).catch((e) => { console.error('[saveEdit] upsert error', e) })
+      if (toSave) {
+        try {
+          console.log('[saveEdit] 💾 Starting dbUpsertPet...')
+          await dbUpsertPet(userId, toSave)
+          console.log('[saveEdit] ✅ dbUpsertPet complete')
+
+          // Refresh pets list so Financial Summary updates immediately
+          console.log('[saveEdit] 🔄 Starting dbLoadPets...')
+          const refreshedPets = await dbLoadPets(userId)
+          console.log('[saveEdit] 📦 dbLoadPets complete, got', refreshedPets.length, 'pets')
+          console.log('[saveEdit] 📊 Refreshed pet data:', refreshedPets.find(p => p.id === editingPetId))
+
+          setPets(refreshedPets)
+          console.log('[saveEdit] ✅ State updated with fresh DB data')
+
+          // CRITICAL FIX: Directly increment dataRefreshToken to force FinancialSummary refresh
+          // Don't rely on the useEffect([pets]) to trigger, because React might not detect
+          // the pets array change if the data is structurally identical
+          setDataRefreshToken((t) => {
+            console.log('[saveEdit] 🔄 Forcing dataRefreshToken increment:', t, '→', t + 1)
+            return t + 1
+          })
+          console.log('[saveEdit] ✅ Financial Summary refresh triggered')
+        } catch (e) {
+          console.error('[saveEdit] ❌ Error:', e)
+          // On error, update with optimistic local data as fallback
+          setPets(updated)
+        }
+      }
+    } else {
+      // No userId - just update local state
+      setPets(updated)
     }
     setEditingPetId(null)
     setEditPet(null)
+    console.log('[saveEdit] 🏁 Save complete')
   }
 
   const handlePick = () => inputRef.current?.click()
@@ -2372,25 +2411,11 @@ export default function App() {
           </section>
         )}
 
-        {/* Financial Summary */}
+        {/* OLD Financial Summary - Legacy stats (only shown when claims exist) */}
         {authView === 'app' && claims.length > 0 && (
           <section className="mx-auto mt-10 max-w-5xl">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Financial Summary</h2>
-              <div className="text-sm">
-                <label className="mr-2 text-slate-600">Show expenses for:</label>
-                <select
-                  value={finPeriod}
-                  onChange={(e) => setFinPeriod(e.target.value as any)}
-                  className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-sm"
-                >
-                  <option value="all">All Time</option>
-                  <option value="2026">2026</option>
-                  <option value="2025">2025</option>
-                  <option value="2024">2024</option>
-                  <option value="last12">Last 12 Months</option>
-                </select>
-              </div>
+              <h2 className="text-xl font-semibold">Legacy Financial Stats</h2>
             </div>
 
             {/* Total Reimbursed (Paid) */}
@@ -2433,6 +2458,23 @@ export default function App() {
         {/* Financial Summary (new component) */}
         {authView === 'app' && (
           <section className="mx-auto mt-10 max-w-5xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Financial Summary</h2>
+              <div className="text-sm">
+                <label className="mr-2 text-slate-600">Show expenses for:</label>
+                <select
+                  value={finPeriod}
+                  onChange={(e) => setFinPeriod(e.target.value as any)}
+                  className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-sm"
+                >
+                  <option value="all">All Time</option>
+                  <option value="2026">2026</option>
+                  <option value="2025">2025</option>
+                  <option value="2024">2024</option>
+                  <option value="last12">Last 12 Months</option>
+                </select>
+              </div>
+            </div>
             <FinancialSummary userId={userId} refreshToken={dataRefreshToken} period={finPeriod} />
           </section>
         )}
