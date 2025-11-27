@@ -15,6 +15,7 @@ import { SignatureCapture } from './components/SignatureCapture'
 import AdminDashboard from './components/AdminDashboard'
 import { createClaim, listClaims, updateClaim, deleteClaim as dbDeleteClaim } from './lib/claims'
 import { formatPhoneOnChange, formatPhoneForStorage, formatPhoneForDisplay } from './utils/phoneUtils'
+import { INSURANCE_OPTIONS, getInsuranceValue, getInsuranceDisplay, getDeadlineDays } from './lib/insuranceOptions'
 import React from 'react'
 
 type SelectedFile = {
@@ -68,8 +69,8 @@ export default function App() {
     insurance_pays_percentage?: number | '';
     policyNumber?: string;
   } | null>(null)
-  const [newPetInsurer, setNewPetInsurer] = useState<'Trupanion' | 'Nationwide' | 'Healthy Paws' | 'Fetch' | 'Custom Insurance' | 'NO_INSURANCE' | ''>('')
-  const [editPetInsurer, setEditPetInsurer] = useState<'Trupanion' | 'Nationwide' | 'Healthy Paws' | 'Fetch' | 'Custom Insurance' | 'NO_INSURANCE' | ''>('')
+  const [newPetInsurer, setNewPetInsurer] = useState<string>('')
+  const [editPetInsurer, setEditPetInsurer] = useState<string>('')
   const [customInsurerNameNew, setCustomInsurerNameNew] = useState('')
   const [customDeadlineNew, setCustomDeadlineNew] = useState<string>('')
   const [customInsurerNameEdit, setCustomInsurerNameEdit] = useState('')
@@ -451,8 +452,8 @@ export default function App() {
   const addPet = () => {
     const trimmedName = newPet.name.trim()
     if (!trimmedName) return
-    // Treat empty string as NO_INSURANCE (insurance is optional)
-    if (!newPetInsurer || newPetInsurer === 'NO_INSURANCE') {
+    // Treat empty string or "Not Insured" as no insurance (insurance is optional)
+    if (!newPetInsurer || newPetInsurer === 'Not Insured' || newPetInsurer === '— Select —') {
       newPet.insuranceCompany = '' as any
       newPet.filing_deadline_days = ''
       newPet.policyNumber = ''
@@ -518,13 +519,13 @@ export default function App() {
       policyNumber: pet.policyNumber || '',
       healthy_paws_pet_id: (pet as any).healthy_paws_pet_id || ''
     })
-    const known = ['Trupanion','Nationwide','Healthy Paws','Fetch']
+    const known = ['Trupanion','Nationwide','Healthy Paws']
     if (!pet.insuranceCompany || pet.insuranceCompany === '') {
-      setEditPetInsurer('NO_INSURANCE')
+      setEditPetInsurer('Not Insured')
       setCustomInsurerNameEdit('')
       setCustomDeadlineEdit('')
     } else if (known.includes(pet.insuranceCompany)) {
-      setEditPetInsurer(pet.insuranceCompany as any)
+      setEditPetInsurer(getInsuranceDisplay(pet.insuranceCompany))
       setCustomInsurerNameEdit('')
       setCustomDeadlineEdit(String((pet as any).filing_deadline_days || ''))
     } else {
@@ -537,10 +538,10 @@ export default function App() {
   const saveEdit = async () => {
     console.log('[saveEdit] 🚀 Save started', { editingPetId, editPet })
     if (!editingPetId || !editPet) return
-    // Treat empty string as NO_INSURANCE (insurance is optional)
+    // Treat empty string or "Not Insured" as no insurance (insurance is optional)
     let finalCompany = ''
     let finalDays: number | '' = ''
-    if (!editPetInsurer || editPetInsurer === 'NO_INSURANCE') {
+    if (!editPetInsurer || editPetInsurer === 'Not Insured' || editPetInsurer === '— Select —') {
       finalCompany = ''
       finalDays = ''
     } else if (editPetInsurer === 'Custom Insurance') {
@@ -551,8 +552,9 @@ export default function App() {
       finalCompany = nm
       finalDays = dd
     } else {
-      finalCompany = editPetInsurer
-      finalDays = 90
+      // Convert display value to database value
+      finalCompany = getInsuranceValue(editPetInsurer)
+      finalDays = getDeadlineDays(finalCompany) || 90
     }
     const updated = pets.map((p) =>
       p.id === editingPetId
@@ -1452,30 +1454,27 @@ export default function App() {
                     <div>
                       <label htmlFor="pet-insurance" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Insurance Company</label>
                       <select id="pet-insurance" value={newPetInsurer} onChange={(e) => {
-                        const v = e.target.value as any
-                        setNewPetInsurer(v)
-                        if (v === 'NO_INSURANCE') {
+                        const displayValue = e.target.value
+                        setNewPetInsurer(displayValue)
+
+                        const dbValue = getInsuranceValue(displayValue)
+                        const deadlineDays = getDeadlineDays(dbValue)
+
+                        if (displayValue === 'Not Insured' || displayValue === '— Select —') {
                           setNewPet({ ...newPet, insuranceCompany: '' as any, filing_deadline_days: '', policyNumber: '' })
-                        } else if (v === 'Custom Insurance') {
+                        } else if (displayValue === 'Custom Insurance') {
                           setNewPet({ ...newPet, insuranceCompany: '' as any, filing_deadline_days: '' })
-                        } else if (v) {
-                          setNewPet({ ...newPet, insuranceCompany: v as any, filing_deadline_days: 90 })
+                        } else if (dbValue) {
+                          setNewPet({ ...newPet, insuranceCompany: dbValue as any, filing_deadline_days: deadlineDays || 90 })
                         }
                       }} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3">
-                        <option value="">— Select —</option>
-                        <option value="Nationwide">Nationwide</option>
-                        <option value="Trupanion">Trupanion</option>
-                        <option value="Fetch">Fetch</option>
-                        <option value="Healthy Paws">Healthy Paws</option>
-                        <option value="Pets Best">Pets Best</option>
-                        <option value="ASPCA">ASPCA</option>
-                        <option value="Embrace">Embrace</option>
-                        <option value="Figo">Figo</option>
-                        <option value="Other">Other</option>
+                        {INSURANCE_OPTIONS.map(opt => (
+                          <option key={opt.display} value={opt.display}>{opt.display}</option>
+                        ))}
                       </select>
                     </div>
 
-                    {newPetInsurer === 'Healthy Paws' && (
+                    {newPetInsurer === 'Healthy Paws (90 days)' && (
                       <div>
                         <label htmlFor="pet-healthy-paws-id" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Healthy Paws Pet ID</label>
                         <input
@@ -1647,7 +1646,6 @@ export default function App() {
                       const isNationwide = company.toLowerCase().includes('nationwide')
                       const isHealthyPaws = company.toLowerCase().includes('healthy paws')
                       const isTrupanion = company.toLowerCase().includes('trupanion')
-                      const isFetch = company.toLowerCase().includes('fetch')
                       const isNotInsured = company.toLowerCase().includes('not insured') || company.toLowerCase().includes('none')
 
                       let bgColor = 'bg-slate-100 dark:bg-slate-800'
@@ -1666,10 +1664,6 @@ export default function App() {
                         bgColor = 'bg-purple-50 dark:bg-purple-950'
                         textColor = 'text-purple-700 dark:text-purple-300'
                         borderColor = 'border-purple-200 dark:border-purple-800'
-                      } else if (isFetch) {
-                        bgColor = 'bg-amber-50 dark:bg-amber-950'
-                        textColor = 'text-amber-700 dark:text-amber-300'
-                        borderColor = 'border-amber-200 dark:border-amber-800'
                       } else if (isNotInsured) {
                         bgColor = 'bg-slate-100 dark:bg-slate-800'
                         textColor = 'text-slate-600 dark:text-slate-400'
@@ -1681,7 +1675,6 @@ export default function App() {
                           {isNationwide && '🏢'}
                           {isHealthyPaws && '🐾'}
                           {isTrupanion && '💜'}
-                          {isFetch && '🎾'}
                           {isNotInsured && '—'}
                           {company}
                         </span>
@@ -1710,26 +1703,27 @@ export default function App() {
                             <div>
                               <label htmlFor="edit-pet-insurance" className="block text-xs text-slate-500">Insurance Company</label>
                               <select id="edit-pet-insurance" value={editPetInsurer} onChange={(e) => {
-                                const v = e.target.value as any
-                                setEditPetInsurer(v)
-                                if (v === 'NO_INSURANCE') {
+                                const displayValue = e.target.value
+                                setEditPetInsurer(displayValue)
+
+                                // Convert display value to database value
+                                const dbValue = getInsuranceValue(displayValue)
+                                const deadlineDays = getDeadlineDays(dbValue)
+
+                                if (displayValue === 'Not Insured' || displayValue === '— Select —') {
                                   setEditPet({ ...editPet, insuranceCompany: '' as any, filing_deadline_days: '', policyNumber: '' })
-                                } else if (v === 'Custom Insurance') {
+                                } else if (displayValue === 'Custom Insurance') {
                                   setEditPet({ ...editPet, insuranceCompany: '' as any, filing_deadline_days: '' })
-                                } else if (v) {
-                                  setEditPet({ ...editPet, insuranceCompany: v as any, filing_deadline_days: 90 })
+                                } else if (dbValue) {
+                                  setEditPet({ ...editPet, insuranceCompany: dbValue as any, filing_deadline_days: deadlineDays || 90 })
                                 }
                               }} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm">
-                                <option value="">— Select —</option>
-                                <option value="NO_INSURANCE">Not Insured</option>
-                                <option value="Trupanion">Trupanion (90 days)</option>
-                                <option value="Nationwide">Nationwide (90 days)</option>
-                                <option value="Healthy Paws">Healthy Paws (90 days)</option>
-                                <option value="Fetch">Fetch (90 days)</option>
-                                <option value="Custom Insurance">Custom Insurance</option>
+                                {INSURANCE_OPTIONS.map(opt => (
+                                  <option key={opt.display} value={opt.display}>{opt.display}</option>
+                                ))}
                               </select>
                             </div>
-                            {editPetInsurer === 'NO_INSURANCE' ? (
+                            {editPetInsurer === 'Not Insured' ? (
                               <div className="sm:col-span-1 flex items-center text-xs text-slate-500 bg-blue-50/50 dark:bg-blue-900/10 px-3 py-2 rounded-md border border-blue-200 dark:border-blue-800">
                                 <span>✓ No insurance selected. You can still track vet bills and file claims manually.</span>
                               </div>
@@ -1747,7 +1741,7 @@ export default function App() {
                             ) : (
                               <div className="sm:col-span-1 flex items-end text-xs text-slate-600">{editPetInsurer ? 'Filing Deadline: 90 days' : ''}</div>
                             )}
-                            {editPetInsurer === 'Healthy Paws' && (
+                            {editPetInsurer === 'Healthy Paws (90 days)' && (
                               <div className="sm:col-span-2">
                                 <label htmlFor="edit-pet-healthy-paws-id" className="block text-xs text-slate-500">Healthy Paws Pet ID</label>
                                 <input
@@ -1760,7 +1754,7 @@ export default function App() {
                                 <div className="mt-1 text-[11px] text-slate-500">Find this on your Healthy Paws policy card or portal</div>
                               </div>
                             )}
-                            {editPetInsurer && editPetInsurer !== 'NO_INSURANCE' && (
+                            {editPetInsurer && editPetInsurer !== 'Not Insured' && editPetInsurer !== '— Select —' && (
                               <div className="sm:col-span-2">
                                 <label htmlFor="edit-pet-policy-number" className="block text-xs text-slate-500">Policy Number <span className="text-slate-400">(optional)</span></label>
                                 <input
@@ -1775,7 +1769,7 @@ export default function App() {
                           </div>
                         </div>
                       </div>
-                      {editPetInsurer !== 'NO_INSURANCE' && (
+                      {editPetInsurer !== 'Not Insured' && editPetInsurer !== '— Select —' && editPetInsurer && (
                         <>
                           <div>
                             <label htmlFor="edit-pet-premium" className="block text-xs">Monthly Premium (USD)</label>

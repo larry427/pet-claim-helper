@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { createPet } from '../lib/petStorage'
 import { formatPhoneOnChange, formatPhoneForStorage } from '../utils/phoneUtils'
+import { INSURANCE_OPTIONS, getInsuranceValue, getDeadlineDays } from '../lib/insuranceOptions'
 
 type Props = {
   open: boolean
@@ -21,7 +22,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
   // Step 2 - Pet + Insurance
   const [petName, setPetName] = useState('')
   const [species, setSpecies] = useState<'dog' | 'cat' | 'other' | ''>('')
-  const [insuranceCompany, setInsuranceCompany] = useState('None')
+  const [insuranceCompany, setInsuranceCompany] = useState('Not Insured')
   const [healthyPawsPetId, setHealthyPawsPetId] = useState('')
   const [policyNumber, setPolicyNumber] = useState('')
   const [monthlyPremium, setMonthlyPremium] = useState<string>('')
@@ -44,7 +45,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
     setAddress('')
     setPetName('')
     setSpecies('')
-    setInsuranceCompany('None')
+    setInsuranceCompany('Not Insured')
     setHealthyPawsPetId('')
     setPolicyNumber('')
     setMonthlyPremium('')
@@ -148,11 +149,14 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
       }
 
       // Save pet
+      // Convert display value to database value (strips deadline labels)
+      const insuranceValue = getInsuranceValue(insuranceCompany)
+
       const petPayload: any = {
         user_id: userId,
         name: petName.trim(),
         species: species || 'other',
-        insurance_company: (insuranceCompany && insuranceCompany !== 'None') ? insuranceCompany : null,
+        insurance_company: insuranceValue || null,
         healthy_paws_pet_id: healthyPawsPetId.trim() || null,
         policy_number: policyNumber.trim() || null,
         monthly_premium: monthlyPremium === '' ? null : parseFloat(monthlyPremium),
@@ -250,20 +254,13 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Insurance Company</label>
                     <select value={insuranceCompany} onChange={(e) => setInsuranceCompany(e.target.value)} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3">
-                      <option value="None">None - No Insurance</option>
-                      <option value="Nationwide">Nationwide</option>
-                      <option value="Trupanion">Trupanion</option>
-                      <option value="Fetch">Fetch</option>
-                      <option value="Healthy Paws">Healthy Paws</option>
-                      <option value="Pets Best">Pets Best</option>
-                      <option value="ASPCA">ASPCA</option>
-                      <option value="Embrace">Embrace</option>
-                      <option value="Figo">Figo</option>
-                      <option value="Other">Other</option>
+                      {INSURANCE_OPTIONS.map(opt => (
+                        <option key={opt.display} value={opt.display}>{opt.display}</option>
+                      ))}
                     </select>
                   </div>
 
-                  {insuranceCompany === 'Healthy Paws' && (
+                  {insuranceCompany === 'Healthy Paws (90 days)' && (
                     <div>
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Healthy Paws Pet ID</label>
                       <input value={healthyPawsPetId} onChange={(e) => setHealthyPawsPetId(e.target.value)} placeholder="e.g., 1400806-1" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
@@ -271,7 +268,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
                     </div>
                   )}
 
-                  {insuranceCompany && insuranceCompany !== 'None' && (
+                  {insuranceCompany && insuranceCompany !== '— Select —' && insuranceCompany !== 'Not Insured' && (
                     <>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Policy Number</label>
