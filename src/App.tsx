@@ -121,7 +121,6 @@ export default function App() {
   const [medSelectOpen, setMedSelectOpen] = useState(false)
   const [medicationsForPet, setMedicationsForPet] = useState<any[]>([])
   const [selectedMedicationIds, setSelectedMedicationIds] = useState<string[]>([])
-  const [billConfirmed, setBillConfirmed] = useState(false) // Prevent duplicate "Looks Good" clicks
   // Toast notifications
   function getLocalTodayYYYYMMDD() {
     const today = new Date()
@@ -663,7 +662,6 @@ export default function App() {
     setSelectedFile({ file, objectUrl })
     setExtracted(null)
     setErrorMessage(null)
-    setBillConfirmed(false) // Reset bill confirmation status for new file
   }
 
   const handleChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
@@ -2393,16 +2391,14 @@ export default function App() {
                     } as typeof successModal
                     setPendingSuccess(pending)
                     setCreatedClaimId(row?.id || null)
-                    setBillConfirmed(true) // Mark bill as confirmed to prevent duplicate submissions
                     // eslint-disable-next-line no-console
                     console.log('[LOOKS GOOD CLICKED] About to show medication modal', { claimId: row?.id })
+                    // Clear the bill review form immediately so medication modal appears over dashboard
+                    setExtracted(null)
                     setMedQuestionOpen(true)
-                    // Do not clear form here; wait for user action (Done / File Another)
                   }}
-                  disabled={billConfirmed}
-                  className={billConfirmed ? 'opacity-50 cursor-not-allowed' : ''}
                 >
-                  {billConfirmed ? 'Bill Saved ✓' : 'Looks Good'}
+                  Looks Good
                 </button>
                 )}
               </div>
@@ -3125,9 +3121,6 @@ export default function App() {
               <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4" onClick={() => {
                 setMedQuestionOpen(false)
                 if (pendingSuccess) setSuccessModal(pendingSuccess)
-                // Clear the bill review screen after successful submission
-                setExtracted(null)
-                setBillConfirmed(false)
               }}>No</button>
               <button type="button" className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4" onClick={async () => {
                 try {
@@ -3196,9 +3189,6 @@ export default function App() {
                   setMedSelectOpen(false)
                   // Show lightweight toast instead of claim success modal
                   showToast('Medications saved ✓')
-                  // Clear the bill review screen after successful submission
-                  setExtracted(null)
-                  setBillConfirmed(false)
                 } catch (e) { console.error('[med select -> link meds] error', e); setMedSelectOpen(false); showToast('Medications saved ✓') }
               }}>Confirm</button>
             </div>
