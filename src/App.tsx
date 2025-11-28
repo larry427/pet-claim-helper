@@ -3167,7 +3167,7 @@ export default function App() {
                       const checked = e.target.checked
                       setSelectedMedicationIds(prev => checked ? [...prev, m.id] : prev.filter(id => id !== m.id))
                     }}
-                    className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-0 cursor-pointer"
+                    className="w-5 h-5 rounded border-2 border-gray-300 text-emerald-500 accent-emerald-500 bg-white checked:bg-emerald-500 checked:border-emerald-500 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-0 cursor-pointer"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium">{m.medication_name}</div>
