@@ -14,7 +14,7 @@ export default function AddMedicationForm({
 }: {
   open: boolean
   onClose: () => void
-  onSaved?: () => void
+  onSaved?: (newMedicationId?: string) => void
   userId: string | null
   pets: PetProfile[]
   defaultPetId?: string | null
@@ -154,12 +154,13 @@ export default function AddMedicationForm({
         console.log('[AddMedicationForm] Payload.reminder_times (storing in PST):', payload.reminder_times)
       } catch {}
 
-      const { error: insertError } = await supabase.from('medications').insert(payload)
+      const { data: insertData, error: insertError } = await supabase.from('medications').insert(payload).select('id').single()
       try {
         console.log('[AddMedicationForm] Supabase insert completed. Error:', insertError || null)
       } catch {}
       if (insertError) throw insertError
-      if (onSaved) onSaved()
+      const newMedicationId = insertData?.id
+      if (onSaved) onSaved(newMedicationId)
       onClose()
     } catch (err: any) {
       setError(err?.message || 'Failed to save medication')

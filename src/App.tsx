@@ -121,6 +121,7 @@ export default function App() {
   const [medSelectOpen, setMedSelectOpen] = useState(false)
   const [medicationsForPet, setMedicationsForPet] = useState<any[]>([])
   const [selectedMedicationIds, setSelectedMedicationIds] = useState<string[]>([])
+  const [billConfirmed, setBillConfirmed] = useState(false) // Prevent duplicate "Looks Good" clicks
   // Toast notifications
   function getLocalTodayYYYYMMDD() {
     const today = new Date()
@@ -662,6 +663,7 @@ export default function App() {
     setSelectedFile({ file, objectUrl })
     setExtracted(null)
     setErrorMessage(null)
+    setBillConfirmed(false) // Reset bill confirmation status for new file
   }
 
   const handleChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
@@ -2391,13 +2393,16 @@ export default function App() {
                     } as typeof successModal
                     setPendingSuccess(pending)
                     setCreatedClaimId(row?.id || null)
+                    setBillConfirmed(true) // Mark bill as confirmed to prevent duplicate submissions
                     // eslint-disable-next-line no-console
                     console.log('[LOOKS GOOD CLICKED] About to show medication modal', { claimId: row?.id })
                     setMedQuestionOpen(true)
                     // Do not clear form here; wait for user action (Done / File Another)
                   }}
+                  disabled={billConfirmed}
+                  className={billConfirmed ? 'opacity-50 cursor-not-allowed' : ''}
                 >
-                  Looks Good
+                  {billConfirmed ? 'Bill Saved ✓' : 'Looks Good'}
                 </button>
                 )}
               </div>
@@ -3120,6 +3125,9 @@ export default function App() {
               <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4" onClick={() => {
                 setMedQuestionOpen(false)
                 if (pendingSuccess) setSuccessModal(pendingSuccess)
+                // Clear the bill review screen after successful submission
+                setExtracted(null)
+                setBillConfirmed(false)
               }}>No</button>
               <button type="button" className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4" onClick={async () => {
                 try {
@@ -3158,12 +3166,17 @@ export default function App() {
                 <div className="text-sm text-slate-600">No active medications found</div>
               )}
               {medicationsForPet.map((m: any) => (
-                <label key={m.id} className="flex items-center gap-3 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
-                  <input type="checkbox" checked={selectedMedicationIds.includes(m.id)} onChange={(e) => {
-                    const checked = e.target.checked
-                    setSelectedMedicationIds(prev => checked ? [...prev, m.id] : prev.filter(id => id !== m.id))
-                  }} />
-                  <div className="min-w-0">
+                <label key={m.id} className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={selectedMedicationIds.includes(m.id)}
+                    onChange={(e) => {
+                      const checked = e.target.checked
+                      setSelectedMedicationIds(prev => checked ? [...prev, m.id] : prev.filter(id => id !== m.id))
+                    }}
+                    className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-0 cursor-pointer"
+                  />
+                  <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium">{m.medication_name}</div>
                     {m.dosage && <div className="text-xs text-slate-500">{m.dosage}</div>}
                   </div>
@@ -3183,6 +3196,9 @@ export default function App() {
                   setMedSelectOpen(false)
                   // Show lightweight toast instead of claim success modal
                   showToast('Medications saved ✓')
+                  // Clear the bill review screen after successful submission
+                  setExtracted(null)
+                  setBillConfirmed(false)
                 } catch (e) { console.error('[med select -> link meds] error', e); setMedSelectOpen(false); showToast('Medications saved ✓') }
               }}>Confirm</button>
             </div>
@@ -3194,7 +3210,7 @@ export default function App() {
         <AddMedicationForm
           open={showAddMedication}
           onClose={() => setShowAddMedication(false)}
-          onSaved={async () => {
+          onSaved={async (newMedicationId) => {
             try {
               if (userId && selectedPet) {
                 const today = getLocalTodayYYYYMMDD()
@@ -3206,6 +3222,11 @@ export default function App() {
                   .lte('start_date', today)
                   .or(`end_date.is.null,end_date.gte.${today}`)
                 setMedicationsForPet(Array.isArray(data) ? data : [])
+
+                // Auto-check the newly added medication
+                if (newMedicationId && !selectedMedicationIds.includes(newMedicationId)) {
+                  setSelectedMedicationIds(prev => [...prev, newMedicationId])
+                }
               }
             } catch {}
           }}
