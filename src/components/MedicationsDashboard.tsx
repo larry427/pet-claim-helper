@@ -97,54 +97,6 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, refreshKey])
 
-  // Split medications into active and completed
-  const { active, completed } = useMemo(() => {
-    const today = new Date()
-    const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-
-    const activeList: MedicationRow[] = []
-    const completedList: MedicationRow[] = []
-
-    for (const m of medications) {
-      // Parse dates as local date, not UTC (to avoid timezone shift bugs)
-      const [startYear, startMonth, startDay] = m.start_date.split('-').map(Number)
-      const startDate = new Date(startYear, startMonth - 1, startDay)
-
-      const endDate = m.end_date
-        ? (() => {
-            const [endYear, endMonth, endDay] = m.end_date.split('-').map(Number)
-            return new Date(endYear, endMonth - 1, endDay)
-          })()
-        : null
-
-      const stats = computeStats(m)
-
-      // Medication is completed if all doses are given OR end date has passed
-      const isCompleted = stats.given >= stats.totalDoses || (endDate && todayDay > endDate)
-
-      // Medication is active if it has started AND (not completed)
-      const isActive = todayDay >= startDate && !isCompleted
-
-      if (isCompleted) {
-        completedList.push(m)
-      } else if (isActive) {
-        activeList.push(m)
-      }
-    }
-
-    return { active: activeList, completed: completedList }
-  }, [medications, dosesGivenByMed])
-
-  // Group active medications by pet
-  const grouped = useMemo(() => {
-    const g: Record<string, MedicationRow[]> = {}
-    for (const m of active) {
-      if (!g[m.pet_id]) g[m.pet_id] = []
-      g[m.pet_id].push(m)
-    }
-    return g
-  }, [active])
-
   const timesPerDay = (m: MedicationRow) => (Array.isArray(m.reminder_times) && m.reminder_times.length > 0)
     ? m.reminder_times.length
     : (m.frequency === '1x daily' ? 1 : m.frequency === '2x daily' ? 2 : 3)
@@ -245,6 +197,54 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
       endLabel: endDay ? endDay.toISOString().slice(0, 10) : '—'
     }
   }
+
+  // Split medications into active and completed
+  const { active, completed } = useMemo(() => {
+    const today = new Date()
+    const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+
+    const activeList: MedicationRow[] = []
+    const completedList: MedicationRow[] = []
+
+    for (const m of medications) {
+      // Parse dates as local date, not UTC (to avoid timezone shift bugs)
+      const [startYear, startMonth, startDay] = m.start_date.split('-').map(Number)
+      const startDate = new Date(startYear, startMonth - 1, startDay)
+
+      const endDate = m.end_date
+        ? (() => {
+            const [endYear, endMonth, endDay] = m.end_date.split('-').map(Number)
+            return new Date(endYear, endMonth - 1, endDay)
+          })()
+        : null
+
+      const stats = computeStats(m)
+
+      // Medication is completed if all doses are given OR end date has passed
+      const isCompleted = stats.given >= stats.totalDoses || (endDate && todayDay > endDate)
+
+      // Medication is active if it has started AND (not completed)
+      const isActive = todayDay >= startDate && !isCompleted
+
+      if (isCompleted) {
+        completedList.push(m)
+      } else if (isActive) {
+        activeList.push(m)
+      }
+    }
+
+    return { active: activeList, completed: completedList }
+  }, [medications, dosesGivenByMed])
+
+  // Group active medications by pet
+  const grouped = useMemo(() => {
+    const g: Record<string, MedicationRow[]> = {}
+    for (const m of active) {
+      if (!g[m.pet_id]) g[m.pet_id] = []
+      g[m.pet_id].push(m)
+    }
+    return g
+  }, [active])
 
   return (
     <section className="mt-6">
