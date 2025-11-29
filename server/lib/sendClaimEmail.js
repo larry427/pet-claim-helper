@@ -55,6 +55,7 @@ export async function sendClaimEmail(insurer, claimData, pdfBuffer, invoiceBuffe
     // Prepare email params - only add BCC if email is valid
     const emailParams = {
       from: 'Pet Claim Helper <claims@petclaimhelper.com>',
+      reply_to: 'support@petclaimhelper.com',
       to: insurerEmail,
       subject: subject,
       html: htmlBody,
