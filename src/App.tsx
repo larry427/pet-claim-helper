@@ -2406,51 +2406,7 @@ export default function App() {
           </section>
         )}
 
-        {/* OLD Financial Summary - Legacy stats (only shown when claims exist) */}
-        {authView === 'app' && claims.length > 0 && (
-          <section className="mx-auto mt-10 max-w-5xl">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Legacy Financial Stats</h2>
-            </div>
-
-            {/* Total Reimbursed (Paid) */}
-            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900/50 dark:bg-emerald-900/10">
-              <div className="text-sm font-semibold">💰 TOTAL REIMBURSED</div>
-              <div className="mt-2 text-3xl font-bold text-emerald-700">{fmtMoney(financial.reimbursed)}</div>
-              <div className="mt-1 text-xs text-emerald-800/80 dark:text-emerald-300">Paid by insurance</div>
-            </div>
-
-            
-
-            
-
-            {/* Per-Pet Breakdown */}
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-              <div className="text-sm font-semibold">💰 TOTAL VET BILLS</div>
-              <div className="text-xs text-slate-500 mt-1">All veterinary expenses (whether insured or not)</div>
-              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3">
-                {Object.entries(financial.perPet).map(([petName, stats]) => {
-                  const c = pets.find(p => p.name === petName)
-                  const color = c?.color || (c?.species === 'cat' ? '#F97316' : c?.species === 'dog' ? '#3B82F6' : '#6B7280')
-                  return (
-                    <div key={petName} className="flex items-center justify-between text-sm">
-                      <div className="truncate flex items-center gap-2">
-                        <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-                        {petName}
-                      </div>
-                      <div className="text-right">
-                        <div className="font-semibold">{fmtMoney((stats as any).sum)}</div>
-                        <div className="text-xs text-slate-500">{(stats as any).count} visits</div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* Financial Summary (new component) */}
+        {/* Financial Summary */}
         {authView === 'app' && (
           <section className="mx-auto mt-10 max-w-5xl">
             <div className="flex items-center justify-between mb-4">
