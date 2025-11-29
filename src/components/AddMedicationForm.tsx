@@ -11,6 +11,8 @@ export default function AddMedicationForm({
   userId,
   pets,
   defaultPetId,
+  medicationId,
+  editMode = false,
 }: {
   open: boolean
   onClose: () => void
@@ -18,6 +20,8 @@ export default function AddMedicationForm({
   userId: string | null
   pets: PetProfile[]
   defaultPetId?: string | null
+  medicationId?: string | null
+  editMode?: boolean
 }) {
   const [petId, setPetId] = useState<string>('')
   const [medicationName, setMedicationName] = useState('')
@@ -37,15 +41,53 @@ export default function AddMedicationForm({
     // Only reset form fields when modal transitions from closed to open (false -> true)
     // This prevents form data loss when validation fails and component re-renders
     if (open && !prevOpenRef.current) {
-      setPetId(defaultPetId || (pets[0]?.id ?? ''))
-      setMedicationName('')
-      setDosage('')
-      setFrequency('1x daily')
-      setTimes(['07:00'])
-      setDuration('7')
-      setCustomDays(7)
-      setLoading(false)
-      setError(null)
+      if (editMode && medicationId) {
+        // Load existing medication data
+        setLoading(true)
+        supabase.from('medications').select('*').eq('id', medicationId).single().then(({ data, error }) => {
+          if (error || !data) {
+            setError('Failed to load medication data')
+            setLoading(false)
+            return
+          }
+          setPetId(data.pet_id || '')
+          setMedicationName(data.medication_name || '')
+          setDosage(data.dosage || '')
+          setFrequency(data.frequency || '1x daily')
+          setTimes(Array.isArray(data.reminder_times) && data.reminder_times.length > 0 ? data.reminder_times : ['07:00'])
+
+          // Calculate duration from start_date and end_date
+          if (data.start_date && data.end_date) {
+            const start = new Date(data.start_date)
+            const end = new Date(data.end_date)
+            const days = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+            if ([7, 10, 14, 30].includes(days)) {
+              setDuration(String(days) as any)
+            } else {
+              setDuration('custom')
+              setCustomDays(days)
+            }
+          }
+
+          setLoading(false)
+          setError(null)
+        }).catch(() => {
+          setError('Failed to load medication')
+          setLoading(false)
+        })
+      } else {
+        // New medication - reset to defaults
+        setPetId(defaultPetId || (pets[0]?.id ?? ''))
+        setMedicationName('')
+        setDosage('')
+        setFrequency('1x daily')
+        setTimes(['07:00'])
+        setDuration('7')
+        setCustomDays(7)
+        setLoading(false)
+        setError(null)
+      }
+
       // Debug: log initial detected timezone when form opens
       try {
         console.log('[AddMedicationForm] Form opened. Initial timezone (from Intl):', userTimezone)
@@ -63,7 +105,7 @@ export default function AddMedicationForm({
     }
     // Update the ref to track current open state
     prevOpenRef.current = open
-  }, [open, defaultPetId, pets, userId, userTimezone])
+  }, [open, defaultPetId, pets, userId, userTimezone, editMode, medicationId])
 
   // Prevent body scroll and handle escape key when modal is open
   useEffect(() => {
@@ -139,28 +181,44 @@ export default function AddMedicationForm({
       try {
         console.log('[AddMedicationForm] Times to store in PST:', timesPst)
       } catch {}
-      const payload = {
-        user_id: userId,
-        pet_id: petId,
-        claim_id: null as string | null,
-        medication_name: medicationName.trim(),
-        dosage: dosage.trim() || null,
-        frequency,
-        reminder_times: timesPst,
-        start_date: start,
-        end_date: end,
-      } as const
-      try {
-        console.log('[AddMedicationForm] Payload.reminder_times (storing in PST):', payload.reminder_times)
-      } catch {}
 
-      const { data: insertData, error: insertError } = await supabase.from('medications').insert(payload).select('id').single()
-      try {
-        console.log('[AddMedicationForm] Supabase insert completed. Error:', insertError || null)
-      } catch {}
-      if (insertError) throw insertError
-      const newMedicationId = insertData?.id
-      if (onSaved) onSaved(newMedicationId)
+      if (editMode && medicationId) {
+        // Update existing medication
+        const updatePayload = {
+          medication_name: medicationName.trim(),
+          dosage: dosage.trim() || null,
+          frequency,
+          reminder_times: timesPst,
+          end_date: end,
+        }
+        const { error: updateError } = await supabase.from('medications').update(updatePayload).eq('id', medicationId).eq('user_id', userId)
+        if (updateError) throw updateError
+        if (onSaved) onSaved(medicationId)
+      } else {
+        // Insert new medication
+        const payload = {
+          user_id: userId,
+          pet_id: petId,
+          claim_id: null as string | null,
+          medication_name: medicationName.trim(),
+          dosage: dosage.trim() || null,
+          frequency,
+          reminder_times: timesPst,
+          start_date: start,
+          end_date: end,
+        } as const
+        try {
+          console.log('[AddMedicationForm] Payload.reminder_times (storing in PST):', payload.reminder_times)
+        } catch {}
+
+        const { data: insertData, error: insertError } = await supabase.from('medications').insert(payload).select('id').single()
+        try {
+          console.log('[AddMedicationForm] Supabase insert completed. Error:', insertError || null)
+        } catch {}
+        if (insertError) throw insertError
+        const newMedicationId = insertData?.id
+        if (onSaved) onSaved(newMedicationId)
+      }
       onClose()
     } catch (err: any) {
       setError(err?.message || 'Failed to save medication')
@@ -175,17 +233,18 @@ export default function AddMedicationForm({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="relative mx-4 w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Add Medication</h2>
+          <h2 className="text-lg font-semibold">{editMode ? 'Edit Medication' : 'Add Medication'}</h2>
           <button type="button" className="text-sm" onClick={onClose}>Close</button>
         </div>
         {error && <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</div>}
         <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Pet</label>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Pet{editMode && <span className="text-xs text-slate-500 ml-2">(cannot be changed)</span>}</label>
             <select
               value={petId}
               onChange={(e) => setPetId(e.target.value)}
               className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+              disabled={editMode}
             >
               <option value="">— Select —</option>
               {pets.map((p) => (
@@ -272,7 +331,7 @@ export default function AddMedicationForm({
               disabled={loading}
               className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 disabled:opacity-60"
             >
-              {loading ? 'Saving…' : 'Save Medication'}
+              {loading ? 'Saving…' : editMode ? 'Update Medication' : 'Save Medication'}
             </button>
           </div>
         </form>

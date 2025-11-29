@@ -34,7 +34,9 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
   const [medications, setMedications] = useState<MedicationRow[]>([])
   const [dosesGivenByMed, setDosesGivenByMed] = useState<Record<string, number>>({})
   const [showAdd, setShowAdd] = useState(false)
+  const [editMedicationId, setEditMedicationId] = useState<string | null>(null)
   const [selectedMedicationId, setSelectedMedicationId] = useState<string | null>(null)
+  const [showCompleted, setShowCompleted] = useState(false)
   const [userTimezone, setUserTimezone] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone)
 
   const petMap = useMemo(() => {
@@ -95,15 +97,15 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, refreshKey])
 
-  // Always show all medications; no expand/collapse needed
-
-  const grouped = useMemo(() => {
+  // Split medications into active and completed
+  const { active, completed } = useMemo(() => {
     const today = new Date()
     const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
 
-    const g: Record<string, MedicationRow[]> = {}
+    const activeList: MedicationRow[] = []
+    const completedList: MedicationRow[] = []
+
     for (const m of medications) {
-      // Filter for active medications only
       // Parse dates as local date, not UTC (to avoid timezone shift bugs)
       const [startYear, startMonth, startDay] = m.start_date.split('-').map(Number)
       const startDate = new Date(startYear, startMonth - 1, startDay)
@@ -115,16 +117,33 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
           })()
         : null
 
-      // Medication is active if today is >= start_date AND (end_date is null OR today <= end_date)
-      const isActive = todayDay >= startDate && (!endDate || todayDay <= endDate)
+      const stats = computeStats(m)
 
-      if (isActive) {
-        if (!g[m.pet_id]) g[m.pet_id] = []
-        g[m.pet_id].push(m)
+      // Medication is completed if all doses are given OR end date has passed
+      const isCompleted = stats.given >= stats.totalDoses || (endDate && todayDay > endDate)
+
+      // Medication is active if it has started AND (not completed)
+      const isActive = todayDay >= startDate && !isCompleted
+
+      if (isCompleted) {
+        completedList.push(m)
+      } else if (isActive) {
+        activeList.push(m)
       }
     }
+
+    return { active: activeList, completed: completedList }
+  }, [medications, dosesGivenByMed])
+
+  // Group active medications by pet
+  const grouped = useMemo(() => {
+    const g: Record<string, MedicationRow[]> = {}
+    for (const m of active) {
+      if (!g[m.pet_id]) g[m.pet_id] = []
+      g[m.pet_id].push(m)
+    }
     return g
-  }, [medications])
+  }, [active])
 
   const timesPerDay = (m: MedicationRow) => (Array.isArray(m.reminder_times) && m.reminder_times.length > 0)
     ? m.reminder_times.length
@@ -278,36 +297,50 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
                       <div className="flex items-start justify-between gap-2">
                         <div className="text-lg font-semibold">{m.medication_name}</div>
                       </div>
-                      <button
-                        type="button"
-                        className="absolute top-2 right-2 text-xs text-red-600 hover:text-red-700 cursor-pointer"
-                        onClick={async (e) => {
-                          e.stopPropagation()
-                          if (!confirm(`Are you sure you want to delete ${m.medication_name}?`)) return
-                          try {
-                            // Prefer API route if available
-                            let ok = false
+                      <div className="absolute top-2 right-2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="text-xs text-blue-600 hover:text-blue-700 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditMedicationId(m.id)
+                          }}
+                          title="Edit medication"
+                          aria-label="Edit medication"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="text-xs text-red-600 hover:text-red-700 cursor-pointer"
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            if (!confirm(`Are you sure you want to delete ${m.medication_name}?`)) return
                             try {
-                              const resp = await fetch(`/api/medications/${m.id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } })
-                              ok = resp.ok
-                            } catch {}
-                            if (!ok) {
-                              // Fallback to direct Supabase delete
-                              const { error: delErr } = await supabase.from('medications').delete().eq('id', m.id).eq('user_id', userId)
-                              if (delErr) throw delErr
+                              // Prefer API route if available
+                              let ok = false
+                              try {
+                                const resp = await fetch(`/api/medications/${m.id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } })
+                                ok = resp.ok
+                              } catch {}
+                              if (!ok) {
+                                // Fallback to direct Supabase delete
+                                const { error: delErr } = await supabase.from('medications').delete().eq('id', m.id).eq('user_id', userId)
+                                if (delErr) throw delErr
+                              }
+                              setMedications(prev => prev.filter(x => x.id !== m.id))
+                              try { alert('Medication deleted successfully') } catch {}
+                            } catch (err) {
+                              console.error('[medications] delete error', err)
+                              try { alert('Failed to delete medication') } catch {}
                             }
-                            setMedications(prev => prev.filter(x => x.id !== m.id))
-                            try { alert('Medication deleted successfully') } catch {}
-                          } catch (err) {
-                            console.error('[medications] delete error', err)
-                            try { alert('Failed to delete medication') } catch {}
-                          }
-                        }}
-                        title="Delete medication"
-                        aria-label="Delete medication"
-                      >
-                        Delete
-                      </button>
+                          }}
+                          title="Delete medication"
+                          aria-label="Delete medication"
+                        >
+                          Delete
+                        </button>
+                      </div>
                       {m.dosage && <div className="text-sm text-slate-600 mt-0.5">{m.dosage}</div>}
                       <div className="mt-3 space-y-1.5 text-sm">
                         <div><span className="text-slate-500">Progress:</span> {`${stats.given}/${stats.totalDoses} doses (${stats.pct}%)`}</div>
@@ -325,12 +358,58 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
         })}
       </div>
 
+      {/* Completed Medications Section */}
+      {completed.length > 0 && (
+        <div className="mt-8">
+          <button
+            type="button"
+            onClick={() => setShowCompleted(!showCompleted)}
+            className="flex items-center gap-2 text-base font-semibold hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+          >
+            <svg className={`w-4 h-4 transition-transform ${showCompleted ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+            <span>Completed Medications ({completed.length})</span>
+          </button>
+
+          {showCompleted && (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {completed.map(m => {
+                const stats = computeStats(m)
+                const pet = petMap[m.pet_id]
+                const completionDate = m.end_date || new Date().toISOString().slice(0, 10)
+
+                return (
+                  <div
+                    key={m.id}
+                    className="relative rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-4 shadow-sm opacity-75"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="text-lg font-semibold">{m.medication_name}</div>
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">✓ Completed</span>
+                    </div>
+                    {m.dosage && <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">{m.dosage}</div>}
+                    <div className="mt-3 space-y-1.5 text-sm">
+                      <div><span className="text-slate-500">Pet:</span> {pet?.name || 'Unknown'}</div>
+                      <div><span className="text-slate-500">Progress:</span> {`${stats.given}/${stats.totalDoses} doses`}</div>
+                      <div><span className="text-slate-500">Completed:</span> {completionDate}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       <AddMedicationForm
-        open={showAdd}
-        onClose={() => setShowAdd(false)}
-        onSaved={() => { setShowAdd(false); refresh() }}
+        open={showAdd || !!editMedicationId}
+        onClose={() => { setShowAdd(false); setEditMedicationId(null) }}
+        onSaved={() => { setShowAdd(false); setEditMedicationId(null); refresh() }}
         userId={userId}
         pets={pets}
+        medicationId={editMedicationId}
+        editMode={!!editMedicationId}
       />
       {selectedMedicationId && (
         <DoseTrackingPage

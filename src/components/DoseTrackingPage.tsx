@@ -28,6 +28,7 @@ export default function DoseTrackingPage({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [showCompletionModal, setShowCompletionModal] = useState(false)
   const [med, setMed] = useState<MedicationRow | null>(null)
   const [petName, setPetName] = useState<string>('')
   const [givenCount, setGivenCount] = useState<number>(0)
@@ -139,6 +140,10 @@ export default function DoseTrackingPage({
 
   const handleMarkGiven = async () => {
     if (!userId) { setError('You must be logged in to record a dose.'); return }
+
+    // Check if this will complete the medication
+    const willComplete = (givenCount + 1) >= totalDoses
+
     setSaving(true)
     setError(null)
     try {
@@ -153,16 +158,52 @@ export default function DoseTrackingPage({
       })
       if (insErr) throw insErr
       setGivenCount((g) => g + 1)
-      setSuccess('Dose recorded ✓')
+
+      if (willComplete) {
+        // Show completion celebration modal
+        setShowCompletionModal(true)
+      } else {
+        setSuccess('Dose recorded ✓')
+        setTimeout(() => {
+          onClose()
+        }, 2000)
+      }
+
       if (onDoseRecorded) onDoseRecorded()
-      setTimeout(() => {
-        onClose()
-      }, 4000)
     } catch (e: any) {
       setError(e?.message || 'Failed to record dose')
     } finally {
       setSaving(false)
     }
+  }
+
+  // Completion celebration modal
+  if (showCompletionModal && med) {
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => {}}>
+        <div className="relative mx-4 w-full max-w-md rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 p-8 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="text-center">
+            <div className="text-6xl mb-4">🎉</div>
+            <h2 className="text-2xl font-bold text-emerald-800 dark:text-emerald-200 mb-2">Great job!</h2>
+            <p className="text-lg text-slate-700 dark:text-slate-300 mb-1">You've completed <span className="font-semibold">{med.medication_name}</span></p>
+            <p className="text-lg text-slate-700 dark:text-slate-300 mb-4">for <span className="font-semibold">{petName}</span>!</p>
+            <div className="mt-6 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 text-sm text-blue-800 dark:text-blue-200">
+              💡 Consider following up with your vet if needed.
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowCompletionModal(false)
+                onClose()
+              }}
+              className="mt-6 w-full h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -195,16 +236,26 @@ export default function DoseTrackingPage({
 
             {success && <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800 text-sm">{success}</div>}
 
-            <div className="pt-2 flex flex-col sm:flex-row gap-3 sm:justify-end">
-              <button
-                type="button"
-                disabled={saving || !userId}
-                onClick={handleMarkGiven}
-                className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 disabled:opacity-60"
-              >
-                {saving ? 'Saving…' : '✓ MARK AS GIVEN'}
-              </button>
-            </div>
+            {givenCount >= totalDoses ? (
+              <div className="pt-2">
+                <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-4 text-center">
+                  <div className="text-2xl mb-2">🎉</div>
+                  <div className="font-semibold text-emerald-800 dark:text-emerald-200">All doses completed!</div>
+                  <div className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">This medication course is finished.</div>
+                </div>
+              </div>
+            ) : (
+              <div className="pt-2 flex flex-col sm:flex-row gap-3 sm:justify-end">
+                <button
+                  type="button"
+                  disabled={saving || !userId}
+                  onClick={handleMarkGiven}
+                  className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 disabled:opacity-60"
+                >
+                  {saving ? 'Saving…' : '✓ MARK AS GIVEN'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
