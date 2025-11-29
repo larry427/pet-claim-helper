@@ -1,4 +1,5 @@
 import twilio from 'twilio'
+import { formatPhoneToE164 } from './phoneUtils.js'
 
 // Initialize Twilio client
 const accountSid = process.env.TWILIO_ACCOUNT_SID
@@ -10,21 +11,9 @@ if (accountSid && authToken) {
   twilioClient = twilio(accountSid, authToken)
 }
 
-function normalizePhoneNumber(input) {
-  if (!input) return ''
-  // Keep leading + and digits; remove spaces/dashes/parentheses
-  const trimmed = String(input).trim()
-  const normalized = trimmed.replace(/[^\d+]/g, '')
-  // Ensure a leading + exists if it looks like a US number missing '+'
-  if (!normalized.startsWith('+') && /^\d+$/.test(normalized)) {
-    return `+${normalized}`
-  }
-  return normalized
-}
-
 export async function sendTwilioSMS(phoneNumber, message) {
   const timestamp = new Date().toISOString()
-  const to = normalizePhoneNumber(phoneNumber)
+  const to = formatPhoneToE164(phoneNumber)
 
   console.log('[Twilio SMS] Preparing to send', { phoneNumber: to, message })
 

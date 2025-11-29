@@ -20,6 +20,7 @@ import { PDFDocument } from 'pdf-lib'
 import { generateClaimFormPDF, validateClaimData } from './lib/generateClaimPDF.js'
 import { sendClaimEmail } from './lib/sendClaimEmail.js'
 import { getMissingRequiredFields } from './lib/claimFormMappings.js'
+import { formatPhoneToE164 } from './utils/phoneUtils.js'
 
 // Validate required env vars
 const required = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'RESEND_API_KEY']
@@ -1120,17 +1121,23 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         }
       }
 
-      // Save phone to profiles table
+      // Save phone to profiles table (format to E.164 before saving)
       if (collectedData.policyholderPhone) {
-        const { error: phoneError } = await supabase
-          .from('profiles')
-          .update({ phone: collectedData.policyholderPhone })
-          .eq('id', userId)
+        const phoneE164 = formatPhoneToE164(collectedData.policyholderPhone)
 
-        if (phoneError) {
-          console.error('[Save Collected Fields] Error saving phone:', phoneError)
+        if (phoneE164) {
+          const { error: phoneError } = await supabase
+            .from('profiles')
+            .update({ phone: phoneE164 })
+            .eq('id', userId)
+
+          if (phoneError) {
+            console.error('[Save Collected Fields] Error saving phone:', phoneError)
+          } else {
+            console.log('[Save Collected Fields] Saved phone (E.164):', phoneE164, '(from input:', collectedData.policyholderPhone, ')')
+          }
         } else {
-          console.log('[Save Collected Fields] Saved phone:', collectedData.policyholderPhone)
+          console.warn('[Save Collected Fields] Invalid phone number format, skipping:', collectedData.policyholderPhone)
         }
       }
 
