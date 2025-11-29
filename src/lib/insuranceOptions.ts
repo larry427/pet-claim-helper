@@ -23,6 +23,7 @@ export const INSURANCE_OPTIONS: InsuranceOption[] = [
   { display: 'Trupanion (90 days)', value: 'Trupanion', deadlineDays: 90 },
   { display: 'Nationwide (365 days)', value: 'Nationwide', deadlineDays: 365 },
   { display: 'Healthy Paws (90 days)', value: 'Healthy Paws', deadlineDays: 90 },
+  { display: 'Pumpkin (90 days)', value: 'Pumpkin', deadlineDays: 90 },
   { display: 'Custom Insurance', value: 'Other' }
 ]
 
@@ -98,6 +99,7 @@ export function isAutoSubmitSupported(insuranceCompany: string): boolean {
     normalized.includes('nationwide') ||
     normalized.includes('trupanion') ||
     normalized.includes('healthy') ||
-    normalized.includes('paws')
+    normalized.includes('paws') ||
+    normalized.includes('pumpkin')
   )
 }

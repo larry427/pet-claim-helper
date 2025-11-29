@@ -77,6 +77,49 @@ const FORM_FIELD_MAPPINGS = {
     signatureDate: { x: 460, y: 170, size: 10 },    // Date Signed
   },
 
+  pumpkin: {
+    // ✅ COORDINATE-BASED MAPPING (Flat PDF - no fillable fields)
+    // Pumpkin form is 612 x 792 points (standard US Letter). Origin (0,0) is bottom-left.
+    // Use pdf-lib drawText() to overlay text at these coordinates
+    // NOTE: Only output pages 1-2 (claim form) - Pages 3-5 contain fraud notices/FAQ
+
+    // PAGE 1 - CLAIM TYPE CHECKBOXES (Section 1)
+    // Special handling: Draw "X" at one of these based on claimType value
+    claimTypeAccident: { x: 48, y: 538, size: 12, page: 1 },
+    claimTypeIllness: { x: 242, y: 538, size: 12, page: 1 },
+    claimTypePreventive: { x: 424, y: 538, size: 12, page: 1 },
+
+    // PAGE 1 - PET PARENT INFORMATION (Section 2)
+    policyholderName: { x: 49, y: 398, size: 10, page: 1 },
+    address: { x: 320, y: 398, size: 10, page: 1 },
+    apartment: { x: 340, y: 398, size: 10, page: 1 },
+    city: { x: 465, y: 398, size: 10, page: 1 },
+    policyholderPhone: { x: 49, y: 350, size: 10, page: 1 },
+    policyholderEmail: { x: 49, y: 300, size: 10, page: 1 },
+    state: { x: 340, y: 300, size: 10, page: 1 },
+    zip: { x: 465, y: 300, size: 10, page: 1 },
+
+    // PAGE 1 - PET INFORMATION (Section 3)
+    petName: { x: 50, y: 215, size: 10, page: 1 },
+    pumpkinAccountNumber: { x: 330, y: 215, size: 10, page: 1 },
+    breed: { x: 50, y: 140, size: 10, page: 1 },
+    age: { x: 340, y: 140, size: 10, page: 1 },  // Calculated from dateOfBirth
+
+    // PAGE 2 - VET INFORMATION (Section 4)
+    veterinaryClinic: { x: 45, y: 700, size: 10, page: 2 },
+    // All other vet fields intentionally left blank
+
+    // PAGE 2 - CLAIM INFORMATION (Section 5)
+    totalAmount: { x: 45, y: 525, size: 10, page: 2 },
+    diagnosis: { x: 80, y: 380, size: 9, page: 2 },  // diagnosisStory - always "Please see attached invoice"
+    // Date illness occurred: intentionally LEAVE BLANK
+    // Is estimate: intentionally LEAVE BLANK
+
+    // PAGE 2 - SIGNATURE (Section 6)
+    signature: { x: 160, y: 170, width: 150, height: 40, page: 2 },
+    signatureDate: { x: 440, y: 170, size: 10, page: 2 }
+  },
+
   trupanion: {
     // ✅ EXACT FIELD NAMES from Trupanion PDF inspection (27 fields discovered)
     // Updated to match actual PDF field names character-for-character
@@ -229,6 +272,8 @@ export function getMappingForInsurer(insurerName) {
     return FORM_FIELD_MAPPINGS.healthypaws
   } else if (normalized.includes('trupanion')) {
     return FORM_FIELD_MAPPINGS.trupanion
+  } else if (normalized.includes('pumpkin')) {
+    return FORM_FIELD_MAPPINGS.pumpkin
   }
 
   return null
@@ -545,6 +590,108 @@ export const INSURER_REQUIRED_FIELDS = {
       placeholder: 'e.g., 1400806-1',
       description: 'Found on your Healthy Paws insurance card or policy documents'
     }
+  ],
+
+  pumpkin: [
+    {
+      field: 'signature',
+      source: 'profiles.signature',
+      required: true,
+      type: 'signature',
+      prompt: 'Your signature',
+      description: 'Required to authorize the claim'
+    },
+    {
+      field: 'policyholderName',
+      source: 'profiles.full_name',
+      required: true,
+      type: 'text',
+      prompt: 'Your full name',
+      placeholder: 'John Smith'
+    },
+    {
+      field: 'policyholderPhone',
+      source: 'profiles.phone',
+      required: true,
+      type: 'phone',
+      prompt: 'Your phone number',
+      placeholder: '(555) 123-4567'
+    },
+    {
+      field: 'policyholderEmail',
+      source: 'profiles.email',
+      required: true,
+      type: 'email',
+      prompt: 'Your email address',
+      placeholder: 'john@example.com'
+    },
+    {
+      field: 'address',
+      source: 'profiles.address',
+      required: true,
+      type: 'text',
+      prompt: 'Street address',
+      placeholder: '123 Main St'
+    },
+    {
+      field: 'city',
+      source: 'profiles.city',
+      required: true,
+      type: 'text',
+      prompt: 'City',
+      placeholder: 'Los Angeles'
+    },
+    {
+      field: 'state',
+      source: 'profiles.state',
+      required: true,
+      type: 'text',
+      prompt: 'State',
+      placeholder: 'CA'
+    },
+    {
+      field: 'zip',
+      source: 'profiles.zip',
+      required: true,
+      type: 'text',
+      prompt: 'ZIP code',
+      placeholder: '90210'
+    },
+    {
+      field: 'pumpkinAccountNumber',
+      source: 'pets.pumpkin_account_number',
+      required: true,
+      type: 'text',
+      prompt: 'Pumpkin Account Number',
+      placeholder: 'Found on your Pumpkin policy documents',
+      description: 'Your Pumpkin account number from your policy card or portal'
+    },
+    {
+      field: 'breed',
+      source: 'pets.breed',
+      required: true,
+      type: 'text',
+      prompt: "Pet's breed",
+      placeholder: 'e.g., Golden Retriever, Domestic Shorthair'
+    },
+    {
+      field: 'dateOfBirth',
+      source: 'pets.date_of_birth',
+      required: true,
+      type: 'date',
+      prompt: "Pet's date of birth",
+      description: 'Used to calculate age for the claim form'
+    },
+    {
+      field: 'claimType',
+      source: 'claim.claim_type',
+      required: true,
+      type: 'radio',
+      prompt: 'What type of claim is this?',
+      options: ['Accident', 'Illness', 'Preventive'],
+      description: 'Select the type of claim you are filing',
+      saveToDb: false  // Don't persist - ask every time
+    }
   ]
 }
 
@@ -560,6 +707,8 @@ export function getRequiredFieldsForInsurer(insurerName) {
     return INSURER_REQUIRED_FIELDS.healthypaws
   } else if (normalized.includes('trupanion')) {
     return INSURER_REQUIRED_FIELDS.trupanion
+  } else if (normalized.includes('pumpkin')) {
+    return INSURER_REQUIRED_FIELDS.pumpkin
   }
 
   return []
@@ -601,10 +750,17 @@ function getFieldValue(fieldName, profileData, petData, claimData) {
     'policyholderPhone': profileData?.phone,
     'policyholderAddress': profileData?.address,
     'policyholderEmail': profileData?.email,
+    'address': profileData?.address,
+    'city': profileData?.city,
+    'state': profileData?.state,
+    'zip': profileData?.zip,
 
     // Pet fields (policy_number is stored in pets table, not profiles!)
     'policyNumber': petData?.policy_number,
     'healthyPawsPetId': petData?.healthy_paws_pet_id,
+    'pumpkinAccountNumber': petData?.pumpkin_account_number,
+    'breed': petData?.breed,
+    'dateOfBirth': petData?.date_of_birth,
     'adoptionDate': petData?.adoption_date,
     'spayNeuterStatus': petData?.spay_neuter_status,
     'spayNeuterDate': petData?.spay_neuter_date,
@@ -619,6 +775,7 @@ function getFieldValue(fieldName, profileData, petData, claimData) {
     'previousClaimSameCondition': claimData?.previous_claim_same_condition,
     'previousClaimNumber': claimData?.previous_claim_number,
     'paymentMethod': claimData?.payment_method,
+    'claimType': claimData?.claim_type,
   }
 
   const value = fieldMap[fieldName]

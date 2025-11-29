@@ -1197,6 +1197,48 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         }
       }
 
+      // Save pumpkin_account_number to pets table
+      if (collectedData.pumpkinAccountNumber) {
+        const { error: pumpkinError } = await supabase
+          .from('pets')
+          .update({ pumpkin_account_number: collectedData.pumpkinAccountNumber })
+          .eq('id', petId)
+
+        if (pumpkinError) {
+          console.error('[Save Collected Fields] Error saving Pumpkin Account Number:', pumpkinError)
+        } else {
+          console.log('[Save Collected Fields] Saved Pumpkin Account Number:', collectedData.pumpkinAccountNumber)
+        }
+      }
+
+      // Save breed to pets table
+      if (collectedData.breed) {
+        const { error: breedError } = await supabase
+          .from('pets')
+          .update({ breed: collectedData.breed })
+          .eq('id', petId)
+
+        if (breedError) {
+          console.error('[Save Collected Fields] Error saving breed:', breedError)
+        } else {
+          console.log('[Save Collected Fields] Saved breed:', collectedData.breed)
+        }
+      }
+
+      // Save date_of_birth to pets table
+      if (collectedData.dateOfBirth) {
+        const { error: dobError } = await supabase
+          .from('pets')
+          .update({ date_of_birth: collectedData.dateOfBirth })
+          .eq('id', petId)
+
+        if (dobError) {
+          console.error('[Save Collected Fields] Error saving date_of_birth:', dobError)
+        } else {
+          console.log('[Save Collected Fields] Saved date_of_birth:', collectedData.dateOfBirth)
+        }
+      }
+
       // Save spay/neuter info to pets table
       if (collectedData.spayNeuterStatus) {
         const updateData = {

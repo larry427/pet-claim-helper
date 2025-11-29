@@ -57,7 +57,8 @@ function shouldUseOfficialForm(normalizedInsurer) {
   return normalizedInsurer.includes('nationwide') ||
          normalizedInsurer.includes('trupanion') ||
          normalizedInsurer.includes('healthy') ||
-         normalizedInsurer.includes('paws')
+         normalizedInsurer.includes('paws') ||
+         normalizedInsurer.includes('pumpkin')
 }
 
 /**
@@ -83,6 +84,9 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
   } else if (normalizedInsurer.includes('healthy') || normalizedInsurer.includes('paws')) {
     pdfFilename = 'Healthy Paws blank form.pdf'
     console.log(`   ✅ Matched: Healthy Paws`)
+  } else if (normalizedInsurer.includes('pumpkin')) {
+    pdfFilename = 'pumpkin-claim-form.pdf'
+    console.log(`   ✅ Matched: Pumpkin`)
   } else {
     console.log(`   ❌ NO MATCH for insurer: "${insurer}"`)
     throw new Error(`No official form available for insurer: ${insurer}`)
@@ -570,12 +574,14 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
     return await generatePDFFromScratch(insurer, claimData, userSignature, dateSigned)
   }
 
-  // Get the first page
+  // Get all pages
   const pages = pdfDoc.getPages()
   const firstPage = pages[0]
+  const secondPage = pages.length > 1 ? pages[1] : null
   const { width, height } = firstPage.getSize()
 
-  console.log(`📄 Page dimensions: ${width} x ${height} points\n`)
+  console.log(`📄 Total pages: ${pages.length}`)
+  console.log(`📄 Page 1 dimensions: ${width} x ${height} points\n`)
 
   // Embed fonts
   const { StandardFonts } = await import('pdf-lib')
@@ -588,10 +594,47 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
   let fieldsFilled = 0
   let fieldsSkipped = 0
 
+  // PUMPKIN SPECIAL HANDLING: Calculate age from date of birth
+  let calculatedAge = null
+  if (normalizedInsurer.includes('pumpkin') && claimData.petDateOfBirth) {
+    try {
+      const birthDate = new Date(claimData.petDateOfBirth)
+      const today = new Date()
+      const ageInYears = Math.floor((today - birthDate) / (365.25 * 24 * 60 * 60 * 1000))
+      calculatedAge = ageInYears + (ageInYears === 1 ? ' year' : ' years')
+      console.log(`🐾 Calculated pet age from DOB (${claimData.petDateOfBirth}): ${calculatedAge}`)
+    } catch (e) {
+      console.warn(`⚠️  Could not calculate age from DOB: ${e.message}`)
+    }
+  }
+
   // Fill each mapped field using coordinates
   for (const [ourFieldName, coordinates] of Object.entries(mapping)) {
     if (!coordinates) {
       fieldsSkipped++
+      continue
+    }
+
+    // PUMPKIN SPECIAL HANDLING: claimType checkboxes - draw "X" at correct position
+    if (normalizedInsurer.includes('pumpkin') && ourFieldName.startsWith('claimType') && claimData.claimType) {
+      const expectedType = ourFieldName.replace('claimType', '')  // "Accident", "Illness", or "Preventive"
+
+      if (claimData.claimType === expectedType) {
+        try {
+          const targetPage = coordinates.page === 2 && secondPage ? secondPage : firstPage
+          targetPage.drawText('X', {
+            x: coordinates.x,
+            y: coordinates.y,
+            size: coordinates.size || 12,
+            font: helveticaBoldFont,
+            color: { type: 'RGB', red: 0, green: 0, blue: 0 }
+          })
+          console.log(`   ✅ claimType: "X" at ${expectedType} checkbox (${coordinates.x}, ${coordinates.y})`)
+          fieldsFilled++
+        } catch (err) {
+          console.warn(`   ⚠️  ${ourFieldName}: ${err.message}`)
+        }
+      }
       continue
     }
 
@@ -615,14 +658,16 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
           // Embed the PNG image
           const signatureImage = await pdfDoc.embedPng(signatureBytes)
 
-          firstPage.drawImage(signatureImage, {
+          // Use correct page for signature
+          const targetPage = coordinates.page === 2 && secondPage ? secondPage : firstPage
+          targetPage.drawImage(signatureImage, {
             x: coordinates.x,
             y: coordinates.y,
             width: coordinates.width,
             height: coordinates.height
           })
 
-          console.log(`   ✅ Signature embedded successfully!`)
+          console.log(`   ✅ Signature embedded successfully on page ${coordinates.page || 1}!`)
           fieldsFilled++
         } catch (sigError) {
           console.error(`   ❌ Failed to embed signature: ${sigError.message}`)
@@ -636,8 +681,14 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
       continue
     }
 
-    // Get the value for this field from our claim data
-    const value = getValueForField(ourFieldName, claimData, dateSigned)
+    // PUMPKIN SPECIAL HANDLING: Use calculated age instead of fetching from claimData
+    let value
+    if (normalizedInsurer.includes('pumpkin') && ourFieldName === 'age' && calculatedAge) {
+      value = calculatedAge
+    } else {
+      // Get the value for this field from our claim data
+      value = getValueForField(ourFieldName, claimData, dateSigned)
+    }
 
     if (!value && value !== false) {
       fieldsSkipped++
@@ -645,12 +696,34 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
     }
 
     try {
+      // PUMPKIN SPECIAL HANDLING: Override diagnosis to "Please see attached invoice"
+      if (normalizedInsurer.includes('pumpkin') && ourFieldName === 'diagnosis') {
+        value = 'Please see attached invoice'
+      }
+
+      // PUMPKIN SPECIAL HANDLING: Prepend "$" to totalAmount
+      if (normalizedInsurer.includes('pumpkin') && ourFieldName === 'totalAmount') {
+        value = '$' + String(value)
+      }
+
+      // PUMPKIN SPECIAL HANDLING: Format signatureDate as MM/DD/YYYY
+      if (normalizedInsurer.includes('pumpkin') && ourFieldName === 'signatureDate') {
+        const today = new Date()
+        const mm = String(today.getMonth() + 1).padStart(2, '0')
+        const dd = String(today.getDate()).padStart(2, '0')
+        const yyyy = today.getFullYear()
+        value = `${mm}/${dd}/${yyyy}`
+      }
 
       // Draw text at coordinates
       const fontSize = coordinates.size || 10
       const textValue = String(value)
 
-      firstPage.drawText(textValue, {
+      // Use correct page based on coordinates.page property
+      const targetPage = coordinates.page === 2 && secondPage ? secondPage : firstPage
+      const pageLabel = coordinates.page === 2 ? 'page 2' : 'page 1'
+
+      targetPage.drawText(textValue, {
         x: coordinates.x,
         y: coordinates.y,
         size: fontSize,
@@ -658,7 +731,7 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
         color: { type: 'RGB', red: 0, green: 0, blue: 0 }
       })
 
-      console.log(`   ✅ ${ourFieldName}: "${textValue}" at (${coordinates.x}, ${coordinates.y})`)
+      console.log(`   ✅ ${ourFieldName}: "${textValue}" at (${coordinates.x}, ${coordinates.y}) on ${pageLabel}`)
       fieldsFilled++
 
     } catch (err) {
@@ -672,6 +745,22 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
   console.log(`   Fields filled: ${fieldsFilled}`)
   console.log(`   Fields skipped: ${fieldsSkipped}`)
   console.log('─'.repeat(80) + '\n')
+
+  // Remove unwanted pages from Pumpkin form (keep only pages 1-2, remove pages 3-5 which are fraud notices/FAQ)
+  if (normalizedInsurer.includes('pumpkin')) {
+    const pageCount = pdfDoc.getPageCount()
+    console.log(`📄 Pumpkin PDF has ${pageCount} pages`)
+
+    // Remove pages 3-5 if they exist (keep only pages 1-2 which contain the claim form)
+    if (pageCount > 2) {
+      console.log(`🗑️  Removing pages 3-${pageCount} (fraud notices/FAQ/legal disclaimers)...`)
+      // Remove pages from the end to avoid index shifting
+      for (let i = pageCount - 1; i >= 2; i--) {
+        pdfDoc.removePage(i)
+      }
+      console.log(`✅ Kept only pages 1-2 (claim form)\n`)
+    }
+  }
 
   // Save and return as buffer
   const filledPdfBytes = await pdfDoc.save()
@@ -940,7 +1029,8 @@ function getProductionEmail(insurer) {
     'nationwide': 'claims@petinsurance.com',
     'healthy paws': 'claims@healthypawspetinsurance.com',
     'healthypaws': 'claims@healthypawspetinsurance.com',
-    'trupanion': 'claims@trupanion.com'
+    'trupanion': 'claims@trupanion.com',
+    'pumpkin': 'claims@pumpkin.care'
   }
   const normalizedName = insurer.toLowerCase()
   return emails[normalizedName] || null
