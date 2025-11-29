@@ -341,7 +341,13 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
                           Delete
                         </button>
                       </div>
-                      {m.dosage && <div className="text-sm text-slate-600 mt-0.5">{m.dosage}</div>}
+                      {m.dosage && <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">{m.dosage}</div>}
+                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">{m.frequency}</div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {(Array.isArray(m.reminder_times) ? m.reminder_times : []).map((t: string, idx: number) => (
+                          <span key={idx} className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-700 dark:text-slate-300">{formatClock(t)}</span>
+                        ))}
+                      </div>
                       <div className="mt-3 space-y-1.5 text-sm">
                         <div><span className="text-slate-500">Progress:</span> {`${stats.given}/${stats.totalDoses} doses (${stats.pct}%)`}</div>
                         <div><span className="text-slate-500">Next dose:</span> {stats.nextDoseLabel}</div>

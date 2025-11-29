@@ -32,6 +32,7 @@ export default function DoseTrackingPage({
   const [med, setMed] = useState<MedicationRow | null>(null)
   const [petName, setPetName] = useState<string>('')
   const [givenCount, setGivenCount] = useState<number>(0)
+  const [lastDoseGiven, setLastDoseGiven] = useState<string | null>(null)
 
   const timesPerDay = useMemo(() => {
     if (!med) return 0
@@ -50,6 +51,20 @@ export default function DoseTrackingPage({
   }, [med, timesPerDay])
 
   const pct = useMemo(() => (totalDoses > 0 ? Math.round((givenCount / totalDoses) * 100) : 0), [givenCount, totalDoses])
+
+  const daysRemaining = useMemo(() => {
+    if (!med || !med.end_date) return 0
+    const today = new Date()
+    const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    const [endYear, endMonth, endDay] = med.end_date.split('-').map(Number)
+    const endDate = new Date(endYear, endMonth - 1, endDay)
+    return Math.max(0, Math.round((endDate.getTime() - todayDay.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+  }, [med])
+
+  const endDateLabel = useMemo(() => {
+    if (!med || !med.end_date) return '—'
+    return med.end_date
+  }, [med])
 
   const fetchAll = async () => {
     setLoading(true)
@@ -93,13 +108,20 @@ export default function DoseTrackingPage({
         .eq('status', 'given')
       if (dErr) throw dErr
       setGivenCount(count || 0)
-      // Load user timezone
-      if (userId) {
-        try {
-          const { data } = await supabase.from('profiles').select('timezone').eq('id', userId).single()
-          const tz = (data && (data as any).timezone) ? String((data as any).timezone) : ''
-          if (tz) setUserTimezone(tz)
-        } catch {}
+
+      // Last dose given
+      const { data: lastDose, error: lastDoseErr } = await supabase
+        .from('medication_doses')
+        .select('given_time')
+        .eq('medication_id', medicationId)
+        .eq('status', 'given')
+        .order('given_time', { ascending: false })
+        .limit(1)
+        .single()
+      if (!lastDoseErr && lastDose?.given_time) {
+        setLastDoseGiven(lastDose.given_time)
+      } else {
+        setLastDoseGiven(null)
       }
     } catch (e: any) {
       setError(e?.message || 'Failed to load medication')
@@ -138,6 +160,30 @@ export default function DoseTrackingPage({
     return `${hour12}:${String(mm).padStart(2, '0')} ${ampm}`
   }
 
+  const formatLastDose = (timestamp: string | null) => {
+    if (!timestamp) return 'No doses recorded yet'
+    const date = new Date(timestamp)
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+    const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    const yesterdayDay = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate())
+
+    let dayLabel = ''
+    if (dateDay.getTime() === todayDay.getTime()) {
+      dayLabel = 'Today'
+    } else if (dateDay.getTime() === yesterdayDay.getTime()) {
+      dayLabel = 'Yesterday'
+    } else {
+      dayLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }
+
+    const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    return `${dayLabel} ${time}`
+  }
+
   const handleMarkGiven = async () => {
     if (!userId) { setError('You must be logged in to record a dose.'); return }
 
@@ -158,6 +204,7 @@ export default function DoseTrackingPage({
       })
       if (insErr) throw insErr
       setGivenCount((g) => g + 1)
+      setLastDoseGiven(isoNow)
 
       if (willComplete) {
         // Show completion celebration modal
@@ -218,17 +265,21 @@ export default function DoseTrackingPage({
         {error && <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-800 text-sm">{error}</div>}
         {!loading && med && (
           <div className="mt-4 space-y-3">
-            <div className="text-sm text-slate-600">Pet: <span className="font-medium text-slate-800 dark:text-slate-100">{petName || '—'}</span></div>
+            <div className="text-sm text-slate-600 dark:text-slate-400">Pet: <span className="font-medium text-slate-800 dark:text-slate-100">{petName || '—'}</span></div>
             <div className="text-lg font-semibold">{med.medication_name}</div>
-            {med.dosage && <div className="text-sm text-slate-600">{med.dosage}</div>}
+            {med.dosage && <div className="text-sm text-slate-600 dark:text-slate-400">{med.dosage}</div>}
+            <div className="text-sm text-slate-600 dark:text-slate-400">Frequency: <span className="font-medium text-slate-800 dark:text-slate-100">{med.frequency}</span></div>
 
             <div className="mt-2 rounded-lg border border-slate-200 dark:border-slate-800 p-3 text-sm space-y-1.5">
               <div><span className="text-slate-500">Progress:</span> {`${givenCount}/${totalDoses} doses (${pct}%)`}</div>
+              <div><span className="text-slate-500">Days remaining:</span> {daysRemaining}</div>
+              <div><span className="text-slate-500">End date:</span> {endDateLabel}</div>
+              <div><span className="text-slate-500">Last dose given:</span> {formatLastDose(lastDoseGiven)}</div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-slate-500">Reminder times:</span>
                 <div className="flex flex-wrap gap-2">
                   {(Array.isArray(med.reminder_times) ? med.reminder_times : []).map((t: string, idx: number) => (
-                    <span key={idx} className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700">{formatClock(t)}</span>
+                    <span key={idx} className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-700 dark:text-slate-300">{formatClock(t)}</span>
                   ))}
                 </div>
               </div>
