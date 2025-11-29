@@ -19,7 +19,7 @@ import { DateTime } from 'luxon'
 import { PDFDocument } from 'pdf-lib'
 import { generateClaimFormPDF, validateClaimData } from './lib/generateClaimPDF.js'
 import { sendClaimEmail } from './lib/sendClaimEmail.js'
-import { getMissingRequiredFields } from './lib/claimFormMappings.js'
+import { getMissingRequiredFields, getRequiredFieldsForInsurer } from './lib/claimFormMappings.js'
 import { formatPhoneToE164 } from './utils/phoneUtils.js'
 
 // Validate required env vars
@@ -954,7 +954,59 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         claim
       )
 
-      // 5. AI extraction for fields with aiExtract flag
+      // 5. Build existingData object with ALL field values (not just missing ones)
+      // This allows the MissingFieldsModal to pre-fill existing values
+      const allRequiredFields = getRequiredFieldsForInsurer(insurer)
+      const existingData = {}
+
+      // Field value mapping (matches getFieldValue in claimFormMappings.js)
+      const fieldValueMap = {
+        // Profile fields
+        'signature': profile?.signature,
+        'policyholderName': profile?.full_name,
+        'policyholderPhone': profile?.phone,
+        'policyholderAddress': profile?.address,
+        'policyholderEmail': profile?.email,
+        'address': profile?.address,
+        'city': profile?.city,
+        'state': profile?.state,
+        'zip': profile?.zip,
+
+        // Pet fields
+        'policyNumber': pet?.policy_number,
+        'healthyPawsPetId': pet?.healthy_paws_pet_id,
+        'pumpkinAccountNumber': pet?.pumpkin_account_number,
+        'breed': pet?.breed,
+        'dateOfBirth': pet?.date_of_birth,
+        'petDateOfBirth': pet?.date_of_birth,  // Alternative field name
+        'adoptionDate': pet?.adoption_date,
+        'spayNeuterStatus': pet?.spay_neuter_status,
+        'spayNeuterDate': pet?.spay_neuter_date,
+        'treatingVet': pet?.preferred_vet_name,
+        'hadOtherInsurance': pet?.had_other_insurance,
+        'otherInsuranceProvider': pet?.other_insurance_provider,
+        'otherInsuranceCancelDate': pet?.other_insurance_cancel_date,
+        'otherHospitalsVisited': pet?.other_hospitals_visited,
+
+        // Claim fields
+        'bodyPartAffected': claim?.body_part,
+        'previousClaimSameCondition': claim?.previous_claim_same_condition,
+        'previousClaimNumber': claim?.previous_claim_number,
+        'paymentMethod': claim?.payment_method,
+        'claimType': claim?.claim_type,
+      }
+
+      // Populate existingData with values that exist
+      for (const fieldDef of allRequiredFields) {
+        const value = fieldValueMap[fieldDef.field]
+        if (value !== null && value !== undefined && value !== '') {
+          existingData[fieldDef.field] = value
+          console.log(`[Validate Fields] existingData[${fieldDef.field}] = ${value}`)
+        }
+      }
+
+      // 6. AI extraction for fields with aiExtract flag
+      const suggestedValues = {}
       for (const fieldDef of missingFields) {
         if (fieldDef.aiExtract && fieldDef.aiPrompt) {
           try {
@@ -965,8 +1017,10 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
             )
 
             if (extractedValue) {
-              // Add the extracted value to the field definition
+              // Add the extracted value to the suggested values
+              suggestedValues[fieldDef.field] = extractedValue
               fieldDef.suggestedValue = extractedValue
+              console.log(`[Validate Fields] suggestedValues[${fieldDef.field}] = ${extractedValue}`)
             }
           } catch (err) {
             console.error('[Validate Fields] AI extraction failed:', err)
@@ -975,9 +1029,17 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         }
       }
 
+      console.log('[Validate Fields] Response summary:', {
+        missingFieldsCount: missingFields.length,
+        existingDataKeys: Object.keys(existingData),
+        suggestedValuesKeys: Object.keys(suggestedValues)
+      })
+
       return res.json({
         ok: true,
         missingFields,
+        existingData,
+        suggestedValues,
         allFieldsPresent: missingFields.length === 0,
         petName: pet.name  // For dynamic prompt replacement in MissingFieldsModal
       })
