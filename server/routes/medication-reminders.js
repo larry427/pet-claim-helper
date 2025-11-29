@@ -109,35 +109,51 @@ export async function runMedicationReminders(options = {}) {
 
     // Check each medication to see if it's time to send a reminder
     for (const med of medications) {
+      console.log('[DEBUG] Processing medication:', med.medication_name, '| reminder_times:', med.reminder_times, '| pet:', med.pets?.name)
+
       // Check if medication is active (within start/end date range)
       // Use PST date for consistent timezone handling
       const today = nowPST.toISODate()
       if (med.start_date > today) {
+        console.log('[DEBUG] Skipping', med.medication_name, '- reason: Not started yet (start_date:', med.start_date, 'today:', today, ')')
         remindersSkipped.push({ medicationId: med.id, reason: 'Not started yet' })
         continue
       }
       if (med.end_date && med.end_date < today) {
+        console.log('[DEBUG] Skipping', med.medication_name, '- reason: Already ended (end_date:', med.end_date, 'today:', today, ')')
         remindersSkipped.push({ medicationId: med.id, reason: 'Already ended' })
         continue
       }
 
       // Check if user has phone and SMS opt-in
       const profile = med.profiles
+      const userPhone = profile?.phone || 'NO PHONE'
+      const smsOptIn = profile?.sms_opt_in
+      console.log('[DEBUG] User phone for', med.medication_name, ':', userPhone, '| SMS opt-in:', smsOptIn)
+
       if (!profile || !profile.phone || profile.sms_opt_in === false) {
+        console.log('[DEBUG] Skipping', med.medication_name, '- reason: No phone or opted out (phone:', userPhone, 'opt_in:', smsOptIn, ')')
         remindersSkipped.push({ medicationId: med.id, reason: 'No phone or opted out' })
         continue
       }
 
       // Check if any reminder time matches current time
       const reminderTimes = Array.isArray(med.reminder_times) ? med.reminder_times : []
+      console.log('[DEBUG] Comparing current time:', currentTime, 'against reminder_times:', reminderTimes)
+
       const shouldSendNow = reminderTimes.some(time => {
         // Compare hour and minute (ignore seconds)
         const [hour, minute] = time.split(':')
-        return hour === String(currentHour).padStart(2, '0') &&
+        const matches = hour === String(currentHour).padStart(2, '0') &&
                minute === String(currentMinute).padStart(2, '0')
+        console.log('[DEBUG] Time', time, 'matches current', currentTime, '?', matches)
+        return matches
       })
 
+      console.log('[DEBUG] Should send now for', med.medication_name, '?', shouldSendNow)
+
       if (!shouldSendNow) {
+        console.log('[DEBUG] Skipping', med.medication_name, '- reason: Not time yet (current:', currentTime, 'reminders:', reminderTimes, ')')
         continue // Not time yet for this medication
       }
 
@@ -160,12 +176,14 @@ export async function runMedicationReminders(options = {}) {
       if (logInsertError) {
         // UNIQUE constraint violation means another instance already sent this reminder
         if (logInsertError.code === '23505') {
+          console.log('[DEBUG] Deduplication check for', med.medication_name, '- already sent today (constraint violation)')
           console.log(`[Medication Reminders] ✅ Skipping ${med.medication_name} - already sent by another instance`)
           remindersSkipped.push({ medicationId: med.id, reason: 'Already sent (constraint)' })
           continue
         }
 
         // Other error - log and skip
+        console.log('[DEBUG] Skipping', med.medication_name, '- reason: Log insert failed (error:', logInsertError.message, 'code:', logInsertError.code, ')')
         console.error('[Medication Reminders] Failed to insert log:', logInsertError.message)
         remindersSkipped.push({
           medicationId: med.id,
@@ -174,6 +192,8 @@ export async function runMedicationReminders(options = {}) {
         })
         continue
       }
+
+      console.log('[DEBUG] Successfully inserted log entry for', med.medication_name, '- proceeding to send SMS')
 
       console.log(`[Medication Reminders] ✅ Claimed ${med.medication_name} - safe to send`)
 
@@ -199,6 +219,7 @@ export async function runMedicationReminders(options = {}) {
         .single()
 
       if (doseError) {
+        console.log('[DEBUG] Skipping', med.medication_name, '- reason: Failed to create dose (error:', doseError.message, ')')
         console.error('[Medication Reminders] Error creating dose:', doseError)
         // We already logged, so delete the log entry to allow retry
         await supabase
@@ -216,6 +237,7 @@ export async function runMedicationReminders(options = {}) {
         continue
       }
 
+      console.log('[DEBUG] Created dose:', dose.id, 'for', med.medication_name, '- preparing SMS')
       console.log('[Medication Reminders] Created dose:', dose.id, 'with magic link token')
 
       // Build SMS message with magic link
@@ -224,8 +246,12 @@ export async function runMedicationReminders(options = {}) {
       const deepLink = `https://pet-claim-helper.vercel.app/dose/${med.id}?token=${oneTimeToken}`
       const message = `🐾 Time to give ${petName} their ${medName}! Tap to mark as given: ${deepLink} Reply HELP for help.`
 
+      console.log('[DEBUG] Sending SMS to', profile.phone, 'for', med.medication_name)
+
       // Send SMS
       const result = await sendTwilioSMS(profile.phone, message)
+
+      console.log('[DEBUG] SMS send result for', med.medication_name, '- success:', result.success, 'messageId:', result.messageId || 'none', 'error:', result.error || 'none')
 
       if (result.success) {
         // Update log with Twilio message SID
@@ -256,6 +282,7 @@ export async function runMedicationReminders(options = {}) {
         })
       } else {
         // SMS failed - delete log entry to allow retry
+        console.log('[DEBUG] Skipping', med.medication_name, '- reason: SMS send failed (error:', result.error, ')')
         console.error('[Medication Reminders] SMS send failed, removing log entry for retry')
         await supabase
           .from('medication_reminders_log')
