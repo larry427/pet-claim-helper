@@ -95,7 +95,7 @@ const FORM_FIELD_MAPPINGS = {
     apartment: { x: 340, y: 398, size: 10, page: 1 },
     city: { x: 465, y: 398, size: 10, page: 1 },
     policyholderPhone: { x: 49, y: 350, size: 10, page: 1 },
-    policyholderEmail: { x: 49, y: 300, size: 10, page: 1 },
+    policyholderEmail: { x: 49, y: 310, size: 10, page: 1 },  // Adjusted up from y=300
     state: { x: 340, y: 300, size: 10, page: 1 },
     zip: { x: 465, y: 300, size: 10, page: 1 },
 
@@ -103,7 +103,7 @@ const FORM_FIELD_MAPPINGS = {
     petName: { x: 50, y: 215, size: 10, page: 1 },
     pumpkinAccountNumber: { x: 330, y: 215, size: 10, page: 1 },
     breed: { x: 50, y: 140, size: 10, page: 1 },
-    age: { x: 340, y: 140, size: 10, page: 1 },  // Calculated from dateOfBirth
+    age: { x: 340, y: 150, size: 10, page: 1 },  // Calculated from dateOfBirth - Adjusted up from y=140
 
     // PAGE 2 - VET INFORMATION (Section 4)
     veterinaryClinic: { x: 45, y: 700, size: 10, page: 2 },

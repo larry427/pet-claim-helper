@@ -546,7 +546,17 @@ function getValueForField(fieldName, claimData, dateSigned) {
     // Payment method - INTENTIONALLY OMITTED
     // Trupanion form states: "Leaving this section unmarked will result in payment to you, the policyholder"
     // This is the desired default behavior, so we do NOT include this field in the mapping
-    // The field will remain blank on the PDF, which is correct per Trupanion's instructions
+    // The field will remain blank on the PDF, which is correct per Trupanion's instructions,
+
+    // PUMPKIN 2024 FORM FIELDS
+    pumpkinAccountNumber: claimData.pumpkinAccountNumber,
+    breed: claimData.breed,
+    claimType: claimData.claimType,  // Accident, Illness, or Preventive
+    address: policyholderAddr.street,  // Street address only
+    apartment: null,  // Not collected separately
+    city: claimData.city || policyholderAddr.city,
+    state: claimData.state || policyholderAddr.state,
+    zip: claimData.zip || policyholderAddr.zip
   }
 
   return fieldMap[fieldName]
@@ -701,9 +711,10 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
         value = 'Please see attached invoice'
       }
 
-      // PUMPKIN SPECIAL HANDLING: Prepend "$" to totalAmount
+      // PUMPKIN SPECIAL HANDLING: Prepend "$" to totalAmount (if not already present)
       if (normalizedInsurer.includes('pumpkin') && ourFieldName === 'totalAmount') {
-        value = '$' + String(value)
+        const stringValue = String(value)
+        value = stringValue.startsWith('$') ? stringValue : '$' + stringValue
       }
 
       // PUMPKIN SPECIAL HANDLING: Format signatureDate as MM/DD/YYYY

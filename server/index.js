@@ -1183,6 +1183,46 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         }
       }
 
+      // Save city, state, zip to profiles table
+      if (collectedData.city) {
+        const { error: cityError } = await supabase
+          .from('profiles')
+          .update({ city: collectedData.city })
+          .eq('id', userId)
+
+        if (cityError) {
+          console.error('[Save Collected Fields] Error saving city:', cityError)
+        } else {
+          console.log('[Save Collected Fields] Saved city:', collectedData.city)
+        }
+      }
+
+      if (collectedData.state) {
+        const { error: stateError } = await supabase
+          .from('profiles')
+          .update({ state: collectedData.state })
+          .eq('id', userId)
+
+        if (stateError) {
+          console.error('[Save Collected Fields] Error saving state:', stateError)
+        } else {
+          console.log('[Save Collected Fields] Saved state:', collectedData.state)
+        }
+      }
+
+      if (collectedData.zip) {
+        const { error: zipError} = await supabase
+          .from('profiles')
+          .update({ zip: collectedData.zip })
+          .eq('id', userId)
+
+        if (zipError) {
+          console.error('[Save Collected Fields] Error saving zip:', zipError)
+        } else {
+          console.log('[Save Collected Fields] Saved zip:', collectedData.zip)
+        }
+      }
+
       // Save phone to profiles table (format to E.164 before saving)
       if (collectedData.policyholderPhone) {
         const phoneE164 = formatPhoneToE164(collectedData.policyholderPhone)
