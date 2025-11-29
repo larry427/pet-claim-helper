@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { formatTimeForDisplay } from '../utils/timezoneUtils'
 
 type MedicationRow = {
   id: string
@@ -32,7 +31,6 @@ export default function DoseTrackingPage({
   const [med, setMed] = useState<MedicationRow | null>(null)
   const [petName, setPetName] = useState<string>('')
   const [givenCount, setGivenCount] = useState<number>(0)
-  const [userTimezone, setUserTimezone] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone)
 
   const timesPerDay = useMemo(() => {
     if (!med) return 0
@@ -130,7 +128,14 @@ export default function DoseTrackingPage({
     }
   }, [onClose])
 
-  const formatClock = (utcHHMM: string) => formatTimeForDisplay(utcHHMM, userTimezone)
+  // Format time for display (no timezone conversion - times are already stored in PST)
+  const formatClock = (timeString: string) => {
+    const [hh, mm] = timeString.split(':').map(n => parseInt(n, 10))
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return timeString
+    const hour12 = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh
+    const ampm = hh >= 12 ? 'PM' : 'AM'
+    return `${hour12}:${String(mm).padStart(2, '0')} ${ampm}`
+  }
 
   const handleMarkGiven = async () => {
     if (!userId) { setError('You must be logged in to record a dose.'); return }
