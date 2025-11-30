@@ -1488,7 +1488,8 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
             adoption_date,
             spay_neuter_status,
             spay_neuter_date,
-            healthy_paws_pet_id
+            healthy_paws_pet_id,
+            pumpkin_account_number
           )
         `)
         .eq('id', claimId)
