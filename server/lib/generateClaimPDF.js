@@ -541,7 +541,7 @@ function getValueForField(fieldName, claimData, dateSigned) {
     previousClaimFiled: claimData.previousClaimSameCondition === 'Yes'
       ? TRUPANION_RADIO_OPTIONS.previousClaim.yesHasClaimNumber
       : TRUPANION_RADIO_OPTIONS.previousClaim.noHasDateOfFirstSigns,
-    previousClaimNumber: claimData.previousClaimNumber || null
+    previousClaimNumber: claimData.previousClaimNumber || null,
 
     // Payment method - INTENTIONALLY OMITTED
     // Trupanion form states: "Leaving this section unmarked will result in payment to you, the policyholder"
