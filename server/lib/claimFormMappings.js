@@ -84,26 +84,26 @@ const FORM_FIELD_MAPPINGS = {
     // NOTE: Only output pages 1-2 (claim form) - Pages 3-5 contain fraud notices/FAQ
 
     // PAGE 1 - CLAIM TYPE CHECKBOXES (Section 1)
-    // Special handling: Draw "X" at one of these based on claimType value
-    claimTypeAccident: { x: 48, y: 538, size: 12, page: 1 },
-    claimTypeIllness: { x: 242, y: 538, size: 12, page: 1 },
-    claimTypePreventive: { x: 424, y: 538, size: 12, page: 1 },
+    // ❌ REMOVED - Don't mark any checkbox for beta release
+    // claimTypeAccident: { x: 48, y: 538, size: 12, page: 1 },
+    // claimTypeIllness: { x: 242, y: 538, size: 12, page: 1 },
+    // claimTypePreventive: { x: 424, y: 538, size: 12, page: 1 },
 
     // PAGE 1 - PET PARENT INFORMATION (Section 2)
     policyholderName: { x: 49, y: 398, size: 10, page: 1 },
     address: { x: 320, y: 398, size: 10, page: 1 },
     apartment: { x: 340, y: 398, size: 10, page: 1 },
-    city: { x: 465, y: 398, size: 10, page: 1 },
+    city: { x: 465, y: 357, size: 10, page: 1 },  // Fixed: moved DOWN slightly from y=360
     policyholderPhone: { x: 49, y: 350, size: 10, page: 1 },
-    policyholderEmail: { x: 49, y: 310, size: 10, page: 1 },  // Adjusted up from y=300
-    state: { x: 340, y: 300, size: 10, page: 1 },
-    zip: { x: 465, y: 300, size: 10, page: 1 },
+    policyholderEmail: { x: 49, y: 310, size: 10, page: 1 },
+    state: { x: 340, y: 308, size: 10, page: 1 },  // Fixed: moved UP from y=300
+    zip: { x: 465, y: 308, size: 10, page: 1 },    // Fixed: moved UP from y=300
 
     // PAGE 1 - PET INFORMATION (Section 3)
     petName: { x: 50, y: 215, size: 10, page: 1 },
     pumpkinAccountNumber: { x: 330, y: 215, size: 10, page: 1 },
-    breed: { x: 50, y: 140, size: 10, page: 1 },
-    age: { x: 340, y: 150, size: 10, page: 1 },  // Calculated from dateOfBirth - Adjusted up from y=140
+    breed: { x: 50, y: 173, size: 10, page: 1 },    // Fixed: moved UP more from y=165
+    age: { x: 340, y: 173, size: 10, page: 1 },     // Fixed: moved UP more from y=165, aligned with breed
 
     // PAGE 2 - VET INFORMATION (Section 4)
     veterinaryClinic: { x: 45, y: 700, size: 10, page: 2 },
@@ -117,7 +117,7 @@ const FORM_FIELD_MAPPINGS = {
 
     // PAGE 2 - SIGNATURE (Section 6)
     signature: { x: 160, y: 170, width: 150, height: 40, page: 2 },
-    signatureDate: { x: 440, y: 170, size: 10, page: 2 }
+    signatureDate: { x: 440, y: 178, size: 10, page: 2 }  // Fixed: moved UP from y=170
   },
 
   trupanion: {
