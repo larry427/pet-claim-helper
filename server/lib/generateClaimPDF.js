@@ -576,6 +576,15 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
   console.log(`  Method: Coordinate-based text overlay`)
   console.log(`${'='.repeat(80)}\n`)
 
+  // PUMPKIN DEBUG: Log entire claimData object
+  if (normalizedInsurer.includes('pumpkin')) {
+    console.log(`\n${'🔍'.repeat(40)}`)
+    console.log('🔍 PUMPKIN PDF GENERATION - FULL CLAIMDATA OBJECT:')
+    console.log(`${'🔍'.repeat(40)}`)
+    console.log(JSON.stringify(claimData, null, 2))
+    console.log(`${'🔍'.repeat(40)}\n`)
+  }
+
   // Get coordinate mapping for this insurer
   const mapping = getMappingForInsurer(insurer)
   if (!mapping) {
@@ -696,11 +705,25 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
     if (normalizedInsurer.includes('pumpkin') && ourFieldName === 'age' && calculatedAge) {
       value = calculatedAge
     } else {
+      // PUMPKIN DEBUG: Log before getting value
+      if (normalizedInsurer.includes('pumpkin')) {
+        console.log(`\n📝 Processing field: "${ourFieldName}"`)
+        console.log(`   Checking claimData["${ourFieldName}"] = ${claimData[ourFieldName]}`)
+      }
+
       // Get the value for this field from our claim data
       value = getValueForField(ourFieldName, claimData, dateSigned)
+
+      // PUMPKIN DEBUG: Log after getting value
+      if (normalizedInsurer.includes('pumpkin')) {
+        console.log(`   getValueForField("${ourFieldName}") returned: ${value}`)
+      }
     }
 
     if (!value && value !== false) {
+      if (normalizedInsurer.includes('pumpkin')) {
+        console.log(`   ⚠️  SKIPPED (no value)\n`)
+      }
       fieldsSkipped++
       continue
     }
@@ -742,7 +765,13 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
         color: { type: 'RGB', red: 0, green: 0, blue: 0 }
       })
 
-      console.log(`   ✅ ${ourFieldName}: "${textValue}" at (${coordinates.x}, ${coordinates.y}) on ${pageLabel}`)
+      // PUMPKIN DEBUG: Log after drawing text
+      if (normalizedInsurer.includes('pumpkin')) {
+        console.log(`   ✅ Drew text "${textValue}" at (${coordinates.x}, ${coordinates.y}) on ${pageLabel}`)
+        console.log(`   Font size: ${fontSize}, Page: ${coordinates.page || 1}\n`)
+      } else {
+        console.log(`   ✅ ${ourFieldName}: "${textValue}" at (${coordinates.x}, ${coordinates.y}) on ${pageLabel}`)
+      }
       fieldsFilled++
 
     } catch (err) {
