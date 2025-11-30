@@ -18,6 +18,9 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
   // Step 1 - Profile (removed phone)
   const [fullName, setFullName] = useState('')
   const [address, setAddress] = useState('')
+  const [city, setCity] = useState('')
+  const [state, setState] = useState('')
+  const [zip, setZip] = useState('')
 
   // Step 2 - Pet + Insurance
   const [petName, setPetName] = useState('')
@@ -43,6 +46,9 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
     setError(null)
     setFullName('')
     setAddress('')
+    setCity('')
+    setState('')
+    setZip('')
     setPetName('')
     setSpecies('')
     setInsuranceCompany('Not Insured')
@@ -57,7 +63,13 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
     setSmsConsent(false)
   }, [open])
 
-  const canNextFrom1 = useMemo(() => fullName.trim().length > 0, [fullName])
+  const canNextFrom1 = useMemo(() => {
+    return fullName.trim().length > 0 &&
+      address.trim().length > 0 &&
+      city.trim().length > 0 &&
+      state.trim().length > 0 &&
+      zip.trim().length > 0
+  }, [fullName, address, city, state, zip])
   const canNextFrom2 = useMemo(() => petName.trim().length > 0 && !!species, [petName, species])
   const canNextFrom3 = useMemo(() => {
     // Step 3 is optional - can always proceed
@@ -110,6 +122,15 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
 
       if (address.trim()) {
         profileUpdate.address = address.trim()
+      }
+      if (city.trim()) {
+        profileUpdate.city = city.trim()
+      }
+      if (state.trim()) {
+        profileUpdate.state = state.trim()
+      }
+      if (zip.trim()) {
+        profileUpdate.zip = zip.trim()
       }
 
       const { error: profErr } = await supabase
@@ -197,10 +218,24 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
                 <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="John Smith" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Mailing Address <span className="text-xs text-slate-500">(optional)</span></label>
-                <textarea value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St, City, State 12345" rows={2} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
-                <p className="mt-1 text-xs text-slate-500">Required for Nationwide and Healthy Paws claim forms</p>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Street Address <span className="text-red-500">*</span></label>
+                <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
               </div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">City <span className="text-red-500">*</span></label>
+                  <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="San Francisco" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
+                </div>
+                <div className="w-24">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">State <span className="text-red-500">*</span></label>
+                  <input value={state} onChange={(e) => setState(e.target.value.toUpperCase())} placeholder="CA" maxLength={2} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3 uppercase" />
+                </div>
+                <div className="w-28">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">ZIP <span className="text-red-500">*</span></label>
+                  <input value={zip} onChange={(e) => setZip(e.target.value)} placeholder="94105" maxLength={10} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
+                </div>
+              </div>
+              <p className="text-xs text-slate-500">Required for Auto-Submit claim forms</p>
             </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
               <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" onClick={onClose}>Cancel</button>

@@ -3458,6 +3458,9 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
     const [fullName, setFullName] = useState('')
     const [phone, setPhone] = useState('')
     const [address, setAddress] = useState('')
+    const [city, setCity] = useState('')
+    const [state, setState] = useState('')
+    const [zip, setZip] = useState('')
     const [signature, setSignature] = useState<string | null>(null)
 
     useEffect(() => {
@@ -3471,6 +3474,9 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
             setFullName(data.full_name || '')
             setPhone(data.phone ? formatPhoneForDisplay(data.phone) : '')
             setAddress(data.address || '')
+            setCity(data.city || '')
+            setState(data.state || '')
+            setZip(data.zip || '')
             setSignature(data.signature || null)
           }
         } catch (e) { console.error('[settings load] error', e) } finally { setLoading(false) }
@@ -3489,6 +3495,9 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
           full_name: fullName,
           phone: phoneE164 || null,
           address: address || null,
+          city: city || null,
+          state: state || null,
+          zip: zip || null,
         })
         if (error) throw error
         alert('Profile saved successfully!')
@@ -3517,9 +3526,22 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
               <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="John Smith" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-slate-500">Address</label>
-              <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St, City, ST 12345" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-              <p className="mt-1 text-xs text-slate-500">Optional - will be requested when submitting to insurance if not provided</p>
+              <label className="block text-xs text-slate-500">Street Address <span className="text-red-500">*</span></label>
+              <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+            </div>
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-6">
+                <label className="block text-xs text-slate-500">City <span className="text-red-500">*</span></label>
+                <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="San Francisco" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+              </div>
+              <div className="col-span-3">
+                <label className="block text-xs text-slate-500">State <span className="text-red-500">*</span></label>
+                <input value={state} onChange={(e) => setState(e.target.value.toUpperCase())} placeholder="CA" maxLength={2} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm uppercase" />
+              </div>
+              <div className="col-span-3">
+                <label className="block text-xs text-slate-500">ZIP <span className="text-red-500">*</span></label>
+                <input value={zip} onChange={(e) => setZip(e.target.value)} placeholder="94105" maxLength={10} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+              </div>
             </div>
             <div>
               <label className="block text-xs text-slate-500">Phone Number <span className="text-red-500">*</span></label>
