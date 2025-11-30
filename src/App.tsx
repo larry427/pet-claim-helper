@@ -2244,8 +2244,8 @@ export default function App() {
                 </p>
               </div>
 
-              {/* Enhanced Filing Deadline Reminder (pre-save) */}
-              {expenseCategory !== 'not_insured' && (() => {
+              {/* Enhanced Filing Deadline Reminder (pre-save) - Only show for insured pets */}
+              {selectedPet && selectedPet.insuranceCompany && selectedPet.insuranceCompany.toLowerCase() !== 'not insured' && expenseCategory !== 'not_insured' && (() => {
                 const filingDays = Number((selectedPet as any)?.filing_deadline_days) || 90
                 const svc = extracted.dateOfService ? new Date(extracted.dateOfService) : null
                 const deadline = svc ? new Date(svc.getTime()) : null
@@ -2309,23 +2309,26 @@ export default function App() {
                 )
               })()}
 
-              <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-                <label className="block text-sm font-semibold mb-2">Expense Category</label>
-                <div className="flex flex-wrap gap-3 text-sm">
-                  <label className="inline-flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="exp-cat" value="insured" checked={expenseCategory === 'insured'} onChange={() => setExpenseCategory('insured')} />
-                    <span>Insured</span>
-                  </label>
-                  <label className="inline-flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="exp-cat" value="not_insured" checked={expenseCategory === 'not_insured'} onChange={() => setExpenseCategory('not_insured')} />
-                    <span>Not Insured</span>
-                  </label>
-                  <label className="inline-flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="exp-cat" value="maybe_insured" checked={expenseCategory === 'maybe_insured'} onChange={() => setExpenseCategory('maybe_insured')} />
-                    <span>Maybe Insured</span>
-                  </label>
+              {/* Expense Category - Only show for insured pets */}
+              {selectedPet && selectedPet.insuranceCompany && selectedPet.insuranceCompany.toLowerCase() !== 'not insured' && (
+                <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+                  <label className="block text-sm font-semibold mb-2">Expense Category</label>
+                  <div className="flex flex-wrap gap-3 text-sm">
+                    <label className="inline-flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="exp-cat" value="insured" checked={expenseCategory === 'insured'} onChange={() => setExpenseCategory('insured')} />
+                      <span>Insured</span>
+                    </label>
+                    <label className="inline-flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="exp-cat" value="not_insured" checked={expenseCategory === 'not_insured'} onChange={() => setExpenseCategory('not_insured')} />
+                      <span>Not Insured</span>
+                    </label>
+                    <label className="inline-flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="exp-cat" value="maybe_insured" checked={expenseCategory === 'maybe_insured'} onChange={() => setExpenseCategory('maybe_insured')} />
+                      <span>Maybe Insured</span>
+                    </label>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="mt-6 flex items-center justify-between">
                 <button
