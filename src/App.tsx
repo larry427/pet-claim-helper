@@ -2245,7 +2245,7 @@ export default function App() {
               </div>
 
               {/* Enhanced Filing Deadline Reminder (pre-save) - Only show for insured pets */}
-              {selectedPet && selectedPet.insuranceCompany && selectedPet.insuranceCompany.toLowerCase() !== 'not insured' && expenseCategory !== 'not_insured' && (() => {
+              {selectedPet && selectedPet.insuranceCompany && selectedPet.insuranceCompany.trim() !== '' && selectedPet.insuranceCompany.toLowerCase() !== 'not insured' && expenseCategory !== 'not_insured' && (() => {
                 const filingDays = Number((selectedPet as any)?.filing_deadline_days) || 90
                 const svc = extracted.dateOfService ? new Date(extracted.dateOfService) : null
                 const deadline = svc ? new Date(svc.getTime()) : null
@@ -2310,7 +2310,7 @@ export default function App() {
               })()}
 
               {/* Expense Category - Only show for insured pets */}
-              {selectedPet && selectedPet.insuranceCompany && selectedPet.insuranceCompany.toLowerCase() !== 'not insured' && (
+              {selectedPet && selectedPet.insuranceCompany && selectedPet.insuranceCompany.trim() !== '' && selectedPet.insuranceCompany.toLowerCase() !== 'not insured' && (
                 <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
                   <label className="block text-sm font-semibold mb-2">Expense Category</label>
                   <div className="flex flex-wrap gap-3 text-sm">
