@@ -1627,6 +1627,12 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
       console.log('petDateOfBirth:', claimData.petDateOfBirth, '(from claim.pets.date_of_birth:', claim.pets.date_of_birth + ')')
       console.log('petAdoptionDate:', claimData.petAdoptionDate, '(from claim.pets.adoption_date:', claim.pets.adoption_date + ')')
       console.log('petSpayNeuterDate:', claimData.petSpayNeuterDate, '(from claim.pets.spay_neuter_date:', claim.pets.spay_neuter_date + ')')
+      console.log('🔍 PUMPKIN DATA FIELDS:')
+      console.log('city:', claimData.city, '(from profile.city:', profile.city + ')')
+      console.log('state:', claimData.state, '(from profile.state:', profile.state + ')')
+      console.log('zip:', claimData.zip, '(from profile.zip:', profile.zip + ')')
+      console.log('breed:', claimData.breed, '(from claim.pets.breed:', claim.pets.breed + ')')
+      console.log('pumpkinAccountNumber:', claimData.pumpkinAccountNumber, '(from claim.pets.pumpkin_account_number:', claim.pets.pumpkin_account_number + ')')
       console.log('='.repeat(80) + '\n')
 
       // 5. Validate claim data
