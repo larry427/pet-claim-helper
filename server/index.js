@@ -1583,11 +1583,18 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         policyholderAddress: profile.address || '',
         policyholderPhone: profile.phone || '',
         policyholderEmail: profile.email,
+        // Address fields for Pumpkin and other insurers
+        address: profile.address || '',
+        city: profile.city || '',
+        state: profile.state || '',
+        zip: profile.zip || '',
         policyNumber: claim.pets.policy_number || 'N/A',  // Get from pets table, not claims table
         healthyPawsPetId: claim.pets.healthy_paws_pet_id || '',  // For Healthy Paws form
+        pumpkinAccountNumber: claim.pets.pumpkin_account_number || '',  // For Pumpkin form
         petName: claim.pets.name,
         petSpecies: claim.pets.species,
-        petBreed: claim.pets.breed || '',
+        breed: claim.pets.breed || '',  // For Pumpkin (uses 'breed' not 'petBreed')
+        petBreed: claim.pets.breed || '',  // For other insurers
         petAge: petAge,
         petDateOfBirth: claim.pets.date_of_birth, // For Trupanion form
         petAdoptionDate: claim.pets.adoption_date, // For Trupanion form
