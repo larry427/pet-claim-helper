@@ -159,6 +159,21 @@ export default function App() {
       })
     }
   }, [extracted])
+
+  // Auto-populate Visit Title when extracted data arrives
+  useEffect(() => {
+    console.log('[VISIT TITLE DEBUG] useEffect triggered', {
+      extracted,
+      diagnosis: extracted?.diagnosis,
+      currentVisitTitle: visitTitle
+    })
+    if (extracted) {
+      // Use extracted diagnosis if available, otherwise default to "Vet visit"
+      const title = extracted.diagnosis?.trim() || 'Vet visit'
+      console.log('[VISIT TITLE DEBUG] Setting visitTitle to:', title)
+      setVisitTitle(title)
+    }
+  }, [extracted])
   // Onboarding photo tooltip
   const [showPhotoTooltip, setShowPhotoTooltip] = useState(false)
 
@@ -968,11 +983,13 @@ export default function App() {
       const normalized = normalizeExtracted(parsed)
       // eslint-disable-next-line no-console
       console.log('[MOBILE DEBUG] Normalized extraction result:', JSON.stringify(normalized, null, 2))
+      console.log('[VISIT TITLE DEBUG] Extracted diagnosis value:', normalized.diagnosis)
       if (selectedPet) {
         normalized.petName = selectedPet.name
       }
       // eslint-disable-next-line no-console
       console.log('[MOBILE DEBUG] Final extraction being set to state:', JSON.stringify(normalized, null, 2))
+      console.log('[VISIT TITLE DEBUG] About to call setExtracted with diagnosis:', normalized.diagnosis)
       setExtracted(normalized)
       setMultiExtracted(null)
     } catch (err: any) {
@@ -2081,6 +2098,7 @@ export default function App() {
                   placeholder="e.g., Annual checkup, Emergency visit, Teeth cleaning"
                   className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
                 />
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Edit if needed</p>
               </div>
 
               {/* No Prices Found Warning */}
@@ -2511,7 +2529,10 @@ export default function App() {
                         </div>
                         <div className="min-w-0">
                           <div className="text-lg font-semibold text-slate-900 dark:text-slate-100 break-words line-clamp-2">
-                            {`${pet.name || 'Pet'} • ${((c.visit_title && String(c.visit_title)) || (c.diagnosis && String(c.diagnosis)) || '')}`}
+                            {(() => {
+                              const title = ((c.visit_title && String(c.visit_title)) || (c.diagnosis && String(c.diagnosis)) || '').trim()
+                              return title ? `${pet.name || 'Pet'} • ${title}` : (pet.name || 'Pet')
+                            })()}
                           </div>
                         </div>
                       </div>
