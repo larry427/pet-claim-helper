@@ -85,8 +85,8 @@ const FORM_FIELD_MAPPINGS = {
 
     // PAGE 1 - CLAIM TYPE CHECKBOXES (Section 1)
     claimTypeAccident: { x: 36, y: 532, size: 12, page: 1 },
-    claimTypeIllness: { x: 242, y: 532, size: 12, page: 1 },
-    claimTypePreventive: { x: 424, y: 532, size: 12, page: 1 },
+    claimTypeIllness: { x: 230, y: 532, size: 12, page: 1 },
+    claimTypePreventive: { x: 412, y: 532, size: 12, page: 1 },
 
     // PAGE 1 - PET PARENT INFORMATION (Section 2)
     policyholderName: { x: 49, y: 398, size: 10, page: 1 },
