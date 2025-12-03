@@ -732,16 +732,60 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
   })
 
   // Mark medication dose as given
-  // Supports two auth methods:
-  // 1. Magic link token (from SMS) - works without login
-  // 2. Traditional userId session auth
+  // Supports three auth methods:
+  // 1. Short code (new format) - /dose/Xk7mP9ab
+  // 2. Magic link token (legacy format) - /dose/uuid?token=xyz
+  // 3. Traditional userId session auth
   app.post('/api/medications/:id/mark-given', async (req, res) => {
     try {
       const { id: medicationId } = req.params
-      const { userId, token } = req.body
+      const { userId, token, shortCode } = req.body
       const nowPST = DateTime.now().setZone('America/Los_Angeles')
 
-      // METHOD 1: Magic Link Token Authentication (passwordless)
+      // METHOD 1: Short Code Authentication (new passwordless method)
+      if (shortCode) {
+        console.log('[Mark Given] Short code auth attempt:', { shortCode })
+
+        // Find dose by short code
+        const { data: dose, error: doseError } = await supabase
+          .from('medication_doses')
+          .select('*')
+          .eq('short_code', shortCode)
+          .eq('status', 'pending')
+          .single()
+
+        if (doseError || !dose) {
+          console.error('[Mark Given] Invalid short code:', doseError?.message)
+          return res.status(401).json({ ok: false, error: 'Invalid or expired link. Please check your recent SMS.' })
+        }
+
+        // Short codes don't expire (simpler UX than tokens)
+        // They're single-use because we mark as 'given' and won't match status='pending' again
+
+        // Mark dose as given
+        const { error: updateError } = await supabase
+          .from('medication_doses')
+          .update({
+            status: 'given',
+            given_time: nowPST.toISO()
+          })
+          .eq('id', dose.id)
+
+        if (updateError) {
+          console.error('[Mark Given] Error updating dose:', updateError)
+          return res.status(500).json({ ok: false, error: 'Error marking dose as given' })
+        }
+
+        console.log('[Mark Given] ✅ Dose marked via short code:', {
+          doseId: dose.id,
+          shortCode,
+          givenTime: nowPST.toISO()
+        })
+
+        return res.json({ ok: true, message: 'Medication marked as given' })
+      }
+
+      // METHOD 2: Magic Link Token Authentication (legacy passwordless)
       if (token) {
         console.log('[Mark Given] Magic link auth attempt:', { medicationId, token: token.slice(0, 8) + '...' })
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 interface DoseMarkingPageProps {
-  medicationId: string
+  medicationId: string // Can be either short_code (8 chars) or UUID
   userId: string | null
   onClose: (wasMarked?: boolean) => void
 }
@@ -14,8 +14,12 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   const [marking, setMarking] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Extract magic link token from URL if present
+  // Extract magic link token from URL if present (legacy)
   const [magicToken, setMagicToken] = useState<string | null>(null)
+  // Store the actual medication UUID (resolved from short code or passed directly)
+  const [actualMedicationId, setActualMedicationId] = useState<string | null>(null)
+  // Store short code if using new format
+  const [shortCode, setShortCode] = useState<string | null>(null)
   // Progress stats for success modal
   const [progressStats, setProgressStats] = useState<{
     givenCount: number
@@ -46,10 +50,44 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       // Use tokenFromUrl (passed directly) OR magicToken (from state)
       const effectiveToken = tokenFromUrl || magicToken
 
-      // MAGIC LINK AUTH: If token is present, use it to load medication details
-      // This works without requiring the user to be logged in
+      // MAGIC LINK AUTH via short code or legacy token
+      // The medicationId could be:
+      // 1. Short code (8 alphanumeric chars, no hyphens) - NEW FORMAT
+      // 2. UUID (with hyphens) - LEGACY FORMAT (when used with ?token= param)
+
+      const isShortCode = medicationId.length === 8 && !medicationId.includes('-')
+      const isUUID = medicationId.includes('-')
+
+      // Try short code lookup first (new format)
+      if (isShortCode) {
+        console.log('[DoseMarkingPage] Loading via short code:', medicationId)
+
+        const { data: doseData, error: doseError } = await supabase
+          .from('medication_doses')
+          .select('*, medications(*, pets(name, species))')
+          .eq('short_code', medicationId)
+          .eq('status', 'pending')
+          .single()
+
+        if (doseError || !doseData) {
+          console.error('[DoseMarkingPage] Short code lookup failed:', doseError?.message, doseError?.code)
+          setError('This link is invalid or has expired. Please check for a newer SMS.')
+          setLoading(false)
+          return
+        }
+
+        console.log('[DoseMarkingPage] ✅ Dose found via short code:', doseData.id)
+        setMedication(doseData.medications)
+        setPet(doseData.medications?.pets)
+        setActualMedicationId(doseData.medication_id)
+        setShortCode(medicationId)
+        setLoading(false)
+        return
+      }
+
+      // Legacy: Token-based auth (for backwards compatibility)
       if (effectiveToken) {
-        console.log('[DoseMarkingPage] Loading via magic token:', effectiveToken.slice(0, 8) + '...')
+        console.log('[DoseMarkingPage] Loading via legacy token:', effectiveToken.slice(0, 8) + '...')
 
         // Get dose by token, which includes medication details
         const { data: doseData, error: doseError } = await supabase
@@ -223,8 +261,8 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   }
 
   async function markAsGiven() {
-    // Magic link auth (token) OR session auth (userId) - one of them must be present
-    if (!magicToken && !userId) {
+    // Magic link auth (short code OR token) OR session auth (userId) - one of them must be present
+    if (!shortCode && !magicToken && !userId) {
       setError('Please log in to mark medication as given')
       return
     }
@@ -234,14 +272,19 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
     try {
       // Call backend API to mark dose as given
-      // Pass either token (magic link) or userId (session auth)
-      const body = magicToken
+      // Pass one of: shortCode (new), token (legacy), or userId (session auth)
+      const body = shortCode
+        ? { shortCode }
+        : magicToken
         ? { token: magicToken }
         : { userId }
 
-      console.log('[DoseMarkingPage] Marking as given with:', magicToken ? 'magic link token' : 'session auth')
+      console.log('[DoseMarkingPage] Marking as given with:', shortCode ? 'short code' : magicToken ? 'magic link token' : 'session auth')
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8787'}/api/medications/${medicationId}/mark-given`, {
+      // Use actualMedicationId if available (from short code lookup), otherwise use medicationId
+      const medId = actualMedicationId || medicationId
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8787'}/api/medications/${medId}/mark-given`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -387,26 +430,37 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
               </div>
             )}
 
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-              <p className="text-green-800 text-sm">
-                ✓ Your pet's medication has been recorded. You're all set!
-              </p>
-            </div>
+            {/* Message for magic link users (not logged in) */}
+            {(shortCode || magicToken) && !userId ? (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <p className="text-blue-800 text-sm font-medium text-center">
+                  ✓ All done! You can close this tab now.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                <p className="text-green-800 text-sm">
+                  ✓ Your pet's medication has been recorded. You're all set!
+                </p>
+              </div>
+            )}
 
             <button
               onClick={() => {
-                // If logged in, redirect to medications (onClose will handle it)
-                // If logged out, just close and stay on current page
-                if (!userId && !magicToken) {
-                  // For magic link users, close the modal and show a message
-                  window.location.href = '/'
+                // For magic link users (not logged in), just show done message
+                // For logged in users, close modal and return to dashboard
+                if ((shortCode || magicToken) && !userId) {
+                  // Just close - user already sees "You can close this tab" message
+                  window.close() // Try to close tab (may not work in all browsers)
+                  // If tab doesn't close, at least close the modal
+                  onClose(false)
                 } else {
                   onClose(true)
                 }
               }}
               className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-semibold"
             >
-              {userId ? 'View Dashboard' : 'Done'}
+              {(shortCode || magicToken) && !userId ? 'Done' : 'View Dashboard'}
             </button>
           </div>
         </div>

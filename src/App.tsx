@@ -419,16 +419,20 @@ export default function App() {
     }
   }, [pets])
 
-  // Deep link detection for /dose/:id?token=xyz (magic link from SMS)
+  // Deep link detection for /dose/:code (magic link from SMS)
+  // Supports both:
+  // - New format: /dose/Xk7mP9ab (8-char alphanumeric short code)
+  // - Legacy format: /dose/uuid?token=xyz (for backwards compatibility)
   useEffect(() => {
     const path = window.location.pathname
     const params = new URLSearchParams(window.location.search)
 
-    // Check if path matches /dose/:id and has token (magic link) or action=mark (legacy)
-    const doseMatch = path.match(/^\/dose\/([a-f0-9-]+)$/i)
-    if (doseMatch && (params.get('token') || params.get('action') === 'mark')) {
-      const medicationId = doseMatch[1]
-      setDoseDeepLinkId(medicationId)
+    // Check if path matches /dose/:code
+    const doseMatch = path.match(/^\/dose\/([a-zA-Z0-9-]+)$/i)
+    if (doseMatch) {
+      const code = doseMatch[1]
+      // Short code (8 chars, no hyphens) or UUID (with hyphens)
+      setDoseDeepLinkId(code)
       setActiveView('medications')
     }
   }, [])

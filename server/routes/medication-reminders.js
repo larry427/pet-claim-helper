@@ -205,6 +205,20 @@ export async function runMedicationReminders(options = {}) {
       const oneTimeToken = crypto.randomUUID()
       const tokenExpiresAt = nowPST.plus({ hours: 24 }).toISO() // Token valid for 24 hours
 
+      // Generate 8-character alphanumeric short code for SMS URL
+      // Format: uppercase, lowercase, and numbers (e.g., Xk7mP9ab)
+      function generateShortCode() {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+        let code = ''
+        const randomBytes = crypto.randomBytes(8)
+        for (let i = 0; i < 8; i++) {
+          code += chars[randomBytes[i] % chars.length]
+        }
+        return code
+      }
+
+      const shortCode = generateShortCode()
+
       const { data: dose, error: doseError } = await supabase
         .from('medication_doses')
         .insert({
@@ -213,7 +227,8 @@ export async function runMedicationReminders(options = {}) {
           scheduled_time: scheduledTime,
           status: 'pending',
           one_time_token: oneTimeToken,
-          token_expires_at: tokenExpiresAt
+          token_expires_at: tokenExpiresAt,
+          short_code: shortCode
         })
         .select()
         .single()
@@ -238,12 +253,12 @@ export async function runMedicationReminders(options = {}) {
       }
 
       console.log('[DEBUG] Created dose:', dose.id, 'for', med.medication_name, '- preparing SMS')
-      console.log('[Medication Reminders] Created dose:', dose.id, 'with magic link token')
+      console.log('[Medication Reminders] Created dose:', dose.id, 'with short code:', shortCode)
 
-      // Build SMS message with magic link
+      // Build SMS message with short URL
       const petName = med.pets?.name || 'your pet'
       const medName = med.medication_name || 'medication'
-      const deepLink = `https://pet-claim-helper.vercel.app/dose/${med.id}?token=${oneTimeToken}`
+      const deepLink = `https://pet-claim-helper.vercel.app/dose/${shortCode}`
       const message = `🐾 Time to give ${petName} their ${medName}! Tap to mark as given: ${deepLink} Reply HELP for help.`
 
       console.log('[DEBUG] Sending SMS to', profile.phone, 'for', med.medication_name)
