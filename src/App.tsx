@@ -30,27 +30,34 @@ const AUTOSUB_WHITELIST = [
   'larry@uglydogadventures.com',
 ]
 
+// Route wrapper: Detect /dose/:code and render standalone page
+// Otherwise render the full app
 export default function App() {
-  // STANDALONE DOSE MARKING: If URL is /dose/:code, render ONLY the medication marking page
-  // No app shell, no login screen, no distractions - just the dose marking flow
   const path = window.location.pathname
   const doseMatch = path.match(/^\/dose\/([a-zA-Z0-9-]+)$/i)
 
+  console.log('[App Router] Path:', path, 'DoseMatch:', doseMatch)
+
   if (doseMatch) {
     const code = doseMatch[1]
+    console.log('[App Router] Rendering standalone dose page for code:', code)
     return (
       <DoseMarkingPage
         medicationId={code}
-        userId={null} // No user session needed for magic link auth
+        userId={null}
         onClose={() => {
-          // User clicked "Done" - nothing else to show, just stay on this page
-          // They can close the tab themselves
+          console.log('[App Router] Dose marking closed')
         }}
       />
     )
   }
 
-  // Normal app starts here
+  console.log('[App Router] Rendering full app')
+  return <MainApp />
+}
+
+// Main app component with all the hooks
+function MainApp() {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null)
   const [isDragging, setIsDragging] = useState(false)
