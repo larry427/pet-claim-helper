@@ -31,6 +31,12 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   } | null>(null)
 
   useEffect(() => {
+    // Don't reload if already successful - prevents re-querying after marking as given
+    if (success) {
+      console.log('[DoseMarkingPage] Already successful, skipping reload')
+      return
+    }
+
     // Extract token from URL and pass it directly to loadMedicationDetails
     // This avoids a race condition where setState hasn't updated yet
     const urlParams = new URLSearchParams(window.location.search)
@@ -43,7 +49,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
     // Pass token directly (don't rely on magicToken state which may not be updated yet)
     loadMedicationDetails(token)
-  }, [medicationId, userId])
+  }, [medicationId, userId, success])
 
   async function loadMedicationDetails(tokenFromUrl: string | null = null) {
     try {
