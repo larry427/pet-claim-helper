@@ -160,10 +160,18 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
         : yearEnd
 
       // Calculate months between effectiveStart and effectiveEnd
+      // Count billing cycles: how many 1st-of-month dates have passed since coverage start
+      // If coverage starts Nov 30 and today is Dec 2, only 1 billing cycle (Dec 1) has passed
       const monthsDiff = (effectiveEnd.getFullYear() - effectiveStart.getFullYear()) * 12
-        + (effectiveEnd.getMonth() - effectiveStart.getMonth()) + 1 // +1 to include both start and end months
+        + (effectiveEnd.getMonth() - effectiveStart.getMonth())
 
-      const months = Math.max(0, monthsDiff)
+      // Add 1 only if we've passed the start day in the current month, OR if start day > today's day
+      // This ensures we count the first month, and only add subsequent months when a new billing cycle starts
+      const startDay = effectiveStart.getDate()
+      const endDay = effectiveEnd.getDate()
+      const additionalMonth = endDay >= startDay ? 1 : 0
+
+      const months = Math.max(0, monthsDiff + additionalMonth)
       const total = monthly * months
 
       // Build context string
@@ -186,10 +194,18 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
     }
 
     // "All Time" calculation
+    // Count billing cycles: how many 1st-of-month dates have passed since coverage start
     const monthsDiff = (today.getFullYear() - coverageStart.getFullYear()) * 12
-      + (today.getMonth() - coverageStart.getMonth()) + 1
+      + (today.getMonth() - coverageStart.getMonth())
 
-    const months = Math.max(0, monthsDiff)
+    // Add 1 only if we've passed the start day in the current month
+    // Example: Start Nov 30, Today Dec 2 → monthsDiff=1, startDay=30, todayDay=2 → additionalMonth=0 → total=1
+    // Example: Start Nov 1, Today Dec 2 → monthsDiff=1, startDay=1, todayDay=2 → additionalMonth=1 → total=2
+    const startDay = coverageStart.getDate()
+    const todayDay = today.getDate()
+    const additionalMonth = todayDay >= startDay ? 1 : 0
+
+    const months = Math.max(0, monthsDiff + additionalMonth)
     const total = monthly * months
     const context = `since ${coverageStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`
 
