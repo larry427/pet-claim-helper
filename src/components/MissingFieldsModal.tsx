@@ -260,15 +260,24 @@ export default function MissingFieldsModal({
           )}
           <div className="space-y-2">
             {field.options.map(option => (
-              <label key={option} className="flex items-center gap-2 cursor-pointer">
+              <label key={option} className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
                 <input
                   type="radio"
                   name={field.field}
                   value={option}
                   checked={formData[field.field] === option}
                   onChange={(e) => setFieldValue(field.field, e.target.value)}
-                  className="text-emerald-600"
+                  className="sr-only"
                 />
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                  formData[field.field] === option
+                    ? 'bg-emerald-500 border-emerald-500'
+                    : 'bg-white dark:bg-slate-900 border-gray-300 dark:border-slate-600'
+                }`}>
+                  {formData[field.field] === option && (
+                    <div className="w-2 h-2 rounded-full bg-white" />
+                  )}
+                </div>
                 <span className="text-sm text-slate-700 dark:text-slate-300">{option}</span>
               </label>
             ))}

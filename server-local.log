@@ -1,0 +1,180 @@
+Warning: Please use the `legacy` build in Node.js environments.
+RESEND_API_KEY: Found re_9C3oP1b
+[dotenv@17.2.3] injecting env (5) from .env.local -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
+Deadline reminders route registered
+[Cron] Deadline reminders scheduled for 9 AM Pacific Time daily (0 17 * * * UTC = 9 AM PST/PDT)
+[server] listening on http://localhost:8787
+[Cron] Medication reminders check at 2025-11-30T19:02:00.003Z
+[Medication Reminders] Attempting to acquire distributed lock...
+[Medication Reminders] ✅ Lock acquired: 7471ef71-dcba-4ce3-bcd0-dbe480350f30
+[Medication Reminders] Starting medication reminder check...
+[Medication Reminders] Current time (PST): 11:02 | Full PST time: 2025-11-30T11:02:00.004-08:00
+[Medication Reminders] Found 13 medications with reminders
+[DEBUG] Processing medication: Apoquel | reminder_times: [ '08:00' ] | pet: Jaeger
+[DEBUG] Skipping Apoquel - reason: Already ended (end_date: 2025-11-21 today: 2025-11-30 )
+[DEBUG] Processing medication: Apoquel | reminder_times: [ '08:00' ] | pet: Jaeger
+[DEBUG] User phone for Apoquel : +17143421731 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:02 against reminder_times: [ '08:00' ]
+[DEBUG] Time 08:00 matches current 11:02 ? false
+[DEBUG] Should send now for Apoquel ? false
+[DEBUG] Skipping Apoquel - reason: Not time yet (current: 11:02 reminders: [ '08:00' ] )
+[DEBUG] Processing medication: Puppy drugs | reminder_times: [ '08:05' ] | pet: Chris
+[DEBUG] User phone for Puppy drugs : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:02 against reminder_times: [ '08:05' ]
+[DEBUG] Time 08:05 matches current 11:02 ? false
+[DEBUG] Should send now for Puppy drugs ? false
+[DEBUG] Skipping Puppy drugs - reason: Not time yet (current: 11:02 reminders: [ '08:05' ] )
+[DEBUG] Processing medication: test | reminder_times: [ '07:00' ] | pet: Bo
+[DEBUG] User phone for test : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:02 against reminder_times: [ '07:00' ]
+[DEBUG] Time 07:00 matches current 11:02 ? false
+[DEBUG] Should send now for test ? false
+[DEBUG] Skipping test - reason: Not time yet (current: 11:02 reminders: [ '07:00' ] )
+[DEBUG] Processing medication: testing pilll | reminder_times: [ '07:00' ] | pet: Chris
+[DEBUG] User phone for testing pilll : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:02 against reminder_times: [ '07:00' ]
+[DEBUG] Time 07:00 matches current 11:02 ? false
+[DEBUG] Should send now for testing pilll ? false
+[DEBUG] Skipping testing pilll - reason: Not time yet (current: 11:02 reminders: [ '07:00' ] )
+[DEBUG] Processing medication: test pillys | reminder_times: [ '09:00' ] | pet: Chris
+[DEBUG] User phone for test pillys : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:02 against reminder_times: [ '09:00' ]
+[DEBUG] Time 09:00 matches current 11:02 ? false
+[DEBUG] Should send now for test pillys ? false
+[DEBUG] Skipping test pillys - reason: Not time yet (current: 11:02 reminders: [ '09:00' ] )
+[DEBUG] Processing medication: test for hope | reminder_times: [ '07:00' ] | pet: Hope
+[DEBUG] User phone for test for hope : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:02 against reminder_times: [ '07:00' ]
+[DEBUG] Time 07:00 matches current 11:02 ? false
+[DEBUG] Should send now for test for hope ? false
+[DEBUG] Skipping test for hope - reason: Not time yet (current: 11:02 reminders: [ '07:00' ] )
+[DEBUG] Processing medication: test med | reminder_times: [ '07:00' ] | pet: Chris
+[DEBUG] User phone for test med : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:02 against reminder_times: [ '07:00' ]
+[DEBUG] Time 07:00 matches current 11:02 ? false
+[DEBUG] Should send now for test med ? false
+[DEBUG] Skipping test med - reason: Not time yet (current: 11:02 reminders: [ '07:00' ] )
+[DEBUG] Processing medication: test checkbox meds | reminder_times: [ '08:00', '14:00', '20:00' ] | pet: Bo
+[DEBUG] User phone for test checkbox meds : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:02 against reminder_times: [ '08:00', '14:00', '20:00' ]
+[DEBUG] Time 08:00 matches current 11:02 ? false
+[DEBUG] Time 14:00 matches current 11:02 ? false
+[DEBUG] Time 20:00 matches current 11:02 ? false
+[DEBUG] Should send now for test checkbox meds ? false
+[DEBUG] Skipping test checkbox meds - reason: Not time yet (current: 11:02 reminders: [ '08:00', '14:00', '20:00' ] )
+[DEBUG] Processing medication: yuckcillin | reminder_times: [ '07:00', '21:00' ] | pet: Hope
+[DEBUG] User phone for yuckcillin : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:02 against reminder_times: [ '07:00', '21:00' ]
+[DEBUG] Time 07:00 matches current 11:02 ? false
+[DEBUG] Time 21:00 matches current 11:02 ? false
+[DEBUG] Should send now for yuckcillin ? false
+[DEBUG] Skipping yuckcillin - reason: Not time yet (current: 11:02 reminders: [ '07:00', '21:00' ] )
+[DEBUG] Processing medication: Test pill | reminder_times: [ '13:21' ] | pet: Trinity
+[DEBUG] User phone for Test pill : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:02 against reminder_times: [ '13:21' ]
+[DEBUG] Time 13:21 matches current 11:02 ? false
+[DEBUG] Should send now for Test pill ? false
+[DEBUG] Skipping Test pill - reason: Not time yet (current: 11:02 reminders: [ '13:21' ] )
+[DEBUG] Processing medication: test working now? | reminder_times: [ '18:06' ] | pet: Bo
+[DEBUG] User phone for test working now? : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:02 against reminder_times: [ '18:06' ]
+[DEBUG] Time 18:06 matches current 11:02 ? false
+[DEBUG] Should send now for test working now? ? false
+[DEBUG] Skipping test working now? - reason: Not time yet (current: 11:02 reminders: [ '18:06' ] )
+[DEBUG] Processing medication: Test tonight pill | reminder_times: [ '09:00', '20:00' ] | pet: Bo
+[DEBUG] User phone for Test tonight pill : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:02 against reminder_times: [ '09:00', '20:00' ]
+[DEBUG] Time 09:00 matches current 11:02 ? false
+[DEBUG] Time 20:00 matches current 11:02 ? false
+[DEBUG] Should send now for Test tonight pill ? false
+[DEBUG] Skipping Test tonight pill - reason: Not time yet (current: 11:02 reminders: [ '09:00', '20:00' ] )
+[Medication Reminders] Summary: { sent: 0, skipped: 1 }
+[Medication Reminders] 🔓 Lock released: 7471ef71-dcba-4ce3-bcd0-dbe480350f30
+[Cron] Medication reminders result: { sent: 0, skipped: 1 }
+[Cron] Medication reminders check at 2025-11-30T19:03:00.019Z
+[Medication Reminders] Attempting to acquire distributed lock...
+[Medication Reminders] ✅ Lock acquired: d3c08d37-5de8-49eb-9ace-03b13369a7cf
+[Medication Reminders] Starting medication reminder check...
+[Medication Reminders] Current time (PST): 11:03 | Full PST time: 2025-11-30T11:03:00.022-08:00
+[Medication Reminders] Found 13 medications with reminders
+[DEBUG] Processing medication: Apoquel | reminder_times: [ '08:00' ] | pet: Jaeger
+[DEBUG] Skipping Apoquel - reason: Already ended (end_date: 2025-11-21 today: 2025-11-30 )
+[DEBUG] Processing medication: Apoquel | reminder_times: [ '08:00' ] | pet: Jaeger
+[DEBUG] User phone for Apoquel : +17143421731 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:03 against reminder_times: [ '08:00' ]
+[DEBUG] Time 08:00 matches current 11:03 ? false
+[DEBUG] Should send now for Apoquel ? false
+[DEBUG] Skipping Apoquel - reason: Not time yet (current: 11:03 reminders: [ '08:00' ] )
+[DEBUG] Processing medication: Puppy drugs | reminder_times: [ '08:05' ] | pet: Chris
+[DEBUG] User phone for Puppy drugs : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:03 against reminder_times: [ '08:05' ]
+[DEBUG] Time 08:05 matches current 11:03 ? false
+[DEBUG] Should send now for Puppy drugs ? false
+[DEBUG] Skipping Puppy drugs - reason: Not time yet (current: 11:03 reminders: [ '08:05' ] )
+[DEBUG] Processing medication: test | reminder_times: [ '07:00' ] | pet: Bo
+[DEBUG] User phone for test : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:03 against reminder_times: [ '07:00' ]
+[DEBUG] Time 07:00 matches current 11:03 ? false
+[DEBUG] Should send now for test ? false
+[DEBUG] Skipping test - reason: Not time yet (current: 11:03 reminders: [ '07:00' ] )
+[DEBUG] Processing medication: testing pilll | reminder_times: [ '07:00' ] | pet: Chris
+[DEBUG] User phone for testing pilll : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:03 against reminder_times: [ '07:00' ]
+[DEBUG] Time 07:00 matches current 11:03 ? false
+[DEBUG] Should send now for testing pilll ? false
+[DEBUG] Skipping testing pilll - reason: Not time yet (current: 11:03 reminders: [ '07:00' ] )
+[DEBUG] Processing medication: test pillys | reminder_times: [ '09:00' ] | pet: Chris
+[DEBUG] User phone for test pillys : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:03 against reminder_times: [ '09:00' ]
+[DEBUG] Time 09:00 matches current 11:03 ? false
+[DEBUG] Should send now for test pillys ? false
+[DEBUG] Skipping test pillys - reason: Not time yet (current: 11:03 reminders: [ '09:00' ] )
+[DEBUG] Processing medication: test for hope | reminder_times: [ '07:00' ] | pet: Hope
+[DEBUG] User phone for test for hope : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:03 against reminder_times: [ '07:00' ]
+[DEBUG] Time 07:00 matches current 11:03 ? false
+[DEBUG] Should send now for test for hope ? false
+[DEBUG] Skipping test for hope - reason: Not time yet (current: 11:03 reminders: [ '07:00' ] )
+[DEBUG] Processing medication: test med | reminder_times: [ '07:00' ] | pet: Chris
+[DEBUG] User phone for test med : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:03 against reminder_times: [ '07:00' ]
+[DEBUG] Time 07:00 matches current 11:03 ? false
+[DEBUG] Should send now for test med ? false
+[DEBUG] Skipping test med - reason: Not time yet (current: 11:03 reminders: [ '07:00' ] )
+[DEBUG] Processing medication: test checkbox meds | reminder_times: [ '08:00', '14:00', '20:00' ] | pet: Bo
+[DEBUG] User phone for test checkbox meds : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:03 against reminder_times: [ '08:00', '14:00', '20:00' ]
+[DEBUG] Time 08:00 matches current 11:03 ? false
+[DEBUG] Time 14:00 matches current 11:03 ? false
+[DEBUG] Time 20:00 matches current 11:03 ? false
+[DEBUG] Should send now for test checkbox meds ? false
+[DEBUG] Skipping test checkbox meds - reason: Not time yet (current: 11:03 reminders: [ '08:00', '14:00', '20:00' ] )
+[DEBUG] Processing medication: yuckcillin | reminder_times: [ '07:00', '21:00' ] | pet: Hope
+[DEBUG] User phone for yuckcillin : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:03 against reminder_times: [ '07:00', '21:00' ]
+[DEBUG] Time 07:00 matches current 11:03 ? false
+[DEBUG] Time 21:00 matches current 11:03 ? false
+[DEBUG] Should send now for yuckcillin ? false
+[DEBUG] Skipping yuckcillin - reason: Not time yet (current: 11:03 reminders: [ '07:00', '21:00' ] )
+[DEBUG] Processing medication: Test pill | reminder_times: [ '13:21' ] | pet: Trinity
+[DEBUG] User phone for Test pill : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:03 against reminder_times: [ '13:21' ]
+[DEBUG] Time 13:21 matches current 11:03 ? false
+[DEBUG] Should send now for Test pill ? false
+[DEBUG] Skipping Test pill - reason: Not time yet (current: 11:03 reminders: [ '13:21' ] )
+[DEBUG] Processing medication: test working now? | reminder_times: [ '18:06' ] | pet: Bo
+[DEBUG] User phone for test working now? : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:03 against reminder_times: [ '18:06' ]
+[DEBUG] Time 18:06 matches current 11:03 ? false
+[DEBUG] Should send now for test working now? ? false
+[DEBUG] Skipping test working now? - reason: Not time yet (current: 11:03 reminders: [ '18:06' ] )
+[DEBUG] Processing medication: Test tonight pill | reminder_times: [ '09:00', '20:00' ] | pet: Bo
+[DEBUG] User phone for Test tonight pill : +13123050403 | SMS opt-in: true
+[DEBUG] Comparing current time: 11:03 against reminder_times: [ '09:00', '20:00' ]
+[DEBUG] Time 09:00 matches current 11:03 ? false
+[DEBUG] Time 20:00 matches current 11:03 ? false
+[DEBUG] Should send now for Test tonight pill ? false
+[DEBUG] Skipping Test tonight pill - reason: Not time yet (current: 11:03 reminders: [ '09:00', '20:00' ] )
+[Medication Reminders] Summary: { sent: 0, skipped: 1 }
+[Medication Reminders] 🔓 Lock released: d3c08d37-5de8-49eb-9ace-03b13369a7cf
+[Cron] Medication reminders result: { sent: 0, skipped: 1 }
