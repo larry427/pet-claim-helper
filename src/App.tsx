@@ -31,6 +31,26 @@ const AUTOSUB_WHITELIST = [
 ]
 
 export default function App() {
+  // STANDALONE DOSE MARKING: If URL is /dose/:code, render ONLY the medication marking page
+  // No app shell, no login screen, no distractions - just the dose marking flow
+  const path = window.location.pathname
+  const doseMatch = path.match(/^\/dose\/([a-zA-Z0-9-]+)$/i)
+
+  if (doseMatch) {
+    const code = doseMatch[1]
+    return (
+      <DoseMarkingPage
+        medicationId={code}
+        userId={null} // No user session needed for magic link auth
+        onClose={() => {
+          // User clicked "Done" - nothing else to show, just stay on this page
+          // They can close the tab themselves
+        }}
+      />
+    )
+  }
+
+  // Normal app starts here
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -137,8 +157,6 @@ export default function App() {
   const [createdClaimId, setCreatedClaimId] = useState<string | null>(null)
   const [pendingSuccess, setPendingSuccess] = useState<null | typeof successModal>(null)
   const [showAddMedication, setShowAddMedication] = useState(false)
-  // Deep link state for /dose/:id?action=mark
-  const [doseDeepLinkId, setDoseDeepLinkId] = useState<string | null>(null)
   // Medications refresh key - increment to force MedicationsDashboard to reload
   const [medicationsRefreshKey, setMedicationsRefreshKey] = useState(0)
   // Claim auto-submission modal
@@ -419,23 +437,8 @@ export default function App() {
     }
   }, [pets])
 
-  // Deep link detection for /dose/:code (magic link from SMS)
-  // Supports both:
-  // - New format: /dose/Xk7mP9ab (8-char alphanumeric short code)
-  // - Legacy format: /dose/uuid?token=xyz (for backwards compatibility)
-  useEffect(() => {
-    const path = window.location.pathname
-    const params = new URLSearchParams(window.location.search)
-
-    // Check if path matches /dose/:code
-    const doseMatch = path.match(/^\/dose\/([a-zA-Z0-9-]+)$/i)
-    if (doseMatch) {
-      const code = doseMatch[1]
-      // Short code (8 chars, no hyphens) or UUID (with hyphens)
-      setDoseDeepLinkId(code)
-      setActiveView('medications')
-    }
-  }, [])
+  // NOTE: /dose/:code route is now handled at the top of App() as a standalone page
+  // No useEffect needed - it returns early before rendering the main app
 
   // Financial period filter - always defaults to 'all' so users see ALL bills immediately
   // Users can then filter down to specific years if they want
@@ -3221,22 +3224,7 @@ export default function App() {
         />
       )}
 
-      {/* Deep link modal for marking dose as given */}
-      {doseDeepLinkId && (
-        <DoseMarkingPage
-          medicationId={doseDeepLinkId}
-          userId={userId}
-          onClose={(wasMarked?: boolean) => {
-            setDoseDeepLinkId(null)
-            // Clear the URL to go back to root
-            window.history.pushState({}, '', '/')
-            // If dose was marked, refresh medications to show updated count
-            if (wasMarked) {
-              setMedicationsRefreshKey(k => k + 1)
-            }
-          }}
-        />
-      )}
+      {/* NOTE: /dose/:code is now a standalone page, not a modal - see top of App() */}
 
       {/* Auto-Submit Claim Modal */}
       {submittingClaim && userId && (

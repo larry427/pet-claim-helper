@@ -322,8 +322,8 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+      <div className="fixed inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading medication details...</p>
@@ -335,8 +335,8 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
   if (error && !medication) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+      <div className="fixed inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl">
           <div className="text-center">
             <div className="text-red-600 text-5xl mb-4">⚠️</div>
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Error</h2>
@@ -357,8 +357,8 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
     // Show standalone success page for unauthenticated users (magic link)
     // They don't have access to the dashboard, so don't redirect
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="fixed inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto shadow-xl">
           <div className="text-center">
             <div className="text-green-600 text-6xl mb-4">✓</div>
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Medication Marked!</h2>
@@ -469,8 +469,8 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+    <div className="fixed inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl">
         <div className="text-center">
           <div className="text-blue-600 text-5xl mb-4">💊</div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">
