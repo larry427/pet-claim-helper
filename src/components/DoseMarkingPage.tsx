@@ -153,11 +153,14 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
   async function calculateProgressStats() {
     try {
+      // Use actualMedicationId (UUID) not medicationId (which might be a short code)
+      const medId = actualMedicationId || medicationId
+
       // Fetch all doses for this medication to calculate progress
       const { data: doses, error: dosesError } = await supabase
         .from('medication_doses')
         .select('*')
-        .eq('medication_id', medicationId)
+        .eq('medication_id', medId)
         .order('scheduled_time', { ascending: true })
 
       if (dosesError || !doses) {
@@ -300,8 +303,11 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
       console.log('[DoseMarkingPage] ✅ Successfully marked as given')
 
-      // Calculate progress stats for success modal
-      await calculateProgressStats()
+      // Calculate progress stats for success modal (only for logged-in users)
+      // For standalone magic link users, skip progress stats to avoid DB queries
+      if (userId && actualMedicationId) {
+        await calculateProgressStats()
+      }
 
       setSuccess(true)
       setMarking(false)
