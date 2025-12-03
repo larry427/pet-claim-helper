@@ -24,6 +24,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   const [progressStats, setProgressStats] = useState<{
     givenCount: number
     totalCount: number
+    remainingCount: number
     percentage: number
     nextDoseTime: string | null
     daysRemaining: number | null
@@ -186,6 +187,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       const medId = actualMedicationId || medicationId
 
       // Fetch all doses for this medication to calculate progress
+      // IMPORTANT: Don't filter by status - include both 'pending' and 'given'
       const { data: doses, error: dosesError } = await supabase
         .from('medication_doses')
         .select('*')
@@ -197,10 +199,9 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         return
       }
 
-      // Calculate TOTAL doses from medication schedule (NOT from database row count!)
-      // This fixes the bug where it showed "1 of 1 doses" instead of "1 of 7 doses"
-      let totalCount = 0
-      if (medication?.start_date && medication?.end_date) {
+      // Calculate TOTAL expected doses from medication schedule
+      let totalExpectedDoses = 0
+      if (medication?.start_date && medication?.end_date && medication?.reminder_times) {
         // Parse dates as local dates (not UTC) to avoid timezone bugs
         const [startYear, startMonth, startDay] = medication.start_date.split('-').map(Number)
         const startDate = new Date(startYear, startMonth - 1, startDay)
@@ -217,25 +218,26 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           : 1
 
         // Total doses = days * doses per day
-        totalCount = totalDays * dosesPerDay
+        totalExpectedDoses = totalDays * dosesPerDay
 
         console.log('[DoseMarkingPage] Progress calculation:', {
           startDate: medication.start_date,
           endDate: medication.end_date,
           totalDays,
           dosesPerDay,
-          totalCount,
+          totalExpectedDoses,
           dosesInDB: doses.length
         })
       } else {
         // Fallback to database count if medication dates are missing
-        totalCount = doses.length
+        totalExpectedDoses = doses.length
         console.warn('[DoseMarkingPage] Missing medication dates, falling back to DB count')
       }
 
       const givenCount = doses.filter(d => d.status === 'given').length
-      const percentage = totalCount > 0 ? Math.round((givenCount / totalCount) * 100) : 0
-      const isComplete = givenCount === totalCount && totalCount > 0
+      const remainingCount = totalExpectedDoses - givenCount
+      const percentage = totalExpectedDoses > 0 ? Math.round((givenCount / totalExpectedDoses) * 100) : 0
+      const isComplete = givenCount >= totalExpectedDoses && totalExpectedDoses > 0
 
       // Find next pending dose
       const nextDose = doses.find(d => d.status === 'pending')
@@ -281,7 +283,8 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
       setProgressStats({
         givenCount,
-        totalCount,
+        totalCount: totalExpectedDoses,
+        remainingCount,
         percentage,
         nextDoseTime,
         daysRemaining,
@@ -395,47 +398,39 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       <div className="fixed inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto shadow-xl">
           <div className="text-center">
-            <div className="text-green-600 text-6xl mb-4">🎉</div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Nice work!</h2>
-            <p className="text-gray-700 text-lg mb-6">
-              You've given <strong>{pet?.name || 'your pet'}</strong> their <strong>{medication?.medication_name || 'medication'}</strong>
+            <div className="text-green-600 text-6xl mb-4">✓</div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              {progressStats?.isComplete ? 'All doses complete!' : `Dose ${progressStats?.givenCount || 1} of ${progressStats?.totalCount || 1} complete`}
+            </h2>
+            <p className="text-gray-600 text-base mb-6">
+              {pet?.name || 'Your pet'} • {medication?.medication_name || 'Medication'}
             </p>
 
             {/* Progress Stats Section */}
             {progressStats && (
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5 mb-6 text-left">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3 text-center">Treatment Progress</h3>
-
                 {/* Progress Bar */}
                 <div className="mb-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-gray-700">
-                      {progressStats.givenCount} of {progressStats.totalCount} doses
-                    </span>
-                    <span className="text-sm font-bold text-indigo-600">
-                      {progressStats.percentage}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden shadow-inner">
+                  <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden shadow-inner mb-3">
                     <div
                       className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full transition-all duration-500 ease-out shadow-sm"
                       style={{ width: `${progressStats.percentage}%` }}
                     />
                   </div>
+                  <div className="text-center">
+                    <span className="text-2xl font-bold text-gray-800">{progressStats.percentage}%</span>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {progressStats.isComplete
+                        ? '🎉 Treatment complete!'
+                        : progressStats.remainingCount === 1
+                        ? 'Just 1 more dose!'
+                        : `${progressStats.remainingCount} doses to go`}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Stats Grid */}
-                {progressStats.isComplete ? (
-                  <div className="bg-green-100 border border-green-300 rounded-lg p-4 text-center">
-                    <div className="text-2xl mb-2">🎉</div>
-                    <p className="text-green-800 font-semibold">
-                      All doses complete!
-                    </p>
-                    <p className="text-green-700 text-sm mt-1">
-                      Treatment finished
-                    </p>
-                  </div>
-                ) : (
+                {!progressStats.isComplete && (
                   <div className="space-y-3">
                     {progressStats.nextDoseTime && (
                       <div className="flex items-center justify-between py-2 px-3 bg-white/60 rounded-lg">
