@@ -491,12 +491,28 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
                   actualMedicationId
                 })
 
-                // For magic link users (not logged in), do NOTHING
-                // They see "You can close this tab now" message - let them do it themselves
+                // For magic link users (not logged in), try to dismiss the in-app browser
                 if ((shortCode || magicToken) && !userId) {
-                  console.log('[DoseMarkingPage] Standalone user - doing nothing, user will close tab')
-                  // DO NOTHING - any action here might trigger errors
-                  // The user already sees "You can close this tab now"
+                  console.log('[DoseMarkingPage] Standalone user - attempting to dismiss browser')
+
+                  // Try multiple methods to dismiss the in-app browser and return to Messages
+
+                  // Method 1: Close the window (works in some browsers)
+                  console.log('[DoseMarkingPage] Attempting window.close()')
+                  window.close()
+
+                  // Method 2: If close didn't work, try going back (might return to Messages)
+                  setTimeout(() => {
+                    console.log('[DoseMarkingPage] Attempting window.history.back()')
+                    window.history.back()
+                  }, 100)
+
+                  // Method 3: If that didn't work, try opening Messages app as fallback
+                  setTimeout(() => {
+                    console.log('[DoseMarkingPage] Attempting to open Messages app')
+                    window.location.href = 'sms:'
+                  }, 500)
+
                   return
                 }
 
