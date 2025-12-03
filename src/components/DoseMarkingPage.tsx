@@ -31,6 +31,14 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   } | null>(null)
 
   useEffect(() => {
+    console.log('[DoseMarkingPage] useEffect triggered', {
+      medicationId,
+      userId,
+      success,
+      loading,
+      error
+    })
+
     // Don't reload if already successful - prevents re-querying after marking as given
     if (success) {
       console.log('[DoseMarkingPage] Already successful, skipping reload')
@@ -47,11 +55,20 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       console.log('[DoseMarkingPage] Magic link token detected:', token.slice(0, 8) + '...')
     }
 
+    console.log('[DoseMarkingPage] Calling loadMedicationDetails with token:', token ? token.slice(0, 8) + '...' : 'null')
     // Pass token directly (don't rely on magicToken state which may not be updated yet)
     loadMedicationDetails(token)
   }, [medicationId, userId, success])
 
   async function loadMedicationDetails(tokenFromUrl: string | null = null) {
+    console.log('[DoseMarkingPage] loadMedicationDetails called', {
+      tokenFromUrl,
+      magicToken,
+      medicationId,
+      success,
+      loading
+    })
+
     try {
       // Use tokenFromUrl (passed directly) OR magicToken (from state)
       const effectiveToken = tokenFromUrl || magicToken
@@ -63,6 +80,12 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
       const isShortCode = medicationId.length === 8 && !medicationId.includes('-')
       const isUUID = medicationId.includes('-')
+
+      console.log('[DoseMarkingPage] Detecting format', {
+        isShortCode,
+        isUUID,
+        effectiveToken: effectiveToken ? effectiveToken.slice(0, 8) + '...' : 'null'
+      })
 
       // Try short code lookup first (new format)
       if (isShortCode) {
@@ -459,14 +482,27 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
             <button
               onClick={() => {
+                console.log('[DoseMarkingPage] Done button clicked', {
+                  shortCode,
+                  magicToken,
+                  userId,
+                  success,
+                  medication: medication?.id,
+                  actualMedicationId
+                })
+
                 // For magic link users (not logged in), just show done message
                 // For logged in users, close modal and return to dashboard
                 if ((shortCode || magicToken) && !userId) {
+                  console.log('[DoseMarkingPage] Standalone user - attempting window.close()')
                   // Just close - user already sees "You can close this tab" message
                   window.close() // Try to close tab (may not work in all browsers)
+                  console.log('[DoseMarkingPage] window.close() called, now calling onClose(false)')
                   // If tab doesn't close, at least close the modal
                   onClose(false)
+                  console.log('[DoseMarkingPage] onClose(false) completed')
                 } else {
+                  console.log('[DoseMarkingPage] Logged in user - calling onClose(true)')
                   onClose(true)
                 }
               }}
