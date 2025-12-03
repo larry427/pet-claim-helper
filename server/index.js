@@ -1466,12 +1466,28 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         }
       }
 
-      // Note: These are claim-specific, don't save to database
-      // They will be passed directly to PDF generation:
-      // - bodyPartAffected (Nationwide)
-      // - previousClaimSameCondition (Trupanion)
-      // - previousClaimNumber (Trupanion)
-      // - paymentMethod (Trupanion)
+      // ========== CLAIM-SPECIFIC FIELDS (save to claims table) ==========
+
+      // Save claimType to claims table (for Pumpkin)
+      if (collectedData.claimType) {
+        const { error: claimTypeError } = await supabase
+          .from('claims')
+          .update({ claim_type: collectedData.claimType })
+          .eq('id', claimId)
+
+        if (claimTypeError) {
+          console.error('[Save Collected Fields] Error saving claim type:', claimTypeError)
+        } else {
+          console.log('[Save Collected Fields] Saved claim type:', collectedData.claimType)
+        }
+      }
+
+      // Note: These are claim-specific, will be saved to claims table above:
+      // - claimType (Pumpkin) ✅ SAVED
+      // - bodyPartAffected (Nationwide) - TODO: save to claims.body_part
+      // - previousClaimSameCondition (Trupanion) - TODO: save to claims.previous_claim_same_condition
+      // - previousClaimNumber (Trupanion) - TODO: save to claims.previous_claim_number
+      // - paymentMethod (Trupanion) - TODO: save to claims.payment_method
 
       res.json({
         ok: true,
@@ -1659,7 +1675,10 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         // Trupanion: Payment method and other claim-specific fields
         paymentMethod: claim.payment_method || 'I have paid my bill in full',
         hadOtherInsurance: claim.had_other_insurance || 'No',
-        previousClaimSameCondition: claim.previous_claim_same_condition || 'No'
+        previousClaimSameCondition: claim.previous_claim_same_condition || 'No',
+
+        // Pumpkin: Claim type (Accident/Illness/Preventive)
+        claimType: claim.claim_type || null
       }
 
       console.log('\n' + '='.repeat(80))
@@ -1896,7 +1915,10 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         petSpayNeuterDate: claim.pets?.spay_neuter_date,
         hadOtherInsurance: claim.had_other_insurance || 'No',
         previousClaimSameCondition: claim.previous_claim_same_condition || 'No',
-        paymentMethod: claim.payment_method || 'I have paid in full'
+        paymentMethod: claim.payment_method || 'I have paid in full',
+
+        // Pumpkin: Claim type (Accident/Illness/Preventive)
+        claimType: claim.claim_type || null
       }
 
       // Get insurer from pet's insurance company
