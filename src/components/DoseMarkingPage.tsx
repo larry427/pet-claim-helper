@@ -491,20 +491,18 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
                   actualMedicationId
                 })
 
-                // For magic link users (not logged in), just show done message
-                // For logged in users, close modal and return to dashboard
+                // For magic link users (not logged in), do NOTHING
+                // They see "You can close this tab now" message - let them do it themselves
                 if ((shortCode || magicToken) && !userId) {
-                  console.log('[DoseMarkingPage] Standalone user - attempting window.close()')
-                  // Just close - user already sees "You can close this tab" message
-                  window.close() // Try to close tab (may not work in all browsers)
-                  console.log('[DoseMarkingPage] window.close() called, now calling onClose(false)')
-                  // If tab doesn't close, at least close the modal
-                  onClose(false)
-                  console.log('[DoseMarkingPage] onClose(false) completed')
-                } else {
-                  console.log('[DoseMarkingPage] Logged in user - calling onClose(true)')
-                  onClose(true)
+                  console.log('[DoseMarkingPage] Standalone user - doing nothing, user will close tab')
+                  // DO NOTHING - any action here might trigger errors
+                  // The user already sees "You can close this tab now"
+                  return
                 }
+
+                // For logged in users, close modal and return to dashboard
+                console.log('[DoseMarkingPage] Logged in user - calling onClose(true)')
+                onClose(true)
               }}
               className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-semibold"
             >
