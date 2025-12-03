@@ -39,6 +39,8 @@ export async function generateClaimFormPDF(insurer, claimData, userSignature, da
   console.log(`${'='.repeat(80)}`)
   console.log(`  Insurer: ${insurer}`)
   console.log(`  Method: ${shouldUseOfficialForm(normalizedInsurer) ? 'Official PDF Form' : 'Generated PDF'}`)
+  console.log(`  🔍 DEBUG claimData.claimType: "${claimData.claimType}"`)
+  console.log(`  🔍 DEBUG claimData keys: ${Object.keys(claimData).join(', ')}`)
   console.log(`${'='.repeat(80)}\n`)
 
   // Use official forms for Nationwide and Trupanion
@@ -635,8 +637,9 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
     }
 
     // PUMPKIN SPECIAL HANDLING: claimType checkboxes - draw "X" at correct position
-    if (normalizedInsurer.includes('pumpkin') && ourFieldName.startsWith('claimType') && claimData.claimType) {
+    if (normalizedInsurer.includes('pumpkin') && ourFieldName.startsWith('claimType')) {
       const expectedType = ourFieldName.replace('claimType', '')  // "Accident", "Illness", or "Preventive"
+      console.log(`   🔍 DEBUG Checkbox field: ${ourFieldName}, expectedType: "${expectedType}", claimData.claimType: "${claimData.claimType}"`)
 
       if (claimData.claimType === expectedType) {
         try {
@@ -653,6 +656,8 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
         } catch (err) {
           console.warn(`   ⚠️  ${ourFieldName}: ${err.message}`)
         }
+      } else {
+        console.log(`   ⏭️  Skipping ${ourFieldName} - not selected (wanted: ${expectedType}, got: ${claimData.claimType})`)
       }
       continue
     }
