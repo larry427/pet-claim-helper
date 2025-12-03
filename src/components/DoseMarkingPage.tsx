@@ -395,13 +395,10 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       <div className="fixed inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto shadow-xl">
           <div className="text-center">
-            <div className="text-green-600 text-6xl mb-4">✓</div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Medication Marked!</h2>
-            <p className="text-gray-700 mb-2 text-lg">
-              <strong>{medication?.medication_name || 'Medication'}</strong>
-            </p>
-            <p className="text-gray-600 mb-6">
-              has been marked as given for <strong>{pet?.name || 'your pet'}</strong>
+            <div className="text-green-600 text-6xl mb-4">🎉</div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Nice work!</h2>
+            <p className="text-gray-700 text-lg mb-6">
+              You've given <strong>{pet?.name || 'your pet'}</strong> their <strong>{medication?.medication_name || 'medication'}</strong>
             </p>
 
             {/* Progress Stats Section */}
@@ -468,9 +465,24 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
             {/* Message for magic link users (not logged in) */}
             {(shortCode || magicToken) && !userId ? (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                <p className="text-blue-800 text-sm font-medium text-center">
-                  ✓ All done! You can close this tab now.
-                </p>
+                {progressStats?.nextDoseTime ? (
+                  <>
+                    <p className="text-blue-800 text-sm font-medium text-center mb-2">
+                      ✓ All done! You can close this tab now.
+                    </p>
+                    <p className="text-blue-700 text-xs text-center">
+                      📅 Next reminder: {progressStats.nextDoseTime}
+                    </p>
+                  </>
+                ) : progressStats?.isComplete ? (
+                  <p className="text-blue-800 text-sm font-medium text-center">
+                    🎉 Treatment complete! You can close this tab.
+                  </p>
+                ) : (
+                  <p className="text-blue-800 text-sm font-medium text-center">
+                    ✓ All done! You can close this tab now.
+                  </p>
+                )}
               </div>
             ) : (
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
@@ -482,42 +494,15 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
             <button
               onClick={() => {
-                console.log('[DoseMarkingPage] Done button clicked', {
-                  shortCode,
-                  magicToken,
-                  userId,
-                  success,
-                  medication: medication?.id,
-                  actualMedicationId
-                })
-
-                // For magic link users (not logged in), try to dismiss the in-app browser
+                // For magic link users (not logged in), just try to close the window
                 if ((shortCode || magicToken) && !userId) {
-                  console.log('[DoseMarkingPage] Standalone user - attempting to dismiss browser')
-
-                  // Try multiple methods to dismiss the in-app browser and return to Messages
-
-                  // Method 1: Close the window (works in some browsers)
-                  console.log('[DoseMarkingPage] Attempting window.close()')
+                  // Try to close the window - works in most mobile browsers when opened from SMS
                   window.close()
-
-                  // Method 2: If close didn't work, try going back (might return to Messages)
-                  setTimeout(() => {
-                    console.log('[DoseMarkingPage] Attempting window.history.back()')
-                    window.history.back()
-                  }, 100)
-
-                  // Method 3: If that didn't work, try opening Messages app as fallback
-                  setTimeout(() => {
-                    console.log('[DoseMarkingPage] Attempting to open Messages app')
-                    window.location.href = 'sms:'
-                  }, 500)
-
+                  // Note: If window.close() doesn't work, user can close manually
                   return
                 }
 
                 // For logged in users, close modal and return to dashboard
-                console.log('[DoseMarkingPage] Logged in user - calling onClose(true)')
                 onClose(true)
               }}
               className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-semibold"
