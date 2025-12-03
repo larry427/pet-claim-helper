@@ -96,7 +96,6 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           .from('medication_doses')
           .select('*, medications(*, pets(name, species))')
           .eq('short_code', medicationId)
-          .eq('status', 'pending')
           .single()
 
         if (doseError || !doseData) {
@@ -124,7 +123,6 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           .from('medication_doses')
           .select('*, medications(*, pets(name, species))')
           .eq('one_time_token', effectiveToken)
-          .eq('status', 'pending')
           .single()
 
         if (doseError || !doseData) {
@@ -489,15 +487,10 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
             <button
               onClick={() => {
-                // For magic link users (not logged in), just try to close the window
                 if ((shortCode || magicToken) && !userId) {
-                  // Try to close the window - works in most mobile browsers when opened from SMS
                   window.close()
-                  // Note: If window.close() doesn't work, user can close manually
                   return
                 }
-
-                // For logged in users, close modal and return to dashboard
                 onClose(true)
               }}
               className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-semibold"
