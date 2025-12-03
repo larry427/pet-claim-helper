@@ -84,9 +84,9 @@ const FORM_FIELD_MAPPINGS = {
     // NOTE: Only output pages 1-2 (claim form) - Pages 3-5 contain fraud notices/FAQ
 
     // PAGE 1 - CLAIM TYPE CHECKBOXES (Section 1)
-    claimTypeAccident: { x: 48, y: 538, size: 12, page: 1 },
-    claimTypeIllness: { x: 242, y: 538, size: 12, page: 1 },
-    claimTypePreventive: { x: 424, y: 538, size: 12, page: 1 },
+    claimTypeAccident: { x: 48, y: 546, size: 12, page: 1 },
+    claimTypeIllness: { x: 242, y: 546, size: 12, page: 1 },
+    claimTypePreventive: { x: 421, y: 546, size: 12, page: 1 },
 
     // PAGE 1 - PET PARENT INFORMATION (Section 2)
     policyholderName: { x: 49, y: 398, size: 10, page: 1 },
