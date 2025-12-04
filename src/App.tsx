@@ -152,7 +152,6 @@ function MainApp() {
     deadlineDays: number
   }>(null)
   // Medication linking state
-  const [medQuestionOpen, setMedQuestionOpen] = useState(false)
   const [medSelectOpen, setMedSelectOpen] = useState(false)
   const [medicationsForPet, setMedicationsForPet] = useState<any[]>([])
   const [selectedMedicationIds, setSelectedMedicationIds] = useState<string[]>([])
@@ -170,7 +169,6 @@ function MainApp() {
     setTimeout(() => setToast(null), 2500)
   }
   const [createdClaimId, setCreatedClaimId] = useState<string | null>(null)
-  const [pendingSuccess, setPendingSuccess] = useState<null | typeof successModal>(null)
   const [showAddMedication, setShowAddMedication] = useState(false)
   // Medications refresh key - increment to force MedicationsDashboard to reload
   const [medicationsRefreshKey, setMedicationsRefreshKey] = useState(0)
@@ -2430,8 +2428,8 @@ function MainApp() {
                         }
                         } catch (e) { console.error('[createClaim single] error', e) }
                       }
-                      // Prepare success details and open medication question flow
-                      const pending = {
+                      // Show success modal directly
+                      const success = {
                         claimId: row?.id || null,
                         petName: selectedPet?.name || 'Unknown',
                         species: selectedPet?.species || '',
@@ -2441,13 +2439,12 @@ function MainApp() {
                         deadlineDate: (computedDeadlineDate ? computedDeadlineDate.toISOString().slice(0,10) : null),
                         deadlineDays: filingDaysToUse,
                       } as typeof successModal
-                      setPendingSuccess(pending)
+                      setSuccessModal(success)
                       setCreatedClaimId(row?.id || null)
                       // eslint-disable-next-line no-console
-                      console.log('[LOOKS GOOD CLICKED] About to show medication modal', { claimId: row?.id })
-                      // Clear the bill review form immediately so medication modal appears over dashboard
+                      console.log('[LOOKS GOOD CLICKED] Showing success modal', { claimId: row?.id })
+                      // Clear the bill review form
                       setExtracted(null)
-                      setMedQuestionOpen(true)
                     } finally {
                       // Always reset saving state
                       setIsSaving(false)
@@ -3137,44 +3134,7 @@ function MainApp() {
         </div>
       )}
       {/* Medications prescribed question */}
-      {medQuestionOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setMedQuestionOpen(false)}>
-          <div className="relative mx-4 w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="text-lg font-semibold">Medications Prescribed?</div>
-            <div className="mt-2 text-sm text-slate-700 dark:text-slate-300">Were any medications prescribed during this vet visit?</div>
-            <div className="mt-5 flex flex-col sm:flex-row gap-3 sm:justify-end">
-              <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4" onClick={() => {
-                setMedQuestionOpen(false)
-                if (pendingSuccess) setSuccessModal(pendingSuccess)
-              }}>No</button>
-              <button type="button" className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4" onClick={async () => {
-                try {
-                  setMedQuestionOpen(false)
-                  // Load active medications for this pet
-                  if (userId && selectedPet) {
-                    const today = getLocalTodayYYYYMMDD()
-                    const { data, error } = await supabase
-                      .from('medications')
-                      .select('*')
-                      .eq('user_id', userId)
-                      .eq('pet_id', selectedPet.id)
-                      .lte('start_date', today)
-                      .or(`end_date.is.null,end_date.gte.${today}`)
-                    if (error) throw error
-                    setMedicationsForPet(Array.isArray(data) ? data : [])
-                  } else {
-                    setMedicationsForPet([])
-                  }
-                  setSelectedMedicationIds([])
-                  setMedSelectOpen(true)
-                } catch (e) { console.error('[med question -> load meds] error', e); setMedicationsForPet([]); setMedSelectOpen(true) }
-              }}>Yes</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Medication selection modal */}
+      {/* Medication selection modal (removed - users add medications separately) */}
       {medSelectOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setMedSelectOpen(false)}>
           <div className="relative mx-4 w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
