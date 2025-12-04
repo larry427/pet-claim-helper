@@ -52,36 +52,24 @@ export default function DoseSuccess() {
             )}
           </div>
 
-          {/* Static message */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            {nextDose && !isComplete ? (
-              <>
-                <p className="text-blue-800 text-sm font-medium text-center mb-2">
-                  ✓ All done! You can close this tab now.
-                </p>
-                <p className="text-blue-700 text-xs text-center">
-                  📅 Next reminder: {nextDose}
-                </p>
-              </>
-            ) : isComplete ? (
-              <p className="text-blue-800 text-sm font-medium text-center">
-                🎉 Treatment complete! You can close this tab.
+          {/* Next dose info */}
+          {nextDose && !isComplete && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <p className="text-blue-700 text-sm text-center">
+                📅 Next reminder: {nextDose}
               </p>
-            ) : (
-              <p className="text-blue-800 text-sm font-medium text-center">
-                ✓ All done! You can close this tab now.
-              </p>
-            )}
+            </div>
+          )}
+
+          {/* Final message - no buttons */}
+          <div className="border-t border-gray-200 pt-6 mt-2">
+            <p className="text-gray-800 font-medium text-center mb-2">
+              You're all set!
+            </p>
+            <p className="text-gray-600 text-sm text-center">
+              Use your back button or close this window to return to your messages.
+            </p>
           </div>
-
-          <button
-            onClick={() => window.history.back()}
-            className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-semibold"
-          >
-            ← Back to Messages
-          </button>
-
-          <p className="text-gray-500 text-sm mt-3">or close this tab</p>
         </div>
       </div>
     </div>
