@@ -325,16 +325,43 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
       console.log('[DoseMarkingPage] Calling API:', apiUrl)
 
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      })
+      // Create fetch with 10-second timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000)
+
+      let response
+      try {
+        response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: controller.signal
+        })
+        clearTimeout(timeoutId)
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId)
+        console.error('[DoseMarkingPage] API call failed or timeout:', fetchError)
+        if (fetchError.name === 'AbortError') {
+          setError('Request timeout. Please try again or close this tab.')
+        } else {
+          setError('Network error. Please check your connection or close this tab.')
+        }
+        setMarking(false)
+        return
+      }
 
       console.log('[DoseMarkingPage] API response status:', response.status)
 
-      const result = await response.json()
-      console.log('[DoseMarkingPage] API response body:', result)
+      let result
+      try {
+        result = await response.json()
+        console.log('[DoseMarkingPage] API response body:', result)
+      } catch (jsonError) {
+        console.error('[DoseMarkingPage] Failed to parse response:', jsonError)
+        setError('Something went wrong. Please try again or close this tab.')
+        setMarking(false)
+        return
+      }
 
       if (!response.ok || !result.ok) {
         console.error('[DoseMarkingPage] API call failed:', { status: response.status, result })
