@@ -69,6 +69,7 @@ function MainApp() {
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [extracted, setExtracted] = useState<ExtractedBill | null>(null)
   const [pets, setPets] = useState<PetProfile[]>([])
@@ -2370,24 +2371,33 @@ function MainApp() {
                 {!isProcessing && (
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-sm font-medium"
+                  disabled={isSaving}
+                  className="inline-flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 disabled:cursor-not-allowed text-white px-4 py-2 text-sm font-medium"
                   onClick={async () => {
+                    // Prevent duplicate submissions
+                    if (isSaving) return
+
                     // Require pet selected
                     if (!selectedPet) {
                       setPetSelectError(true)
                       return
                     }
-                    // Save single-pet claim only (PDF will be generated on-demand when user clicks "View My Claim")
-                    // Compute deadline based on service date and filing window
-                    const filingDaysToUse = Number((selectedPet as any)?.filing_deadline_days) || 90
-                    const svcDate = extracted.dateOfService ? new Date(extracted.dateOfService) : null
-                    const computedDeadlineDate = svcDate ? new Date(svcDate.getTime()) : null
-                    if (computedDeadlineDate) computedDeadlineDate.setDate(computedDeadlineDate.getDate() + filingDaysToUse)
-                    let row: any = null
-                    if (userId) {
-                      try {
-                        const totalNum = parseFloat(String(extracted.totalAmount).replace(/[^0-9.\-]/g, '')) || null
-                        row = await createClaim({
+
+                    // Set saving state immediately
+                    setIsSaving(true)
+
+                    try {
+                      // Save single-pet claim only (PDF will be generated on-demand when user clicks "View My Claim")
+                      // Compute deadline based on service date and filing window
+                      const filingDaysToUse = Number((selectedPet as any)?.filing_deadline_days) || 90
+                      const svcDate = extracted.dateOfService ? new Date(extracted.dateOfService) : null
+                      const computedDeadlineDate = svcDate ? new Date(svcDate.getTime()) : null
+                      if (computedDeadlineDate) computedDeadlineDate.setDate(computedDeadlineDate.getDate() + filingDaysToUse)
+                      let row: any = null
+                      if (userId) {
+                        try {
+                          const totalNum = parseFloat(String(extracted.totalAmount).replace(/[^0-9.\-]/g, '')) || null
+                          row = await createClaim({
                           user_id: userId,
                           pet_id: selectedPet ? selectedPet.id : null,
                           service_date: extracted.dateOfService || null,
@@ -2418,29 +2428,43 @@ function MainApp() {
                         } else {
                           console.warn('[createClaim single] ⚠️  No vet bill PDF to upload - selectedFile or file is missing')
                         }
-                      } catch (e) { console.error('[createClaim single] error', e) }
+                        } catch (e) { console.error('[createClaim single] error', e) }
+                      }
+                      // Prepare success details and open medication question flow
+                      const pending = {
+                        claimId: row?.id || null,
+                        petName: selectedPet?.name || 'Unknown',
+                        species: selectedPet?.species || '',
+                        amount: parseAmountToNumber(String(extracted.totalAmount || '')),
+                        serviceDate: extracted.dateOfService || null,
+                        insurance: selectedPet?.insuranceCompany || '',
+                        deadlineDate: (computedDeadlineDate ? computedDeadlineDate.toISOString().slice(0,10) : null),
+                        deadlineDays: filingDaysToUse,
+                      } as typeof successModal
+                      setPendingSuccess(pending)
+                      setCreatedClaimId(row?.id || null)
+                      // eslint-disable-next-line no-console
+                      console.log('[LOOKS GOOD CLICKED] About to show medication modal', { claimId: row?.id })
+                      // Clear the bill review form immediately so medication modal appears over dashboard
+                      setExtracted(null)
+                      setMedQuestionOpen(true)
+                    } finally {
+                      // Always reset saving state
+                      setIsSaving(false)
                     }
-                    // Prepare success details and open medication question flow
-                    const pending = {
-                      claimId: row?.id || null,
-                      petName: selectedPet?.name || 'Unknown',
-                      species: selectedPet?.species || '',
-                      amount: parseAmountToNumber(String(extracted.totalAmount || '')),
-                      serviceDate: extracted.dateOfService || null,
-                      insurance: selectedPet?.insuranceCompany || '',
-                      deadlineDate: (computedDeadlineDate ? computedDeadlineDate.toISOString().slice(0,10) : null),
-                      deadlineDays: filingDaysToUse,
-                    } as typeof successModal
-                    setPendingSuccess(pending)
-                    setCreatedClaimId(row?.id || null)
-                    // eslint-disable-next-line no-console
-                    console.log('[LOOKS GOOD CLICKED] About to show medication modal', { claimId: row?.id })
-                    // Clear the bill review form immediately so medication modal appears over dashboard
-                    setExtracted(null)
-                    setMedQuestionOpen(true)
                   }}
                 >
-                  Looks Good
+                  {isSaving ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Saving...
+                    </>
+                  ) : (
+                    'Looks Good'
+                  )}
                 </button>
                 )}
               </div>
