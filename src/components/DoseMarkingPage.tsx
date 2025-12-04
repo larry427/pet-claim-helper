@@ -308,18 +308,87 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
     setError(null)
 
     try {
-      // Call backend API to mark dose as given
-      // Pass one of: shortCode (new), token (legacy), or userId (session auth)
-      const body = shortCode
-        ? { shortCode }
-        : magicToken
-        ? { token: magicToken }
-        : { userId }
+      // BYPASS BACKEND: For short code users, update directly via Supabase
+      if (shortCode) {
+        console.log('[DoseMarkingPage] SHORT CODE: Bypassing backend, using Supabase directly')
 
-      console.log('[DoseMarkingPage] Marking as given with:', shortCode ? 'short code' : magicToken ? 'magic link token' : 'session auth')
-      console.log('[DoseMarkingPage] Request body:', body)
+        // Find dose by short code
+        const { data: dose, error: findError } = await supabase
+          .from('medication_doses')
+          .select('*')
+          .eq('short_code', shortCode)
+          .single()
 
-      // Use actualMedicationId if available (from short code lookup), otherwise use medicationId
+        if (findError || !dose) {
+          console.error('[DoseMarkingPage] Invalid short code:', findError)
+          setError('Invalid link. Please check your recent SMS.')
+          setMarking(false)
+          return
+        }
+
+        console.log('[DoseMarkingPage] Found dose:', dose.id, 'Status:', dose.status)
+
+        // If already given, treat as success (idempotent)
+        if (dose.status === 'given') {
+          console.log('[DoseMarkingPage] Dose already marked as given - redirecting to success')
+          window.location.href = `/dose-success?pet=${encodeURIComponent(pet?.name || 'Your pet')}&med=${encodeURIComponent(medication?.medication_name || 'medication')}&count=1&total=1`
+          return
+        }
+
+        // Mark as given directly via Supabase
+        console.log('[DoseMarkingPage] Marking dose as given via Supabase...')
+        const { error: updateError } = await supabase
+          .from('medication_doses')
+          .update({
+            status: 'given',
+            given_time: new Date().toISOString()
+          })
+          .eq('id', dose.id)
+
+        if (updateError) {
+          console.error('[DoseMarkingPage] Failed to update dose:', updateError)
+          setError('Failed to mark dose as given. Please try again.')
+          setMarking(false)
+          return
+        }
+
+        console.log('[DoseMarkingPage] ✅ Dose marked as given via Supabase')
+
+        // Calculate progress stats with timeout
+        console.log('[DoseMarkingPage] Calculating progress stats...')
+        let stats = null
+        try {
+          const statsPromise = calculateProgressStats()
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Stats timeout')), 3000)
+          )
+          stats = await Promise.race([statsPromise, timeoutPromise])
+          console.log('[DoseMarkingPage] Stats calculated:', stats)
+        } catch (statsError) {
+          console.error('[DoseMarkingPage] Stats calculation failed/timeout:', statsError)
+        }
+
+        // Build success URL with stats
+        const params = new URLSearchParams({
+          pet: pet?.name || 'Your pet',
+          med: medication?.medication_name || 'medication',
+          count: String(stats?.givenCount || 1),
+          total: String(stats?.totalCount || 1)
+        })
+
+        if (stats?.nextDoseTime) {
+          params.set('next', stats.nextDoseTime)
+        }
+
+        console.log('[DoseMarkingPage] Redirecting to success page')
+        window.location.href = `/dose-success?${params.toString()}`
+        return
+      }
+
+      // FOR LEGACY TOKEN AND SESSION AUTH: Still use backend API
+      console.log('[DoseMarkingPage] Using backend API for:', magicToken ? 'magic token' : 'session auth')
+
+      const body = magicToken ? { token: magicToken } : { userId }
       const medId = actualMedicationId || medicationId
       const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8787'}/api/medications/${medId}/mark-given`
 
