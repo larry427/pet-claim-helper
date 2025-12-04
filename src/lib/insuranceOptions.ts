@@ -23,8 +23,7 @@ export const INSURANCE_OPTIONS: InsuranceOption[] = [
   { display: 'Trupanion (90 days)', value: 'Trupanion', deadlineDays: 90 },
   { display: 'Nationwide (365 days)', value: 'Nationwide', deadlineDays: 365 },
   { display: 'Healthy Paws (90 days)', value: 'Healthy Paws', deadlineDays: 90 },
-  { display: 'Pumpkin (270 days)', value: 'Pumpkin', deadlineDays: 270 },
-  { display: 'Custom Insurance', value: 'Other' }
+  { display: 'Pumpkin (270 days)', value: 'Pumpkin', deadlineDays: 270 }
 ]
 
 /**
@@ -45,7 +44,6 @@ export function getInsuranceValue(displayValue: string): string {
   // Fallback: strip deadline labels manually
   if (displayValue === '— Select —') return ''
   if (displayValue === 'Not Insured') return ''
-  if (displayValue === 'Custom Insurance') return 'Other'
 
   // Remove deadline labels: "Trupanion (90 days)" → "Trupanion"
   return displayValue.replace(/\s*\(\d+\s*days?\).*$/i, '').trim()
@@ -58,8 +56,8 @@ export function getInsuranceValue(displayValue: string): string {
  * @example
  * getInsuranceDisplay('Trupanion') // => 'Trupanion (90 days)'
  * getInsuranceDisplay('') // => 'Not Insured'
- * getInsuranceDisplay('Other') // => 'Custom Insurance'
- * getInsuranceDisplay('Fetch') // => 'Fetch' (legacy value, show as-is)
+ * getInsuranceDisplay('Other') // => 'Other' (legacy value, needs fixing)
+ * getInsuranceDisplay('Fetch') // => 'Fetch' (legacy value, needs fixing)
  */
 export function getInsuranceDisplay(dbValue: string | null | undefined): string {
   if (!dbValue || dbValue === '') return 'Not Insured'
@@ -69,8 +67,8 @@ export function getInsuranceDisplay(dbValue: string | null | undefined): string 
     return option.display
   }
 
-  // Legacy values that aren't in the new dropdown - show them as-is
-  // This handles pets created before the dropdown unification
+  // Legacy values that aren't in the dropdown - show them as-is
+  // NOTE: "Other" and custom insurance values should be manually fixed
   return dbValue
 }
 
