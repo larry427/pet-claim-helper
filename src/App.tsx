@@ -120,7 +120,7 @@ function MainApp() {
   const [customDeadlineEdit, setCustomDeadlineEdit] = useState<string>('')
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
-  const [authView, setAuthView] = useState<'login' | 'signup' | 'app'>('signup')
+  const [authView, setAuthView] = useState<'login' | 'signup' | 'app'>('login')
   // Multi-pet extraction state
   const [multiExtracted, setMultiExtracted] = useState<MultiPetExtracted | null>(null)
   const [petMatches, setPetMatches] = useState<(string | null)[]>([])
@@ -562,19 +562,11 @@ function MainApp() {
       policyNumber: pet.policyNumber || '',
       healthy_paws_pet_id: (pet as any).healthy_paws_pet_id || ''
     })
-    const known = ['Trupanion','Nationwide','Healthy Paws']
+    // Set dropdown to display value
     if (!pet.insuranceCompany || pet.insuranceCompany === '') {
       setEditPetInsurer('Not Insured')
-      setCustomInsurerNameEdit('')
-      setCustomDeadlineEdit('')
-    } else if (known.includes(pet.insuranceCompany)) {
-      setEditPetInsurer(getInsuranceDisplay(pet.insuranceCompany))
-      setCustomInsurerNameEdit('')
-      setCustomDeadlineEdit(String((pet as any).filing_deadline_days || ''))
     } else {
-      setEditPetInsurer('Custom Insurance')
-      setCustomInsurerNameEdit(pet.insuranceCompany)
-      setCustomDeadlineEdit(String((pet as any).filing_deadline_days || ''))
+      setEditPetInsurer(getInsuranceDisplay(pet.insuranceCompany))
     }
   }
 
@@ -1790,8 +1782,6 @@ function MainApp() {
 
                                 if (displayValue === 'Not Insured' || displayValue === '— Select —') {
                                   setEditPet({ ...editPet, insuranceCompany: '' as any, filing_deadline_days: '', policyNumber: '' })
-                                } else if (displayValue === 'Custom Insurance') {
-                                  setEditPet({ ...editPet, insuranceCompany: '' as any, filing_deadline_days: '' })
                                 } else if (dbValue) {
                                   setEditPet({ ...editPet, insuranceCompany: dbValue as any, filing_deadline_days: deadlineDays || 90 })
                                 }
@@ -1805,17 +1795,6 @@ function MainApp() {
                               <div className="sm:col-span-1 flex items-center text-xs text-slate-500 bg-blue-50/50 dark:bg-blue-900/10 px-3 py-2 rounded-md border border-blue-200 dark:border-blue-800">
                                 <span>✓ No insurance selected. You can still track vet bills and file claims manually.</span>
                               </div>
-                            ) : editPetInsurer === 'Custom Insurance' ? (
-                              <>
-                                <div>
-                                  <label htmlFor="edit-pet-insurance-custom-name" className="block text-xs text-slate-500">Insurance Company Name</label>
-                                  <input id="edit-pet-insurance-custom-name" value={customInsurerNameEdit} onChange={(e) => setCustomInsurerNameEdit(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                                </div>
-                                <div>
-                                  <label htmlFor="edit-pet-insurance-custom-deadline" className="block text-xs text-slate-500">Filing Deadline (days)</label>
-                                  <input id="edit-pet-insurance-custom-deadline" type="number" min={1} max={365} value={customDeadlineEdit} onChange={(e) => setCustomDeadlineEdit(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                                </div>
-                              </>
                             ) : (
                               <div className="sm:col-span-1 flex items-end text-xs text-slate-600">
                                 {editPetInsurer && editPetInsurer !== '— Select —' ? `Filing Deadline: ${editPet.filing_deadline_days || 90} days` : ''}
