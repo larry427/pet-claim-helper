@@ -300,12 +300,12 @@ function MainApp() {
         })
         listClaims(s.user.id).then(setClaims).catch((err) => { console.error('[auth] listClaims failed:', err); setClaims([]) })
       } else {
-        try { console.log('[auth] getSession() no session found - showing signup') } catch {}
-        setAuthView('signup')
+        try { console.log('[auth] getSession() no session found - showing login') } catch {}
+        setAuthView('login')
       }
     }).catch((error) => {
       try { console.error('[auth] getSession() error:', error) } catch {}
-      setAuthView('signup')
+      setAuthView('login')
     })
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       try { console.log('[auth] onAuthStateChange:', { event, hasSession: Boolean(session), userId: session?.user?.id || null }) } catch {}
@@ -388,7 +388,7 @@ function MainApp() {
         setUserId(null)
         setPets([])
         try { console.log('[auth] onAuthStateChange - signed out, clearing state') } catch {}
-        setAuthView('signup')
+        setAuthView('login')
       }
     })
     return () => { sub.subscription.unsubscribe() }
