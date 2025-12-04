@@ -746,21 +746,23 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
       if (shortCode) {
         console.log('[Mark Given] Short code auth attempt:', { shortCode })
 
-        // Find dose by short code
+        // Find dose by short code (don't filter by status - we'll check it after)
         const { data: dose, error: doseError } = await supabase
           .from('medication_doses')
           .select('*')
           .eq('short_code', shortCode)
-          .eq('status', 'pending')
           .single()
 
         if (doseError || !dose) {
           console.error('[Mark Given] Invalid short code:', doseError?.message)
-          return res.status(401).json({ ok: false, error: 'Invalid or expired link. Please check your recent SMS.' })
+          return res.status(401).json({ ok: false, error: 'Invalid or expired link.' })
         }
 
-        // Short codes don't expire (simpler UX than tokens)
-        // They're single-use because we mark as 'given' and won't match status='pending' again
+        // If already given, return success (idempotent - don't error)
+        if (dose.status === 'given') {
+          console.log('[Mark Given] Dose already marked as given:', dose.id)
+          return res.json({ ok: true, message: 'Medication already marked as given' })
+        }
 
         // Mark dose as given
         const { error: updateError } = await supabase
