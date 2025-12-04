@@ -17,7 +17,7 @@ export default function DoseSuccess() {
         <div className="text-center">
           <div className="text-green-600 text-6xl mb-4">✓</div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">
-            {isComplete ? 'All doses complete!' : `Dose ${givenCount} of ${totalCount} complete`}
+            {isComplete ? 'All doses recorded!' : `Dose ${givenCount} of ${totalCount} recorded`}
           </h2>
           <p className="text-gray-600 text-base mb-6">
             {petName} • {medName}
@@ -75,11 +75,13 @@ export default function DoseSuccess() {
           </div>
 
           <button
-            onClick={() => window.close()}
+            onClick={() => window.history.back()}
             className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-semibold"
           >
-            Done
+            ← Back to Messages
           </button>
+
+          <p className="text-gray-500 text-sm mt-3">or close this tab</p>
         </div>
       </div>
     </div>
