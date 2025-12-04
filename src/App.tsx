@@ -3313,6 +3313,13 @@ function MainApp() {
           </div>
         </div>
       )}
+
+      {/* Footer with security message */}
+      <footer className="mt-12 pb-8 text-center">
+        <p className="text-xs text-slate-400">
+          🔒 Your data is encrypted and never shared
+        </p>
+      </footer>
     </div>
   )
 }
@@ -3433,6 +3440,11 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
         </div>
       )}
       {error && <p className="text-xs text-rose-600">{error}</p>}
+      {mode === 'signup' && (
+        <p className="text-xs text-center text-slate-500">
+          🔒 Your data is encrypted and never shared
+        </p>
+      )}
       <button
         type="submit"
         disabled={loading}
