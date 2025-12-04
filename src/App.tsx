@@ -14,6 +14,8 @@ import DoseSuccess from './components/DoseSuccess'
 import ClaimSubmissionModal from './components/ClaimSubmissionModal'
 import { SignatureCapture } from './components/SignatureCapture'
 import AdminDashboard from './components/AdminDashboard'
+import ForgotPassword from './components/ForgotPassword'
+import ResetPassword from './components/ResetPassword'
 import { createClaim, listClaims, updateClaim, deleteClaim as dbDeleteClaim } from './lib/claims'
 import { formatPhoneOnChange, formatPhoneForStorage, formatPhoneForDisplay } from './utils/phoneUtils'
 import { INSURANCE_OPTIONS, getInsuranceValue, getInsuranceDisplay, getDeadlineDays } from './lib/insuranceOptions'
@@ -43,6 +45,12 @@ export default function App() {
   if (path === '/dose-success') {
     console.log('[App Router] Rendering static success page')
     return <DoseSuccess />
+  }
+
+  // Reset password page
+  if (path === '/reset-password') {
+    console.log('[App Router] Rendering reset password page')
+    return <ResetPassword />
   }
 
   if (doseMatch) {
@@ -3316,6 +3324,7 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [signupNoticeEmail, setSignupNoticeEmail] = useState<string | null>(null)
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -3346,6 +3355,11 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
     } finally {
       setLoading(false)
     }
+  }
+
+  // Show forgot password view
+  if (showForgotPassword && mode === 'login') {
+    return <ForgotPassword onBack={() => setShowForgotPassword(false)} />
   }
 
   return (
@@ -3407,6 +3421,17 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
           </button>
         </div>
       </div>
+      {mode === 'login' && (
+        <div className="text-right">
+          <button
+            type="button"
+            onClick={() => setShowForgotPassword(true)}
+            className="text-xs text-emerald-600 hover:text-emerald-700"
+          >
+            Forgot password?
+          </button>
+        </div>
+      )}
       {error && <p className="text-xs text-rose-600">{error}</p>}
       <button
         type="submit"
