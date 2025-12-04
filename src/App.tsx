@@ -10,6 +10,7 @@ import OnboardingModal from './components/OnboardingModal'
 import FinancialSummary from './components/FinancialSummary'
 import MedicationsDashboard from './components/MedicationsDashboard'
 import DoseMarkingPage from './components/DoseMarkingPage'
+import DoseSuccess from './components/DoseSuccess'
 import ClaimSubmissionModal from './components/ClaimSubmissionModal'
 import { SignatureCapture } from './components/SignatureCapture'
 import AdminDashboard from './components/AdminDashboard'
@@ -37,6 +38,12 @@ export default function App() {
   const doseMatch = path.match(/^\/dose\/([a-zA-Z0-9-]+)$/i)
 
   console.log('[App Router] Path:', path, 'DoseMatch:', doseMatch)
+
+  // Static success page - zero database calls
+  if (path === '/dose-success') {
+    console.log('[App Router] Rendering static success page')
+    return <DoseSuccess />
+  }
 
   if (doseMatch) {
     const code = doseMatch[1]

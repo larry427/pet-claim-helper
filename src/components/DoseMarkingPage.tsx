@@ -194,7 +194,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
       if (dosesError || !doses) {
         console.error('[DoseMarkingPage] Failed to fetch doses for stats:', dosesError)
-        return
+        return null
       }
 
       // Calculate TOTAL expected doses from medication schedule
@@ -279,7 +279,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         daysRemaining = diffDays >= 0 ? diffDays : 0
       }
 
-      setProgressStats({
+      const stats = {
         givenCount,
         totalCount: totalExpectedDoses,
         remainingCount,
@@ -287,9 +287,13 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         nextDoseTime,
         daysRemaining,
         isComplete
-      })
+      }
+
+      setProgressStats(stats)
+      return stats
     } catch (err) {
       console.error('[DoseMarkingPage] Error calculating progress stats:', err)
+      return null
     }
   }
 
@@ -333,17 +337,34 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
       console.log('[DoseMarkingPage] ✅ Successfully marked as given')
 
-      // Calculate progress stats for success modal (only for logged-in users)
-      // For standalone magic link users, skip progress stats to avoid DB queries
-      if (userId && actualMedicationId) {
-        await calculateProgressStats()
+      // For standalone magic link users (not logged in), redirect to static success page
+      if ((shortCode || magicToken) && !userId) {
+        console.log('[DoseMarkingPage] Redirecting to static success page')
+
+        // Calculate progress for display
+        const stats = await calculateProgressStats()
+
+        // Build success URL with display params
+        const params = new URLSearchParams({
+          pet: pet?.name || 'Your pet',
+          med: medication?.medication_name || 'medication',
+          count: String(stats?.givenCount || 1),
+          total: String(stats?.totalCount || 1)
+        })
+
+        if (stats?.nextDoseTime) {
+          params.set('next', stats.nextDoseTime)
+        }
+
+        // Redirect to static success page - zero database calls from here on
+        window.location.href = `/dose-success?${params.toString()}`
+        return
       }
 
+      // For logged-in users, show success modal
+      await calculateProgressStats()
       setSuccess(true)
       setMarking(false)
-
-      // Success modal will stay visible until user clicks button
-      // No auto-redirect - user controls when to leave
     } catch (err) {
       console.error('Error marking dose:', err)
       setError('Failed to mark dose as given')
