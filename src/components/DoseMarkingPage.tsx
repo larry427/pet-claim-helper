@@ -317,19 +317,27 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         : { userId }
 
       console.log('[DoseMarkingPage] Marking as given with:', shortCode ? 'short code' : magicToken ? 'magic link token' : 'session auth')
+      console.log('[DoseMarkingPage] Request body:', body)
 
       // Use actualMedicationId if available (from short code lookup), otherwise use medicationId
       const medId = actualMedicationId || medicationId
+      const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8787'}/api/medications/${medId}/mark-given`
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8787'}/api/medications/${medId}/mark-given`, {
+      console.log('[DoseMarkingPage] Calling API:', apiUrl)
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       })
 
+      console.log('[DoseMarkingPage] API response status:', response.status)
+
       const result = await response.json()
+      console.log('[DoseMarkingPage] API response body:', result)
 
       if (!response.ok || !result.ok) {
+        console.error('[DoseMarkingPage] API call failed:', { status: response.status, result })
         setError(result.error || 'Failed to mark dose as given')
         setMarking(false)
         return
@@ -341,8 +349,20 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       if ((shortCode || magicToken) && !userId) {
         console.log('[DoseMarkingPage] Redirecting to static success page')
 
-        // Calculate progress for display
-        const stats = await calculateProgressStats()
+        // Calculate progress for display with timeout fallback
+        console.log('[DoseMarkingPage] Calculating progress stats...')
+        let stats = null
+        try {
+          const statsPromise = calculateProgressStats()
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Stats calculation timeout')), 3000)
+          )
+          stats = await Promise.race([statsPromise, timeoutPromise])
+          console.log('[DoseMarkingPage] Stats calculated:', stats)
+        } catch (statsError) {
+          console.error('[DoseMarkingPage] Stats calculation failed/timeout:', statsError)
+          // Continue anyway with fallback values
+        }
 
         // Build success URL with display params
         const params = new URLSearchParams({
@@ -356,6 +376,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           params.set('next', stats.nextDoseTime)
         }
 
+        console.log('[DoseMarkingPage] Redirecting to:', `/dose-success?${params.toString()}`)
         // Redirect to static success page - zero database calls from here on
         window.location.href = `/dose-success?${params.toString()}`
         return
