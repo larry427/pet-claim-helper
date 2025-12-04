@@ -1423,31 +1423,64 @@ function MainApp() {
         )}
         {authView !== 'app' && (
           <section className="mx-auto max-w-md mt-8">
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-sm">
-              <div className="px-6 pt-4">
-                <div className="flex items-center gap-6 border-b border-slate-200 dark:border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setAuthView('signup')}
-                    className={[
-                      'pb-3 text-sm font-medium transition-colors',
-                      authView === 'signup' ? 'text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                    ].join(' ')}
-                  >
-                    Create Account
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAuthView('login')}
-                    className={[
-                      'pb-3 text-sm font-medium transition-colors',
-                      authView === 'login' ? 'text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                    ].join(' ')}
-                  >
-                    Sign In
-                  </button>
+            {/* Tabs - dramatically different styling */}
+            <div className="flex items-center gap-2 mb-1">
+              <button
+                type="button"
+                onClick={() => setAuthView('signup')}
+                className={[
+                  'flex-1 px-6 py-3 text-sm rounded-t-xl transition-all font-semibold',
+                  authView === 'signup'
+                    ? 'bg-teal-600 text-white shadow-lg scale-105'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
+                ].join(' ')}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <span>✨</span>
+                  <span>Create Account</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthView('login')}
+                className={[
+                  'flex-1 px-6 py-3 text-sm rounded-t-xl transition-all font-semibold',
+                  authView === 'login'
+                    ? 'bg-emerald-600 text-white shadow-lg scale-105'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
+                ].join(' ')}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <span>👋</span>
+                  <span>Sign In</span>
+                </div>
+              </button>
+            </div>
+
+            {/* Card with colored header */}
+            <div className="rounded-2xl rounded-tl-none rounded-tr-none border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-xl overflow-hidden">
+              {/* Colored header bar - changes based on mode */}
+              <div className={[
+                'px-6 py-4 text-white font-semibold',
+                authView === 'signup'
+                  ? 'bg-gradient-to-r from-teal-500 to-cyan-600'
+                  : 'bg-gradient-to-r from-emerald-500 to-green-600'
+              ].join(' ')}>
+                <div className="flex items-center gap-2 text-base">
+                  {authView === 'signup' ? (
+                    <>
+                      <span className="text-xl">🚀</span>
+                      <span>Get Started - Create Your Account</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xl">🔑</span>
+                      <span>Welcome Back!</span>
+                    </>
+                  )}
                 </div>
               </div>
+
               <div className="p-6">
                 <AuthForm mode={authView} onSwitch={(v) => setAuthView(v)} />
               </div>
@@ -1784,7 +1817,9 @@ function MainApp() {
                                 </div>
                               </>
                             ) : (
-                              <div className="sm:col-span-1 flex items-end text-xs text-slate-600">{editPetInsurer ? 'Filing Deadline: 90 days' : ''}</div>
+                              <div className="sm:col-span-1 flex items-end text-xs text-slate-600">
+                                {editPetInsurer && editPetInsurer !== '— Select —' ? `Filing Deadline: ${editPet.filing_deadline_days || 90} days` : ''}
+                              </div>
                             )}
                             {editPetInsurer === 'Healthy Paws (90 days)' && (
                               <div className="sm:col-span-2">
@@ -3370,7 +3405,7 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-2 space-y-3">
+    <form onSubmit={handleSubmit} className="space-y-4">
       {signupNoticeEmail && (
         <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800 text-sm">
           <div className="font-medium">Account created!</div>
@@ -3380,19 +3415,18 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
           </div>
         </div>
       )}
-      {mode === 'signup' ? (
-        <div className="text-center text-sm text-slate-700 dark:text-slate-200 mb-2">
-          <div className="font-medium">Welcome! Create your account</div>
-          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">• Save pets • Auto-fill bills • Access anywhere</div>
-        </div>
-      ) : (
-        <div className="text-center text-sm text-slate-700 dark:text-slate-200 mb-2">
-          <div className="font-medium">Welcome back!</div>
-        </div>
-      )}
+
       <div>
         <label htmlFor="auth-email" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Email</label>
-        <input id="auth-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" required />
+        <input
+          id="auth-email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder={mode === 'signup' ? 'Enter your email to get started' : 'Enter your email'}
+          className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
+          required
+        />
       </div>
       <div>
         <label htmlFor="auth-password" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Password</label>
@@ -3402,6 +3436,7 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
             type={showPassword ? 'text' : 'password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            placeholder={mode === 'signup' ? 'Create a password (6+ characters)' : 'Enter your password'}
             className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 pr-10 text-sm"
             required
           />
@@ -3428,6 +3463,7 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
           </button>
         </div>
       </div>
+
       {mode === 'login' && (
         <div className="text-right">
           <button
@@ -3439,22 +3475,56 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
           </button>
         </div>
       )}
+
       {error && <p className="text-xs text-rose-600">{error}</p>}
+
       {mode === 'signup' && (
         <p className="text-xs text-center text-slate-500">
           🔒 Your data is encrypted and never shared
         </p>
       )}
+
       <button
         type="submit"
         disabled={loading}
         className={[
-          'w-full inline-flex items-center justify-center rounded-lg text-white px-4 py-2 text-sm font-medium disabled:opacity-60',
-          mode === 'signup' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-emerald-700 hover:bg-emerald-800'
+          'w-full inline-flex items-center justify-center rounded-lg text-white px-4 py-2.5 text-sm font-semibold disabled:opacity-60 transition-colors',
+          mode === 'signup'
+            ? 'bg-teal-600 hover:bg-teal-700'
+            : 'bg-emerald-600 hover:bg-emerald-700'
         ].join(' ')}
       >
         {loading ? 'Please wait…' : mode === 'login' ? 'Log In' : 'Sign Up'}
       </button>
+
+      {/* Helper text to switch modes */}
+      <div className="text-center pt-2 border-t border-slate-200">
+        <p className="text-xs text-slate-600">
+          {mode === 'signup' ? (
+            <>
+              Already have an account?{' '}
+              <button
+                type="button"
+                onClick={() => onSwitch('login')}
+                className="text-emerald-600 hover:text-emerald-700 font-medium"
+              >
+                Sign in instead →
+              </button>
+            </>
+          ) : (
+            <>
+              New here?{' '}
+              <button
+                type="button"
+                onClick={() => onSwitch('signup')}
+                className="text-teal-600 hover:text-teal-700 font-medium"
+              >
+                Create an account →
+              </button>
+            </>
+          )}
+        </p>
+      </div>
     </form>
   )
 }
