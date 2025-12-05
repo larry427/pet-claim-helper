@@ -764,6 +764,41 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
           return res.json({ ok: true, message: 'Medication already marked as given' })
         }
 
+        // VALIDATION: Check if all doses are already complete
+        const { data: medication, error: medError } = await supabase
+          .from('medications')
+          .select('start_date, end_date, times_per_day')
+          .eq('id', dose.medication_id)
+          .single()
+
+        if (medError || !medication) {
+          console.error('[Mark Given] Medication not found:', medError?.message)
+          return res.status(404).json({ ok: false, error: 'Medication not found' })
+        }
+
+        // Calculate total expected doses
+        const start = DateTime.fromISO(medication.start_date)
+        const end = DateTime.fromISO(medication.end_date)
+        const totalDays = Math.max(1, Math.round(end.diff(start, 'days').days) + 1)
+        const totalExpectedDoses = totalDays * (medication.times_per_day || 1)
+
+        // Count existing given doses
+        const { count: givenCount, error: countError } = await supabase
+          .from('medication_doses')
+          .select('*', { count: 'exact', head: true })
+          .eq('medication_id', dose.medication_id)
+          .eq('status', 'given')
+
+        if (countError) {
+          console.error('[Mark Given] Error counting doses:', countError)
+          return res.status(500).json({ ok: false, error: 'Error checking dose count' })
+        }
+
+        if (givenCount >= totalExpectedDoses) {
+          console.log('[Mark Given] All doses already complete:', { givenCount, totalExpectedDoses })
+          return res.status(400).json({ ok: false, error: 'All doses have been recorded for this medication', isComplete: true })
+        }
+
         // Mark dose as given
         const { error: updateError } = await supabase
           .from('medication_doses')
@@ -810,6 +845,41 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         if (nowPST > expiresAt) {
           console.error('[Mark Given] Token expired:', { expiresAt: expiresAt.toISO(), now: nowPST.toISO() })
           return res.status(401).json({ ok: false, error: 'This link has expired. Please check for a newer SMS.' })
+        }
+
+        // VALIDATION: Check if all doses are already complete
+        const { data: medication, error: medError } = await supabase
+          .from('medications')
+          .select('start_date, end_date, times_per_day')
+          .eq('id', medicationId)
+          .single()
+
+        if (medError || !medication) {
+          console.error('[Mark Given] Medication not found:', medError?.message)
+          return res.status(404).json({ ok: false, error: 'Medication not found' })
+        }
+
+        // Calculate total expected doses
+        const start = DateTime.fromISO(medication.start_date)
+        const end = DateTime.fromISO(medication.end_date)
+        const totalDays = Math.max(1, Math.round(end.diff(start, 'days').days) + 1)
+        const totalExpectedDoses = totalDays * (medication.times_per_day || 1)
+
+        // Count existing given doses
+        const { count: givenCount, error: countError } = await supabase
+          .from('medication_doses')
+          .select('*', { count: 'exact', head: true })
+          .eq('medication_id', medicationId)
+          .eq('status', 'given')
+
+        if (countError) {
+          console.error('[Mark Given] Error counting doses:', countError)
+          return res.status(500).json({ ok: false, error: 'Error checking dose count' })
+        }
+
+        if (givenCount >= totalExpectedDoses) {
+          console.log('[Mark Given] All doses already complete:', { givenCount, totalExpectedDoses })
+          return res.status(400).json({ ok: false, error: 'All doses have been recorded for this medication', isComplete: true })
         }
 
         // Mark dose as given and DELETE token (single use)
@@ -884,6 +954,29 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
       if (!doses || doses.length === 0) {
         console.error('[Mark Given] No pending dose found for today')
         return res.status(404).json({ ok: false, error: 'No pending dose found for today' })
+      }
+
+      // VALIDATION: Check if all doses are already complete
+      const start = DateTime.fromISO(medication.start_date)
+      const end = DateTime.fromISO(medication.end_date)
+      const totalDays = Math.max(1, Math.round(end.diff(start, 'days').days) + 1)
+      const totalExpectedDoses = totalDays * (medication.times_per_day || 1)
+
+      // Count existing given doses
+      const { count: givenCount, error: countError } = await supabase
+        .from('medication_doses')
+        .select('*', { count: 'exact', head: true })
+        .eq('medication_id', medicationId)
+        .eq('status', 'given')
+
+      if (countError) {
+        console.error('[Mark Given] Error counting doses:', countError)
+        return res.status(500).json({ ok: false, error: 'Error checking dose count' })
+      }
+
+      if (givenCount >= totalExpectedDoses) {
+        console.log('[Mark Given] All doses already complete:', { givenCount, totalExpectedDoses })
+        return res.status(400).json({ ok: false, error: 'All doses have been recorded for this medication', isComplete: true })
       }
 
       // Mark the dose as given

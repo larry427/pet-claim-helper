@@ -187,6 +187,12 @@ export default function DoseTrackingPage({
   const handleMarkGiven = async () => {
     if (!userId) { setError('You must be logged in to record a dose.'); return }
 
+    // VALIDATION: Prevent over-dosing
+    if (givenCount >= totalDoses) {
+      setError('All doses have been recorded for this medication')
+      return
+    }
+
     // Check if this will complete the medication
     const willComplete = (givenCount + 1) >= totalDoses
 

@@ -171,6 +171,13 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
       setMedication(medData)
       setPet(medData.pets)
+
+      // Check if medication is already complete
+      const stats = await calculateProgressStats()
+      if (stats?.isComplete) {
+        setError('This medication course is already complete!')
+      }
+
       setLoading(false)
     } catch (err) {
       console.error('Error loading medication:', err)
@@ -333,6 +340,35 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           console.log('[DoseMarkingPage] Dose already marked as given - redirecting to success')
           window.location.href = `/dose-success?pet=${encodeURIComponent(pet?.name || 'Your pet')}&med=${encodeURIComponent(medication?.medication_name || 'medication')}&count=1&total=1`
           return
+        }
+
+        // VALIDATION: Check if all doses are already complete
+        const { count: givenCount, error: countError } = await supabase
+          .from('medication_doses')
+          .select('*', { count: 'exact', head: true })
+          .eq('medication_id', dose.medication_id)
+          .eq('status', 'given')
+
+        if (countError) {
+          console.error('[DoseMarkingPage] Error counting doses:', countError)
+          setError('Error checking medication status')
+          setMarking(false)
+          return
+        }
+
+        // Calculate total expected doses
+        if (medication) {
+          const start = new Date(medication.start_date)
+          const end = new Date(medication.end_date)
+          const totalDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+          const totalExpectedDoses = totalDays * (medication.times_per_day || 1)
+
+          if ((givenCount || 0) >= totalExpectedDoses) {
+            console.log('[DoseMarkingPage] All doses already complete:', { givenCount, totalExpectedDoses })
+            setError('All doses have been recorded for this medication')
+            setMarking(false)
+            return
+          }
         }
 
         // Mark as given directly via Supabase
