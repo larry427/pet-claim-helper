@@ -21,6 +21,8 @@ const __dirname = path.dirname(__filename)
 // Set to false only when ready for production
 const TEST_MODE = true
 const TEST_EMAIL = 'larry@vrexistence.com'
+// Insurers in production (bypass TEST_MODE)
+const PRODUCTION_INSURERS = ['pumpkin']
 // ================================================================================================
 
 /**
@@ -1083,8 +1085,27 @@ async function generatePDFFromScratch(insurer, claimData, userSignature, dateSig
  * Get the email address for submitting claims to each insurer
  *
  * ⚠️ IMPORTANT: When TEST_MODE = true, ALL emails go to TEST_EMAIL instead of real insurers
+ * Exception: Insurers in PRODUCTION_INSURERS array always use production emails
  */
 export function getInsurerClaimEmail(insurer) {
+  const normalizedInsurer = insurer.toLowerCase()
+
+  // Check if this insurer is in production mode
+  const isProduction = PRODUCTION_INSURERS.some(prod => normalizedInsurer.includes(prod.toLowerCase()))
+
+  if (isProduction) {
+    // Production insurer - use real email
+    const productionEmail = getProductionEmail(insurer)
+    console.log(``)
+    console.log(`${'='.repeat(80)}`)
+    console.log(`🚀 PRODUCTION MODE - ${insurer.toUpperCase()} 🚀`)
+    console.log(`${'='.repeat(80)}`)
+    console.log(`  Sending to REAL insurer: ${productionEmail}`)
+    console.log(`${'='.repeat(80)}`)
+    console.log(``)
+    return productionEmail
+  }
+
   // TESTING OVERRIDE - send all test emails to Larry
   if (TEST_MODE) {
     console.log(``)
