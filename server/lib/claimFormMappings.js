@@ -111,7 +111,7 @@ const FORM_FIELD_MAPPINGS = {
     // PAGE 2 - CLAIM INFORMATION (Section 5)
     totalAmount: { x: 45, y: 525, size: 10, page: 2 },
     dateIllnessOccurred: { x: 330, y: 525, size: 10, page: 2 },  // Right side, same line as totalAmount
-    isEstimateNo: { x: 520, y: 475, size: 12, page: 2 },  // "No" checkbox - always mark this
+    isEstimateNo: { x: 516, y: 472, size: 12, page: 2 },  // "No" checkbox - always mark this (grid-verified coordinates)
     diagnosis: { x: 80, y: 380, size: 9, page: 2, maxWidth: 500, maxLines: 5 },  // Auto-generate from line items
 
     // PAGE 2 - SIGNATURE (Section 6)
