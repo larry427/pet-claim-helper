@@ -558,7 +558,8 @@ function getValueForField(fieldName, claimData, dateSigned) {
     apartment: null,  // Not collected separately
     city: claimData.city || policyholderAddr.city,
     state: claimData.state || policyholderAddr.state,
-    zip: claimData.zip || policyholderAddr.zip
+    zip: claimData.zip || policyholderAddr.zip,
+    dateIllnessOccurred: claimData.service_date ? formatDate(claimData.service_date) : (claimData.treatmentDate ? formatDate(claimData.treatmentDate) : null)
   }
 
   return fieldMap[fieldName]
@@ -662,6 +663,25 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
       continue
     }
 
+    // PUMPKIN SPECIAL HANDLING: isEstimateNo checkbox - always mark "No"
+    if (normalizedInsurer.includes('pumpkin') && ourFieldName === 'isEstimateNo') {
+      try {
+        const targetPage = coordinates.page === 2 && secondPage ? secondPage : firstPage
+        targetPage.drawText('X', {
+          x: coordinates.x,
+          y: coordinates.y,
+          size: coordinates.size || 12,
+          font: helveticaBoldFont,
+          color: { type: 'RGB', red: 0, green: 0, blue: 0 }
+        })
+        console.log(`   ✅ isEstimateNo: "X" at "No" checkbox (${coordinates.x}, ${coordinates.y})`)
+        fieldsFilled++
+      } catch (err) {
+        console.warn(`   ⚠️  ${ourFieldName}: ${err.message}`)
+      }
+      continue
+    }
+
     // Handle signature image separately (doesn't use getValueForField)
     if (ourFieldName === 'signature' && coordinates.width && coordinates.height) {
       console.log(`🖊️  Processing signature field...`)
@@ -734,9 +754,27 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
     }
 
     try {
-      // PUMPKIN SPECIAL HANDLING: Override diagnosis to "Please see attached invoice"
+      // PUMPKIN SPECIAL HANDLING: Auto-generate diagnosis from line items
       if (normalizedInsurer.includes('pumpkin') && ourFieldName === 'diagnosis') {
-        value = 'Please see attached invoice'
+        // Check if we have line items to generate from
+        if (claimData.itemizedCharges && Array.isArray(claimData.itemizedCharges) && claimData.itemizedCharges.length > 0) {
+          // Extract descriptions from line items and join them
+          const descriptions = claimData.itemizedCharges
+            .map(item => item.description)
+            .filter(desc => desc && desc.trim())
+            .slice(0, 3)  // Limit to first 3 items to keep it concise
+
+          if (descriptions.length > 0) {
+            value = descriptions.join(', ')
+            console.log(`   🔍 Auto-generated diagnosis from ${descriptions.length} line items: "${value}"`)
+          } else {
+            value = 'Please see attached invoice'
+            console.log(`   ⚠️  No valid line item descriptions found, using fallback`)
+          }
+        } else {
+          value = 'Please see attached invoice'
+          console.log(`   ⚠️  No line items available, using fallback`)
+        }
       }
 
       // PUMPKIN SPECIAL HANDLING: Prepend "$" to totalAmount (if not already present)
