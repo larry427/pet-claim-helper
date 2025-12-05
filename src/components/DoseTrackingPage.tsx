@@ -50,7 +50,7 @@ export default function DoseTrackingPage({
     return days * timesPerDay
   }, [med, timesPerDay])
 
-  const pct = useMemo(() => (totalDoses > 0 ? Math.round((givenCount / totalDoses) * 100) : 0), [givenCount, totalDoses])
+  const pct = useMemo(() => (totalDoses > 0 ? Math.min(Math.round((givenCount / totalDoses) * 100), 100) : 0), [givenCount, totalDoses])
 
   const daysRemaining = useMemo(() => {
     if (!med || !med.end_date) return 0

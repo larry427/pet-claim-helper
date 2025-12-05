@@ -7,7 +7,7 @@ export default function DoseSuccess() {
   const totalCount = parseInt(params.get('total') || '1')
   const nextDose = params.get('next') || null
 
-  const percentage = totalCount > 0 ? Math.round((givenCount / totalCount) * 100) : 0
+  const percentage = totalCount > 0 ? Math.min(Math.round((givenCount / totalCount) * 100), 100) : 0
   const remainingCount = totalCount - givenCount
   const isComplete = givenCount >= totalCount
 

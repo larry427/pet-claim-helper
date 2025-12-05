@@ -234,7 +234,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
       const givenCount = doses.filter(d => d.status === 'given').length
       const remainingCount = totalExpectedDoses - givenCount
-      const percentage = totalExpectedDoses > 0 ? Math.round((givenCount / totalExpectedDoses) * 100) : 0
+      const percentage = totalExpectedDoses > 0 ? Math.min(Math.round((givenCount / totalExpectedDoses) * 100), 100) : 0
       const isComplete = givenCount >= totalExpectedDoses && totalExpectedDoses > 0
 
       // Find next pending dose
