@@ -6,7 +6,8 @@ async function testPumpkinPDF() {
   // Import the ESM module
   const { generateClaimFormPDF } = await import('./server/lib/generateClaimPDF.js');
 
-  // Create dummy claim data with all required fields
+  // Create dummy claim data matching EXACT API structure (server/index.js line 1737-1777)
+  // The API sends treatmentDate, NOT service_date
   const dummyClaimData = {
     // Policyholder info
     policyholderName: 'Test User',
@@ -25,10 +26,9 @@ async function testPumpkinPDF() {
 
     // Claim info
     claimType: 'Illness',
-    veterinaryClinic: 'Test Animal Hospital',
+    vetClinicName: 'Test Animal Hospital',  // API uses vetClinicName not veterinaryClinic
     totalAmount: '250.00',
-    service_date: '2024-11-15',  // THIS IS THE KEY FIELD FOR dateIllnessOccurred
-    treatmentDate: '2024-11-15',
+    treatmentDate: '2024-11-15',  // API sends treatmentDate (from claim.service_date)
     diagnosis: 'Test diagnosis',
 
     // Line items for diagnosis auto-generation
@@ -42,8 +42,8 @@ async function testPumpkinPDF() {
   const dummySignature = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
   const dateSigned = '12/04/2024';
 
-  console.log('Generating Pumpkin test PDF...');
-  console.log('service_date:', dummyClaimData.service_date);
+  console.log('Generating Pumpkin test PDF with EXACT API data structure...');
+  console.log('treatmentDate:', dummyClaimData.treatmentDate);
   console.log('claimType:', dummyClaimData.claimType);
 
   const pdfBuffer = await generateClaimFormPDF('Pumpkin', dummyClaimData, dummySignature, dateSigned);
