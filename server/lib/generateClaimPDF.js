@@ -559,7 +559,11 @@ function getValueForField(fieldName, claimData, dateSigned) {
     city: claimData.city || policyholderAddr.city,
     state: claimData.state || policyholderAddr.state,
     zip: claimData.zip || policyholderAddr.zip,
-    dateIllnessOccurred: claimData.service_date ? formatDate(claimData.service_date) : (claimData.treatmentDate ? formatDate(claimData.treatmentDate) : null)
+    dateIllnessOccurred: (() => {
+      const result = claimData.service_date ? formatDate(claimData.service_date) : (claimData.treatmentDate ? formatDate(claimData.treatmentDate) : null)
+      console.log('🔍 [dateIllnessOccurred] service_date:', claimData.service_date, '| treatmentDate:', claimData.treatmentDate, '| RESULT:', result)
+      return result
+    })()
   }
 
   return fieldMap[fieldName]
@@ -665,8 +669,14 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
 
     // PUMPKIN SPECIAL HANDLING: isEstimateNo checkbox - always mark "No"
     if (normalizedInsurer.includes('pumpkin') && ourFieldName === 'isEstimateNo') {
+      console.log(`🔍 [isEstimateNo] ATTEMPTING TO DRAW CHECKBOX`)
+      console.log(`   normalizedInsurer: "${normalizedInsurer}"`)
+      console.log(`   ourFieldName: "${ourFieldName}"`)
+      console.log(`   coordinates:`, coordinates)
+      console.log(`   secondPage exists:`, !!secondPage)
       try {
         const targetPage = coordinates.page === 2 && secondPage ? secondPage : firstPage
+        console.log(`   Using page:`, coordinates.page === 2 ? '2 (secondPage)' : '1 (firstPage)')
         targetPage.drawText('X', {
           x: coordinates.x,
           y: coordinates.y,
@@ -677,6 +687,7 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
         console.log(`   ✅ isEstimateNo: "X" at "No" checkbox (${coordinates.x}, ${coordinates.y})`)
         fieldsFilled++
       } catch (err) {
+        console.error(`   ❌ ERROR drawing isEstimateNo checkbox:`, err)
         console.warn(`   ⚠️  ${ourFieldName}: ${err.message}`)
       }
       continue
@@ -739,9 +750,15 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
       // Get the value for this field from our claim data
       value = getValueForField(ourFieldName, claimData, dateSigned)
 
-      // PUMPKIN DEBUG: Log after getting value
+      // PUMPKIN DEBUG: Log after getting value - ENHANCED for dateIllnessOccurred
       if (normalizedInsurer.includes('pumpkin')) {
-        console.log(`   getValueForField("${ourFieldName}") returned: ${value}`)
+        if (ourFieldName === 'dateIllnessOccurred') {
+          console.log(`   🔍 [CRITICAL] dateIllnessOccurred value returned: "${value}"`)
+          console.log(`   🔍 [CRITICAL] claimData.service_date: ${claimData.service_date}`)
+          console.log(`   🔍 [CRITICAL] claimData.treatmentDate: ${claimData.treatmentDate}`)
+        } else {
+          console.log(`   getValueForField("${ourFieldName}") returned: ${value}`)
+        }
       }
     }
 
