@@ -1990,7 +1990,7 @@ function MainApp() {
               <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">We found charges for multiple pets on this bill:</p>
               <ul className="mt-2 text-sm list-disc pl-6 text-slate-700 dark:text-slate-200">
                 {multiExtracted.pets.map((pg, idx) => (
-                  <li key={idx}>{pg.petName || `Pet ${idx + 1}`} ({pg.petSpecies || 'Pet'}) — {pg.subtotal || computeSubtotal(pg.lineItems)}</li>
+                  <li key={idx}>{pg.petName || `Pet ${idx + 1}`} ({pg.petSpecies || 'Pet'}) — {computeSubtotal(pg.lineItems)}</li>
                 ))}
               </ul>
               <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">We'll create a separate bill for each pet.</p>
