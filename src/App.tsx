@@ -2188,7 +2188,12 @@ function MainApp() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Total Amount</label>
-                  <input value={extracted.totalAmount} onChange={(e) => setExtracted({ ...extracted, totalAmount: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                  <div className="relative mt-1">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                      <span className="text-slate-500 text-sm">$</span>
+                    </div>
+                    <input value={extracted.totalAmount} onChange={(e) => setExtracted({ ...extracted, totalAmount: e.target.value })} className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 pl-7 pr-3 py-2 text-sm" />
+                  </div>
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Diagnosis / Reason</label>
@@ -2239,16 +2244,21 @@ function MainApp() {
                         />
                       </div>
                       <div className="sm:col-span-3">
-                        <input
-                          placeholder="Amount"
-                          value={item.amount}
-                          onChange={(e) => {
-                            const copy = [...extracted.lineItems]
-                            copy[idx] = { ...copy[idx], amount: e.target.value }
-                            setExtracted({ ...extracted, lineItems: copy })
-                          }}
-                          className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
-                        />
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                            <span className="text-slate-500 text-sm">$</span>
+                          </div>
+                          <input
+                            placeholder="Amount"
+                            value={item.amount}
+                            onChange={(e) => {
+                              const copy = [...extracted.lineItems]
+                              copy[idx] = { ...copy[idx], amount: e.target.value }
+                              setExtracted({ ...extracted, lineItems: copy })
+                            }}
+                            className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 pl-7 pr-3 py-2 text-sm"
+                          />
+                        </div>
                       </div>
                       <div className="sm:col-span-1 flex items-center">
                         <button
