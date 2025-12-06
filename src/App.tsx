@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { fileToDataUrl } from './lib/fileUtils'
 import type { ExtractedBill, LineItem, PetProfile, PetSpecies, InsuranceCompany, MultiPetExtracted, ExtractedPetGroup } from './types'
 import { pdfFileToPngDataUrl } from './lib/pdfToImage'
@@ -699,7 +699,7 @@ function MainApp() {
     setErrorMessage(null)
   }
 
-  const handleChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+  const handleChange = useCallback<React.ChangeEventHandler<HTMLInputElement>>((e) => {
     // eslint-disable-next-line no-console
     console.log('[MOBILE DEBUG] ========== handleChange CALLED ==========')
     // eslint-disable-next-line no-console
@@ -707,7 +707,9 @@ function MainApp() {
     // eslint-disable-next-line no-console
     console.log('[MOBILE DEBUG] e.target.files?.[0]:', e.target.files?.[0])
     processFile(e.target.files?.[0])
-  }
+    // Reset input value to allow selecting the same file again
+    e.target.value = ''
+  }, [])
 
   const onDragOver: React.DragEventHandler<HTMLDivElement> = (e) => {
     e.preventDefault()
@@ -1880,7 +1882,7 @@ function MainApp() {
 
         {/* Upload section */}
         {authView === 'app' && (
-        <section className="mx-auto max-w-3xl text-center mt-8 px-2">
+        <section key="upload-section" className="mx-auto max-w-3xl text-center mt-8 px-2">
           <h2 className="text-2xl font-semibold">Upload Vet Bill</h2>
           <div className="mt-4">
             <div
