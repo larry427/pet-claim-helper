@@ -691,6 +691,90 @@ export const INSURER_REQUIRED_FIELDS = {
       description: 'Select the type of claim you are filing',
       saveToDb: false  // Don't persist - ask every time
     }
+  ],
+
+  spot: [
+    {
+      field: 'signature',
+      source: 'profiles.signature',
+      required: true,
+      type: 'signature',
+      prompt: 'Your signature',
+      description: 'Required to authorize the claim'
+    },
+    {
+      field: 'policyholderName',
+      source: 'profiles.full_name',
+      required: true,
+      type: 'text',
+      prompt: 'Your full name',
+      placeholder: 'John Smith'
+    },
+    {
+      field: 'address',
+      source: 'profiles.address',
+      required: true,
+      type: 'text',
+      prompt: 'Street address',
+      placeholder: '123 Main St'
+    },
+    {
+      field: 'city',
+      source: 'profiles.city',
+      required: true,
+      type: 'text',
+      prompt: 'City',
+      placeholder: 'Los Angeles'
+    },
+    {
+      field: 'state',
+      source: 'profiles.state',
+      required: true,
+      type: 'text',
+      prompt: 'State',
+      placeholder: 'CA'
+    },
+    {
+      field: 'zip',
+      source: 'profiles.zip',
+      required: true,
+      type: 'text',
+      prompt: 'ZIP code',
+      placeholder: '90210'
+    },
+    {
+      field: 'policyholderPhone',
+      source: 'profiles.phone',
+      required: true,
+      type: 'phone',
+      prompt: 'Your phone number',
+      placeholder: '(555) 123-4567'
+    },
+    {
+      field: 'policyholderEmail',
+      source: 'profiles.email',
+      required: true,
+      type: 'email',
+      prompt: 'Your email address',
+      placeholder: 'john@example.com'
+    },
+    {
+      field: 'spotAccountNumber',
+      source: 'pets.spot_account_number',
+      required: true,
+      type: 'text',
+      prompt: 'Spot Account Number',
+      placeholder: 'e.g., 12345678',
+      description: 'Your Spot account number from your policy documents'
+    },
+    {
+      field: 'dateOfBirth',
+      source: 'pets.date_of_birth',
+      required: true,
+      type: 'date',
+      prompt: "Pet's date of birth",
+      description: 'Used to calculate age for the claim form'
+    }
   ]
 }
 
@@ -708,6 +792,8 @@ export function getRequiredFieldsForInsurer(insurerName) {
     return INSURER_REQUIRED_FIELDS.trupanion
   } else if (normalized.includes('pumpkin')) {
     return INSURER_REQUIRED_FIELDS.pumpkin
+  } else if (normalized.includes('spot')) {
+    return INSURER_REQUIRED_FIELDS.spot
   }
 
   return []

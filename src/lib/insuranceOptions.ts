@@ -99,6 +99,7 @@ export function isAutoSubmitSupported(insuranceCompany: string): boolean {
     normalized.includes('trupanion') ||
     normalized.includes('healthy') ||
     normalized.includes('paws') ||
-    normalized.includes('pumpkin')
+    normalized.includes('pumpkin') ||
+    normalized.includes('spot')
   )
 }
