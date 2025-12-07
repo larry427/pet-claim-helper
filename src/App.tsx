@@ -3311,7 +3311,16 @@ function MainApp() {
                 <div><span className="text-slate-500 dark:text-slate-400">Insurance:</span> <span className="text-slate-900 dark:text-slate-100">{successModal.insurance || 'Not Insured'}</span></div>
                 {/* Only show Filing Deadline if pet has insurance */}
                 {successModal.insurance && successModal.insurance.trim() !== '' && (
-                  <div><span className="text-slate-500 dark:text-slate-400">Filing Deadline:</span> <span className="text-slate-900 dark:text-slate-100">{successModal.deadlineDate || '—'} ({successModal.deadlineDays} days)</span></div>
+                  <div><span className="text-slate-500 dark:text-slate-400">Filing Deadline:</span> <span className="text-slate-900 dark:text-slate-100">{successModal.deadlineDate || '—'} ({(() => {
+                    if (!successModal.deadlineDate) return '—'
+                    const today = new Date()
+                    today.setHours(0, 0, 0, 0)
+                    const deadline = new Date(successModal.deadlineDate)
+                    deadline.setHours(0, 0, 0, 0)
+                    const diffTime = deadline.getTime() - today.getTime()
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+                    return diffDays > 0 ? `${diffDays} days remaining` : 'overdue'
+                  })()})</span></div>
                 )}
               </div>
                   <div className="mt-5 flex justify-center">
