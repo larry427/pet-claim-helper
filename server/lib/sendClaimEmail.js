@@ -94,7 +94,9 @@ function buildClaimEmailHTML(insurer, claimData) {
   const insurerNames = {
     'nationwide': 'Nationwide Pet Insurance',
     'healthypaws': 'Healthy Paws Pet Insurance',
-    'trupanion': 'Trupanion'
+    'trupanion': 'Trupanion',
+    'pumpkin': 'Pumpkin Pet Insurance',
+    'spot': 'Spot Pet Insurance'
   }
 
   const insurerName = insurerNames[insurer.toLowerCase()] || insurer
@@ -290,7 +292,9 @@ function buildClaimEmailText(insurer, claimData) {
   const insurerNames = {
     'nationwide': 'Nationwide Pet Insurance',
     'healthypaws': 'Healthy Paws Pet Insurance',
-    'trupanion': 'Trupanion'
+    'trupanion': 'Trupanion',
+    'pumpkin': 'Pumpkin Pet Insurance',
+    'spot': 'Spot Pet Insurance'
   }
 
   const insurerName = insurerNames[insurer.toLowerCase()] || insurer

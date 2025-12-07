@@ -62,7 +62,8 @@ function shouldUseOfficialForm(normalizedInsurer) {
          normalizedInsurer.includes('trupanion') ||
          normalizedInsurer.includes('healthy') ||
          normalizedInsurer.includes('paws') ||
-         normalizedInsurer.includes('pumpkin')
+         normalizedInsurer.includes('pumpkin') ||
+         normalizedInsurer.includes('spot')
 }
 
 /**
