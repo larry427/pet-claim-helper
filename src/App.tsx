@@ -87,7 +87,7 @@ function MainApp() {
   const [visitTitle, setVisitTitle] = useState('')  // NEW: User friendly title
   const [expenseCategory, setExpenseCategory] = useState<'insured' | 'not_insured' | 'maybe_insured'>('insured')
   const [addingPet, setAddingPet] = useState(false)
-  const [newPet, setNewPet] = useState<{ name: string; species: PetSpecies; insuranceCompany: InsuranceCompany; filing_deadline_days?: number | ''; monthly_premium?: number | ''; deductible_per_claim?: number | ''; insurance_pays_percentage?: number | ''; coverage_start_date?: string; policyNumber?: string }>(
+  const [newPet, setNewPet] = useState<{ name: string; species: PetSpecies; insuranceCompany: InsuranceCompany; filing_deadline_days?: number | ''; monthly_premium?: number | ''; deductible_per_claim?: number | ''; insurance_pays_percentage?: number | ''; coverage_start_date?: string; policyNumber?: string; healthy_paws_pet_id?: string; spot_account_number?: string }>(
     {
     name: '',
     species: 'dog',
@@ -97,7 +97,9 @@ function MainApp() {
       deductible_per_claim: '',
       insurance_pays_percentage: '',
       coverage_start_date: '',
-      policyNumber: ''
+      policyNumber: '',
+      healthy_paws_pet_id: '',
+      spot_account_number: ''
     }
   )
   const [editingPetId, setEditingPetId] = useState<string | null>(null)
@@ -111,6 +113,8 @@ function MainApp() {
     coverage_start_date?: string;
     insurance_pays_percentage?: number | '';
     policyNumber?: string;
+    healthy_paws_pet_id?: string;
+    spot_account_number?: string;
   } | null>(null)
   const [newPetInsurer, setNewPetInsurer] = useState<string>('')
   const [editPetInsurer, setEditPetInsurer] = useState<string>('')
@@ -526,6 +530,8 @@ function MainApp() {
       insurance_pays_percentage: newPet.insurance_pays_percentage === '' ? null : (Number(newPet.insurance_pays_percentage) / 100),
       annual_coverage_limit: null,
       coverage_start_date: newPet.coverage_start_date || null,
+      healthy_paws_pet_id: (newPet.healthy_paws_pet_id || '').trim() || null,
+      spot_account_number: (newPet.spot_account_number || '').trim() || null,
     }
     const updated = [...pets, created]
     setPets(updated)
@@ -542,7 +548,7 @@ function MainApp() {
       setSelectedPetId(id)
     }
     setAddingPet(false)
-    setNewPet({ name: '', species: 'dog', insuranceCompany: '', filing_deadline_days: '', monthly_premium: '', deductible_per_claim: '', insurance_pays_percentage: '', coverage_start_date: '', policyNumber: '' })
+    setNewPet({ name: '', species: 'dog', insuranceCompany: '', filing_deadline_days: '', monthly_premium: '', deductible_per_claim: '', insurance_pays_percentage: '', coverage_start_date: '', policyNumber: '', healthy_paws_pet_id: '', spot_account_number: '' })
     setNewPetInsurer('')
     setCustomInsurerNameNew('')
     setCustomDeadlineNew('')
@@ -560,7 +566,8 @@ function MainApp() {
       coverage_start_date: (pet as any).coverage_start_date || '',
       insurance_pays_percentage: (pet as any).insurance_pays_percentage != null ? Math.round(Number((pet as any).insurance_pays_percentage) * 100) : '',
       policyNumber: pet.policyNumber || '',
-      healthy_paws_pet_id: (pet as any).healthy_paws_pet_id || ''
+      healthy_paws_pet_id: (pet as any).healthy_paws_pet_id || '',
+      spot_account_number: (pet as any).spot_account_number || ''
     })
     // Set dropdown to display value
     if (!pet.insuranceCompany || pet.insuranceCompany === '') {
@@ -608,6 +615,7 @@ function MainApp() {
             insurance_pays_percentage: editPet.insurance_pays_percentage === '' ? null : (Number(editPet.insurance_pays_percentage) / 100),
             annual_coverage_limit: p.annual_coverage_limit ?? null,
             healthy_paws_pet_id: (editPet as any).healthy_paws_pet_id || null,
+            spot_account_number: (editPet as any).spot_account_number || null,
           }
         : p,
     )
@@ -1560,6 +1568,19 @@ function MainApp() {
                       </div>
                     )}
 
+                    {newPetInsurer === 'Spot (270 days)' && (
+                      <div>
+                        <label htmlFor="pet-spot-account-number" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Account Number</label>
+                        <input
+                          id="pet-spot-account-number"
+                          value={newPet.spot_account_number || ''}
+                          onChange={(e) => setNewPet({ ...newPet, spot_account_number: e.target.value })}
+                          placeholder="e.g., 12345678"
+                          className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                        />
+                      </div>
+                    )}
+
                     {newPetInsurer && (
                       <>
                         <div>
@@ -1819,6 +1840,18 @@ function MainApp() {
                                   className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
                                 />
                                 <div className="mt-1 text-[11px] text-slate-500">Find this on your Healthy Paws policy card or portal</div>
+                              </div>
+                            )}
+                            {editPetInsurer === 'Spot (270 days)' && (
+                              <div className="sm:col-span-2">
+                                <label htmlFor="edit-pet-spot-account-number" className="block text-xs text-slate-500">Account Number</label>
+                                <input
+                                  id="edit-pet-spot-account-number"
+                                  value={editPet.spot_account_number || ''}
+                                  onChange={(e) => setEditPet({ ...editPet, spot_account_number: e.target.value })}
+                                  placeholder="e.g., 12345678"
+                                  className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
+                                />
                               </div>
                             )}
                             {editPetInsurer && editPetInsurer !== 'Not Insured' && editPetInsurer !== '— Select —' && (

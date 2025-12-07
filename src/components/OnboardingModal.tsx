@@ -27,6 +27,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
   const [species, setSpecies] = useState<'dog' | 'cat' | 'other' | ''>('')
   const [insuranceCompany, setInsuranceCompany] = useState('Not Insured')
   const [healthyPawsPetId, setHealthyPawsPetId] = useState('')
+  const [spotAccountNumber, setSpotAccountNumber] = useState('')
   const [policyNumber, setPolicyNumber] = useState('')
   const [monthlyPremium, setMonthlyPremium] = useState<string>('')
   const [deductiblePerClaim, setDeductiblePerClaim] = useState<string>('')
@@ -53,6 +54,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
     setSpecies('')
     setInsuranceCompany('Not Insured')
     setHealthyPawsPetId('')
+    setSpotAccountNumber('')
     setPolicyNumber('')
     setMonthlyPremium('')
     setDeductiblePerClaim('')
@@ -179,6 +181,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         species: species || 'other',
         insurance_company: insuranceValue || null,
         healthy_paws_pet_id: healthyPawsPetId.trim() || null,
+        spot_account_number: spotAccountNumber.trim() || null,
         policy_number: policyNumber.trim() || null,
         monthly_premium: monthlyPremium === '' ? null : parseFloat(monthlyPremium),
         deductible_per_claim: deductiblePerClaim === '' ? null : parseFloat(deductiblePerClaim),
@@ -300,6 +303,13 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Healthy Paws Pet ID</label>
                       <input value={healthyPawsPetId} onChange={(e) => setHealthyPawsPetId(e.target.value)} placeholder="e.g., 1400806-1" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
                       <p className="mt-1 text-xs text-slate-500">Find this on your Healthy Paws policy card or portal</p>
+                    </div>
+                  )}
+
+                  {insuranceCompany === 'Spot (270 days)' && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Account Number</label>
+                      <input value={spotAccountNumber} onChange={(e) => setSpotAccountNumber(e.target.value)} placeholder="e.g., 12345678" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
                     </div>
                   )}
 
