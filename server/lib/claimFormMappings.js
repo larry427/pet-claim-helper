@@ -178,31 +178,43 @@ const FORM_FIELD_MAPPINGS = {
   },
 
   spot: {
-    // ✅ FILLABLE PDF FORM (like Nationwide)
-    // Field names match the actual form field names in spot_claim_form.pdf
-    // Use pdf-lib form.getTextField() to fill these fields
-    // NOTE: Only output page 1
+    // ✅ EXACT FIELD NAMES from Spot PDF inspection
+    // Form location: server/lib/forms/spot_claim_form.pdf
+    // Use pdf-lib form.getTextField() and form.getCheckBox()
+    // CRITICAL: Field names must match EXACTLY or PDF will be blank
 
     // Policyholder Information
-    firstName: 'First_Name',
-    lastName: 'Last_Name',
+    policyholderName: 'Name',  // Single field - combine first + last
     address: 'Address',
-    city: 'City',
-    state: 'State',
-    zip: 'ZIP',
+    cityStateZip: 'City, State, Zip',  // Single field - format as "City, ST ZIP"
     policyholderPhone: 'Phone',
     policyholderEmail: 'Email',
+    spotAccountNumber: 'Account Number',  // Note the space!
 
     // Pet Information
-    petName: 'Pet_Name',
-    species: 'Species',
-    dateOfBirth: 'Date_of_Birth',
-    spotAccountNumber: 'Account_Number',
+    petName: 'Pet Name',  // Note the space!
+    breed: 'Breed',
+    age: 'Age',  // Calculated from DOB, not DOB itself
+    gender: 'Gender',
 
     // Claim Information
-    treatmentDate: 'Service_Date',
-    diagnosis: 'Diagnosis',
-    totalAmount: 'Total_Amount'
+    diagnosis: 'Please describe this incident, including dates, details, and symptoms leading up to it',
+    totalAmount: 'Total amount claimed',
+    dateFirstOccurred: 'Date illness/injury first occurred:',
+    veterinarian: 'Veterinarian',
+    clinicName: 'Clinic Name',
+
+    // Signature
+    signature: 'Electronically sign here',
+    signatureDate: 'Date',
+
+    // Checkboxes
+    claimEstimateNo: 'Claim Estimate No',
+    paymentToMe: 'Me',
+    otherVetNo: 'Other Veterinarian No',
+    claimTypeAccident: 'Accident',
+    claimTypeIllness: 'Illness',
+    claimTypeWellness: 'Wellness'
   }
 }
 
