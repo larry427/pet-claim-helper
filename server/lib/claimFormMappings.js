@@ -175,6 +175,34 @@ const FORM_FIELD_MAPPINGS = {
     // - No policyholder address/city/state/zip/email fields
     // - No total amount or itemized charges fields
     // - Invoice must be attached separately
+  },
+
+  spot: {
+    // ✅ FILLABLE PDF FORM (like Nationwide)
+    // Field names match the actual form field names in spot_claim_form.pdf
+    // Use pdf-lib form.getTextField() to fill these fields
+    // NOTE: Only output page 1
+
+    // Policyholder Information
+    firstName: 'First_Name',
+    lastName: 'Last_Name',
+    address: 'Address',
+    city: 'City',
+    state: 'State',
+    zip: 'ZIP',
+    policyholderPhone: 'Phone',
+    policyholderEmail: 'Email',
+
+    // Pet Information
+    petName: 'Pet_Name',
+    species: 'Species',
+    dateOfBirth: 'Date_of_Birth',
+    spotAccountNumber: 'Account_Number',
+
+    // Claim Information
+    treatmentDate: 'Service_Date',
+    diagnosis: 'Diagnosis',
+    totalAmount: 'Total_Amount'
   }
 }
 
@@ -273,6 +301,8 @@ export function getMappingForInsurer(insurerName) {
     return FORM_FIELD_MAPPINGS.trupanion
   } else if (normalized.includes('pumpkin')) {
     return FORM_FIELD_MAPPINGS.pumpkin
+  } else if (normalized.includes('spot')) {
+    return FORM_FIELD_MAPPINGS.spot
   }
 
   return null

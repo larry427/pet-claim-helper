@@ -1134,7 +1134,8 @@ function getProductionEmail(insurer) {
     'healthy paws': 'claims@healthypawspetinsurance.com',
     'healthypaws': 'claims@healthypawspetinsurance.com',
     'trupanion': 'claims@trupanion.com',
-    'pumpkin': 'claims@pumpkin.care'
+    'pumpkin': 'claims@pumpkin.care',
+    'spot': 'claims@spotpet.com'  // TODO: Verify actual Spot claims email address
   }
   const normalizedName = insurer.toLowerCase()
   return emails[normalizedName] || null
