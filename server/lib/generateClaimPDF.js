@@ -93,7 +93,7 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
     pdfFilename = 'pumpkin-claim-form.pdf'
     console.log(`   ✅ Matched: Pumpkin`)
   } else if (normalizedInsurer.includes('spot')) {
-    pdfFilename = 'spot_claim_form.pdf'
+    pdfFilename = 'Spot_Claim_Form.pdf'
     console.log(`   ✅ Matched: Spot`)
   } else {
     console.log(`   ❌ NO MATCH for insurer: "${insurer}"`)
@@ -102,9 +102,8 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
 
   console.log(`   Selected PDF: "${pdfFilename}"`)
 
-  // Load the official PDF
-  // Spot uses server/lib/forms/ directory, others use server/claim-forms/
-  const pdfDir = normalizedInsurer.includes('spot') ? 'forms' : path.join('..', 'claim-forms')
+  // Load the official PDF from server/claim-forms/
+  const pdfDir = path.join('..', 'claim-forms')
   const pdfPath = path.join(__dirname, pdfDir, pdfFilename)
   console.log(`   Full path: "${pdfPath}"`)
   console.log(`   __dirname: "${__dirname}"`)
