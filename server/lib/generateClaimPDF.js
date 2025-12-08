@@ -601,6 +601,9 @@ function getValueForField(fieldName, claimData, dateSigned) {
     // SPOT INSURANCE FORM FIELDS
     // Policyholder Information - Combined fields
     policyholderName: claimData.policyholderName,  // Single field: "FirstName LastName"
+    address: claimData.policyholderAddress || policyholderAddr.street,  // "Address" field
+    policyholderPhone: formatPhone(claimData.policyholderPhone),  // "Phone" field
+    policyholderEmail: claimData.policyholderEmail,  // "Email" field
     cityStateZip: (() => {
       // Single field formatted as "City, ST ZIP"
       const c = claimData.city || policyholderAddr.city
@@ -612,14 +615,21 @@ function getValueForField(fieldName, claimData, dateSigned) {
     spotAccountNumber: claimData.spotAccountNumber,
 
     // Pet Information
+    petName: claimData.petName,  // "Pet Name" field
     breed: claimData.breed,
     age: claimData.petDateOfBirth ? calculateAge(claimData.petDateOfBirth) : null,  // Calculate from DOB
     gender: claimData.petGender,
 
     // Claim Information
+    diagnosis: claimData.diagnosis,  // "Please describe this incident..." field
+    totalAmount: claimData.totalAmount ? formatAmount(claimData.totalAmount) : null,  // "Total amount claimed" field
     dateFirstOccurred: claimData.treatmentDate ? formatDate(claimData.treatmentDate) : null,
     veterinarian: claimData.treatingVet || claimData.vetClinicName,
     clinicName: claimData.vetClinicName,
+
+    // Signature fields
+    signature: userSignature,  // "Electronically sign here" field (handled by signature embedding code)
+    signatureDate: dateSigned,  // "Date" field
 
     // Checkboxes - Spot specific
     claimEstimateNo: true,  // Always check "No" for estimate
@@ -628,7 +638,7 @@ function getValueForField(fieldName, claimData, dateSigned) {
     // Claim type checkboxes - only check one based on claimType
     claimTypeAccident: claimData.claimType === 'Accident',
     claimTypeIllness: claimData.claimType === 'Illness',
-    claimTypeWellness: claimData.claimType === 'Preventive'
+    claimTypeWellness: claimData.claimType === 'Wellness'  // NOT 'Preventive'!
   }
 
   return fieldMap[fieldName]
