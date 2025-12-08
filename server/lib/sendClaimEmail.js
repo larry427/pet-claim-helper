@@ -19,8 +19,11 @@ export async function sendClaimEmail(insurer, claimData, pdfBuffer, invoiceBuffe
       throw new Error(`Unknown insurer: ${insurer}`)
     }
 
-    // Build email subject
-    const subject = `Pet Insurance Claim Submission - ${claimData.policyNumber} - ${claimData.petName}`
+    // Build email subject - use Account Number for Spot, Policy Number for others
+    const accountOrPolicy = insurer.toLowerCase() === 'spot'
+      ? (claimData.spotAccountNumber || 'N/A')
+      : (claimData.policyNumber || 'N/A')
+    const subject = `Pet Insurance Claim Submission - ${accountOrPolicy} - ${claimData.petName}`
 
     // Update claimData to reflect whether invoice is attached
     claimData.invoiceAttached = !!invoiceBuffer
@@ -32,7 +35,7 @@ export async function sendClaimEmail(insurer, claimData, pdfBuffer, invoiceBuffe
     // Prepare attachments - claim form is always attached
     const attachments = [
       {
-        filename: `claim-form-${claimData.policyNumber}.pdf`,
+        filename: `claim-form-${accountOrPolicy}.pdf`,
         content: pdfBuffer
       }
     ]
@@ -40,7 +43,7 @@ export async function sendClaimEmail(insurer, claimData, pdfBuffer, invoiceBuffe
     // Add invoice PDF if provided
     if (invoiceBuffer) {
       attachments.push({
-        filename: `veterinary-invoice-${claimData.policyNumber}.pdf`,
+        filename: `veterinary-invoice-${accountOrPolicy}.pdf`,
         content: invoiceBuffer
       })
       console.log('[Email] Attaching invoice PDF to email')
@@ -204,8 +207,8 @@ function buildClaimEmailHTML(insurer, claimData) {
 
     <div class="info-section">
       <div class="info-row">
-        <span class="info-label">Policy Number:</span>
-        <span class="info-value">${claimData.policyNumber}</span>
+        <span class="info-label">${insurer.toLowerCase() === 'spot' ? 'Account Number:' : 'Policy Number:'}</span>
+        <span class="info-value">${insurer.toLowerCase() === 'spot' ? (claimData.spotAccountNumber || 'N/A') : (claimData.policyNumber || 'N/A')}</span>
       </div>
       <div class="info-row">
         <span class="info-label">Policyholder:</span>
@@ -307,7 +310,7 @@ Dear ${insurerName} Claims Department,
 Please find attached a pet insurance claim submission for the following policy:
 
 CLAIM DETAILS:
-- Policy Number: ${claimData.policyNumber}
+- ${insurer.toLowerCase() === 'spot' ? 'Account Number' : 'Policy Number'}: ${insurer.toLowerCase() === 'spot' ? (claimData.spotAccountNumber || 'N/A') : (claimData.policyNumber || 'N/A')}
 - Policyholder: ${claimData.policyholderName}
 - Pet Name: ${claimData.petName} (${claimData.petSpecies})
 - Treatment Date: ${formatDate(claimData.treatmentDate)}
