@@ -1846,13 +1846,9 @@ function MainApp() {
                                 ))}
                               </select>
                             </div>
-                            {editPetInsurer === 'Not Insured' ? (
+                            {editPetInsurer === 'Not Insured' && (
                               <div className="sm:col-span-1 flex items-center text-xs text-slate-500 bg-blue-50/50 dark:bg-blue-900/10 px-3 py-2 rounded-md border border-blue-200 dark:border-blue-800">
                                 <span>✓ No insurance selected. You can still track vet bills and file claims manually.</span>
-                              </div>
-                            ) : (
-                              <div className="sm:col-span-1 flex items-end text-xs text-slate-600">
-                                {editPetInsurer && editPetInsurer !== '— Select —' ? `Filing Deadline: ${editPet.filing_deadline_days || 90} days` : ''}
                               </div>
                             )}
                             {editPetInsurer === 'Healthy Paws (90 days)' && (
