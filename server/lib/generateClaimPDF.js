@@ -616,7 +616,7 @@ function getValueForField(fieldName, claimData, dateSigned) {
     // Pet Information
     petName: claimData.petName,  // "Pet Name" field
     breed: claimData.breed,
-    age: claimData.petDateOfBirth ? calculateAge(claimData.petDateOfBirth) : null,  // Calculate from DOB
+    age: claimData.age || null,  // Use age directly from user input (not calculated)
     gender: claimData.petGender,
 
     // Claim Information

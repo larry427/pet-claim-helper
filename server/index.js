@@ -1602,7 +1602,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
 
       // ========== CLAIM-SPECIFIC FIELDS (save to claims table) ==========
 
-      // Save claimType to claims table (for Pumpkin)
+      // Save claimType to claims table (for Pumpkin/Spot)
       if (collectedData.claimType) {
         const { error: claimTypeError } = await supabase
           .from('claims')
@@ -1616,8 +1616,23 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         }
       }
 
+      // Save age to claims table (for Spot)
+      if (collectedData.age) {
+        const { error: ageError } = await supabase
+          .from('claims')
+          .update({ age: collectedData.age })
+          .eq('id', claimId)
+
+        if (ageError) {
+          console.error('[Save Collected Fields] Error saving age:', ageError)
+        } else {
+          console.log('[Save Collected Fields] Saved age:', collectedData.age)
+        }
+      }
+
       // Note: These are claim-specific, will be saved to claims table above:
-      // - claimType (Pumpkin) ✅ SAVED
+      // - claimType (Pumpkin/Spot) ✅ SAVED
+      // - age (Spot) ✅ SAVED
       // - bodyPartAffected (Nationwide) - TODO: save to claims.body_part
       // - previousClaimSameCondition (Trupanion) - TODO: save to claims.previous_claim_same_condition
       // - previousClaimNumber (Trupanion) - TODO: save to claims.previous_claim_number
@@ -1816,7 +1831,10 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         previousClaimSameCondition: claim.previous_claim_same_condition || 'No',
 
         // Pumpkin: Claim type (Accident/Illness/Preventive)
-        claimType: claim.claim_type || null
+        claimType: claim.claim_type || null,
+
+        // Spot: Pet age (direct user input, not calculated)
+        age: claim.age || null
       }
 
       console.log('\n' + '='.repeat(80))
@@ -2060,7 +2078,10 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         paymentMethod: claim.payment_method || 'I have paid in full',
 
         // Pumpkin: Claim type (Accident/Illness/Preventive)
-        claimType: claim.claim_type || null
+        claimType: claim.claim_type || null,
+
+        // Spot: Pet age (direct user input, not calculated)
+        age: claim.age || null
       }
 
       // Get insurer from pet's insurance company

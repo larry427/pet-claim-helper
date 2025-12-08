@@ -828,12 +828,14 @@ export const INSURER_REQUIRED_FIELDS = {
       description: 'Required for the Spot claim form'
     },
     {
-      field: 'dateOfBirth',
-      source: 'pets.date_of_birth',
+      field: 'age',
+      source: 'claim.age',
       required: true,
-      type: 'date',
-      prompt: "Pet's date of birth",
-      description: 'Used to calculate age for the claim form'
+      type: 'text',
+      prompt: "Pet's age",
+      placeholder: 'e.g., 4 or 5 years',
+      description: 'Enter your pet\'s age (e.g., "4" or "5 years")',
+      saveToDb: false  // Ask every time, don't persist
     },
     {
       field: 'claimType',
@@ -939,6 +941,7 @@ function getFieldValue(fieldName, profileData, petData, claimData) {
     'previousClaimNumber': claimData?.previous_claim_number,
     'paymentMethod': claimData?.payment_method,
     'claimType': claimData?.claim_type,
+    'age': claimData?.age,  // Pet age for Spot claims
   }
 
   const value = fieldMap[fieldName]
