@@ -1581,7 +1581,7 @@ function MainApp() {
                       </div>
                     )}
 
-                    {newPetInsurer && (
+                    {newPetInsurer && newPetInsurer !== 'Spot (270 days)' && (
                       <>
                         <div>
                           <label htmlFor="pet-policy-number" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Policy Number</label>
@@ -1854,7 +1854,7 @@ function MainApp() {
                                 />
                               </div>
                             )}
-                            {editPetInsurer && editPetInsurer !== 'Not Insured' && editPetInsurer !== '— Select —' && (
+                            {editPetInsurer && editPetInsurer !== 'Not Insured' && editPetInsurer !== '— Select —' && editPetInsurer !== 'Spot (270 days)' && (
                               <div className="sm:col-span-2">
                                 <label htmlFor="edit-pet-policy-number" className="block text-xs text-slate-500">Policy Number <span className="text-slate-400">(optional)</span></label>
                                 <input

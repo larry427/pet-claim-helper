@@ -313,7 +313,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
                     </div>
                   )}
 
-                  {insuranceCompany && insuranceCompany !== '— Select —' && insuranceCompany !== 'Not Insured' && (
+                  {insuranceCompany && insuranceCompany !== '— Select —' && insuranceCompany !== 'Not Insured' && insuranceCompany !== 'Spot (270 days)' && (
                     <>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Policy Number</label>
