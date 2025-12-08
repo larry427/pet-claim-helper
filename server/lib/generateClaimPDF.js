@@ -92,6 +92,9 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
   } else if (normalizedInsurer.includes('pumpkin')) {
     pdfFilename = 'pumpkin-claim-form.pdf'
     console.log(`   ✅ Matched: Pumpkin`)
+  } else if (normalizedInsurer.includes('spot')) {
+    pdfFilename = 'spot_claim_form.pdf'
+    console.log(`   ✅ Matched: Spot`)
   } else {
     console.log(`   ❌ NO MATCH for insurer: "${insurer}"`)
     throw new Error(`No official form available for insurer: ${insurer}`)
@@ -100,7 +103,9 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
   console.log(`   Selected PDF: "${pdfFilename}"`)
 
   // Load the official PDF
-  const pdfPath = path.join(__dirname, '..', 'claim-forms', pdfFilename)
+  // Spot uses server/lib/forms/ directory, others use server/claim-forms/
+  const pdfDir = normalizedInsurer.includes('spot') ? 'forms' : path.join('..', 'claim-forms')
+  const pdfPath = path.join(__dirname, pdfDir, pdfFilename)
   console.log(`   Full path: "${pdfPath}"`)
   console.log(`   __dirname: "${__dirname}"`)
 
@@ -135,10 +140,11 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
     return await fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignature, dateSigned)
   }
 
-  // Remove unwanted pages from Nationwide form (keep only page 1)
-  if (normalizedInsurer.includes('nationwide')) {
+  // Remove unwanted pages - keep only page 1 for Nationwide and Spot
+  if (normalizedInsurer.includes('nationwide') || normalizedInsurer.includes('spot')) {
     const pageCount = pdfDoc.getPageCount()
-    console.log(`📄 Nationwide PDF has ${pageCount} pages`)
+    const insurerName = normalizedInsurer.includes('nationwide') ? 'Nationwide' : 'Spot'
+    console.log(`📄 ${insurerName} PDF has ${pageCount} pages`)
 
     // Remove all pages except the first one
     if (pageCount > 1) {
@@ -447,6 +453,34 @@ function getValueForField(fieldName, claimData, dateSigned) {
     return parts[1] || null
   }
 
+  // Helper to calculate age from date of birth
+  const calculateAge = (dateOfBirth) => {
+    if (!dateOfBirth) return null
+    try {
+      const birthDate = new Date(dateOfBirth)
+      const today = new Date()
+      let years = today.getFullYear() - birthDate.getFullYear()
+      const monthDiff = today.getMonth() - birthDate.getMonth()
+
+      // Adjust if birthday hasn't occurred yet this year
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        years--
+      }
+
+      // Return formatted age string
+      if (years === 0) {
+        const months = Math.floor((today - birthDate) / (1000 * 60 * 60 * 24 * 30))
+        return `${months} months`
+      } else if (years === 1) {
+        return '1 year'
+      } else {
+        return `${years} years`
+      }
+    } catch {
+      return null
+    }
+  }
+
   // Parse addresses
   const policyholderAddr = parseAddress(claimData.policyholderAddress)
 
@@ -562,7 +596,39 @@ function getValueForField(fieldName, claimData, dateSigned) {
     city: claimData.city || policyholderAddr.city,
     state: claimData.state || policyholderAddr.state,
     zip: claimData.zip || policyholderAddr.zip,
-    dateIllnessOccurred: claimData.treatmentDate ? formatDate(claimData.treatmentDate) : null
+    dateIllnessOccurred: claimData.treatmentDate ? formatDate(claimData.treatmentDate) : null,
+
+    // SPOT INSURANCE FORM FIELDS
+    // Policyholder Information - Combined fields
+    policyholderName: claimData.policyholderName,  // Single field: "FirstName LastName"
+    cityStateZip: (() => {
+      // Single field formatted as "City, ST ZIP"
+      const c = claimData.city || policyholderAddr.city
+      const s = claimData.state || policyholderAddr.state
+      const z = claimData.zip || policyholderAddr.zip
+      if (!c || !s || !z) return null
+      return `${c}, ${s} ${z}`
+    })(),
+    spotAccountNumber: claimData.spotAccountNumber,
+
+    // Pet Information
+    breed: claimData.breed,
+    age: claimData.petDateOfBirth ? calculateAge(claimData.petDateOfBirth) : null,  // Calculate from DOB
+    gender: claimData.petGender,
+
+    // Claim Information
+    dateFirstOccurred: claimData.treatmentDate ? formatDate(claimData.treatmentDate) : null,
+    veterinarian: claimData.treatingVet || claimData.vetClinicName,
+    clinicName: claimData.vetClinicName,
+
+    // Checkboxes - Spot specific
+    claimEstimateNo: true,  // Always check "No" for estimate
+    paymentToMe: true,  // Always check "Me" for payment
+    otherVetNo: true,  // Always check "No" for other veterinarian
+    // Claim type checkboxes - only check one based on claimType
+    claimTypeAccident: claimData.claimType === 'Accident',
+    claimTypeIllness: claimData.claimType === 'Illness',
+    claimTypeWellness: claimData.claimType === 'Preventive'
   }
 
   return fieldMap[fieldName]
