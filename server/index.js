@@ -1637,6 +1637,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
             species,
             breed,
             date_of_birth,
+            gender,
             policy_number,
             insurance_company,
             preferred_vet_name,
@@ -1644,7 +1645,8 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
             spay_neuter_status,
             spay_neuter_date,
             healthy_paws_pet_id,
-            pumpkin_account_number
+            pumpkin_account_number,
+            spot_account_number
           )
         `)
         .eq('id', claimId)
@@ -1747,11 +1749,13 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         policyNumber: claim.pets.policy_number || 'N/A',  // Get from pets table, not claims table
         healthyPawsPetId: claim.pets.healthy_paws_pet_id || '',  // For Healthy Paws form
         pumpkinAccountNumber: claim.pets.pumpkin_account_number || '',  // For Pumpkin form
+        spotAccountNumber: claim.pets.spot_account_number || '',  // For Spot form
         petName: claim.pets.name,
         petSpecies: claim.pets.species,
         breed: claim.pets.breed || '',  // For Pumpkin (uses 'breed' not 'petBreed')
         petBreed: claim.pets.breed || '',  // For other insurers
         petAge: petAge,
+        petGender: claim.pets.gender || '',  // For Spot form
         petDateOfBirth: claim.pets.date_of_birth, // For Trupanion form
         petAdoptionDate: claim.pets.adoption_date, // For Trupanion form
         petSpayNeuterStatus: claim.pets.spay_neuter_status, // For Trupanion form
@@ -1937,6 +1941,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
             species,
             breed,
             date_of_birth,
+            gender,
             policy_number,
             insurance_company,
             preferred_vet_name,
@@ -1944,7 +1949,8 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
             spay_neuter_status,
             spay_neuter_date,
             healthy_paws_pet_id,
-            pumpkin_account_number
+            pumpkin_account_number,
+            spot_account_number
           )
         `)
         .eq('id', claimId)
@@ -1987,9 +1993,11 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         policyNumber: claim.pets.policy_number || 'N/A',
         healthyPawsPetId: claim.pets.healthy_paws_pet_id || '',  // For Healthy Paws form
         pumpkinAccountNumber: claim.pets.pumpkin_account_number || '',  // For Pumpkin form
+        spotAccountNumber: claim.pets.spot_account_number || '',  // For Spot form
         petName: claim.pets.name,
         petSpecies: claim.pets.species,
         breed: claim.pets.breed || '',  // For Pumpkin (uses 'breed' not 'petBreed')
+        petGender: claim.pets.gender || '',  // For Spot form
         petBreed: claim.pets.breed || '',
         petAge: petAge,
         petDateOfBirth: claim.pets.date_of_birth, // For Trupanion form
