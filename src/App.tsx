@@ -512,8 +512,9 @@ function MainApp() {
       newPet.insuranceCompany = nm as any
       newPet.filing_deadline_days = dd
     } else {
-      newPet.insuranceCompany = newPetInsurer as any
-      newPet.filing_deadline_days = 90
+      // Convert display value to database value (strip deadline label)
+      newPet.insuranceCompany = getInsuranceValue(newPetInsurer) as any
+      newPet.filing_deadline_days = getDeadlineDays(getInsuranceValue(newPetInsurer)) || 90
     }
     // DEBUG: Log the form values BEFORE creating the pet object
     console.log('🔍 [addPet] STEP 1 - Form values from newPet:')
