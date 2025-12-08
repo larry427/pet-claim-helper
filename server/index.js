@@ -1071,6 +1071,16 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
 
       console.log('[Validate Fields] Found pet:', { id: pet.id, name: pet.name, insurance_company: pet.insurance_company })
 
+      // DEBUG: Show Spot account number if Spot insurer
+      if (insurer.toLowerCase().includes('spot')) {
+        console.log('🔍 [SPOT DEBUG] Pet data for Spot claim:')
+        console.log('  - pet.spot_account_number:', pet.spot_account_number)
+        console.log('  - pet.breed:', pet.breed)
+        console.log('  - pet.gender:', pet.gender)
+        console.log('  - pet.date_of_birth:', pet.date_of_birth)
+        console.log('  - Full pet object keys:', Object.keys(pet))
+      }
+
       // 3. Get profile data
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -1092,6 +1102,19 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         pet,
         claim
       )
+
+      // DEBUG: Show missing fields for Spot
+      if (insurer.toLowerCase().includes('spot')) {
+        console.log('🔍 [SPOT DEBUG] Missing fields check:')
+        console.log('  - Total missing fields:', missingFields.length)
+        console.log('  - Missing field names:', missingFields.map(f => f.field))
+        const spotAccountField = missingFields.find(f => f.field === 'spotAccountNumber')
+        if (spotAccountField) {
+          console.log('  - ❌ spotAccountNumber IS MISSING (this is the bug!)')
+        } else {
+          console.log('  - ✅ spotAccountNumber is NOT missing')
+        }
+      }
 
       // 5. Build existingData object with ALL field values (not just missing ones)
       // This allows the MissingFieldsModal to pre-fill existing values

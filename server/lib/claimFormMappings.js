@@ -896,6 +896,13 @@ export function getMissingRequiredFields(insurerName, profileData, petData, clai
  * Helper to get field value from the appropriate source
  */
 function getFieldValue(fieldName, profileData, petData, claimData) {
+  // DEBUG: Log petData for spotAccountNumber specifically
+  if (fieldName === 'spotAccountNumber') {
+    console.log('🔍 [SPOT DEBUG - getFieldValue] Checking spotAccountNumber:')
+    console.log('  - petData.spot_account_number:', petData?.spot_account_number)
+    console.log('  - petData keys:', petData ? Object.keys(petData) : 'petData is null/undefined')
+  }
+
   // Map field names to data sources
   const fieldMap = {
     // Profile fields
