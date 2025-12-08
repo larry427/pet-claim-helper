@@ -515,6 +515,12 @@ function MainApp() {
       newPet.insuranceCompany = newPetInsurer as any
       newPet.filing_deadline_days = 90
     }
+    // DEBUG: Log the form values BEFORE creating the pet object
+    console.log('🔍 [addPet] STEP 1 - Form values from newPet:')
+    console.log('  - newPet.spot_account_number:', newPet.spot_account_number)
+    console.log('  - After trim:', (newPet.spot_account_number || '').trim())
+    console.log('  - Final value:', (newPet.spot_account_number || '').trim() || null)
+
     const id = (globalThis.crypto?.randomUUID?.() ?? String(Date.now()))
     const created: PetProfile = {
       id,
@@ -533,10 +539,24 @@ function MainApp() {
       healthy_paws_pet_id: (newPet.healthy_paws_pet_id || '').trim() || null,
       spot_account_number: (newPet.spot_account_number || '').trim() || null,
     }
+
+    // DEBUG: Log the created pet object AFTER creation
+    console.log('🔍 [addPet] STEP 2 - Created PetProfile object:')
+    console.log('  - created.spot_account_number:', created.spot_account_number)
+    console.log('  - Full created object:', created)
     const updated = [...pets, created]
     setPets(updated)
     if (userId) {
-      dbUpsertPet(userId, created).catch((e) => { console.error('[addPet] upsert error', e) })
+      console.log('🔍 [addPet] STEP 3 - Calling dbUpsertPet with userId:', userId)
+      dbUpsertPet(userId, created)
+        .then(() => {
+          console.log('🔍 [addPet] STEP 4 - dbUpsertPet SUCCESS')
+        })
+        .catch((e) => {
+          console.error('🔍 [addPet] STEP 4 - dbUpsertPet ERROR:', e)
+        })
+    } else {
+      console.log('🔍 [addPet] STEP 3 - SKIPPED dbUpsertPet (no userId)')
     }
     // If we were adding a pet for a pending match, set it
     if (pendingMatchIndex !== null) {

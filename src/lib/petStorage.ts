@@ -74,8 +74,18 @@ export async function dbUpsertPet(userId: string, pet: PetProfile): Promise<void
   }
   // Debug
   // eslint-disable-next-line no-console
-  console.log('[dbUpsertPet] userId=', userId, 'payload=', payload)
-  const { error } = await supabase.from('pets').upsert(payload, { onConflict: 'id' }).select()
+  console.log('🔍 [dbUpsertPet] BEFORE Supabase call:')
+  console.log('  - userId:', userId)
+  console.log('  - payload.spot_account_number:', payload.spot_account_number)
+  console.log('  - Full payload:', payload)
+
+  const { data, error } = await supabase.from('pets').upsert(payload, { onConflict: 'id' }).select()
+
+  // eslint-disable-next-line no-console
+  console.log('🔍 [dbUpsertPet] AFTER Supabase call:')
+  console.log('  - data:', data)
+  console.log('  - error:', error)
+
   if (error) throw error
 }
 
