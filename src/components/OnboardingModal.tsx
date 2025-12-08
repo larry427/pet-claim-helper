@@ -313,12 +313,17 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
                     </div>
                   )}
 
+                  {/* Policy Number - hide for Spot only */}
                   {insuranceCompany && insuranceCompany !== '— Select —' && insuranceCompany !== 'Not Insured' && insuranceCompany !== 'Spot (270 days)' && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Policy Number</label>
+                      <input value={policyNumber} onChange={(e) => setPolicyNumber(e.target.value)} placeholder="e.g., NW12345 or TP123456" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
+                    </div>
+                  )}
+
+                  {/* These 4 fields show for ALL insurers including Spot */}
+                  {insuranceCompany && insuranceCompany !== '— Select —' && insuranceCompany !== 'Not Insured' && (
                     <>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Policy Number</label>
-                        <input value={policyNumber} onChange={(e) => setPolicyNumber(e.target.value)} placeholder="e.g., NW12345 or TP123456" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
-                      </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Monthly Premium (USD)</label>
                         <input type="number" min={0} value={monthlyPremium} onChange={(e) => setMonthlyPremium(e.target.value)} placeholder="50" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />

@@ -1581,18 +1581,23 @@ function MainApp() {
                       </div>
                     )}
 
-                    {newPetInsurer && newPetInsurer !== 'Spot (270 days)' && (
+                    {/* Policy Number - hide for Spot only */}
+                    {newPetInsurer && newPetInsurer !== 'Not Insured' && newPetInsurer !== '— Select —' && newPetInsurer !== 'Spot (270 days)' && (
+                      <div>
+                        <label htmlFor="pet-policy-number" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Policy Number</label>
+                        <input
+                          id="pet-policy-number"
+                          value={newPet.policyNumber || ''}
+                          onChange={(e) => setNewPet({ ...newPet, policyNumber: e.target.value })}
+                          placeholder="e.g., NW12345 or TP123456"
+                          className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                        />
+                      </div>
+                    )}
+
+                    {/* These 4 fields show for ALL insurers including Spot */}
+                    {newPetInsurer && newPetInsurer !== 'Not Insured' && newPetInsurer !== '— Select —' && (
                       <>
-                        <div>
-                          <label htmlFor="pet-policy-number" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Policy Number</label>
-                          <input
-                            id="pet-policy-number"
-                            value={newPet.policyNumber || ''}
-                            onChange={(e) => setNewPet({ ...newPet, policyNumber: e.target.value })}
-                            placeholder="e.g., NW12345 or TP123456"
-                            className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
-                          />
-                        </div>
                         <div>
                           <label htmlFor="pet-premium" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Monthly Premium (USD)</label>
                           <input id="pet-premium" type="number" min={0} value={String(newPet.monthly_premium ?? '')} onChange={(e) => setNewPet({ ...newPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="50" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
