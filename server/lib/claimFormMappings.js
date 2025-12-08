@@ -886,6 +886,7 @@ function getFieldValue(fieldName, profileData, petData, claimData) {
     'policyNumber': petData?.policy_number,
     'healthyPawsPetId': petData?.healthy_paws_pet_id,
     'pumpkinAccountNumber': petData?.pumpkin_account_number,
+    'spotAccountNumber': petData?.spot_account_number,
     'breed': petData?.breed,
     'dateOfBirth': petData?.date_of_birth,
     'adoptionDate': petData?.adoption_date,

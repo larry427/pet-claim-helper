@@ -1115,6 +1115,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         'policyNumber': pet?.policy_number,
         'healthyPawsPetId': pet?.healthy_paws_pet_id,
         'pumpkinAccountNumber': pet?.pumpkin_account_number,
+        'spotAccountNumber': pet?.spot_account_number,
         'breed': pet?.breed,
         'dateOfBirth': pet?.date_of_birth,
         'petDateOfBirth': pet?.date_of_birth,  // Alternative field name
