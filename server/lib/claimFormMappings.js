@@ -810,12 +810,39 @@ export const INSURER_REQUIRED_FIELDS = {
       description: 'Your Spot account number from your policy documents'
     },
     {
+      field: 'breed',
+      source: 'pets.breed',
+      required: true,
+      type: 'text',
+      prompt: "Pet's breed",
+      placeholder: 'e.g., Golden Retriever, Domestic Shorthair',
+      description: 'Required for the Spot claim form'
+    },
+    {
+      field: 'gender',
+      source: 'pets.gender',
+      required: true,
+      type: 'radio',
+      prompt: "Pet's gender",
+      options: ['Male', 'Female'],
+      description: 'Required for the Spot claim form'
+    },
+    {
       field: 'dateOfBirth',
       source: 'pets.date_of_birth',
       required: true,
       type: 'date',
       prompt: "Pet's date of birth",
       description: 'Used to calculate age for the claim form'
+    },
+    {
+      field: 'claimType',
+      source: 'claim.claim_type',
+      required: true,
+      type: 'radio',
+      prompt: 'What type of claim is this?',
+      options: ['Accident', 'Illness', 'Wellness'],
+      description: 'Select the type of claim you are filing'
     }
   ]
 }
@@ -888,6 +915,7 @@ function getFieldValue(fieldName, profileData, petData, claimData) {
     'pumpkinAccountNumber': petData?.pumpkin_account_number,
     'spotAccountNumber': petData?.spot_account_number,
     'breed': petData?.breed,
+    'gender': petData?.gender,
     'dateOfBirth': petData?.date_of_birth,
     'adoptionDate': petData?.adoption_date,
     'spayNeuterStatus': petData?.spay_neuter_status,
