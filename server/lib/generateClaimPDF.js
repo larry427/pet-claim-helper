@@ -627,8 +627,7 @@ function getValueForField(fieldName, claimData, dateSigned) {
     veterinarian: claimData.treatingVet || claimData.vetClinicName,
     clinicName: claimData.vetClinicName,
 
-    // Signature fields
-    signature: userSignature,  // "Electronically sign here" field (handled by signature embedding code)
+    // Signature date field (signature image is embedded separately, not via fieldMap)
     signatureDate: dateSigned,  // "Date" field
 
     // Checkboxes - Spot specific
