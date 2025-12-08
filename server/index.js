@@ -1491,6 +1491,20 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         }
       }
 
+      // Save gender to pets table
+      if (collectedData.gender) {
+        const { error: genderError } = await supabase
+          .from('pets')
+          .update({ gender: collectedData.gender })
+          .eq('id', petId)
+
+        if (genderError) {
+          console.error('[Save Collected Fields] Error saving gender:', genderError)
+        } else {
+          console.log('[Save Collected Fields] Saved gender:', collectedData.gender)
+        }
+      }
+
       // Save date_of_birth to pets table
       if (collectedData.dateOfBirth) {
         const { error: dobError } = await supabase
