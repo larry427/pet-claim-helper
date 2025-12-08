@@ -38,6 +38,11 @@ export type PetProfile = {
   insurance_pays_percentage?: number | null // decimal 0-1
   annual_coverage_limit?: number | null
   healthy_paws_pet_id?: string | null
+  pumpkin_account_number?: string | null
+  spot_account_number?: string | null
+  breed?: string | null
+  gender?: string | null
+  date_of_birth?: string | null
 }
 
 export type ExtractedPetGroup = {
