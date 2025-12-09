@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { createPet } from '../lib/petStorage'
 import { formatPhoneOnChange, formatPhoneForStorage } from '../utils/phoneUtils'
 import { INSURANCE_OPTIONS, getInsuranceValue, getDeadlineDays } from '../lib/insuranceOptions'
+import { SignatureCapture } from './SignatureCapture'
 
 type Props = {
   open: boolean
@@ -11,7 +12,7 @@ type Props = {
 }
 
 export default function OnboardingModal({ open, onClose, userId }: Props) {
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -22,7 +23,10 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
   const [state, setState] = useState('')
   const [zip, setZip] = useState('')
 
-  // Step 2 - Pet + Insurance
+  // Step 2 - Signature
+  const [signature, setSignature] = useState<string | null>(null)
+
+  // Step 3 - Pet + Insurance
   const [petName, setPetName] = useState('')
   const [species, setSpecies] = useState<'dog' | 'cat' | 'other' | ''>('')
   const [insuranceCompany, setInsuranceCompany] = useState('Not Insured')
@@ -34,7 +38,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
   const [coverageStartDate, setCoverageStartDate] = useState('')
   const [insurancePaysPct, setInsurancePaysPct] = useState<string>('')
 
-  // Step 3 - SMS Reminders (optional)
+  // Step 4 - SMS Reminders (optional)
   const [wantsSMS, setWantsSMS] = useState(false)
   const [phone, setPhone] = useState('')
   const [smsConsent, setSmsConsent] = useState(false)
@@ -50,6 +54,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
     setCity('')
     setState('')
     setZip('')
+    setSignature(null)
     setPetName('')
     setSpecies('')
     setInsuranceCompany('Not Insured')
@@ -72,9 +77,10 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
       state.trim().length > 0 &&
       zip.trim().length > 0
   }, [fullName, address, city, state, zip])
-  const canNextFrom2 = useMemo(() => petName.trim().length > 0 && !!species, [petName, species])
-  const canNextFrom3 = useMemo(() => {
-    // Step 3 is optional - can always proceed
+  const canNextFrom2 = useMemo(() => !!signature, [signature])
+  const canNextFrom3 = useMemo(() => petName.trim().length > 0 && !!species, [petName, species])
+  const canNextFrom4 = useMemo(() => {
+    // Step 4 is optional - can always proceed
     // But if they want SMS, must provide phone and consent
     if (!wantsSMS) return true
     return phone.trim().length > 0 && smsConsent
@@ -86,7 +92,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
     const originalOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && step !== 4) onClose()
+      if (e.key === 'Escape' && step !== 5) onClose()
     }
     window.addEventListener('keydown', handleEscape)
     return () => {
@@ -133,6 +139,9 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
       }
       if (zip.trim()) {
         profileUpdate.zip = zip.trim()
+      }
+      if (signature) {
+        profileUpdate.signature = signature
       }
 
       const { error: profErr } = await supabase
@@ -191,7 +200,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
 
       await createPet(petPayload)
 
-      setStep(4) // Success step
+      setStep(5) // Success step
     } catch (e: any) {
       setError(e?.message || 'Failed to save your info. Please try again.')
     } finally {
@@ -201,12 +210,12 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
 
   if (!open) return null
 
-  const stepLabel = step === 1 ? 'Step 1 of 3' : step === 2 ? 'Step 2 of 3' : step === 3 ? 'Step 3 of 3' : ''
+  const stepLabel = step === 1 ? 'Step 1 of 4' : step === 2 ? 'Step 2 of 4' : step === 3 ? 'Step 3 of 4' : step === 4 ? 'Step 4 of 4' : ''
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="relative mx-4 w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6 shadow-2xl max-h-[calc(100vh-40px)] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        {step !== 4 && (
+        {step !== 5 && (
           <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">{stepLabel}</div>
         )}
         {error && <div className="mb-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</div>}
@@ -248,6 +257,26 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         )}
 
         {step === 2 && (
+          <div className="animate-fadeIn">
+            <div className="text-xl font-bold text-gray-900 dark:text-gray-100">Sign your claim forms</div>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Your signature will be used on all insurance claim forms</p>
+
+            <div className="mt-6">
+              <SignatureCapture
+                userId={userId}
+                initialSignature={signature}
+                onSave={(sig) => setSignature(sig)}
+              />
+            </div>
+
+            <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
+              <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" onClick={() => setStep(1)}>Back</button>
+              <button type="button" disabled={!canNextFrom2} className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 hover:scale-[1.02] hover:shadow-lg text-white px-6 disabled:opacity-60 disabled:hover:scale-100 disabled:hover:shadow-none transition-all duration-200" onClick={() => setStep(3)}>Next</button>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
           <div className="animate-fadeIn">
             <div className="text-xl font-bold text-gray-900 dark:text-gray-100">Meet your new claim-filing sidekick</div>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Add your pet and insurance details. We'll use this to:</p>
@@ -360,13 +389,13 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
               </div>
             </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
-              <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" onClick={() => setStep(1)}>Back</button>
-              <button type="button" disabled={!canNextFrom2} className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 hover:scale-[1.02] hover:shadow-lg text-white px-6 disabled:opacity-60 disabled:hover:scale-100 disabled:hover:shadow-none transition-all duration-200" onClick={() => setStep(3)}>Next</button>
+              <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" onClick={() => setStep(2)}>Back</button>
+              <button type="button" disabled={!canNextFrom3} className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 hover:scale-[1.02] hover:shadow-lg text-white px-6 disabled:opacity-60 disabled:hover:scale-100 disabled:hover:shadow-none transition-all duration-200" onClick={() => setStep(4)}>Next</button>
             </div>
           </div>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <div className="animate-fadeIn">
             <div className="text-xl font-bold text-gray-900 dark:text-gray-100">🐾 Never forget a dose!</div>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Get a friendly text when it's medication time. <span className="text-slate-500 italic">(Optional - skip if you don't need reminders)</span></p>
@@ -431,10 +460,10 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
               )}
             </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
-              <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" onClick={() => setStep(2)}>Back</button>
+              <button type="button" className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" onClick={() => setStep(3)}>Back</button>
               <button
                 type="button"
-                disabled={!canNextFrom3 || saving}
+                disabled={!canNextFrom4 || saving}
                 className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 hover:scale-[1.02] hover:shadow-lg text-white px-6 disabled:opacity-60 disabled:hover:scale-100 disabled:hover:shadow-none transition-all duration-200"
                 onClick={handleFinish}
               >
@@ -444,7 +473,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
           </div>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <div className="text-center py-4 animate-fadeIn">
             <div className="text-6xl mb-4 animate-bounce">🚀</div>
             <div className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">You're all set!</div>
