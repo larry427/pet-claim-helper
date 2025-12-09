@@ -458,6 +458,7 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
             <ul className="text-sm text-green-700 dark:text-green-400 space-y-1">
               <li>✓ Claim form PDF sent to {insurer}</li>
               <li>✓ Copy sent to your email (BCC)</li>
+              <li className="ml-4 text-xs">💡 Don't see it? Check your spam or junk folder</li>
               <li>✓ Claim status updated to "Submitted"</li>
               <li>⏳ Insurance company will review (typically 5-10 business days)</li>
             </ul>
