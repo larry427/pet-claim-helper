@@ -31,6 +31,7 @@ type SelectedFile = {
 const AUTOSUB_WHITELIST = [
   'test-automation@petclaimhelper.com',
   'larry@uglydogadventures.com',
+  'larry@dogstrainedright.com',
 ]
 
 // Route wrapper: Detect /dose/:code and render standalone page
