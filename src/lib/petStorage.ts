@@ -123,6 +123,8 @@ export async function createPet(pet: any): Promise<any> {
         photo_url: pet.photo_url ?? null,
         insurance_company: pet.insurance_company ?? null,
         policy_number: pet.policy_number ?? null,
+        healthy_paws_pet_id: pet.healthy_paws_pet_id ?? null,
+        spot_account_number: pet.spot_account_number ?? null,
         // optional extras
         breed: pet.breed ?? null,
         weight_lbs: pet.weight_lbs ?? null,
