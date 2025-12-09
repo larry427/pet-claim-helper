@@ -195,7 +195,7 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         monthly_premium: monthlyPremium === '' ? null : parseFloat(monthlyPremium),
         deductible_per_claim: deductiblePerClaim === '' ? null : parseFloat(deductiblePerClaim),
         coverage_start_date: coverageStartDateISO,
-        insurance_pays_percentage: insurancePaysPct === '' ? null : Math.max(50, Math.min(100, Number(insurancePaysPct))),
+        insurance_pays_percentage: insurancePaysPct === '' ? null : Math.max(50, Math.min(100, Number(insurancePaysPct))) / 100,
       }
 
       await createPet(petPayload)
