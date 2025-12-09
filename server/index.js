@@ -1808,7 +1808,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         petSpecies: claim.pets.species,
         breed: claim.pets.breed || '',  // For Pumpkin (uses 'breed' not 'petBreed')
         petBreed: claim.pets.breed || '',  // For other insurers
-        petAge: petAge,
+        petAge: claim.age || petAge,  // Prefer direct user input (Spot), fallback to calculated (others)
         petGender: claim.pets.gender || '',  // For Spot form
         petDateOfBirth: claim.pets.date_of_birth, // For Trupanion form
         petAdoptionDate: claim.pets.adoption_date, // For Trupanion form
@@ -2056,7 +2056,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         breed: claim.pets.breed || '',  // For Pumpkin (uses 'breed' not 'petBreed')
         petGender: claim.pets.gender || '',  // For Spot form
         petBreed: claim.pets.breed || '',
-        petAge: petAge,
+        petAge: claim.age || petAge,  // Prefer direct user input (Spot), fallback to calculated (others)
         petDateOfBirth: claim.pets.date_of_birth, // For Trupanion form
         treatmentDate: claim.service_date || claim.created_at.split('T')[0],
         vetClinicName: claim.clinic_name || 'Unknown Clinic',

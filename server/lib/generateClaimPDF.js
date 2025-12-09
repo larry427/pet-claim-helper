@@ -1010,8 +1010,10 @@ async function generatePDFFromScratch(insurer, claimData, userSignature, dateSig
     yPos = addField('Breed:', claimData.petBreed, yPos)
   }
   // Only show age if it's available and not null
-  if (claimData.petAge !== null && claimData.petAge !== undefined) {
-    yPos = addField('Age:', `${claimData.petAge} years`, yPos)
+  if (claimData.age || claimData.petAge !== null && claimData.petAge !== undefined) {
+    const ageValue = claimData.age || claimData.petAge
+    const ageText = String(ageValue).toLowerCase().includes('year') ? ageValue : `${ageValue} years`
+    yPos = addField('Age:', ageText, yPos)
   }
   yPos += 5
 
