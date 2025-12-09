@@ -52,8 +52,8 @@ export async function sendClaimEmail(insurer, claimData, pdfBuffer, invoiceBuffe
     }
 
     // Send email via Resend
-    console.log('[Email] 📧 BCC Address:', claimData.policyholderEmail)
     console.log('[Email] 📤 Sending to:', insurerEmail)
+    console.log('[Email] 📧 User email for BCC:', claimData.policyholderEmail)
 
     // Prepare email params - only add BCC if email is valid
     const emailParams = {
@@ -66,10 +66,13 @@ export async function sendClaimEmail(insurer, claimData, pdfBuffer, invoiceBuffe
       attachments: attachments
     }
 
-    // Always BCC Larry for monitoring all claim submissions
-    emailParams.bcc = ['larry@uglydogadventures.com']
-    console.log('[Email] ✅ BCC will be sent to: larry@uglydogadventures.com')
-    console.log('[Email] 📧 Policyholder email (for reference):', claimData.policyholderEmail)
+    // BCC the user who filed the claim so they have a copy
+    if (claimData.policyholderEmail) {
+      emailParams.bcc = [claimData.policyholderEmail]
+      console.log('[Email] ✅ BCC will be sent to:', claimData.policyholderEmail)
+    } else {
+      console.log('[Email] ⚠️ No policyholder email available for BCC')
+    }
 
     const response = await resend.emails.send(emailParams)
 
