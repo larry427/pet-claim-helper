@@ -1379,26 +1379,39 @@ function MainApp() {
               className="w-[70vw] max-w-[320px] md:w-[90vw] md:max-w-[500px] h-auto object-contain mt-1 mb-0 md:mt-0 md:mb-0"
             />
 
-            {/* Auto-submission teaser banner - PRIME LOCATION */}
-            <div className="w-full px-4 mt-4 mb-3 md:mt-6 md:mb-4 animate-fade-in">
-              <div className="max-w-3xl mx-auto">
-                <div className="relative bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl p-[2px] shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]">
-                  <div className="bg-white dark:bg-gray-900 rounded-2xl px-6 py-4 md:px-8 md:py-5">
-                    <div className="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-4">
-                      <span className="text-3xl md:text-4xl animate-pulse">🚀</span>
-                      <div className="text-center md:text-left">
-                        <div className="font-bold text-lg md:text-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                          Coming Soon: Auto-Submit Claims
-                        </div>
-                        <div className="text-sm md:text-base text-gray-600 dark:text-gray-300 mt-1">
-                          One-click submission. Track payments. Never miss deadlines.
+            {/* Auto-submission teaser banner - PRIME LOCATION - Only show if user cannot auto-submit yet */}
+            {(() => {
+              const hasProductionInsurer = pets.some(pet => {
+                const insurer = pet.insuranceCompany?.toLowerCase() || ''
+                return PRODUCTION_INSURERS.some(prod => insurer.includes(prod))
+              })
+              const isDemoAccount = userEmail && DEMO_ACCOUNTS.includes(userEmail.toLowerCase())
+
+              // Hide banner if user has Pumpkin/Spot OR is a demo account
+              if (hasProductionInsurer || isDemoAccount) return null
+
+              return (
+                <div className="w-full px-4 mt-4 mb-3 md:mt-6 md:mb-4 animate-fade-in">
+                  <div className="max-w-3xl mx-auto">
+                    <div className="relative bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl p-[2px] shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]">
+                      <div className="bg-white dark:bg-gray-900 rounded-2xl px-6 py-4 md:px-8 md:py-5">
+                        <div className="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-4">
+                          <span className="text-3xl md:text-4xl animate-pulse">🚀</span>
+                          <div className="text-center md:text-left">
+                            <div className="font-bold text-lg md:text-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                              Coming Soon: Auto-Submit Claims
+                            </div>
+                            <div className="text-sm md:text-base text-gray-600 dark:text-gray-300 mt-1">
+                              One-click submission. Track payments. Never miss deadlines.
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              )
+            })()}
 
             <div className="text-base md:text-lg font-bold text-gray-500 dark:text-gray-400 text-center max-w-xl px-4 leading-snug mt-1 mb-3 md:mt-0 md:mb-0">
               <div>Track Vet Bills. File Pet Insurance Instantly.</div>
@@ -2686,12 +2699,9 @@ function MainApp() {
             {(() => {
               const hasProductionInsurer = pets.some(pet => {
                 const insurer = pet.insuranceCompany?.toLowerCase() || ''
-                console.log('[Banner Debug] Pet:', pet.name, 'Insurer:', insurer, 'insuranceCompany field:', pet.insuranceCompany)
                 return PRODUCTION_INSURERS.some(prod => insurer.includes(prod))
               })
               const isDemoAccount = userEmail && DEMO_ACCOUNTS.includes(userEmail.toLowerCase())
-
-              console.log('[Banner Debug] hasProductionInsurer:', hasProductionInsurer, 'isDemoAccount:', isDemoAccount, 'userEmail:', userEmail)
 
               // Hide banner if user has Pumpkin/Spot OR is a demo account (they can already auto-submit)
               if (hasProductionInsurer || isDemoAccount) return null
