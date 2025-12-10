@@ -14,7 +14,7 @@ export async function sendClaimEmail(insurer, claimData, pdfBuffer, invoiceBuffe
   try {
     ensureResendConfigured()
 
-    const insurerEmail = getInsurerClaimEmail(insurer)
+    const insurerEmail = getInsurerClaimEmail(insurer, claimData.policyholderEmail)
     if (!insurerEmail) {
       throw new Error(`Unknown insurer: ${insurer}`)
     }
