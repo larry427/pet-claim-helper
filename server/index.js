@@ -23,6 +23,16 @@ import { getMissingRequiredFields, getRequiredFieldsForInsurer } from './lib/cla
 import { formatPhoneToE164 } from './utils/phoneUtils.js'
 import sharp from 'sharp'
 
+// Test sharp availability at startup
+try {
+  const sharpVersion = sharp.versions
+  console.log('[Startup] ✅ Sharp loaded successfully')
+  console.log('[Startup]    Sharp version:', sharpVersion.sharp)
+  console.log('[Startup]    libvips version:', sharpVersion.vips)
+} catch (err) {
+  console.error('[Startup] ❌ Sharp failed to load:', err)
+}
+
 // Helper function to detect image type from buffer magic bytes
 function detectImageType(buffer) {
   if (!buffer || buffer.length < 4) return null
@@ -2255,8 +2265,12 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
               console.log('[Preview PDF] ✅ Image converted to PDF (1 page, letter size, centered)')
             } catch (imageError) {
               console.error('[Preview PDF] ❌ Error processing image with sharp:', imageError)
+              console.error('[Preview PDF]    Error name:', imageError.name)
+              console.error('[Preview PDF]    Error message:', imageError.message)
+              console.error('[Preview PDF]    Error stack:', imageError.stack)
               // Fallback: use original image without processing
               console.log('[Preview PDF] ⚠️  Falling back to unprocessed image')
+              console.log('[Preview PDF] ⚠️  WARNING: Image may be sideways and improperly scaled!')
               invoicePdf = await PDFDocument.create()
 
               let embeddedImage
