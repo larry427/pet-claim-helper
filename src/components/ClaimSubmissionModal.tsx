@@ -176,14 +176,34 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
       })
 
       console.log('[Preview] Response status:', response.status)
+      console.log('[Preview] Response content-type:', response.headers.get('content-type'))
 
       if (!response.ok) {
-        const result = await response.json()
-        throw new Error(result.error || 'Failed to generate preview')
+        // Check if response is JSON (error) or PDF
+        const contentType = response.headers.get('content-type')
+        if (contentType?.includes('application/json')) {
+          const result = await response.json()
+          console.error('[Preview] Server returned error:', result)
+
+          // Show detailed error to user
+          let errorMsg = result.error || 'Failed to generate preview'
+          if (result.details) {
+            errorMsg += `\n\nDetails: ${result.details}`
+          }
+          if (result.fallback === 'claim-form-only') {
+            errorMsg += '\n\nThe claim form was generated but the vet invoice could not be retrieved from storage.'
+          } else if (result.fallback === 'merge-failed') {
+            errorMsg += '\n\nBoth files exist but could not be merged into a single PDF.'
+          }
+          throw new Error(errorMsg)
+        } else {
+          throw new Error('Failed to generate preview')
+        }
       }
 
       const pdfBlob = await response.blob()
       console.log('[Preview] PDF blob size:', pdfBlob.size)
+      console.log('[Preview] PDF blob type:', pdfBlob.type)
 
       const pdfUrl = URL.createObjectURL(pdfBlob)
       console.log('[Preview] Blob URL created:', pdfUrl)

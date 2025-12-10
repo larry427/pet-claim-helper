@@ -2116,49 +2116,75 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
       // Check if we should merge with vet invoice
       const merged = req.query.merged === 'true'
 
+      console.log('[Preview PDF] Merge check:', { merged, hasPdfPath: !!claim.pdf_path, pdfPath: claim.pdf_path })
+
       if (merged && claim.pdf_path) {
-        console.log('[Preview PDF] Merging with vet invoice:', claim.pdf_path)
+        console.log('[Preview PDF] ⚙️  Starting PDF merge process...')
+        console.log('[Preview PDF]    Vet invoice path:', claim.pdf_path)
+        console.log('[Preview PDF]    Claim form size:', pdfBuffer.length, 'bytes')
 
         try {
           // Download vet invoice from storage
+          console.log('[Preview PDF] 📥 Downloading vet invoice from storage...')
           const { data: invoiceData, error: storageError } = await supabase.storage
             .from('claim-pdfs')
             .download(claim.pdf_path)
 
           if (storageError) {
-            console.error('[Preview PDF] Could not fetch vet invoice:', storageError)
-            // Fall back to claim form only
-            res.setHeader('Content-Type', 'application/pdf')
-            res.setHeader('Content-Disposition', 'inline; filename="claim-preview.pdf"')
-            return res.send(pdfBuffer)
+            console.error('[Preview PDF] ❌ STORAGE ERROR - Could not fetch vet invoice:', storageError)
+            console.error('[Preview PDF]    Error details:', JSON.stringify(storageError, null, 2))
+            // Return error to frontend so user knows merge failed
+            return res.status(500).json({
+              ok: false,
+              error: 'Failed to fetch vet invoice from storage',
+              details: storageError.message,
+              fallback: 'claim-form-only'
+            })
           }
 
+          if (!invoiceData) {
+            console.error('[Preview PDF] ❌ No invoice data returned from storage')
+            return res.status(500).json({
+              ok: false,
+              error: 'Vet invoice file not found in storage',
+              fallback: 'claim-form-only'
+            })
+          }
+
+          console.log('[Preview PDF] ✅ Invoice downloaded successfully')
+
           // Merge PDFs using pdf-lib (imported at top of file)
+          console.log('[Preview PDF] 📄 Loading PDFs for merge...')
+
           // Load both PDFs
           const claimFormPdf = await PDFDocument.load(pdfBuffer)
-          console.log('[Preview PDF] Claim form loaded:', claimFormPdf.getPageCount(), 'pages')
+          console.log('[Preview PDF] ✅ Claim form loaded:', claimFormPdf.getPageCount(), 'pages')
 
           const invoiceBuffer = Buffer.from(await invoiceData.arrayBuffer())
+          console.log('[Preview PDF] 📄 Invoice buffer size:', invoiceBuffer.length, 'bytes')
+
           const invoicePdf = await PDFDocument.load(invoiceBuffer)
-          console.log('[Preview PDF] Original vet invoice loaded:', invoicePdf.getPageCount(), 'pages')
+          console.log('[Preview PDF] ✅ Original vet invoice loaded:', invoicePdf.getPageCount(), 'pages')
 
           // Create new merged PDF
+          console.log('[Preview PDF] 🔧 Creating merged PDF document...')
           const mergedPdf = await PDFDocument.create()
 
           // Copy all pages from claim form FIRST
           const claimPages = await mergedPdf.copyPages(claimFormPdf, claimFormPdf.getPageIndices())
           claimPages.forEach((page) => mergedPdf.addPage(page))
-          console.log('[Preview PDF] Added', claimPages.length, 'pages from claim form')
+          console.log('[Preview PDF] ✅ Added', claimPages.length, 'pages from claim form')
 
           // Copy all pages from original vet invoice SECOND
           const invoicePages = await mergedPdf.copyPages(invoicePdf, invoicePdf.getPageIndices())
           invoicePages.forEach((page) => mergedPdf.addPage(page))
-          console.log('[Preview PDF] Added', invoicePages.length, 'pages from original vet invoice')
+          console.log('[Preview PDF] ✅ Added', invoicePages.length, 'pages from original vet invoice')
 
           // Save merged PDF
+          console.log('[Preview PDF] 💾 Saving merged PDF...')
           const mergedPdfBytes = await mergedPdf.save()
 
-          console.log('[Preview PDF] ✅ Merged PDF created successfully!')
+          console.log('[Preview PDF] ✅✅✅ MERGED PDF CREATED SUCCESSFULLY!')
           console.log('[Preview PDF]    Total size:', mergedPdfBytes.length, 'bytes')
           console.log('[Preview PDF]    Total pages:', mergedPdf.getPageCount())
           console.log('[Preview PDF]    Structure: Claim form (pages 1-' + claimPages.length + ') + Original vet invoice (pages ' + (claimPages.length + 1) + '-' + mergedPdf.getPageCount() + ')')
@@ -2169,12 +2195,21 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
           return res.send(Buffer.from(mergedPdfBytes))
 
         } catch (mergeError) {
-          console.error('[Preview PDF] Error merging PDFs:', mergeError)
-          // Fall back to claim form only
-          res.setHeader('Content-Type', 'application/pdf')
-          res.setHeader('Content-Disposition', 'inline; filename="claim-preview.pdf"')
-          return res.send(pdfBuffer)
+          console.error('[Preview PDF] ❌❌❌ MERGE ERROR - Could not merge PDFs:', mergeError)
+          console.error('[Preview PDF]    Error name:', mergeError.name)
+          console.error('[Preview PDF]    Error message:', mergeError.message)
+          console.error('[Preview PDF]    Error stack:', mergeError.stack)
+          // Return error to frontend instead of silently falling back
+          return res.status(500).json({
+            ok: false,
+            error: 'Failed to merge claim form with vet invoice',
+            details: mergeError.message,
+            fallback: 'merge-failed'
+          })
         }
+      } else if (merged && !claim.pdf_path) {
+        console.log('[Preview PDF] ⚠️  Merge requested but no pdf_path - returning claim form only')
+        console.log('[Preview PDF]    claim.pdf_path:', claim.pdf_path)
       }
 
       // Return PDF for preview (inline, not download)
