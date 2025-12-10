@@ -21,6 +21,7 @@ import { generateClaimFormPDF, validateClaimData } from './lib/generateClaimPDF.
 import { sendClaimEmail } from './lib/sendClaimEmail.js'
 import { getMissingRequiredFields, getRequiredFieldsForInsurer } from './lib/claimFormMappings.js'
 import { formatPhoneToE164 } from './utils/phoneUtils.js'
+import sharp from 'sharp'
 
 // Helper function to detect image type from buffer magic bytes
 function detectImageType(buffer) {
@@ -2195,27 +2196,94 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
           if (isImage) {
             // Invoice is an image (mobile camera upload) - convert to PDF first
             console.log('[Preview PDF] 🖼️  Invoice is an image - converting to PDF...')
-            invoicePdf = await PDFDocument.create()
 
-            let embeddedImage
-            if (isImage === 'jpeg' || isImage === 'jpg') {
-              embeddedImage = await invoicePdf.embedJpg(invoiceBuffer)
-            } else if (isImage === 'png') {
-              embeddedImage = await invoicePdf.embedPng(invoiceBuffer)
-            } else {
-              throw new Error(`Unsupported image format: ${isImage}`)
+            // Process image with sharp: auto-rotate based on EXIF and resize to fit letter page
+            // Letter page: 8.5 x 11 inches = 612 x 792 points (at 72 DPI)
+            const PAGE_WIDTH = 612
+            const PAGE_HEIGHT = 792
+            const MARGIN = 36 // 0.5 inch margins
+
+            try {
+              console.log('[Preview PDF] 📐 Processing image with sharp...')
+
+              // Get original image metadata
+              const imageMetadata = await sharp(invoiceBuffer).metadata()
+              console.log('[Preview PDF]    Original dimensions:', imageMetadata.width, 'x', imageMetadata.height)
+              console.log('[Preview PDF]    EXIF orientation:', imageMetadata.orientation || 'none')
+
+              // Auto-rotate based on EXIF orientation and resize to fit page
+              const processedImageBuffer = await sharp(invoiceBuffer)
+                .rotate() // Auto-rotates based on EXIF orientation
+                .resize({
+                  width: PAGE_WIDTH - (MARGIN * 2),
+                  height: PAGE_HEIGHT - (MARGIN * 2),
+                  fit: 'inside', // Maintain aspect ratio, fit within bounds
+                  withoutEnlargement: false // Allow upscaling if image is too small
+                })
+                .jpeg({ quality: 85 }) // Convert to JPEG for smaller file size
+                .toBuffer()
+
+              console.log('[Preview PDF] ✅ Image processed - rotated and resized')
+
+              // Get dimensions of processed image
+              const processedMetadata = await sharp(processedImageBuffer).metadata()
+              const processedWidth = processedMetadata.width || PAGE_WIDTH - (MARGIN * 2)
+              const processedHeight = processedMetadata.height || PAGE_HEIGHT - (MARGIN * 2)
+              console.log('[Preview PDF]    Processed dimensions:', processedWidth, 'x', processedHeight)
+
+              // Create PDF and embed processed image
+              invoicePdf = await PDFDocument.create()
+              const embeddedImage = await invoicePdf.embedJpg(processedImageBuffer)
+
+              // Create letter-sized page
+              const page = invoicePdf.addPage([PAGE_WIDTH, PAGE_HEIGHT])
+
+              // Calculate centered position
+              const xPos = (PAGE_WIDTH - processedWidth) / 2
+              const yPos = (PAGE_HEIGHT - processedHeight) / 2
+
+              console.log('[Preview PDF]    Drawing image at position:', xPos, ',', yPos)
+
+              // Draw image centered on page
+              page.drawImage(embeddedImage, {
+                x: xPos,
+                y: yPos,
+                width: processedWidth,
+                height: processedHeight,
+              })
+
+              console.log('[Preview PDF] ✅ Image converted to PDF (1 page, letter size, centered)')
+            } catch (imageError) {
+              console.error('[Preview PDF] ❌ Error processing image with sharp:', imageError)
+              // Fallback: use original image without processing
+              console.log('[Preview PDF] ⚠️  Falling back to unprocessed image')
+              invoicePdf = await PDFDocument.create()
+
+              let embeddedImage
+              if (isImage === 'jpeg' || isImage === 'jpg') {
+                embeddedImage = await invoicePdf.embedJpg(invoiceBuffer)
+              } else if (isImage === 'png') {
+                embeddedImage = await invoicePdf.embedPng(invoiceBuffer)
+              }
+
+              const page = invoicePdf.addPage([PAGE_WIDTH, PAGE_HEIGHT])
+              // Scale to fit page
+              const scale = Math.min(
+                (PAGE_WIDTH - MARGIN * 2) / embeddedImage.width,
+                (PAGE_HEIGHT - MARGIN * 2) / embeddedImage.height
+              )
+              const scaledWidth = embeddedImage.width * scale
+              const scaledHeight = embeddedImage.height * scale
+              const xPos = (PAGE_WIDTH - scaledWidth) / 2
+              const yPos = (PAGE_HEIGHT - scaledHeight) / 2
+
+              page.drawImage(embeddedImage, {
+                x: xPos,
+                y: yPos,
+                width: scaledWidth,
+                height: scaledHeight,
+              })
             }
-
-            // Create a page with the same dimensions as the image
-            const page = invoicePdf.addPage([embeddedImage.width, embeddedImage.height])
-            page.drawImage(embeddedImage, {
-              x: 0,
-              y: 0,
-              width: embeddedImage.width,
-              height: embeddedImage.height,
-            })
-
-            console.log('[Preview PDF] ✅ Image converted to PDF:', invoicePdf.getPageCount(), 'pages')
           } else {
             // Invoice is already a PDF
             invoicePdf = await PDFDocument.load(invoiceBuffer)
