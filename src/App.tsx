@@ -1124,8 +1124,12 @@ function MainApp() {
   }
   const getServiceDate = (c: any): Date | null => {
     if (!c.service_date) return null
-    const d = new Date(c.service_date)
-    return Number.isNaN(d.getTime()) ? null : d
+    // Parse YYYY-MM-DD as local date to avoid timezone shift
+    const m = String(c.service_date).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (!m) return null
+    const y = Number(m[1]), mo = Number(m[2]) - 1, d = Number(m[3])
+    const dt = new Date(y, mo, d)
+    return Number.isNaN(dt.getTime()) ? null : dt
   }
   const getDaysRemaining = (c: any): number | null => {
     const svc = getServiceDate(c)
@@ -1242,7 +1246,7 @@ function MainApp() {
     }
     // Filter claims by selected period
     const filtered = claims.filter((c) => {
-      const d = c.service_date ? new Date(c.service_date) : null
+      const d = c.service_date ? parseYmdLocal(c.service_date) : null
       if (!d || Number.isNaN(d.getTime())) return false
       if (finPeriod === 'all') return true
       if (finPeriod === '2026') return d.getFullYear() === 2026
@@ -2173,7 +2177,16 @@ function MainApp() {
                           const totalNum = parseFloat(String(subtotal).replace(/[^0-9.\-]/g, '')) || null
                           // prefer pet's filing_deadline_days, fallback to 90
                           const filingDaysToUse = Number((matchedPet as any)?.filing_deadline_days) || 90
-                          const svcDate = multiExtracted.dateOfService ? new Date(multiExtracted.dateOfService) : null
+                          // Parse YYYY-MM-DD as local date to avoid timezone shift
+                          const parseDateLocal = (iso?: string | null): Date | null => {
+                            if (!iso) return null
+                            const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+                            if (!m) return null
+                            const y = Number(m[1]), mo = Number(m[2]) - 1, d = Number(m[3])
+                            const dt = new Date(y, mo, d)
+                            return Number.isNaN(dt.getTime()) ? null : dt
+                          }
+                          const svcDate = parseDateLocal(multiExtracted.dateOfService)
                           const deadlineDate = svcDate ? new Date(svcDate.getTime()) : null
                           if (deadlineDate) deadlineDate.setDate(deadlineDate.getDate() + filingDaysToUse)
                           const row: any = await createClaim({
@@ -2403,7 +2416,16 @@ function MainApp() {
               {/* Enhanced Filing Deadline Reminder (pre-save) - Only show for insured pets */}
               {selectedPet && selectedPet.insuranceCompany && selectedPet.insuranceCompany.trim() !== '' && selectedPet.insuranceCompany.toLowerCase() !== 'not insured' && expenseCategory !== 'not_insured' && (() => {
                 const filingDays = Number((selectedPet as any)?.filing_deadline_days) || 90
-                const svc = extracted.dateOfService ? new Date(extracted.dateOfService) : null
+                // Parse YYYY-MM-DD as local date to avoid timezone shift
+                const parseDateLocal = (iso?: string | null): Date | null => {
+                  if (!iso) return null
+                  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+                  if (!m) return null
+                  const y = Number(m[1]), mo = Number(m[2]) - 1, d = Number(m[3])
+                  const dt = new Date(y, mo, d)
+                  return Number.isNaN(dt.getTime()) ? null : dt
+                }
+                const svc = parseDateLocal(extracted.dateOfService)
                 const deadline = svc ? new Date(svc.getTime()) : null
                 if (deadline) deadline.setDate(deadline.getDate() + filingDays)
                 const now = new Date()
@@ -2440,7 +2462,7 @@ function MainApp() {
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                       <div>
                         <div className="text-slate-600 dark:text-slate-400">Service Date</div>
-                        <div className="font-bold text-slate-900 dark:text-slate-100">{extracted.dateOfService ? new Date(extracted.dateOfService).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}</div>
+                        <div className="font-bold text-slate-900 dark:text-slate-100">{extracted.dateOfService ? parseDateLocal(extracted.dateOfService)?.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) || '—' : '—'}</div>
                       </div>
                       <div>
                         <div className="text-slate-600 dark:text-slate-400">Insurance</div>
@@ -2524,7 +2546,16 @@ function MainApp() {
                       // Save single-pet claim only (PDF will be generated on-demand when user clicks "View My Claim")
                       // Compute deadline based on service date and filing window
                       const filingDaysToUse = Number((selectedPet as any)?.filing_deadline_days) || 90
-                      const svcDate = extracted.dateOfService ? new Date(extracted.dateOfService) : null
+                      // Parse YYYY-MM-DD as local date to avoid timezone shift
+                      const parseDateLocal = (iso?: string | null): Date | null => {
+                        if (!iso) return null
+                        const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+                        if (!m) return null
+                        const y = Number(m[1]), mo = Number(m[2]) - 1, d = Number(m[3])
+                        const dt = new Date(y, mo, d)
+                        return Number.isNaN(dt.getTime()) ? null : dt
+                      }
+                      const svcDate = parseDateLocal(extracted.dateOfService)
                       const computedDeadlineDate = svcDate ? new Date(svcDate.getTime()) : null
                       if (computedDeadlineDate) computedDeadlineDate.setDate(computedDeadlineDate.getDate() + filingDaysToUse)
                       let row: any = null

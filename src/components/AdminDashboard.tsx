@@ -27,6 +27,19 @@ type SortColumn = 'email' | 'name' | 'petsCount' | 'claimsCount' | 'lastActive';
 type SortDirection = 'asc' | 'desc';
 
 export default function AdminDashboard() {
+  // Parse YYYY-MM-DD safely as a local Date (no timezone shift)
+  const parseYmdLocal = (iso: string | null | undefined): Date | null => {
+    if (!iso) return null
+    const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (!m) return null
+    const y = Number(m[1])
+    const mo = Number(m[2]) - 1
+    const d = Number(m[3])
+    const dt = new Date(y, mo, d)
+    if (isNaN(dt.getTime())) return null
+    return dt
+  }
+
   const [users, setUsers] = useState<UserWithStats[]>([]);
   const [allClaims, setAllClaims] = useState<ClaimWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -456,7 +469,7 @@ export default function AdminDashboard() {
                                       <div>
                                         <div className="font-medium">{claim.clinic_name || 'Unknown Clinic'}</div>
                                         <div className="text-gray-600">
-                                          {claim.service_date ? new Date(claim.service_date).toLocaleDateString() : 'No date'} •
+                                          {claim.service_date ? (parseYmdLocal(claim.service_date)?.toLocaleDateString() || 'No date') : 'No date'} •
                                           ${claim.total_amount?.toFixed(2) || '0.00'}
                                         </div>
                                       </div>
@@ -555,7 +568,7 @@ export default function AdminDashboard() {
                     {claim.petName}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {claim.service_date ? new Date(claim.service_date).toLocaleDateString() : '-'}
+                    {claim.service_date ? (parseYmdLocal(claim.service_date)?.toLocaleDateString() || '-') : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
                     ${claim.total_amount?.toFixed(2) || '0.00'}
