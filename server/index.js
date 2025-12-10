@@ -21,12 +21,12 @@ import { generateClaimFormPDF, validateClaimData } from './lib/generateClaimPDF.
 import { sendClaimEmail } from './lib/sendClaimEmail.js'
 import { getMissingRequiredFields, getRequiredFieldsForInsurer } from './lib/claimFormMappings.js'
 import { formatPhoneToE164 } from './utils/phoneUtils.js'
-import Jimp from 'jimp'
+import { Jimp } from 'jimp'
 
 // Test Jimp availability at startup
 try {
   console.log('[Startup] ✅ Jimp loaded successfully')
-  console.log('[Startup]    Jimp version:', Jimp.version)
+  console.log('[Startup]    Jimp.read method available:', typeof Jimp.read === 'function')
 } catch (err) {
   console.error('[Startup] ❌ Jimp failed to load:', err)
 }
@@ -2225,13 +2225,14 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
               const maxHeight = PAGE_HEIGHT - (MARGIN * 2) // 720 points
 
               // Resize to fit within bounds while maintaining aspect ratio
-              // scaleToFit maintains aspect ratio
-              image.scaleToFit(maxWidth, maxHeight)
+              // Jimp v1.x scaleToFit takes object: { w, h }
+              image.scaleToFit({ w: maxWidth, h: maxHeight })
 
               console.log('[Preview PDF]    Resized to fit page:', image.bitmap.width, 'x', image.bitmap.height)
 
               // Convert to JPEG buffer with quality 85
-              const processedImageBuffer = await image.quality(85).getBufferAsync(Jimp.MIME_JPEG)
+              // Jimp v1.x getBuffer syntax: getBuffer(mimeType, options)
+              const processedImageBuffer = await image.getBuffer('image/jpeg', { quality: 85 })
 
               console.log('[Preview PDF] ✅ Image processed - auto-rotated and resized')
 
