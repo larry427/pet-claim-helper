@@ -42,13 +42,27 @@ export async function sendClaimEmail(insurer, claimData, pdfBuffer, invoiceBuffe
 
     // Add invoice PDF if provided
     if (invoiceBuffer) {
+      // Detect file type from buffer to use correct file extension
+      let invoiceExtension = 'pdf'
+      if (invoiceBuffer[0] === 0xFF && invoiceBuffer[1] === 0xD8 && invoiceBuffer[2] === 0xFF) {
+        invoiceExtension = 'jpg'
+        console.log('[Email] Invoice is a JPEG image')
+      } else if (invoiceBuffer[0] === 0x89 && invoiceBuffer[1] === 0x50 && invoiceBuffer[2] === 0x4E && invoiceBuffer[3] === 0x47) {
+        invoiceExtension = 'png'
+        console.log('[Email] Invoice is a PNG image')
+      } else if (invoiceBuffer[0] === 0x25 && invoiceBuffer[1] === 0x50 && invoiceBuffer[2] === 0x44 && invoiceBuffer[3] === 0x46) {
+        console.log('[Email] Invoice is a PDF document')
+      } else {
+        console.log('[Email] Invoice format unknown, defaulting to .pdf extension')
+      }
+
       attachments.push({
-        filename: `veterinary-invoice-${accountOrPolicy}.pdf`,
+        filename: `veterinary-invoice-${accountOrPolicy}.${invoiceExtension}`,
         content: invoiceBuffer
       })
-      console.log('[Email] Attaching invoice PDF to email')
+      console.log('[Email] Attaching invoice to email as:', `veterinary-invoice-${accountOrPolicy}.${invoiceExtension}`)
     } else {
-      console.log('[Email] No invoice PDF to attach')
+      console.log('[Email] No invoice to attach')
     }
 
     // Send email via Resend

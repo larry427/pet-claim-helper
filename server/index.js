@@ -22,6 +22,30 @@ import { sendClaimEmail } from './lib/sendClaimEmail.js'
 import { getMissingRequiredFields, getRequiredFieldsForInsurer } from './lib/claimFormMappings.js'
 import { formatPhoneToE164 } from './utils/phoneUtils.js'
 
+// Helper function to detect image type from buffer magic bytes
+function detectImageType(buffer) {
+  if (!buffer || buffer.length < 4) return null
+
+  // Check magic bytes (file signature)
+  // JPEG: FF D8 FF
+  if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+    return 'jpeg'
+  }
+
+  // PNG: 89 50 4E 47
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
+    return 'png'
+  }
+
+  // PDF: 25 50 44 46 (%PDF)
+  if (buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) {
+    return null // It's a PDF, not an image
+  }
+
+  // Unknown format
+  return null
+}
+
 // Validate required env vars
 const required = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'RESEND_API_KEY']
 const missing = required.filter((k) => !process.env[k])
@@ -2163,8 +2187,40 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
           const invoiceBuffer = Buffer.from(await invoiceData.arrayBuffer())
           console.log('[Preview PDF] 📄 Invoice buffer size:', invoiceBuffer.length, 'bytes')
 
-          const invoicePdf = await PDFDocument.load(invoiceBuffer)
-          console.log('[Preview PDF] ✅ Original vet invoice loaded:', invoicePdf.getPageCount(), 'pages')
+          // Detect file type by checking magic bytes
+          let invoicePdf
+          const isImage = detectImageType(invoiceBuffer)
+          console.log('[Preview PDF] 📄 Invoice file type detected:', isImage || 'PDF')
+
+          if (isImage) {
+            // Invoice is an image (mobile camera upload) - convert to PDF first
+            console.log('[Preview PDF] 🖼️  Invoice is an image - converting to PDF...')
+            invoicePdf = await PDFDocument.create()
+
+            let embeddedImage
+            if (isImage === 'jpeg' || isImage === 'jpg') {
+              embeddedImage = await invoicePdf.embedJpg(invoiceBuffer)
+            } else if (isImage === 'png') {
+              embeddedImage = await invoicePdf.embedPng(invoiceBuffer)
+            } else {
+              throw new Error(`Unsupported image format: ${isImage}`)
+            }
+
+            // Create a page with the same dimensions as the image
+            const page = invoicePdf.addPage([embeddedImage.width, embeddedImage.height])
+            page.drawImage(embeddedImage, {
+              x: 0,
+              y: 0,
+              width: embeddedImage.width,
+              height: embeddedImage.height,
+            })
+
+            console.log('[Preview PDF] ✅ Image converted to PDF:', invoicePdf.getPageCount(), 'pages')
+          } else {
+            // Invoice is already a PDF
+            invoicePdf = await PDFDocument.load(invoiceBuffer)
+            console.log('[Preview PDF] ✅ Original vet invoice loaded:', invoicePdf.getPageCount(), 'pages')
+          }
 
           // Create new merged PDF
           console.log('[Preview PDF] 🔧 Creating merged PDF document...')
