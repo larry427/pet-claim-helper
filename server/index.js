@@ -21,16 +21,14 @@ import { generateClaimFormPDF, validateClaimData } from './lib/generateClaimPDF.
 import { sendClaimEmail } from './lib/sendClaimEmail.js'
 import { getMissingRequiredFields, getRequiredFieldsForInsurer } from './lib/claimFormMappings.js'
 import { formatPhoneToE164 } from './utils/phoneUtils.js'
-import sharp from 'sharp'
+import Jimp from 'jimp'
 
-// Test sharp availability at startup
+// Test Jimp availability at startup
 try {
-  const sharpVersion = sharp.versions
-  console.log('[Startup] ✅ Sharp loaded successfully')
-  console.log('[Startup]    Sharp version:', sharpVersion.sharp)
-  console.log('[Startup]    libvips version:', sharpVersion.vips)
+  console.log('[Startup] ✅ Jimp loaded successfully')
+  console.log('[Startup]    Jimp version:', Jimp.version)
 } catch (err) {
-  console.error('[Startup] ❌ Sharp failed to load:', err)
+  console.error('[Startup] ❌ Jimp failed to load:', err)
 }
 
 // Helper function to detect image type from buffer magic bytes
@@ -2214,87 +2212,33 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
             const MARGIN = 36 // 0.5 inch margins
 
             try {
-              console.log('[Preview PDF] 📐 Processing image with sharp...')
+              console.log('[Preview PDF] 📐 Processing image with Jimp...')
 
-              // Get original image metadata
-              const imageMetadata = await sharp(invoiceBuffer).metadata()
-              console.log('[Preview PDF]    Original dimensions:', imageMetadata.width, 'x', imageMetadata.height)
-              console.log('[Preview PDF]    EXIF orientation:', imageMetadata.orientation || 'none')
+              // Load image with Jimp (automatically handles EXIF orientation)
+              const image = await Jimp.read(invoiceBuffer)
 
-              // Determine rotation angle from EXIF orientation
-              // EXIF orientation values:
-              // 1 = 0° (normal), 2 = 0° + flip
-              // 3 = 180°, 4 = 180° + flip
-              // 5 = 90° + flip, 6 = 90° (rotated right - most common portrait)
-              // 7 = 270° + flip, 8 = 270° (rotated left)
-              let rotationAngle = 0
-              let shouldFlip = false
+              console.log('[Preview PDF]    Original dimensions:', image.bitmap.width, 'x', image.bitmap.height)
+              console.log('[Preview PDF]    Jimp automatically rotates based on EXIF orientation')
 
-              switch (imageMetadata.orientation) {
-                case 2:
-                  rotationAngle = 0
-                  shouldFlip = true
-                  break
-                case 3:
-                  rotationAngle = 180
-                  break
-                case 4:
-                  rotationAngle = 180
-                  shouldFlip = true
-                  break
-                case 5:
-                  rotationAngle = 90
-                  shouldFlip = true
-                  break
-                case 6:
-                  rotationAngle = 90 // Most common for portrait camera photos
-                  break
-                case 7:
-                  rotationAngle = 270
-                  shouldFlip = true
-                  break
-                case 8:
-                  rotationAngle = 270
-                  break
-                default:
-                  rotationAngle = 0 // Orientation 1 or undefined = no rotation
-              }
+              // Calculate target dimensions to fit within page with margins
+              const maxWidth = PAGE_WIDTH - (MARGIN * 2)  // 540 points
+              const maxHeight = PAGE_HEIGHT - (MARGIN * 2) // 720 points
 
-              console.log('[Preview PDF]    Rotation angle:', rotationAngle, 'degrees', shouldFlip ? '+ flip' : '')
+              // Resize to fit within bounds while maintaining aspect ratio
+              // scaleToFit maintains aspect ratio
+              image.scaleToFit(maxWidth, maxHeight)
 
-              // Process image: rotate, flip if needed, then resize to fit page
-              let sharpPipeline = sharp(invoiceBuffer)
+              console.log('[Preview PDF]    Resized to fit page:', image.bitmap.width, 'x', image.bitmap.height)
 
-              // Apply flip if needed (before rotation)
-              if (shouldFlip) {
-                sharpPipeline = sharpPipeline.flop() // Horizontal flip
-                console.log('[Preview PDF]    Applying horizontal flip')
-              }
+              // Convert to JPEG buffer with quality 85
+              const processedImageBuffer = await image.quality(85).getBufferAsync(Jimp.MIME_JPEG)
 
-              // Apply rotation if needed
-              if (rotationAngle > 0) {
-                sharpPipeline = sharpPipeline.rotate(rotationAngle)
-                console.log('[Preview PDF]    Applying rotation:', rotationAngle, 'degrees')
-              }
+              console.log('[Preview PDF] ✅ Image processed - auto-rotated and resized')
 
-              // Resize to fit within page bounds
-              const processedImageBuffer = await sharpPipeline
-                .resize({
-                  width: PAGE_WIDTH - (MARGIN * 2),
-                  height: PAGE_HEIGHT - (MARGIN * 2),
-                  fit: 'inside', // Maintain aspect ratio, fit within bounds
-                  withoutEnlargement: false // Allow upscaling if image is too small
-                })
-                .jpeg({ quality: 85 }) // Convert to JPEG for smaller file size
-                .toBuffer()
-
-              console.log('[Preview PDF] ✅ Image processed - rotated and resized')
-
-              // Get dimensions of processed image
-              const processedMetadata = await sharp(processedImageBuffer).metadata()
-              const processedWidth = processedMetadata.width || PAGE_WIDTH - (MARGIN * 2)
-              const processedHeight = processedMetadata.height || PAGE_HEIGHT - (MARGIN * 2)
-              console.log('[Preview PDF]    Processed dimensions:', processedWidth, 'x', processedHeight)
+              // Get final dimensions
+              const processedWidth = image.bitmap.width
+              const processedHeight = image.bitmap.height
+              console.log('[Preview PDF]    Final dimensions:', processedWidth, 'x', processedHeight)
 
               // Create PDF and embed processed image
               invoicePdf = await PDFDocument.create()
