@@ -2768,7 +2768,7 @@ function MainApp() {
                     <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
                       <div>
                         <div className="text-slate-500">Service Date</div>
-                        <div className="font-medium">{c.service_date || '—'}</div>
+                        <div className="font-medium">{c.service_date ? (getServiceDate(c)?.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) || '—') : '—'}</div>
                       </div>
                       <div className="text-right">
                         <div className="text-slate-500">Amount</div>
