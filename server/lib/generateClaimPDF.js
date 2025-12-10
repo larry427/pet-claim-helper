@@ -20,9 +20,14 @@ const __dirname = path.dirname(__filename)
 // ================================================================================================
 // Set to false only when ready for production
 const TEST_MODE = true
-const TEST_EMAIL = 'larry@vrexistence.com'
+const TEST_EMAIL = 'larry@uglydogadventures.com'
 // Insurers in production (bypass TEST_MODE)
-const PRODUCTION_INSURERS = ['pumpkin']
+const PRODUCTION_INSURERS = ['pumpkin', 'spot']
+// Demo accounts always route to TEST_EMAIL regardless of insurer
+const DEMO_ACCOUNTS = [
+  'demo@petclaimhelper.com',
+  'drsarah@petclaimhelper.com',
+]
 // ================================================================================================
 
 /**
@@ -1161,13 +1166,30 @@ async function generatePDFFromScratch(insurer, claimData, userSignature, dateSig
 /**
  * Get the email address for submitting claims to each insurer
  *
- * ⚠️ IMPORTANT: When TEST_MODE = true, ALL emails go to TEST_EMAIL instead of real insurers
- * Exception: Insurers in PRODUCTION_INSURERS array always use production emails
+ * ⚠️ IMPORTANT: Priority order for email routing:
+ * 1. DEMO_ACCOUNTS → always route to TEST_EMAIL
+ * 2. PRODUCTION_INSURERS → route to real insurer email
+ * 3. TEST_MODE = true → route to TEST_EMAIL
  */
-export function getInsurerClaimEmail(insurer) {
+export function getInsurerClaimEmail(insurer, policyholderEmail = null) {
   const normalizedInsurer = insurer.toLowerCase()
 
-  // Check if this insurer is in production mode
+  // PRIORITY 1: Check if user is a demo account - always route to TEST_EMAIL
+  if (policyholderEmail && DEMO_ACCOUNTS.includes(policyholderEmail.toLowerCase())) {
+    console.log(``)
+    console.log(`${'='.repeat(80)}`)
+    console.log(`👥 DEMO ACCOUNT DETECTED 👥`)
+    console.log(`${'='.repeat(80)}`)
+    console.log(`  User: ${policyholderEmail}`)
+    console.log(`  Insurer: ${insurer}`)
+    console.log(`  Would send to: ${getProductionEmail(insurer)}`)
+    console.log(`  Redirecting to: ${TEST_EMAIL}`)
+    console.log(`${'='.repeat(80)}`)
+    console.log(``)
+    return TEST_EMAIL
+  }
+
+  // PRIORITY 2: Check if this insurer is in production mode
   const isProduction = PRODUCTION_INSURERS.some(prod => normalizedInsurer.includes(prod.toLowerCase()))
 
   if (isProduction) {
@@ -1177,18 +1199,20 @@ export function getInsurerClaimEmail(insurer) {
     console.log(`${'='.repeat(80)}`)
     console.log(`🚀 PRODUCTION MODE - ${insurer.toUpperCase()} 🚀`)
     console.log(`${'='.repeat(80)}`)
+    console.log(`  User: ${policyholderEmail || 'Unknown'}`)
     console.log(`  Sending to REAL insurer: ${productionEmail}`)
     console.log(`${'='.repeat(80)}`)
     console.log(``)
     return productionEmail
   }
 
-  // TESTING OVERRIDE - send all test emails to Larry
+  // PRIORITY 3: Test mode for non-production insurers
   if (TEST_MODE) {
     console.log(``)
     console.log(`${'='.repeat(80)}`)
     console.log(`🧪 TEST MODE ACTIVE 🧪`)
     console.log(`${'='.repeat(80)}`)
+    console.log(`  User: ${policyholderEmail || 'Unknown'}`)
     console.log(`  Insurer: ${insurer}`)
     console.log(`  Would send to: ${getProductionEmail(insurer)}`)
     console.log(`  Redirecting to: ${TEST_EMAIL}`)
