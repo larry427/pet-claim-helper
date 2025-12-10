@@ -849,19 +849,57 @@ function MainApp() {
         uid,
         claimId,
         blobSize: blob.size,
-        blobType: blob.type
+        blobType: blob.type,
+        isMobile: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
       })
+
+      // Convert blob to File if needed for better mobile compatibility
+      let fileToUpload: File | Blob = blob
+      if (!(blob instanceof File)) {
+        console.log('[uploadClaimPdf] Converting Blob to File for better mobile compatibility')
+        fileToUpload = new File([blob], `${claimId}.pdf`, { type: 'application/pdf' })
+      }
+
       const path = `${uid}/${claimId}.pdf`
-      const { error } = await supabase.storage.from('claim-pdfs').upload(path, blob, { upsert: true, contentType: 'application/pdf' })
-      if (error) throw error
+      console.log('[uploadClaimPdf] Uploading to path:', path)
+
+      const { error } = await supabase.storage.from('claim-pdfs').upload(path, fileToUpload, {
+        upsert: true,
+        contentType: 'application/pdf'
+      })
+
+      if (error) {
+        console.error('[uploadClaimPdf] ❌ Supabase storage error:', error)
+        throw new Error(`Storage upload failed: ${error.message}`)
+      }
+
       console.log('[uploadClaimPdf] ✅ Storage upload successful, updating claim record...')
-      await updateClaim(claimId, { pdf_path: path })
-      console.log('[uploadClaimPdf] ✅ Claim record updated with pdf_path:', path)
+
+      const updateResult = await updateClaim(claimId, { pdf_path: path })
+      console.log('[uploadClaimPdf] ✅ Claim record updated with pdf_path:', path, 'Result:', updateResult)
+
+      // Verify the update worked
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('claims')
+        .select('pdf_path')
+        .eq('id', claimId)
+        .single()
+
+      if (verifyError) {
+        console.error('[uploadClaimPdf] ⚠️  Could not verify pdf_path update:', verifyError)
+      } else if (verifyData?.pdf_path !== path) {
+        console.error('[uploadClaimPdf] ❌ pdf_path verification FAILED - expected:', path, 'got:', verifyData?.pdf_path)
+        throw new Error('Failed to update claim record with pdf_path')
+      } else {
+        console.log('[uploadClaimPdf] ✅ Verified pdf_path was saved correctly:', verifyData.pdf_path)
+      }
+
       return path
     } catch (e) {
       // eslint-disable-next-line no-console
-      console.error('[uploadClaimPdf] ❌ ERROR:', e)
-      return null
+      console.error('[uploadClaimPdf] ❌ CRITICAL ERROR - Invoice will NOT be attached:', e)
+      // Re-throw so caller knows upload failed
+      throw e
     }
   }
 
@@ -2516,9 +2554,15 @@ function MainApp() {
                           selectedFileType: selectedFile?.file?.type
                         })
                         if (row?.id && selectedFile?.file) {
-                          console.log('[createClaim single] Uploading vet bill PDF to storage...')
-                          await uploadClaimPdf(userId, row.id, selectedFile.file)
-                          console.log('[createClaim single] ✅ Uploaded vet bill PDF for claim:', row.id)
+                          try {
+                            console.log('[createClaim single] Uploading vet bill PDF to storage...')
+                            await uploadClaimPdf(userId, row.id, selectedFile.file)
+                            console.log('[createClaim single] ✅ Uploaded vet bill PDF for claim:', row.id)
+                          } catch (uploadError) {
+                            console.error('[createClaim single] ❌ Failed to upload vet bill:', uploadError)
+                            // Show error to user but still create the claim
+                            alert(`⚠️ Warning: Failed to attach vet invoice.\n\nThe claim was created but the invoice file could not be uploaded. You may need to attach it manually when submitting.\n\nError: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`)
+                          }
                         } else {
                           console.warn('[createClaim single] ⚠️  No vet bill PDF to upload - selectedFile or file is missing')
                         }
