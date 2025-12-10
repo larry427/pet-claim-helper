@@ -144,10 +144,12 @@ export default function OnboardingModal({ open, onClose, userId }: Props) {
         profileUpdate.signature = signature
       }
 
+      // Ensure profile exists with id before updating other fields
+      profileUpdate.id = userId
       const { error: profErr } = await supabase
         .from('profiles')
-        .update(profileUpdate)
-        .eq('id', userId)
+        .upsert(profileUpdate, { onConflict: 'id' })
+        .select()
       if (profErr) throw profErr
 
       // Save SMS consent if opted in
