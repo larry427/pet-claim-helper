@@ -43,7 +43,7 @@ export async function listClaims(userId: string) {
     console.log('[listClaims] START - userId=', userId)
     const { data, error } = await supabase
       .from('claims')
-      .select('*, pets(id, name, species, insurance_company)')
+      .select('*, pets(id, name, species, insurance_company, filing_deadline_days)')
       .eq('user_id', userId)
       .order('service_date', { ascending: false })
     console.log('[listClaims] QUERY RESULT - data:', data, 'error:', error)
