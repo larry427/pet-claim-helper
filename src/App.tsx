@@ -41,6 +41,7 @@ const PRODUCTION_INSURERS = ['pumpkin', 'spot']
 const DEMO_ACCOUNTS = [
   'demo@petclaimhelper.com',
   'drsarah@petclaimhelper.com',
+  'david@mybenefitexperience.com',
 ]
 
 // Route wrapper: Detect /dose/:code and render standalone page
