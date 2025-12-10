@@ -2686,9 +2686,12 @@ function MainApp() {
             {(() => {
               const hasProductionInsurer = pets.some(pet => {
                 const insurer = pet.insuranceCompany?.toLowerCase() || ''
+                console.log('[Banner Debug] Pet:', pet.name, 'Insurer:', insurer, 'insuranceCompany field:', pet.insuranceCompany)
                 return PRODUCTION_INSURERS.some(prod => insurer.includes(prod))
               })
               const isDemoAccount = userEmail && DEMO_ACCOUNTS.includes(userEmail.toLowerCase())
+
+              console.log('[Banner Debug] hasProductionInsurer:', hasProductionInsurer, 'isDemoAccount:', isDemoAccount, 'userEmail:', userEmail)
 
               // Hide banner if user has Pumpkin/Spot OR is a demo account (they can already auto-submit)
               if (hasProductionInsurer || isDemoAccount) return null
