@@ -2221,9 +2221,64 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
               console.log('[Preview PDF]    Original dimensions:', imageMetadata.width, 'x', imageMetadata.height)
               console.log('[Preview PDF]    EXIF orientation:', imageMetadata.orientation || 'none')
 
-              // Auto-rotate based on EXIF orientation and resize to fit page
-              const processedImageBuffer = await sharp(invoiceBuffer)
-                .rotate() // Auto-rotates based on EXIF orientation
+              // Determine rotation angle from EXIF orientation
+              // EXIF orientation values:
+              // 1 = 0° (normal), 2 = 0° + flip
+              // 3 = 180°, 4 = 180° + flip
+              // 5 = 90° + flip, 6 = 90° (rotated right - most common portrait)
+              // 7 = 270° + flip, 8 = 270° (rotated left)
+              let rotationAngle = 0
+              let shouldFlip = false
+
+              switch (imageMetadata.orientation) {
+                case 2:
+                  rotationAngle = 0
+                  shouldFlip = true
+                  break
+                case 3:
+                  rotationAngle = 180
+                  break
+                case 4:
+                  rotationAngle = 180
+                  shouldFlip = true
+                  break
+                case 5:
+                  rotationAngle = 90
+                  shouldFlip = true
+                  break
+                case 6:
+                  rotationAngle = 90 // Most common for portrait camera photos
+                  break
+                case 7:
+                  rotationAngle = 270
+                  shouldFlip = true
+                  break
+                case 8:
+                  rotationAngle = 270
+                  break
+                default:
+                  rotationAngle = 0 // Orientation 1 or undefined = no rotation
+              }
+
+              console.log('[Preview PDF]    Rotation angle:', rotationAngle, 'degrees', shouldFlip ? '+ flip' : '')
+
+              // Process image: rotate, flip if needed, then resize to fit page
+              let sharpPipeline = sharp(invoiceBuffer)
+
+              // Apply flip if needed (before rotation)
+              if (shouldFlip) {
+                sharpPipeline = sharpPipeline.flop() // Horizontal flip
+                console.log('[Preview PDF]    Applying horizontal flip')
+              }
+
+              // Apply rotation if needed
+              if (rotationAngle > 0) {
+                sharpPipeline = sharpPipeline.rotate(rotationAngle)
+                console.log('[Preview PDF]    Applying rotation:', rotationAngle, 'degrees')
+              }
+
+              // Resize to fit within page bounds
+              const processedImageBuffer = await sharpPipeline
                 .resize({
                   width: PAGE_WIDTH - (MARGIN * 2),
                   height: PAGE_HEIGHT - (MARGIN * 2),
