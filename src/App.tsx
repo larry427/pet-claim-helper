@@ -34,6 +34,15 @@ const AUTOSUB_WHITELIST = [
   'larry@dogstrainedright.com',
 ]
 
+// Insurers with Auto-Submit enabled (must match backend PRODUCTION_INSURERS)
+const PRODUCTION_INSURERS = ['pumpkin', 'spot']
+
+// Demo accounts can auto-submit for any insurer (must match backend DEMO_ACCOUNTS)
+const DEMO_ACCOUNTS = [
+  'demo@petclaimhelper.com',
+  'drsarah@petclaimhelper.com',
+]
+
 // Route wrapper: Detect /dose/:code and render standalone page
 // Otherwise render the full app
 export default function App() {
@@ -2673,18 +2682,31 @@ function MainApp() {
               <h2 className="text-xl font-semibold">Vet Bills</h2>
             </div>
 
-            {/* Coming Soon: Auto-Submit Banner */}
-            <div className="mt-4 mb-4 p-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-md">
-              <div className="flex items-center space-x-3 text-white">
-                <span className="text-3xl">🚀</span>
-                <div>
-                  <h3 className="font-bold text-lg">Auto-Submit Coming Soon!</h3>
-                  <p className="text-sm text-blue-100">
-                    Soon we'll file claims directly with your insurance company. No more manual work!
-                  </p>
+            {/* Coming Soon: Auto-Submit Banner - Only show if user cannot auto-submit yet */}
+            {(() => {
+              const hasProductionInsurer = pets.some(pet => {
+                const insurer = pet.insuranceCompany?.toLowerCase() || ''
+                return PRODUCTION_INSURERS.some(prod => insurer.includes(prod))
+              })
+              const isDemoAccount = userEmail && DEMO_ACCOUNTS.includes(userEmail.toLowerCase())
+
+              // Hide banner if user has Pumpkin/Spot OR is a demo account (they can already auto-submit)
+              if (hasProductionInsurer || isDemoAccount) return null
+
+              return (
+                <div className="mt-4 mb-4 p-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-md">
+                  <div className="flex items-center space-x-3 text-white">
+                    <span className="text-3xl">🚀</span>
+                    <div>
+                      <h3 className="font-bold text-lg">Auto-Submit Coming Soon!</h3>
+                      <p className="text-sm text-blue-100">
+                        Soon we'll file claims directly with your insurance company. No more manual work!
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              )
+            })()}
 
             {/* Summary */}
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -2850,8 +2872,21 @@ function MainApp() {
                           )
                         }
                         if (st === 'not_submitted') {
-                          // Check if user is whitelisted for Auto-Submit feature
-                          const showAutoSubmit = userEmail && AUTOSUB_WHITELIST.includes(userEmail)
+                          // Check if user can auto-submit for this claim
+                          const showAutoSubmit = (() => {
+                            if (!userEmail) return false
+
+                            const normalizedEmail = userEmail.toLowerCase()
+                            const insurer = c.pets?.insurance_company?.toLowerCase() || ''
+
+                            // Demo accounts can auto-submit for ANY insurer
+                            if (DEMO_ACCOUNTS.includes(normalizedEmail)) {
+                              return true
+                            }
+
+                            // Real users can only auto-submit for production insurers
+                            return PRODUCTION_INSURERS.some(prod => insurer.includes(prod))
+                          })()
 
                           return (
                             <>
@@ -2958,20 +2993,22 @@ function MainApp() {
                                   </select>
                                 </div>
                               )}
-                              {/* Coming Soon: Auto-Submit Teaser */}
-                              <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/30 border-l-4 border-blue-400 rounded">
-                                <div className="flex items-start">
-                                  <span className="text-2xl mr-2">🚀</span>
-                                  <div>
-                                    <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
-                                      Coming Soon: Auto-Submit
-                                    </p>
-                                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                                      We'll file claims directly with your insurance company - no more manual work!
-                                    </p>
+                              {/* Coming Soon: Auto-Submit Teaser - Only show if claim does NOT support auto-submit */}
+                              {!showAutoSubmit && (
+                                <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/30 border-l-4 border-blue-400 rounded">
+                                  <div className="flex items-start">
+                                    <span className="text-2xl mr-2">🚀</span>
+                                    <div>
+                                      <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
+                                        Coming Soon: Auto-Submit
+                                      </p>
+                                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                        We'll file claims directly with your insurance company - no more manual work!
+                                      </p>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
+                              )}
                             </>
                           )
                         }
