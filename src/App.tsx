@@ -1118,7 +1118,9 @@ function MainApp() {
   }
 
   const getDeadlineDays = (c: any): number => {
-    return typeof c.filing_deadline_days === 'number' && c.filing_deadline_days > 0 ? c.filing_deadline_days : 90
+    // Claims have a joined 'pets' object with pet data including filing_deadline_days
+    const petDeadline = c.pets?.filing_deadline_days
+    return typeof petDeadline === 'number' && petDeadline > 0 ? petDeadline : 90
   }
   const getServiceDate = (c: any): Date | null => {
     if (!c.service_date) return null
