@@ -85,6 +85,9 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
   console.log(`   Normalized: "${normalizedInsurer}"`)
   console.log(`   includes('healthy'): ${normalizedInsurer.includes('healthy')}`)
   console.log(`   includes('paws'): ${normalizedInsurer.includes('paws')}`)
+  console.log(`   includes('pets best'): ${normalizedInsurer.includes('pets best')}`)
+  console.log(`   includes('best'): ${normalizedInsurer.includes('best')}`)
+  console.log(`   shouldUseOfficialForm: ${shouldUseOfficialForm(normalizedInsurer)}`)
 
   // Determine which PDF to load
   let pdfFilename
