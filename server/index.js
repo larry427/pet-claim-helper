@@ -1920,11 +1920,18 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
       console.log('   Will generate PDF for:', insurer)
 
       // 7. Generate PDF
+      // Format date as MM/DD/YYYY for all PDF forms
+      const today = new Date()
+      const mm = String(today.getMonth() + 1).padStart(2, '0')
+      const dd = String(today.getDate()).padStart(2, '0')
+      const yyyy = today.getFullYear()
+      const dateSigned = `${mm}/${dd}/${yyyy}`
+
       const pdfBuffer = await generateClaimFormPDF(
         insurer,
         claimData,
         profile.signature || profile.full_name || profile.email.split('@')[0],
-        new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+        dateSigned
       )
 
       console.log('[Submit Claim] PDF generated:', { size: pdfBuffer.length })
@@ -2137,11 +2144,18 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
 
       // Generate PDF
       console.log('[Preview PDF] Generating PDF for claim:', claimId)
+      // Format date as MM/DD/YYYY for all PDF forms
+      const today = new Date()
+      const mm = String(today.getMonth() + 1).padStart(2, '0')
+      const dd = String(today.getDate()).padStart(2, '0')
+      const yyyy = today.getFullYear()
+      const dateSigned = `${mm}/${dd}/${yyyy}`
+
       const pdfBuffer = await generateClaimFormPDF(
         insurer,
         claimData,
         profile.signature || profile.full_name || user.email.split('@')[0],
-        new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+        dateSigned
       )
 
       console.log('[Preview PDF] PDF generated successfully:', pdfBuffer.length, 'bytes')

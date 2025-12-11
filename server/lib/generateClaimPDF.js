@@ -671,22 +671,9 @@ function getValueForField(fieldName, claimData, dateSigned) {
     claimTypeIllness: claimData.claimType === 'Illness',
     claimTypeWellness: claimData.claimType === 'Wellness',  // NOT 'Preventive'!
 
-    // PETS BEST FORM FIELDS
-    Name_1: claimData.petName,  // Pet Name
-    Number_1: claimData.policyNumber,  // Policy Number
-    Text_1: claimData.diagnosis,  // Diagnosis/Reason for visit
-    Name_2: claimData.policyholderName,  // Owner Name
-    US_Phone_Number_1: formatPhone(claimData.policyholderPhone),  // Phone
-    Email_1: claimData.policyholderEmail,  // Email
-    Signature_1: claimData.policyholderName,  // Signature (typed name)
-    Date_1: (() => {
-      // Today's date in MM/DD/YYYY format
-      const today = new Date()
-      const mm = String(today.getMonth() + 1).padStart(2, '0')
-      const dd = String(today.getDate()).padStart(2, '0')
-      const yyyy = today.getFullYear()
-      return `${mm}/${dd}/${yyyy}`
-    })()
+    // PETS BEST FORM FIELDS (using standard field names, not PDF field names)
+    // The mapping to PDF field names happens in claimFormMappings.js
+    signature: claimData.policyholderName  // Signature (typed name) - maps to Signature_1
   }
 
   return fieldMap[fieldName]
