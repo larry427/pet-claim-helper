@@ -42,6 +42,7 @@ const DEMO_ACCOUNTS = [
   'demo@petclaimhelper.com',
   'drsarah@petclaimhelper.com',
   'david@mybenefitexperience.com',
+  'larry@uglydogadventures.com',  // TEMPORARY for testing BCC
 ]
 
 // Route wrapper: Detect /dose/:code and render standalone page
