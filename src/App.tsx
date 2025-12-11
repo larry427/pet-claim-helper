@@ -35,7 +35,7 @@ const AUTOSUB_WHITELIST = [
 ]
 
 // Insurers with Auto-Submit enabled (must match backend PRODUCTION_INSURERS)
-const PRODUCTION_INSURERS = ['pumpkin', 'spot']
+const PRODUCTION_INSURERS = ['pumpkin', 'spot', 'healthy paws', 'nationwide', 'trupanion']
 
 // Demo accounts can auto-submit for any insurer (must match backend DEMO_ACCOUNTS)
 const DEMO_ACCOUNTS = [
