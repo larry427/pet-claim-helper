@@ -329,6 +329,8 @@ export function getMappingForInsurer(insurerName) {
     return FORM_FIELD_MAPPINGS.pumpkin
   } else if (normalized.includes('spot')) {
     return FORM_FIELD_MAPPINGS.spot
+  } else if (normalized.includes('pets best')) {
+    return FORM_FIELD_MAPPINGS['pets best']
   }
 
   return null
