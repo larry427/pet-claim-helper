@@ -141,11 +141,24 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
 
 
   const pdfBytes = fs.readFileSync(pdfPath)
-  const pdfDoc = await PDFDocument.load(pdfBytes)
+  let pdfDoc
+
+  try {
+    pdfDoc = await PDFDocument.load(pdfBytes)
+    console.log(`📄 PDF loaded successfully`)
+    console.log(`   Pages: ${pdfDoc.getPageCount()}`)
+  } catch (error) {
+    console.error(`❌ Failed to load PDF: ${error.message}`)
+    console.error(`   PDF file: ${pdfFilename}`)
+    console.error(`   Error: ${error.stack}`)
+    console.log(`   Falling back to generated PDF`)
+    return await generatePDFFromScratch(insurer, claimData, userSignature, dateSigned)
+  }
 
   // Check if this is a flat PDF (no form fields) - use text overlay instead
   const form = pdfDoc.getForm()
   const fields = form.getFields()
+  console.log(`   Form fields: ${fields.length}`)
 
   if (fields.length === 0) {
     console.log(`📄 Flat PDF detected (no form fields)`)
@@ -153,10 +166,14 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
     return await fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignature, dateSigned)
   }
 
-  // Remove unwanted pages - keep only page 1 for Nationwide and Spot
-  if (normalizedInsurer.includes('nationwide') || normalizedInsurer.includes('spot')) {
+  // Remove unwanted pages - keep only page 1 for Nationwide, Spot, and Pets Best
+  if (normalizedInsurer.includes('nationwide') || normalizedInsurer.includes('spot') || normalizedInsurer.includes('pets best')) {
     const pageCount = pdfDoc.getPageCount()
-    const insurerName = normalizedInsurer.includes('nationwide') ? 'Nationwide' : 'Spot'
+    let insurerName = 'Unknown'
+    if (normalizedInsurer.includes('nationwide')) insurerName = 'Nationwide'
+    if (normalizedInsurer.includes('spot')) insurerName = 'Spot'
+    if (normalizedInsurer.includes('pets best')) insurerName = 'Pets Best'
+
     console.log(`📄 ${insurerName} PDF has ${pageCount} pages`)
 
     // Remove all pages except the first one
