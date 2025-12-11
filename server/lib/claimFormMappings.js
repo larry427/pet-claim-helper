@@ -215,6 +215,20 @@ const FORM_FIELD_MAPPINGS = {
     claimTypeAccident: 'Accident',
     claimTypeIllness: 'Illness',
     claimTypeWellness: 'Wellness'
+  },
+
+  'pets best': {
+    // ✅ EXACT FIELD NAMES from Pets Best PDF (created via PDFfiller)
+    // Field names match the fillable fields in pets-best-claim-form.pdf
+
+    petName: 'Name_1',              // Pet Name
+    policyNumber: 'Number_1',       // Policy Number
+    diagnosis: 'Text_1',            // Diagnosis/Reason for visit
+    policyholderName: 'Name_2',     // Owner Name
+    policyholderPhone: 'US_Phone_Number_1',  // Phone
+    policyholderEmail: 'Email_1',   // Email
+    signature: 'Signature_1',       // Signature (typed name)
+    signatureDate: 'Date_1'         // Today's date (MM/DD/YYYY)
   }
 }
 
@@ -846,6 +860,66 @@ export const INSURER_REQUIRED_FIELDS = {
       options: ['Accident', 'Illness', 'Wellness'],
       description: 'Select the type of claim you are filing'
     }
+  ],
+
+  'pets best': [
+    {
+      field: 'signature',
+      source: 'profiles.signature',
+      required: true,
+      type: 'signature',
+      prompt: 'Your signature',
+      description: 'Required to authorize the claim'
+    },
+    {
+      field: 'policyholderName',
+      source: 'profiles.full_name',
+      required: true,
+      type: 'text',
+      prompt: 'Your full name',
+      placeholder: 'John Smith'
+    },
+    {
+      field: 'policyholderPhone',
+      source: 'profiles.phone',
+      required: true,
+      type: 'phone',
+      prompt: 'Your phone number',
+      placeholder: '(555) 123-4567'
+    },
+    {
+      field: 'policyholderEmail',
+      source: 'profiles.email',
+      required: true,
+      type: 'email',
+      prompt: 'Your email address',
+      placeholder: 'john@example.com'
+    },
+    {
+      field: 'petName',
+      source: 'pets.name',
+      required: true,
+      type: 'text',
+      prompt: 'Pet name',
+      placeholder: 'Fluffy'
+    },
+    {
+      field: 'policyNumber',
+      source: 'pets.policy_number',
+      required: true,
+      type: 'text',
+      prompt: 'Policy number',
+      placeholder: 'PB123456'
+    },
+    {
+      field: 'diagnosis',
+      source: 'claim.diagnosis',
+      required: true,
+      type: 'text',
+      prompt: 'Diagnosis / Reason for visit',
+      placeholder: 'e.g., Ear infection',
+      description: 'Brief description of why your pet visited the vet'
+    }
   ]
 }
 
@@ -865,6 +939,8 @@ export function getRequiredFieldsForInsurer(insurerName) {
     return INSURER_REQUIRED_FIELDS.pumpkin
   } else if (normalized.includes('spot')) {
     return INSURER_REQUIRED_FIELDS.spot
+  } else if (normalized.includes('pets best')) {
+    return INSURER_REQUIRED_FIELDS['pets best']
   }
 
   return []
