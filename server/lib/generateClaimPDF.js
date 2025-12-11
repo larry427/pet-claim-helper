@@ -368,7 +368,14 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
   }
 
   // Flatten the form (make non-editable)
-  form.flatten()
+  // Skip flattening for Pets Best - their PDF has issues with form.flatten()
+  if (!normalizedInsurer.includes('pets best')) {
+    console.log('📋 Flattening form (making fields non-editable)...')
+    form.flatten()
+    console.log('   ✅ Form flattened')
+  } else {
+    console.log('⚠️  Skipping form.flatten() for Pets Best (PDF compatibility issue)')
+  }
 
   // Save and return as buffer
   const filledPdfBytes = await pdfDoc.save()
