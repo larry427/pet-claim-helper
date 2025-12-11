@@ -144,7 +144,8 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
   let pdfDoc
 
   try {
-    pdfDoc = await PDFDocument.load(pdfBytes)
+    // Try loading with updateFieldAppearances: false for PDFs with broken page references
+    pdfDoc = await PDFDocument.load(pdfBytes, { updateFieldAppearances: false })
     console.log(`📄 PDF loaded successfully`)
     console.log(`   Pages: ${pdfDoc.getPageCount()}`)
   } catch (error) {
@@ -155,18 +156,8 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
     return await generatePDFFromScratch(insurer, claimData, userSignature, dateSigned)
   }
 
-  // Check if this is a flat PDF (no form fields) - use text overlay instead
-  const form = pdfDoc.getForm()
-  const fields = form.getFields()
-  console.log(`   Form fields: ${fields.length}`)
-
-  if (fields.length === 0) {
-    console.log(`📄 Flat PDF detected (no form fields)`)
-    console.log(`   Using text overlay method for ${insurer}\n`)
-    return await fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignature, dateSigned)
-  }
-
-  // Remove unwanted pages - keep only page 1 for Nationwide, Spot, and Pets Best
+  // Remove unwanted pages FIRST - keep only page 1 for Nationwide, Spot, and Pets Best
+  // This must happen BEFORE getForm() to avoid PDFRef errors from broken page 2 references
   if (normalizedInsurer.includes('nationwide') || normalizedInsurer.includes('spot') || normalizedInsurer.includes('pets best')) {
     const pageCount = pdfDoc.getPageCount()
     let insurerName = 'Unknown'
@@ -185,6 +176,17 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
       }
       console.log(`✅ Kept only page 1 (claim form)\n`)
     }
+  }
+
+  // Check if this is a flat PDF (no form fields) - use text overlay instead
+  const form = pdfDoc.getForm()
+  const fields = form.getFields()
+  console.log(`   Form fields: ${fields.length}`)
+
+  if (fields.length === 0) {
+    console.log(`📄 Flat PDF detected (no form fields)`)
+    console.log(`   Using text overlay method for ${insurer}\n`)
+    return await fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignature, dateSigned)
   }
 
   // Get field mapping for this insurer
