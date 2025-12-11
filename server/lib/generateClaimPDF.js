@@ -22,7 +22,7 @@ const __dirname = path.dirname(__filename)
 const TEST_MODE = true
 const TEST_EMAIL = 'larry@uglydogadventures.com'
 // Insurers in production (bypass TEST_MODE)
-const PRODUCTION_INSURERS = ['pumpkin', 'spot', 'healthy paws', 'nationwide', 'trupanion']
+const PRODUCTION_INSURERS = ['pumpkin', 'spot', 'healthy paws', 'nationwide', 'trupanion', 'pets best']
 // Demo accounts always route to TEST_EMAIL regardless of insurer
 const DEMO_ACCOUNTS = [
   'demo@petclaimhelper.com',
@@ -70,7 +70,8 @@ function shouldUseOfficialForm(normalizedInsurer) {
          normalizedInsurer.includes('healthy') ||
          normalizedInsurer.includes('paws') ||
          normalizedInsurer.includes('pumpkin') ||
-         normalizedInsurer.includes('spot')
+         normalizedInsurer.includes('spot') ||
+         normalizedInsurer.includes('pets best')
 }
 
 /**
@@ -102,6 +103,9 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
   } else if (normalizedInsurer.includes('spot')) {
     pdfFilename = 'Spot_Claim_Form.pdf'
     console.log(`   ✅ Matched: Spot`)
+  } else if (normalizedInsurer.includes('pets best')) {
+    pdfFilename = 'pets-best-claim-form.pdf'
+    console.log(`   ✅ Matched: Pets Best`)
   } else {
     console.log(`   ❌ NO MATCH for insurer: "${insurer}"`)
     throw new Error(`No official form available for insurer: ${insurer}`)
@@ -643,7 +647,24 @@ function getValueForField(fieldName, claimData, dateSigned) {
     // Claim type checkboxes - only check one based on claimType
     claimTypeAccident: claimData.claimType === 'Accident',
     claimTypeIllness: claimData.claimType === 'Illness',
-    claimTypeWellness: claimData.claimType === 'Wellness'  // NOT 'Preventive'!
+    claimTypeWellness: claimData.claimType === 'Wellness',  // NOT 'Preventive'!
+
+    // PETS BEST FORM FIELDS
+    Name_1: claimData.petName,  // Pet Name
+    Number_1: claimData.policyNumber,  // Policy Number
+    Text_1: claimData.diagnosis,  // Diagnosis/Reason for visit
+    Name_2: claimData.policyholderName,  // Owner Name
+    US_Phone_Number_1: formatPhone(claimData.policyholderPhone),  // Phone
+    Email_1: claimData.policyholderEmail,  // Email
+    Signature_1: claimData.policyholderName,  // Signature (typed name)
+    Date_1: (() => {
+      // Today's date in MM/DD/YYYY format
+      const today = new Date()
+      const mm = String(today.getMonth() + 1).padStart(2, '0')
+      const dd = String(today.getDate()).padStart(2, '0')
+      const yyyy = today.getFullYear()
+      return `${mm}/${dd}/${yyyy}`
+    })()
   }
 
   return fieldMap[fieldName]
@@ -1238,7 +1259,8 @@ function getProductionEmail(insurer) {
     'healthypaws': 'claims@healthypawspetinsurance.com',
     'trupanion': 'claims@trupanion.com',
     'pumpkin': 'claims@pumpkin.care',
-    'spot': 'claims@customer.spotpetins.com'
+    'spot': 'claims@customer.spotpetins.com',
+    'pets best': 'claims@petsbest.com'
   }
   const normalizedName = insurer.toLowerCase()
   return emails[normalizedName] || null
