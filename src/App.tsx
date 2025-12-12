@@ -1835,6 +1835,8 @@ function MainApp() {
                       const isHealthyPaws = company.toLowerCase().includes('healthy paws')
                       const isTrupanion = company.toLowerCase().includes('trupanion')
                       const isPumpkin = company.toLowerCase().includes('pumpkin')
+                      const isSpot = company.toLowerCase().includes('spot')
+                      const isPetsBest = company.toLowerCase().includes('pets best')
                       const isNotInsured = company.toLowerCase().includes('not insured') || company.toLowerCase().includes('none')
 
                       let bgColor = 'bg-slate-100 dark:bg-slate-800'
@@ -1854,9 +1856,17 @@ function MainApp() {
                         textColor = 'text-purple-700 dark:text-purple-300'
                         borderColor = 'border-purple-200 dark:border-purple-800'
                       } else if (isPumpkin) {
-                        bgColor = 'bg-sky-50 dark:bg-sky-950'
-                        textColor = 'text-sky-600 dark:text-sky-300'
-                        borderColor = 'border-sky-200 dark:border-sky-800'
+                        bgColor = 'bg-orange-50 dark:bg-orange-950'
+                        textColor = 'text-orange-600 dark:text-orange-300'
+                        borderColor = 'border-orange-200 dark:border-orange-800'
+                      } else if (isSpot) {
+                        bgColor = 'bg-orange-50 dark:bg-orange-950'
+                        textColor = 'text-orange-600 dark:text-orange-400'
+                        borderColor = 'border-orange-200 dark:border-orange-800'
+                      } else if (isPetsBest) {
+                        bgColor = 'bg-cyan-50 dark:bg-cyan-950'
+                        textColor = 'text-cyan-700 dark:text-cyan-300'
+                        borderColor = 'border-cyan-200 dark:border-cyan-800'
                       } else if (isNotInsured) {
                         bgColor = 'bg-slate-100 dark:bg-slate-800'
                         textColor = 'text-slate-600 dark:text-slate-400'
@@ -1865,10 +1875,12 @@ function MainApp() {
 
                       return (
                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${bgColor} ${textColor} ${borderColor}`}>
-                          {isNationwide && '🏢'}
-                          {isHealthyPaws && '🌿'}
+                          {isNationwide && '🏛️'}
+                          {isHealthyPaws && '🍀'}
                           {isTrupanion && '💜'}
-                          {isPumpkin && '🐾'}
+                          {isPumpkin && '🎃'}
+                          {isSpot && '🐾'}
+                          {isPetsBest && '🐶'}
                           {isNotInsured && '—'}
                           {company}
                         </span>
