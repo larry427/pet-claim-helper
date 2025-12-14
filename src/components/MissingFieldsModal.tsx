@@ -331,6 +331,9 @@ export default function MissingFieldsModal({
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
             ⚠️ We need a few details to submit your claim. These fields are required by {insurerName}.
           </p>
+          <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+            This is the only time we'll ask — we save everything for future claims. Your vet can help with pet details. Search "{insurerName}" in your email to find your policy number.
+          </p>
         </div>
 
         {error && (
