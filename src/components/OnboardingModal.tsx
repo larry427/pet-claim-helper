@@ -133,10 +133,11 @@ export default function OnboardingModal({ open, onClose, userId, userEmail }: Pr
     setSaving(true)
     setError(null)
     try {
-      // Save profile with just name
+      // Save profile with name and email
       const profileUpdate: any = {
         id: userId,
         full_name: newFullName.trim(),
+        email: userEmail || '',
         onboarding_complete: true
       }
 
