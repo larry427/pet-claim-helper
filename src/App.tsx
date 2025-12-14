@@ -128,6 +128,7 @@ function MainApp() {
     policyNumber?: string;
     healthy_paws_pet_id?: string;
     spot_account_number?: string;
+    pumpkin_account_number?: string;
   } | null>(null)
   const [newPetInsurer, setNewPetInsurer] = useState<string>('')
   const [editPetInsurer, setEditPetInsurer] = useState<string>('')
@@ -604,7 +605,8 @@ function MainApp() {
       insurance_pays_percentage: (pet as any).insurance_pays_percentage != null ? Math.round(Number((pet as any).insurance_pays_percentage) * 100) : '',
       policyNumber: pet.policyNumber || '',
       healthy_paws_pet_id: (pet as any).healthy_paws_pet_id || '',
-      spot_account_number: (pet as any).spot_account_number || ''
+      spot_account_number: (pet as any).spot_account_number || '',
+      pumpkin_account_number: (pet as any).pumpkin_account_number || ''
     })
     // Set dropdown to display value
     if (!pet.insuranceCompany || pet.insuranceCompany === '') {
@@ -653,6 +655,7 @@ function MainApp() {
             annual_coverage_limit: p.annual_coverage_limit ?? null,
             healthy_paws_pet_id: (editPet as any).healthy_paws_pet_id || null,
             spot_account_number: (editPet as any).spot_account_number || null,
+            pumpkin_account_number: (editPet as any).pumpkin_account_number || null,
           }
         : p,
     )
@@ -1978,7 +1981,19 @@ function MainApp() {
                                 />
                               </div>
                             )}
-                            {editPetInsurer && editPetInsurer !== 'Not Insured' && editPetInsurer !== '— Select —' && editPetInsurer !== 'Spot (270 days)' && (
+                            {editPetInsurer === 'Pumpkin (270 days)' && (
+                              <div className="sm:col-span-2">
+                                <label htmlFor="edit-pet-pumpkin-account-number" className="block text-xs text-slate-500">Pumpkin Account Number</label>
+                                <input
+                                  id="edit-pet-pumpkin-account-number"
+                                  value={editPet.pumpkin_account_number || ''}
+                                  onChange={(e) => setEditPet({ ...editPet, pumpkin_account_number: e.target.value })}
+                                  placeholder="e.g., 12345678"
+                                  className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
+                                />
+                              </div>
+                            )}
+                            {editPetInsurer && editPetInsurer !== 'Not Insured' && editPetInsurer !== '— Select —' && editPetInsurer !== 'Spot (270 days)' && editPetInsurer !== 'Pumpkin (270 days)' && (
                               <div className="sm:col-span-2">
                                 <label htmlFor="edit-pet-policy-number" className="block text-xs text-slate-500">Policy Number <span className="text-slate-400">(optional)</span></label>
                                 <input
