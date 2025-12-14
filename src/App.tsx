@@ -196,6 +196,9 @@ function MainApp() {
   const [showAddMedication, setShowAddMedication] = useState(false)
   // Medications refresh key - increment to force MedicationsDashboard to reload
   const [medicationsRefreshKey, setMedicationsRefreshKey] = useState(0)
+  // SMS intro modal state
+  const [showSmsIntroModal, setShowSmsIntroModal] = useState(false)
+  const [hasPhone, setHasPhone] = useState<boolean | null>(null) // null = not checked yet
   // Claim auto-submission modal
   const [submittingClaim, setSubmittingClaim] = useState<any | null>(null)
   // Auto-Submit button animation state
@@ -1446,7 +1449,24 @@ function MainApp() {
             {authView === 'app' && (
               <button
                 type="button"
-                onClick={() => setActiveView(v => v === 'medications' ? 'app' : 'medications')}
+                onClick={async () => {
+                  if (activeView === 'medications') {
+                    setActiveView('app')
+                  } else {
+                    // Check if user has phone number before showing medications view
+                    if (hasPhone === null && userId) {
+                      const { data } = await supabase.from('profiles').select('phone').eq('id', userId).single()
+                      const phone = data?.phone || null
+                      setHasPhone(!!phone)
+                      if (!phone) {
+                        setShowSmsIntroModal(true)
+                      }
+                    } else if (hasPhone === false) {
+                      setShowSmsIntroModal(true)
+                    }
+                    setActiveView('medications')
+                  }
+                }}
                 className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow"
               >
                 💊 Medications
@@ -3491,7 +3511,21 @@ function MainApp() {
           }
         }}
         userId={userId || ''}
+        userEmail={userEmail}
       />
+
+      {/* SMS Intro Modal (first time clicking Medication tab) */}
+      {showSmsIntroModal && (
+        <SmsIntroModal
+          userId={userId}
+          onClose={() => setShowSmsIntroModal(false)}
+          onSave={(phone) => {
+            setHasPhone(true)
+            setShowSmsIntroModal(false)
+          }}
+        />
+      )}
+
       {successModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setSuccessModal(null)}>
           <div className="relative mx-4 w-full max-w-md rounded-2xl border border-emerald-200 bg-white p-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
@@ -3900,4 +3934,118 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
       </section>
     )
   }
+
+function SmsIntroModal({ userId, onClose, onSave }: { userId: string | null; onClose: () => void; onSave: (phone: string) => void }) {
+  const [phone, setPhone] = useState('')
+  const [consent, setConsent] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleEnableReminders = async () => {
+    if (!userId || !phone.trim() || !consent) return
+
+    setSaving(true)
+    setError(null)
+    try {
+      const phoneE164 = formatPhoneForStorage(phone)
+      if (!phoneE164) throw new Error('Invalid phone number')
+
+      // Save phone to profile
+      const { error: profErr } = await supabase
+        .from('profiles')
+        .update({ phone: phoneE164, sms_opt_in: true })
+        .eq('id', userId)
+      if (profErr) throw profErr
+
+      // Save SMS consent
+      let ipAddress = null
+      try {
+        const ipResponse = await fetch('https://api.ipify.org?format=json')
+        const ipData = await ipResponse.json()
+        ipAddress = ipData.ip
+      } catch {
+        // Ignore IP fetch errors
+      }
+
+      const { error: consentErr } = await supabase
+        .from('sms_consent')
+        .insert({
+          user_id: userId,
+          phone_number: phoneE164,
+          consented: true,
+          consent_text: "I agree to receive SMS medication reminders. Reply STOP to opt out, HELP for support.",
+          ip_address: ipAddress
+        })
+      if (consentErr) {
+        console.error('[SmsIntroModal] Failed to save SMS consent:', consentErr)
+        // Don't fail if consent logging fails
+      }
+
+      onSave(phoneE164)
+    } catch (e: any) {
+      setError(e?.message || 'Failed to save phone number')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="relative mx-4 w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        {error && <div className="mb-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</div>}
+
+        <div className="text-center mb-6">
+          <div className="text-4xl mb-3">🐾</div>
+          <div className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Never forget a dose</div>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Get a friendly text when it's medication time</p>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
+              Phone Number
+            </label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(formatPhoneOnChange(e.target.value, phone))}
+              placeholder="(555) 123-4567"
+              className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+            />
+          </div>
+
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              className="mt-0.5 w-4 h-4 rounded border-2 border-slate-400 dark:border-slate-500 checked:bg-emerald-600 checked:border-emerald-600"
+            />
+            <span className="text-xs text-slate-700 dark:text-slate-300">
+              I agree to receive SMS medication reminders. Reply STOP to opt out, HELP for support.
+            </span>
+          </label>
+        </div>
+
+        <div className="mt-6 flex flex-col sm:flex-row gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm"
+          >
+            Skip for now
+          </button>
+          <button
+            type="button"
+            disabled={!phone.trim() || !consent || saving}
+            onClick={handleEnableReminders}
+            className="flex-1 h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 hover:scale-[1.02] hover:shadow-lg text-white px-4 disabled:opacity-60 disabled:hover:scale-100 disabled:hover:shadow-none transition-all duration-200 text-sm font-medium"
+          >
+            {saving ? 'Saving…' : 'Enable Reminders'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
