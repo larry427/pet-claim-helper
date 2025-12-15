@@ -84,6 +84,73 @@ export default function App() {
   return <MainApp />
 }
 
+// Coming Soon: Complete Pet Cost Tracking Component
+const ComingSoonExpenses = () => {
+  const demoExpenses = [
+    { date: 'Dec 1', icon: '🍖', vendor: 'Chewy - Dog Food', amount: 67.99 },
+    { date: 'Dec 5', icon: '✂️', vendor: 'Petco Grooming', amount: 45.00 },
+    { date: 'Dec 8', icon: '🎓', vendor: 'Dogs Trained Right', amount: 150.00 },
+    { date: 'Dec 12', icon: '💊', vendor: 'Medication Refill', amount: 32.50 },
+  ]
+
+  const total = demoExpenses.reduce((sum, exp) => sum + exp.amount, 0)
+
+  return (
+    <div className="mt-8 opacity-70">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 p-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xl">📊</span>
+              <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200">
+                COMING SOON: Complete Pet Cost Tracking
+              </h3>
+              <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded-full">
+                Preview
+              </span>
+            </div>
+            <p className="text-sm text-slate-500 mt-1 italic">
+              "QuickBooks for your pets - Track EVERYTHING"
+            </p>
+          </div>
+        </div>
+
+        {/* Expense List */}
+        <div className="space-y-3 mb-4">
+          {demoExpenses.map((expense, i) => (
+            <div key={i} className="flex items-center justify-between py-2 border-b border-slate-200 dark:border-slate-700 last:border-0">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-slate-400 w-12">{expense.date}</span>
+                <span className="text-lg">{expense.icon}</span>
+                <span className="text-slate-600 dark:text-slate-300">{expense.vendor}</span>
+              </div>
+              <span className="font-medium text-slate-700 dark:text-slate-200">
+                ${expense.amount.toFixed(2)}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Total */}
+        <div className="flex justify-between items-center pt-3 border-t-2 border-slate-300 dark:border-slate-600">
+          <span className="font-medium text-slate-600 dark:text-slate-300">
+            Monthly Non-Vet Expenses:
+          </span>
+          <span className="text-lg font-bold text-slate-700 dark:text-slate-200">
+            ${total.toFixed(2)}
+          </span>
+        </div>
+
+        {/* Feedback prompt */}
+        <p className="text-xs text-slate-400 mt-3 text-center">
+          Want this feature? Let us know! 💬
+        </p>
+      </div>
+    </div>
+  )
+}
+
 // Main app component with all the hooks
 function MainApp() {
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -3181,6 +3248,9 @@ function MainApp() {
                 No vet bills yet. Upload your first bill to get started!
               </div>
             )}
+
+            {/* Coming Soon: Complete Pet Cost Tracking */}
+            <ComingSoonExpenses />
           </section>
         )}
 
