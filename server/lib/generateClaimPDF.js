@@ -850,14 +850,9 @@ async function fillFlatPDFWithTextOverlay(pdfDoc, insurer, claimData, userSignat
     // PUMPKIN SPECIAL HANDLING: Use user-provided age (claim.age) or fall back to calculated age from DOB
     let value
     if (normalizedInsurer.includes('pumpkin') && ourFieldName === 'age') {
-      console.log('🐾 [PUMPKIN AGE DEBUG]')
-      console.log('   claimData.age:', claimData.age)
-      console.log('   calculatedAge:', calculatedAge)
       const ageValue = claimData.age || calculatedAge  // Prioritize user input, fall back to calculated
-      console.log('   ageValue (after ||):', ageValue)
       // Format age text: add "years" suffix if not already present (e.g., "4" → "4 years")
       value = ageValue && String(ageValue).toLowerCase().includes('year') ? ageValue : (ageValue ? `${ageValue} years` : null)
-      console.log('   final value (after formatting):', value)
     } else {
       // PUMPKIN DEBUG: Log before getting value
       if (normalizedInsurer.includes('pumpkin')) {
