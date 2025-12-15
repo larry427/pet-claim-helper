@@ -1210,18 +1210,35 @@ async function generatePDFFromScratch(insurer, claimData, userSignature, dateSig
  * Get the email address for submitting claims to each insurer
  *
  * ⚠️ IMPORTANT: Priority order for email routing:
- * 1. DEMO_ACCOUNTS → always route to TEST_EMAIL
- * 2. PRODUCTION_INSURERS → route to real insurer email
- * 3. TEST_MODE = true → route to TEST_EMAIL
+ * 1. isDemoAccount = true → always route to TEST_EMAIL (safe for sales demos)
+ * 2. DEMO_ACCOUNTS (legacy) → always route to TEST_EMAIL
+ * 3. PRODUCTION_INSURERS → route to real insurer email
+ * 4. TEST_MODE = true → route to TEST_EMAIL
  */
-export function getInsurerClaimEmail(insurer, policyholderEmail = null) {
+export function getInsurerClaimEmail(insurer, policyholderEmail = null, isDemoAccount = false) {
   const normalizedInsurer = insurer.toLowerCase()
 
-  // PRIORITY 1: Check if user is a demo account - always route to TEST_EMAIL
+  // PRIORITY 1: Check if user is a demo account (from database flag) - always route to TEST_EMAIL
+  if (isDemoAccount) {
+    console.log(``)
+    console.log(`${'='.repeat(80)}`)
+    console.log(`🎭 DEMO ACCOUNT (DB FLAG) - SAFE FOR SALES DEMOS 🎭`)
+    console.log(`${'='.repeat(80)}`)
+    console.log(`  User: ${policyholderEmail}`)
+    console.log(`  Insurer: ${insurer}`)
+    console.log(`  Would send to: ${getProductionEmail(insurer)}`)
+    console.log(`  Redirecting to: ${TEST_EMAIL}`)
+    console.log(`  BCC to: ${policyholderEmail} (prospect sees email arrive live!)`)
+    console.log(`${'='.repeat(80)}`)
+    console.log(``)
+    return TEST_EMAIL
+  }
+
+  // PRIORITY 2 (LEGACY): Check if user email is in hardcoded DEMO_ACCOUNTS list
   if (policyholderEmail && DEMO_ACCOUNTS.includes(policyholderEmail.toLowerCase())) {
     console.log(``)
     console.log(`${'='.repeat(80)}`)
-    console.log(`👥 DEMO ACCOUNT DETECTED 👥`)
+    console.log(`👥 DEMO ACCOUNT (HARDCODED) 👥`)
     console.log(`${'='.repeat(80)}`)
     console.log(`  User: ${policyholderEmail}`)
     console.log(`  Insurer: ${insurer}`)

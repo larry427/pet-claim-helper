@@ -8,13 +8,14 @@ import { getInsurerClaimEmail } from './generateClaimPDF.js'
  * @param {object} claimData - All claim information
  * @param {Buffer} pdfBuffer - Generated claim form PDF
  * @param {Buffer} invoiceBuffer - Vet invoice PDF buffer (optional)
+ * @param {boolean} isDemoAccount - Whether user is a demo account (routes to safe test email)
  * @returns {object} { success: boolean, messageId?: string, error?: string }
  */
-export async function sendClaimEmail(insurer, claimData, pdfBuffer, invoiceBuffer = null) {
+export async function sendClaimEmail(insurer, claimData, pdfBuffer, invoiceBuffer = null, isDemoAccount = false) {
   try {
     ensureResendConfigured()
 
-    const insurerEmail = getInsurerClaimEmail(insurer, claimData.policyholderEmail)
+    const insurerEmail = getInsurerClaimEmail(insurer, claimData.policyholderEmail, isDemoAccount)
     if (!insurerEmail) {
       throw new Error(`Unknown insurer: ${insurer}`)
     }

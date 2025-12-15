@@ -1745,7 +1745,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         return res.status(404).json({ ok: false, error: 'Claim not found' })
       }
 
-      // 2. Get user profile data
+      // 2. Get user profile data (including is_demo_account flag)
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -1758,6 +1758,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
       }
 
       console.log('[Submit Claim] 📧 Profile email:', profile.email)
+      console.log('[Submit Claim] 🎭 Is demo account:', profile.is_demo_account || false)
 
       // 3. Calculate pet age
       const petAge = claim.pets.date_of_birth
@@ -1961,7 +1962,9 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
       }
 
       // 8. Send email to insurer (with both claim form and invoice)
-      const emailResult = await sendClaimEmail(insurer, claimData, pdfBuffer, invoiceBuffer)
+      // Pass is_demo_account flag to route demo account claims to safe test email
+      const isDemoAccount = profile.is_demo_account || false
+      const emailResult = await sendClaimEmail(insurer, claimData, pdfBuffer, invoiceBuffer, isDemoAccount)
 
       if (!emailResult.success) {
         console.error('[Submit Claim] Email failed:', emailResult.error)
