@@ -1651,19 +1651,16 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
 
       // Save age to claims table (for Pumpkin and Spot - both ask for age with saveToDb: false)
       if (collectedData.age) {
-        console.log('[Save Collected Fields] 🐾 Saving age to claims table:', collectedData.age, 'for claimId:', claimId)
         const { error: ageError } = await supabase
           .from('claims')
           .update({ age: collectedData.age })
           .eq('id', claimId)
 
         if (ageError) {
-          console.error('[Save Collected Fields] ❌ Error saving age:', ageError)
+          console.error('[Save Collected Fields] Error saving age:', ageError)
         } else {
-          console.log('[Save Collected Fields] ✅ Successfully saved age to database')
+          console.log('[Save Collected Fields] Saved age:', collectedData.age)
         }
-      } else {
-        console.log('[Save Collected Fields] ⚠️  No age in collectedData - skipping age save')
       }
 
       // Note: These are claim-specific, will be saved to claims table above:
@@ -1871,12 +1868,6 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
 
         // Pumpkin/Spot: Pet age (direct user input from MFM, saveToDb: false but saved to claims.age)
         age: claim.age || null
-      }
-
-      // DEBUG: Log age value for Pumpkin claims
-      if (insurer?.toLowerCase().includes('pumpkin')) {
-        console.log('🐾 [PUMPKIN AGE] claim.age from database:', claim.age)
-        console.log('🐾 [PUMPKIN AGE] claimData.age assigned:', claimData.age)
       }
 
       console.log('\n' + '='.repeat(80))

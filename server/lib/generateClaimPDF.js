@@ -630,6 +630,7 @@ function getValueForField(fieldName, claimData, dateSigned) {
     // PUMPKIN 2024 FORM FIELDS
     pumpkinAccountNumber: claimData.pumpkinAccountNumber,
     breed: claimData.breed,
+    age: claimData.age || null,  // Pet age from user input (MFM asks for this with saveToDb: false)
     claimType: claimData.claimType,  // Accident, Illness, or Preventive
     address: policyholderAddr.street,  // Street address only
     apartment: null,  // Not collected separately
