@@ -732,12 +732,14 @@ export const INSURER_REQUIRED_FIELDS = {
       placeholder: 'e.g., Golden Retriever, Domestic Shorthair'
     },
     {
-      field: 'dateOfBirth',
-      source: 'pets.date_of_birth',
+      field: 'age',
+      source: 'claim.age',
       required: true,
-      type: 'date',
-      prompt: "Pet's date of birth",
-      description: 'Used to calculate age for the claim form'
+      type: 'text',
+      prompt: "How old is your pet?",
+      placeholder: "e.g., 4",
+      description: 'Enter your pet\'s age in years (whole number)',
+      saveToDb: false
     },
     {
       field: 'claimType',
