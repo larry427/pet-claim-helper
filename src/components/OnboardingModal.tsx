@@ -98,6 +98,8 @@ export default function OnboardingModal({ open, onClose, userId, userEmail }: Pr
 
       await createPet(petPayload)
 
+      // Set flag to show photo upload tooltip on first dashboard visit
+      localStorage.setItem('justCompletedOnboarding', 'true')
       // Close modal and refresh
       onClose()
     } catch (e: any) {
