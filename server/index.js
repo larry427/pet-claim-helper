@@ -1886,6 +1886,8 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
       console.log('zip:', claimData.zip, '(from profile.zip:', profile.zip + ')')
       console.log('breed:', claimData.breed, '(from claim.pets.breed:', claim.pets.breed + ')')
       console.log('pumpkinAccountNumber:', claimData.pumpkinAccountNumber, '(from claim.pets.pumpkin_account_number:', claim.pets.pumpkin_account_number + ')')
+      console.log('age:', claimData.age, '(from claim.age:', claim.age + ')')
+      console.log('claimType:', claimData.claimType, '(from claim.claim_type:', claim.claim_type + ')')
       console.log('='.repeat(80) + '\n')
 
       // 5. Validate claim data
