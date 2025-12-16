@@ -1945,6 +1945,7 @@ function MainApp() {
                       const isTrupanion = company.toLowerCase().includes('trupanion')
                       const isPumpkin = company.toLowerCase().includes('pumpkin')
                       const isSpot = company.toLowerCase().includes('spot')
+                      const isFigo = company.toLowerCase().includes('figo')
                       const isPetsBest = company.toLowerCase().includes('pets best')
                       const isNotInsured = company.toLowerCase().includes('not insured') || company.toLowerCase().includes('none')
 
@@ -1972,6 +1973,10 @@ function MainApp() {
                         bgColor = 'bg-orange-50 dark:bg-orange-950'
                         textColor = 'text-orange-600 dark:text-orange-400'
                         borderColor = 'border-orange-200 dark:border-orange-800'
+                      } else if (isFigo) {
+                        bgColor = 'bg-teal-50 dark:bg-teal-950'
+                        textColor = 'text-teal-600 dark:text-teal-300'
+                        borderColor = 'border-teal-200 dark:border-teal-800'
                       } else if (isPetsBest) {
                         bgColor = 'bg-cyan-50 dark:bg-cyan-950'
                         textColor = 'text-cyan-700 dark:text-cyan-300'
@@ -1989,6 +1994,7 @@ function MainApp() {
                           {isTrupanion && '💜'}
                           {isPumpkin && '🎃'}
                           {isSpot && '🐾'}
+                          {isFigo && '🐕'}
                           {isPetsBest && '🐶'}
                           {isNotInsured && '—'}
                           {company}
