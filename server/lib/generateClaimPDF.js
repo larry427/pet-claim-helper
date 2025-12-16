@@ -317,9 +317,11 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
     console.log('   ⚠️  Could not update field appearances:', e.message, '\n')
   }
 
-  // Embed signature image if provided (Trupanion doesn't need signatures)
+  // Embed signature image if provided (Trupanion and Figo use form fields instead)
   if (normalizedInsurer.includes('trupanion')) {
     console.log('ℹ️  Trupanion forms do not require signatures - skipping signature embedding')
+  } else if (normalizedInsurer.includes('figo')) {
+    console.log('ℹ️  Figo signature handled via text form field - skipping image embedding')
   } else if (userSignature && typeof userSignature === 'string' && userSignature.startsWith('data:image')) {
     try {
       console.log('🖊️  Embedding signature image...')
@@ -694,7 +696,12 @@ function getValueForField(fieldName, claimData, dateSigned) {
 
     // PETS BEST FORM FIELDS (using standard field names, not PDF field names)
     // The mapping to PDF field names happens in claimFormMappings.js
-    signature: claimData.policyholderName  // Signature (typed name) - maps to Signature_1
+    signature: claimData.policyholderName,  // Signature (typed name) - maps to Signature_1
+
+    // FIGO FORM FIELDS
+    figoPolicyNumber: claimData.figoPolicyNumber || claimData.policyNumber || '',
+    vetClinicName: claimData.vetClinicName || claimData.providerName || claimData.veterinaryClinic || '',
+    invoiceNote: 'See attached invoice'
   }
 
   return fieldMap[fieldName]
