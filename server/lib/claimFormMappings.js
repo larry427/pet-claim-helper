@@ -232,20 +232,20 @@ const FORM_FIELD_MAPPINGS = {
   },
 
   figo: {
-    // ✅ EXACT FIELD NAMES from Figo PDF (discovered via pdf-lib inspection)
-    // Field names match the fillable fields in figo claim form.pdf
+    // ✅ EXACT FIELD NAMES from NEW Figo PDF (figo_claim_form.pdf)
+    // Updated with text fields instead of signature fields
 
-    figoPolicyNumber: 'Number_1',        // Policy Number
-    petName: 'Pet Name',                 // Pet Name
-    policyholderName: 'Name_2',          // Pet Parent Name
-    policyholderEmail: 'Email_1',        // Email
-    policyholderPhone: 'US_Phone_Number_1',  // Phone Number
-    invoiceNumber: 'Number_2',           // Invoice Number (claim ID)
-    totalAmount: 'USD_1',                // Amount being claimed
-    vetClinicName: 'Text_1',             // Veterinary Hospital Name
-    invoiceNote: 'Text_2',               // Always "See attached invoice"
-    signatureDate: 'Date_1',             // Today's date
-    signature: 'Signature_1'             // User's signature
+    policyNumber: 'PolicyNumber',             // Policy Number
+    petName: 'Pet Name',                      // Pet Name
+    policyholderName: 'PolicyholderName',     // Policyholder Name
+    policyholderEmail: 'PolicyholderEmail',   // Email
+    policyholderPhone: 'PolicyholderPhone',   // Phone Number
+    invoiceNumber: 'InvoiceNumber',           // Invoice Number
+    totalAmount: 'TotalAmount',               // Total Amount
+    vetClinicName: 'VetClinicName',           // Vet Clinic Name
+    treatmentDescription: 'TreatmentDescription',  // Treatment Description
+    signatureDate: 'SignatureDate',           // Signature Date
+    signatureName: 'SignatureName'            // Signature Name (text field)
   }
 }
 

@@ -132,7 +132,7 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
     pdfFilename = 'Spot_Claim_Form.pdf'
     console.log(`   ✅ Matched: Spot`)
   } else if (normalizedInsurer.includes('figo')) {
-    pdfFilename = 'figo claim form.pdf'
+    pdfFilename = 'figo_claim_form.pdf'
     console.log(`   ✅ Matched: Figo`)
   } else if (normalizedInsurer.includes('pets best')) {
     pdfFilename = 'pets-best-claim-form.pdf'
@@ -738,10 +738,10 @@ function getValueForField(fieldName, claimData, dateSigned) {
     // The mapping to PDF field names happens in claimFormMappings.js
     signature: claimData.policyholderName,  // Signature (typed name) - maps to Signature_1
 
-    // FIGO FORM FIELDS
-    figoPolicyNumber: claimData.figoPolicyNumber || claimData.policyNumber || '',
-    vetClinicName: claimData.vetClinicName || claimData.providerName || claimData.veterinaryClinic || '',
-    invoiceNote: 'See attached invoice'
+    // FIGO FORM FIELDS (NEW PDF with text fields)
+    policyNumber: claimData.figoPolicyNumber || claimData.policyNumber || '',
+    treatmentDescription: 'See attached invoice',  // Always hardcoded
+    signatureName: claimData.policyholderName || ''
   }
 
   return fieldMap[fieldName]
