@@ -318,12 +318,18 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
           fieldsFilled++
         }
       } else if (fieldType === 'PDFSignature') {
-        // PDFSignature fields can't be programmatically filled with pdf-lib
-        // These are digital signature fields that require cryptographic signing
-        // Skip with a warning - user will need to sign manually or we embed as image
-        console.log(`   ⚠️  ${ourFieldName} (${pdfFieldName}): PDFSignature field - cannot fill programmatically`)
-        console.log(`   💡 Signature will need to be added as image overlay instead`)
-        fieldsSkipped++
+        // PDFSignature fields - try to fill as text field (works for Pets Best and Figo)
+        try {
+          const textField = form.getTextField(pdfFieldName)
+          textField.acroField.dict.delete(PDFName.of('AP'))
+          textField.setText('')
+          textField.setText(String(value))
+          console.log(`   ✅ ${ourFieldName}: "${value}" (PDFSignature field filled as text)`)
+          fieldsFilled++
+        } catch (e) {
+          console.warn(`   ⚠️  ${ourFieldName} (${pdfFieldName}): Could not fill signature field: ${e.message}`)
+          fieldsSkipped++
+        }
       } else {
         console.warn(`   ⚠️  ${ourFieldName} (${pdfFieldName}): Unsupported field type ${fieldType}`)
         fieldsSkipped++
@@ -348,9 +354,11 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
     console.log('   ⚠️  Could not update field appearances:', e.message, '\n')
   }
 
-  // Embed signature image if provided (Trupanion doesn't need signatures)
+  // Embed signature image if provided (Trupanion, Pets Best, and Figo use text fields)
   if (normalizedInsurer.includes('trupanion')) {
     console.log('ℹ️  Trupanion forms do not require signatures - skipping signature embedding')
+  } else if (normalizedInsurer.includes('pets best') || normalizedInsurer.includes('figo')) {
+    console.log('ℹ️  Signature handled via text field - skipping image embedding')
   } else if (userSignature && typeof userSignature === 'string' && userSignature.startsWith('data:image')) {
     try {
       console.log('🖊️  Embedding signature image...')
@@ -374,30 +382,16 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
       console.log(`   Page dimensions: ${pageWidth} x ${pageHeight}`)
       console.log(`   Total pages: ${pages.length}`)
 
-      // Determine signature coordinates based on insurer
-      let signatureWidth, signatureHeight, signatureX, signatureY, targetPage
-
-      if (normalizedInsurer.includes('figo')) {
-        // Figo signature is on page 2 (Declaration section)
-        // Located near the Date field at bottom of page 2
-        signatureWidth = 150
-        signatureHeight = 30
-        signatureX = 100  // Left side of Declaration section
-        signatureY = 100  // Near bottom of page 2 (adjust based on testing)
-        targetPage = secondPage || firstPage
-        console.log('   Using Figo signature position (Page 2, Declaration section)')
-      } else {
-        // Nationwide form signature positioning (default)
-        // Position in the "Pet parent signature ___" field near bottom of page 1
-        // Based on PDF inspection: Date field is at y=201.886
-        // Signature line appears to be around y=200-210
-        signatureWidth = 200
-        signatureHeight = 35
-        signatureX = 150  // Left-aligned in signature area
-        signatureY = 205  // Aligned with Date field (y=201.886)
-        targetPage = firstPage
-        console.log('   Using Nationwide signature position')
-      }
+      // Nationwide form signature positioning (default for image embedding)
+      // Position in the "Pet parent signature ___" field near bottom of page 1
+      // Based on PDF inspection: Date field is at y=201.886
+      // Signature line appears to be around y=200-210
+      const signatureWidth = 200
+      const signatureHeight = 35
+      const signatureX = 150  // Left-aligned in signature area
+      const signatureY = 205  // Aligned with Date field (y=201.886)
+      const targetPage = firstPage
+      console.log('   Using Nationwide signature position')
 
       console.log(`   Attempting to draw signature at (${signatureX}, ${signatureY})`)
       console.log(`   Signature size: ${signatureWidth} x ${signatureHeight}`)
