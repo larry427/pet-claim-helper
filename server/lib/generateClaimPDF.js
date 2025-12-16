@@ -107,6 +107,9 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
   } else if (normalizedInsurer.includes('spot')) {
     pdfFilename = 'Spot_Claim_Form.pdf'
     console.log(`   ✅ Matched: Spot`)
+  } else if (normalizedInsurer.includes('figo')) {
+    pdfFilename = 'figo claim form.pdf'
+    console.log(`   ✅ Matched: Figo`)
   } else if (normalizedInsurer.includes('pets best')) {
     pdfFilename = 'pets-best-claim-form.pdf'
     console.log(`   ✅ Matched: Pets Best`)
@@ -1297,6 +1300,7 @@ function getProductionEmail(insurer) {
     'trupanion': 'claims@trupanion.com',
     'pumpkin': 'claims@pumpkin.care',
     'spot': 'claims@customer.spotpetins.com',
+    'figo': 'claims@figopetinsurance.com',
     'pets best': 'claims@petsbest.com'
   }
   const normalizedName = insurer.toLowerCase()

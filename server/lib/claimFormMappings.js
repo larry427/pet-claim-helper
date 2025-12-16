@@ -229,6 +229,23 @@ const FORM_FIELD_MAPPINGS = {
     policyholderEmail: 'Email_1',   // Email
     signature: 'Signature_1',       // Signature (typed name)
     signatureDate: 'Date_1'         // Today's date (MM/DD/YYYY)
+  },
+
+  figo: {
+    // ✅ EXACT FIELD NAMES from Figo PDF (discovered via pdf-lib inspection)
+    // Field names match the fillable fields in figo claim form.pdf
+
+    figoPolicyNumber: 'Number_1',        // Policy Number
+    petName: 'Pet Name',                 // Pet Name
+    policyholderName: 'Name_2',          // Pet Parent Name
+    policyholderEmail: 'Email_1',        // Email
+    policyholderPhone: 'US_Phone_Number_1',  // Phone Number
+    invoiceNumber: 'Number_2',           // Invoice Number (claim ID)
+    totalAmount: 'USD_1',                // Amount being claimed
+    vetClinicName: 'Text_1',             // Veterinary Hospital Name
+    invoiceNote: 'Text_2',               // Always "See attached invoice"
+    signatureDate: 'Date_1',             // Today's date
+    signature: 'Signature_1'             // User's signature
   }
 }
 
@@ -329,6 +346,8 @@ export function getMappingForInsurer(insurerName) {
     return FORM_FIELD_MAPPINGS.pumpkin
   } else if (normalized.includes('spot')) {
     return FORM_FIELD_MAPPINGS.spot
+  } else if (normalized.includes('figo')) {
+    return FORM_FIELD_MAPPINGS.figo
   } else if (normalized.includes('pets best')) {
     return FORM_FIELD_MAPPINGS['pets best']
   }
@@ -924,6 +943,58 @@ export const INSURER_REQUIRED_FIELDS = {
       placeholder: 'e.g., Ear infection',
       description: 'Brief description of why your pet visited the vet'
     }
+  ],
+
+  figo: [
+    {
+      field: 'signature',
+      source: 'profiles.signature',
+      required: true,
+      type: 'signature',
+      prompt: 'Your signature',
+      description: 'Required to authorize the claim'
+    },
+    {
+      field: 'policyholderName',
+      source: 'profiles.full_name',
+      required: true,
+      type: 'text',
+      prompt: 'Your full name',
+      placeholder: 'John Smith'
+    },
+    {
+      field: 'policyholderPhone',
+      source: 'profiles.phone',
+      required: true,
+      type: 'phone',
+      prompt: 'Your phone number',
+      placeholder: '(555) 123-4567'
+    },
+    {
+      field: 'policyholderEmail',
+      source: 'profiles.email',
+      required: true,
+      type: 'email',
+      prompt: 'Your email address',
+      placeholder: 'john@example.com'
+    },
+    {
+      field: 'petName',
+      source: 'pets.name',
+      required: true,
+      type: 'text',
+      prompt: 'Pet name',
+      placeholder: 'Fluffy'
+    },
+    {
+      field: 'figoPolicyNumber',
+      source: 'pets.figo_policy_number',
+      required: true,
+      type: 'text',
+      prompt: 'Figo Policy Number',
+      placeholder: 'FG123456',
+      description: 'Found on your Figo insurance card or policy documents'
+    }
   ]
 }
 
@@ -943,6 +1014,8 @@ export function getRequiredFieldsForInsurer(insurerName) {
     return INSURER_REQUIRED_FIELDS.pumpkin
   } else if (normalized.includes('spot')) {
     return INSURER_REQUIRED_FIELDS.spot
+  } else if (normalized.includes('figo')) {
+    return INSURER_REQUIRED_FIELDS.figo
   } else if (normalized.includes('pets best')) {
     return INSURER_REQUIRED_FIELDS['pets best']
   }
@@ -1003,6 +1076,7 @@ function getFieldValue(fieldName, profileData, petData, claimData) {
     'healthyPawsPetId': petData?.healthy_paws_pet_id,
     'pumpkinAccountNumber': petData?.pumpkin_account_number,
     'spotAccountNumber': petData?.spot_account_number,
+    'figoPolicyNumber': petData?.figo_policy_number,
     'breed': petData?.breed,
     'gender': petData?.gender,
     'dateOfBirth': petData?.date_of_birth,

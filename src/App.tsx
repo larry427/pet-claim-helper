@@ -167,7 +167,7 @@ function MainApp() {
   const [visitTitle, setVisitTitle] = useState('')  // NEW: User friendly title
   const [expenseCategory, setExpenseCategory] = useState<'insured' | 'not_insured' | 'maybe_insured'>('insured')
   const [addingPet, setAddingPet] = useState(false)
-  const [newPet, setNewPet] = useState<{ name: string; species: PetSpecies; insuranceCompany: InsuranceCompany; filing_deadline_days?: number | ''; monthly_premium?: number | ''; deductible_per_claim?: number | ''; insurance_pays_percentage?: number | ''; coverage_start_date?: string; policyNumber?: string; healthy_paws_pet_id?: string; spot_account_number?: string }>(
+  const [newPet, setNewPet] = useState<{ name: string; species: PetSpecies; insuranceCompany: InsuranceCompany; filing_deadline_days?: number | ''; monthly_premium?: number | ''; deductible_per_claim?: number | ''; insurance_pays_percentage?: number | ''; coverage_start_date?: string; policyNumber?: string; healthy_paws_pet_id?: string; spot_account_number?: string; figo_policy_number?: string }>(
     {
     name: '',
     species: 'dog',
@@ -179,7 +179,8 @@ function MainApp() {
       coverage_start_date: '',
       policyNumber: '',
       healthy_paws_pet_id: '',
-      spot_account_number: ''
+      spot_account_number: '',
+      figo_policy_number: ''
     }
   )
   const [editingPetId, setEditingPetId] = useState<string | null>(null)
@@ -196,6 +197,7 @@ function MainApp() {
     healthy_paws_pet_id?: string;
     spot_account_number?: string;
     pumpkin_account_number?: string;
+    figo_policy_number?: string;
   } | null>(null)
   const [newPetInsurer, setNewPetInsurer] = useState<string>('')
   const [editPetInsurer, setEditPetInsurer] = useState<string>('')
@@ -623,6 +625,7 @@ function MainApp() {
       coverage_start_date: newPet.coverage_start_date || null,
       healthy_paws_pet_id: (newPet.healthy_paws_pet_id || '').trim() || null,
       spot_account_number: (newPet.spot_account_number || '').trim() || null,
+      figo_policy_number: (newPet.figo_policy_number || '').trim() || null,
     }
 
     // DEBUG: Log the created pet object AFTER creation
@@ -653,7 +656,7 @@ function MainApp() {
       setSelectedPetId(id)
     }
     setAddingPet(false)
-    setNewPet({ name: '', species: 'dog', insuranceCompany: '', filing_deadline_days: '', monthly_premium: '', deductible_per_claim: '', insurance_pays_percentage: '', coverage_start_date: '', policyNumber: '', healthy_paws_pet_id: '', spot_account_number: '' })
+    setNewPet({ name: '', species: 'dog', insuranceCompany: '', filing_deadline_days: '', monthly_premium: '', deductible_per_claim: '', insurance_pays_percentage: '', coverage_start_date: '', policyNumber: '', healthy_paws_pet_id: '', spot_account_number: '', figo_policy_number: '' })
     setNewPetInsurer('')
     setCustomInsurerNameNew('')
     setCustomDeadlineNew('')
@@ -673,7 +676,8 @@ function MainApp() {
       policyNumber: pet.policyNumber || '',
       healthy_paws_pet_id: (pet as any).healthy_paws_pet_id || '',
       spot_account_number: (pet as any).spot_account_number || '',
-      pumpkin_account_number: (pet as any).pumpkin_account_number || ''
+      pumpkin_account_number: (pet as any).pumpkin_account_number || '',
+      figo_policy_number: (pet as any).figo_policy_number || ''
     })
     // Set dropdown to display value
     if (!pet.insuranceCompany || pet.insuranceCompany === '') {
@@ -723,6 +727,7 @@ function MainApp() {
             healthy_paws_pet_id: (editPet as any).healthy_paws_pet_id || null,
             spot_account_number: (editPet as any).spot_account_number || null,
             pumpkin_account_number: (editPet as any).pumpkin_account_number || null,
+            figo_policy_number: (editPet as any).figo_policy_number || null,
           }
         : p,
     )
@@ -1762,8 +1767,21 @@ function MainApp() {
                       </div>
                     )}
 
-                    {/* Policy Number - hide for Spot only */}
-                    {newPetInsurer && newPetInsurer !== 'Not Insured' && newPetInsurer !== '— Select —' && newPetInsurer !== 'Spot (270 days)' && (
+                    {newPetInsurer === 'Figo (180 days)' && (
+                      <div>
+                        <label htmlFor="pet-figo-policy-number" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Policy Number</label>
+                        <input
+                          id="pet-figo-policy-number"
+                          value={newPet.figo_policy_number || ''}
+                          onChange={(e) => setNewPet({ ...newPet, figo_policy_number: e.target.value })}
+                          placeholder="e.g., FG123456"
+                          className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                        />
+                      </div>
+                    )}
+
+                    {/* Policy Number - hide for Spot and Figo (they have dedicated fields) */}
+                    {newPetInsurer && newPetInsurer !== 'Not Insured' && newPetInsurer !== '— Select —' && newPetInsurer !== 'Spot (270 days)' && newPetInsurer !== 'Figo (180 days)' && (
                       <div>
                         <label htmlFor="pet-policy-number" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Policy Number</label>
                         <input
@@ -2060,7 +2078,19 @@ function MainApp() {
                                 />
                               </div>
                             )}
-                            {editPetInsurer && editPetInsurer !== 'Not Insured' && editPetInsurer !== '— Select —' && editPetInsurer !== 'Spot (270 days)' && editPetInsurer !== 'Pumpkin (270 days)' && (
+                            {editPetInsurer === 'Figo (180 days)' && (
+                              <div className="sm:col-span-2">
+                                <label htmlFor="edit-pet-figo-policy-number" className="block text-xs text-slate-500">Figo Policy Number</label>
+                                <input
+                                  id="edit-pet-figo-policy-number"
+                                  value={editPet.figo_policy_number || ''}
+                                  onChange={(e) => setEditPet({ ...editPet, figo_policy_number: e.target.value })}
+                                  placeholder="e.g., FG123456"
+                                  className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
+                                />
+                              </div>
+                            )}
+                            {editPetInsurer && editPetInsurer !== 'Not Insured' && editPetInsurer !== '— Select —' && editPetInsurer !== 'Spot (270 days)' && editPetInsurer !== 'Pumpkin (270 days)' && editPetInsurer !== 'Figo (180 days)' && (
                               <div className="sm:col-span-2">
                                 <label htmlFor="edit-pet-policy-number" className="block text-xs text-slate-500">Policy Number <span className="text-slate-400">(optional)</span></label>
                                 <input
