@@ -740,6 +740,7 @@ function getValueForField(fieldName, claimData, dateSigned) {
 
     // FIGO FORM FIELDS (NEW PDF with text fields)
     policyNumber: claimData.figoPolicyNumber || claimData.policyNumber || '',
+    vetClinicName: claimData.vetClinicName || claimData.providerName || claimData.veterinaryClinic || '',
     treatmentDescription: 'See attached invoice',  // Always hardcoded
     signatureName: claimData.policyholderName || ''
   }
