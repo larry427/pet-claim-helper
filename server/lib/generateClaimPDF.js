@@ -738,10 +738,17 @@ function getValueForField(fieldName, claimData, dateSigned) {
     // The mapping to PDF field names happens in claimFormMappings.js
     signature: claimData.policyholderName,  // Signature (typed name) - maps to Signature_1
 
-    // FIGO FORM FIELDS (NEW PDF with text fields)
+    // FIGO FORM FIELDS - ALL 11 FIELDS EXPLICIT (don't rely on common mappings)
     policyNumber: claimData.figoPolicyNumber || claimData.policyNumber || '',
+    petName: claimData.petName || '',
+    policyholderName: claimData.policyholderName || '',
+    policyholderEmail: claimData.policyholderEmail || '',
+    policyholderPhone: formatPhone(claimData.policyholderPhone) || '',
+    invoiceNumber: claimData.invoiceNumber || claimData.claimId || '',
+    totalAmount: formatAmount(claimData.totalAmount) || '',
     vetClinicName: claimData.vetClinicName || claimData.providerName || claimData.veterinaryClinic || '',
-    treatmentDescription: 'See attached invoice',  // Always hardcoded
+    treatmentDescription: 'See attached invoice',
+    signatureDate: dateSigned,
     signatureName: claimData.policyholderName || ''
   }
 

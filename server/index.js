@@ -1838,6 +1838,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         healthyPawsPetId: claim.pets.healthy_paws_pet_id || '',  // For Healthy Paws form
         pumpkinAccountNumber: claim.pets.pumpkin_account_number || '',  // For Pumpkin form
         spotAccountNumber: claim.pets.spot_account_number || '',  // For Spot form
+        figoPolicyNumber: claim.pets.figo_policy_number || '',  // For Figo form
         petName: claim.pets.name,
         petSpecies: claim.pets.species,
         breed: claim.pets.breed || '',  // For Pumpkin (uses 'breed' not 'petBreed')
@@ -2094,6 +2095,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         healthyPawsPetId: claim.pets.healthy_paws_pet_id || '',  // For Healthy Paws form
         pumpkinAccountNumber: claim.pets.pumpkin_account_number || '',  // For Pumpkin form
         spotAccountNumber: claim.pets.spot_account_number || '',  // For Spot form
+        figoPolicyNumber: claim.pets.figo_policy_number || '',  // For Figo form
         petName: claim.pets.name,
         petSpecies: claim.pets.species,
         breed: claim.pets.breed || '',  // For Pumpkin (uses 'breed' not 'petBreed')
