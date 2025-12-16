@@ -226,6 +226,7 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
   }
 
   console.log(`✅ Loaded official PDF: ${pdfFilename}`)
+  console.log('🔍 DEBUG: Figo mapping:', JSON.stringify(mapping, null, 2))
   console.log(`📝 Filling fields using mapping...\n`)
 
   // CRITICAL: Clear ALL text field placeholders before filling
@@ -262,7 +263,10 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
     // Get the value for this field from our claim data
     const value = getValueForField(ourFieldName, claimData, dateSigned)
 
+    console.log(`🔍 Filling field: ${pdfFieldName} (${ourFieldName}) with value: ${value}`)
+
     if (!value && value !== false) {
+      console.log(`   ⚠️  Skipping ${ourFieldName} - no value`)
       fieldsSkipped++
       continue // Skip empty values
     }
@@ -270,6 +274,7 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
     try {
       const field = form.getField(pdfFieldName)
       const fieldType = field.constructor.name
+      console.log(`   Field type: ${fieldType}`)
 
       if (fieldType === 'PDFTextField') {
         const textField = form.getTextField(pdfFieldName)
