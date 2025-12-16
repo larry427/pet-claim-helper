@@ -53,6 +53,27 @@ export async function generateClaimFormPDF(insurer, claimData, userSignature, da
   console.log(`  Method: ${shouldUseOfficialForm(normalizedInsurer) ? 'Official PDF Form' : 'Generated PDF'}`)
   console.log(`  🔍 DEBUG claimData.claimType: "${claimData.claimType}"`)
   console.log(`  🔍 DEBUG claimData keys: ${Object.keys(claimData).join(', ')}`)
+
+  // FIGO DEBUG: Log all Figo-specific fields
+  if (normalizedInsurer.includes('figo')) {
+    console.log(`\n${'🔍'.repeat(40)}`)
+    console.log(`🔍 FIGO PDF GENERATION - CLAIMDATA INSPECTION:`)
+    console.log(`${'🔍'.repeat(40)}`)
+    console.log(`  figoPolicyNumber: "${claimData.figoPolicyNumber}"`)
+    console.log(`  policyNumber: "${claimData.policyNumber}"`)
+    console.log(`  petName: "${claimData.petName}"`)
+    console.log(`  policyholderName: "${claimData.policyholderName}"`)
+    console.log(`  policyholderEmail: "${claimData.policyholderEmail}"`)
+    console.log(`  policyholderPhone: "${claimData.policyholderPhone}"`)
+    console.log(`  invoiceNumber: "${claimData.invoiceNumber}"`)
+    console.log(`  totalAmount: "${claimData.totalAmount}"`)
+    console.log(`  vetClinicName: "${claimData.vetClinicName}"`)
+    console.log(`  providerName: "${claimData.providerName}"`)
+    console.log(`  veterinaryClinic: "${claimData.veterinaryClinic}"`)
+    console.log(`  diagnosis: "${claimData.diagnosis}"`)
+    console.log(`${'🔍'.repeat(40)}\n`)
+  }
+
   console.log(`${'='.repeat(80)}\n`)
 
   // Use official forms for Nationwide and Trupanion
@@ -296,6 +317,16 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
           console.log(`   ✅ ${ourFieldName}: Selected "${options[0]}" (default)`)
           fieldsFilled++
         }
+      } else if (fieldType === 'PDFSignature') {
+        // PDFSignature fields can't be programmatically filled with pdf-lib
+        // These are digital signature fields that require cryptographic signing
+        // Skip with a warning - user will need to sign manually or we embed as image
+        console.log(`   ⚠️  ${ourFieldName} (${pdfFieldName}): PDFSignature field - cannot fill programmatically`)
+        console.log(`   💡 Signature will need to be added as image overlay instead`)
+        fieldsSkipped++
+      } else {
+        console.warn(`   ⚠️  ${ourFieldName} (${pdfFieldName}): Unsupported field type ${fieldType}`)
+        fieldsSkipped++
       }
     } catch (err) {
       console.warn(`   ⚠️  ${ourFieldName} -> ${pdfFieldName}: ${err.message}`)
@@ -317,11 +348,9 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
     console.log('   ⚠️  Could not update field appearances:', e.message, '\n')
   }
 
-  // Embed signature image if provided (Trupanion and Figo use form fields instead)
+  // Embed signature image if provided (Trupanion doesn't need signatures)
   if (normalizedInsurer.includes('trupanion')) {
     console.log('ℹ️  Trupanion forms do not require signatures - skipping signature embedding')
-  } else if (normalizedInsurer.includes('figo')) {
-    console.log('ℹ️  Figo signature handled via text form field - skipping image embedding')
   } else if (userSignature && typeof userSignature === 'string' && userSignature.startsWith('data:image')) {
     try {
       console.log('🖊️  Embedding signature image...')
@@ -336,27 +365,44 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
       // Embed the PNG image
       const signatureImage = await pdfDoc.embedPng(signatureBytes)
 
-      // Get the first page (signature is on page 1 for Nationwide)
+      // Get pages and determine signature location based on insurer
       const pages = pdfDoc.getPages()
       const firstPage = pages[0]
+      const secondPage = pages.length > 1 ? pages[1] : null
       const { width: pageWidth, height: pageHeight } = firstPage.getSize()
 
       console.log(`   Page dimensions: ${pageWidth} x ${pageHeight}`)
+      console.log(`   Total pages: ${pages.length}`)
 
-      // Nationwide form signature positioning
-      // Position in the "Pet parent signature ___" field near bottom of page 1
-      // Based on PDF inspection: Date field is at y=201.886
-      // Signature line appears to be around y=200-210
-      const signatureWidth = 200
-      const signatureHeight = 35
-      const signatureX = 150  // Left-aligned in signature area
-      const signatureY = 205  // Aligned with Date field (y=201.886)
-      console.log('   Using Nationwide signature position')
+      // Determine signature coordinates based on insurer
+      let signatureWidth, signatureHeight, signatureX, signatureY, targetPage
+
+      if (normalizedInsurer.includes('figo')) {
+        // Figo signature is on page 2 (Declaration section)
+        // Located near the Date field at bottom of page 2
+        signatureWidth = 150
+        signatureHeight = 30
+        signatureX = 100  // Left side of Declaration section
+        signatureY = 100  // Near bottom of page 2 (adjust based on testing)
+        targetPage = secondPage || firstPage
+        console.log('   Using Figo signature position (Page 2, Declaration section)')
+      } else {
+        // Nationwide form signature positioning (default)
+        // Position in the "Pet parent signature ___" field near bottom of page 1
+        // Based on PDF inspection: Date field is at y=201.886
+        // Signature line appears to be around y=200-210
+        signatureWidth = 200
+        signatureHeight = 35
+        signatureX = 150  // Left-aligned in signature area
+        signatureY = 205  // Aligned with Date field (y=201.886)
+        targetPage = firstPage
+        console.log('   Using Nationwide signature position')
+      }
 
       console.log(`   Attempting to draw signature at (${signatureX}, ${signatureY})`)
       console.log(`   Signature size: ${signatureWidth} x ${signatureHeight}`)
 
-      firstPage.drawImage(signatureImage, {
+      targetPage.drawImage(signatureImage, {
         x: signatureX,
         y: signatureY,
         width: signatureWidth,
