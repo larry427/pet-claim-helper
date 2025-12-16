@@ -375,13 +375,19 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
   }
 
   // Flatten the form (make non-editable)
-  // Skip flattening for Pets Best - their PDF has issues with form.flatten()
-  if (!normalizedInsurer.includes('pets best')) {
-    console.log('📋 Flattening form (making fields non-editable)...')
-    form.flatten()
-    console.log('   ✅ Form flattened')
+  // Skip flattening for Pets Best and Figo - their PDFs have broken internal references
+  if (normalizedInsurer.includes('pets best') || normalizedInsurer.includes('figo')) {
+    const insurerName = normalizedInsurer.includes('pets best') ? 'Pets Best' : 'Figo'
+    console.log(`⚠️  Skipping form.flatten() for ${insurerName} (PDF has broken internal references)`)
   } else {
-    console.log('⚠️  Skipping form.flatten() for Pets Best (PDF compatibility issue)')
+    console.log('📋 Flattening form (making fields non-editable)...')
+    try {
+      form.flatten()
+      console.log('   ✅ Form flattened')
+    } catch (flattenError) {
+      console.log('⚠️  Could not flatten form (continuing without flatten):', flattenError.message)
+      // Continue without flattening - PDF will still work, just fields remain editable
+    }
   }
 
   // Save and return as buffer
