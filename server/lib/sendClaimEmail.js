@@ -328,7 +328,7 @@ Dear ${insurerName} Claims Department,
 Please find attached a pet insurance claim submission for the following policy:
 
 CLAIM DETAILS:
-- ${insurer.toLowerCase() === 'spot' ? 'Account Number' : 'Policy Number'}: ${insurer.toLowerCase() === 'spot' ? (claimData.spotAccountNumber || 'N/A') : (claimData.policyNumber || 'N/A')}
+- ${insurer.toLowerCase() === 'spot' ? 'Account Number' : 'Policy Number'}: ${claimData.pumpkinAccountNumber || claimData.spotAccountNumber || claimData.figoPolicyNumber || claimData.healthyPawsPetId || claimData.policyNumber || 'N/A'}
 - Policyholder: ${claimData.policyholderName}
 - Pet Name: ${claimData.petName} (${claimData.petSpecies})
 - Treatment Date: ${formatDate(claimData.treatmentDate)}
