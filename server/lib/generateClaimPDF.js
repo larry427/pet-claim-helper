@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf'
-import { PDFDocument, PDFName } from 'pdf-lib'
+import { PDFDocument, PDFName, StandardFonts } from 'pdf-lib'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -204,6 +204,21 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
       }
       console.log(`✅ Kept only page 1 (claim form)\n`)
     }
+  }
+
+  // For Figo PDFfiller PDFs, embed font for field appearances
+  if (normalizedInsurer.includes('figo')) {
+    console.log('🔤 Embedding font for Figo PDFfiller field appearances...')
+    const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
+    const form = pdfDoc.getForm()
+    const fields = form.getFields()
+    for (const field of fields) {
+      if (field.constructor.name === 'PDFTextField') {
+        const textField = field
+        textField.defaultUpdateAppearances(helvetica)
+      }
+    }
+    console.log(`   ✅ Font embedded and set as default for ${fields.filter(f => f.constructor.name === 'PDFTextField').length} text fields\n`)
   }
 
   // Check if this is a flat PDF (no form fields) - use text overlay instead
