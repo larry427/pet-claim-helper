@@ -206,21 +206,6 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
     }
   }
 
-  // For Figo PDFfiller PDFs, embed font for field appearances
-  if (normalizedInsurer.includes('figo')) {
-    console.log('🔤 Embedding font for Figo PDFfiller field appearances...')
-    const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
-    const form = pdfDoc.getForm()
-    const fields = form.getFields()
-    for (const field of fields) {
-      if (field.constructor.name === 'PDFTextField') {
-        const textField = field
-        textField.defaultUpdateAppearances(helvetica)
-      }
-    }
-    console.log(`   ✅ Font embedded and set as default for ${fields.filter(f => f.constructor.name === 'PDFTextField').length} text fields\n`)
-  }
-
   // Check if this is a flat PDF (no form fields) - use text overlay instead
   const form = pdfDoc.getForm()
   const fields = form.getFields()
@@ -368,8 +353,16 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
   // CRITICAL: Update all field appearances after filling to ensure placeholders are gone
   console.log('🔄 Updating all field appearances to finalize placeholder removal...')
   try {
-    form.updateFieldAppearances()
-    console.log('   ✅ Field appearances updated\n')
+    // Pass embedded font for Figo to render field values
+    if (normalizedInsurer.includes('figo')) {
+      console.log('   🔤 Embedding Helvetica font for Figo PDFfiller field rendering...')
+      const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
+      form.updateFieldAppearances(helvetica)
+      console.log('   ✅ Field appearances updated with embedded font\n')
+    } else {
+      form.updateFieldAppearances()
+      console.log('   ✅ Field appearances updated\n')
+    }
   } catch (e) {
     console.log('   ⚠️  Could not update field appearances:', e.message, '\n')
   }
