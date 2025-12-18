@@ -353,16 +353,8 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
   // CRITICAL: Update all field appearances after filling to ensure placeholders are gone
   console.log('🔄 Updating all field appearances to finalize placeholder removal...')
   try {
-    // Pass embedded font for Figo to render field values
-    if (normalizedInsurer.includes('figo')) {
-      console.log('   🔤 Embedding Helvetica font for Figo PDFfiller field rendering...')
-      const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica)
-      form.updateFieldAppearances(helvetica)
-      console.log('   ✅ Field appearances updated with embedded font\n')
-    } else {
-      form.updateFieldAppearances()
-      console.log('   ✅ Field appearances updated\n')
-    }
+    form.updateFieldAppearances()
+    console.log('   ✅ Field appearances updated\n')
   } catch (e) {
     console.log('   ⚠️  Could not update field appearances:', e.message, '\n')
   }
