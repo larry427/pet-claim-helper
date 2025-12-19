@@ -7,7 +7,7 @@ export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
     console.log('[dbLoadPets] START - userId=', userId)
     const { data, error} = await supabase
       .from('pets')
-      .select('id, name, species, color, photo_url, insurance_company, policy_number, owner_name, owner_phone, filing_deadline_days, monthly_premium, deductible_per_claim, coverage_start_date, insurance_pays_percentage, annual_coverage_limit, healthy_paws_pet_id, pumpkin_account_number, spot_account_number, breed, gender, date_of_birth')
+      .select('id, name, species, color, photo_url, insurance_company, policy_number, owner_name, owner_phone, filing_deadline_days, monthly_premium, deductible_per_claim, coverage_start_date, insurance_pays_percentage, annual_coverage_limit, healthy_paws_pet_id, pumpkin_account_number, spot_account_number, figo_policy_number, breed, gender, date_of_birth')
       .eq('user_id', userId)
       .order('created_at', { ascending: true })
     console.log('[dbLoadPets] QUERY RESULT - data:', data, 'error:', error)
@@ -34,6 +34,7 @@ export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
       healthy_paws_pet_id: p.healthy_paws_pet_id || null,
       pumpkin_account_number: p.pumpkin_account_number || null,
       spot_account_number: p.spot_account_number || null,
+      figo_policy_number: p.figo_policy_number || null,
       breed: p.breed || null,
       gender: p.gender || null,
       date_of_birth: p.date_of_birth || null,
@@ -68,6 +69,7 @@ export async function dbUpsertPet(userId: string, pet: PetProfile): Promise<void
     healthy_paws_pet_id: (pet as any).healthy_paws_pet_id || null,
     pumpkin_account_number: pet.pumpkin_account_number || null,
     spot_account_number: pet.spot_account_number || null,
+    figo_policy_number: (pet as any).figo_policy_number || null,
     breed: pet.breed || null,
     gender: pet.gender || null,
     date_of_birth: pet.date_of_birth || null,

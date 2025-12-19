@@ -1069,6 +1069,7 @@ function getFieldValue(fieldName, profileData, petData, claimData) {
     'zip': profileData?.zip,
 
     // Pet fields (policy_number is stored in pets table, not profiles!)
+    'petName': petData?.name,
     'policyNumber': petData?.policy_number,
     'healthyPawsPetId': petData?.healthy_paws_pet_id,
     'pumpkinAccountNumber': petData?.pumpkin_account_number,
