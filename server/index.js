@@ -1733,7 +1733,8 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
             spay_neuter_date,
             healthy_paws_pet_id,
             pumpkin_account_number,
-            spot_account_number
+            spot_account_number,
+            figo_policy_number
           )
         `)
         .eq('id', claimId)
@@ -2051,7 +2052,8 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
             spay_neuter_date,
             healthy_paws_pet_id,
             pumpkin_account_number,
-            spot_account_number
+            spot_account_number,
+            figo_policy_number
           )
         `)
         .eq('id', claimId)
