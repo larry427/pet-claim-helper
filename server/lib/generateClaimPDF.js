@@ -753,7 +753,7 @@ function getValueForField(fieldName, claimData, dateSigned) {
     vetClinicName: claimData.vetClinicName || claimData.providerName || claimData.veterinaryClinic || '',
     treatmentDescription: 'See attached invoice',
     signatureDate: dateSigned,
-    signatureName: claimData.policyholderName || ''
+    signature: claimData.policyholderName || ''  // Fixed: was signatureName, should be signature to match mapping
   }
 
   return fieldMap[fieldName]
