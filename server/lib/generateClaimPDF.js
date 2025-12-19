@@ -280,14 +280,10 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
         const textField = form.getTextField(pdfFieldName)
 
         // CRITICAL: Delete appearance stream to remove gray placeholders
-        // BUT skip for Figo - it has NeedAppearances:true and no embedded font
-        // Figo's PDF reader will regenerate appearances from field values
-        if (!normalizedInsurer.includes('figo')) {
-          try {
-            textField.acroField.dict.delete(PDFName.of('AP'))
-          } catch (e) {
-            // Field may not have an AP entry
-          }
+        try {
+          textField.acroField.dict.delete(PDFName.of('AP'))
+        } catch (e) {
+          // Field may not have an AP entry
         }
 
         // Set the actual value
