@@ -328,23 +328,11 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
           fieldsFilled++
         }
       } else if (fieldType === 'PDFSignature') {
-        // PDFSignature fields - try to fill as text field (works for Pets Best and Figo)
-        try {
-          const textField = form.getTextField(pdfFieldName)
-          textField.acroField.dict.delete(PDFName.of('AP'))
-          textField.setText('')
-          textField.setText(String(value))
-          console.log(`   ✅ ${ourFieldName}: "${value}" (PDFSignature field filled as text)`)
-          fieldsFilled++
-        } catch (e) {
-          console.warn(`   ⚠️  ${ourFieldName} (${pdfFieldName}): Could not fill signature field: ${e.message}`)
-          fieldsSkipped++
-        }
-      } else if (fieldType === 'PDFButton') {
-        // PDFButton fields - used for image fields like Figo's signature Image_1
+        // PDFSignature fields - handle differently based on whether we have image data
         if (ourFieldName === 'signature' && typeof value === 'string' && value.startsWith('data:image')) {
+          // For image signatures (Figo), extract coordinates and draw the image
           try {
-            console.log(`   🖼️  Embedding signature image into PDFButton field...`)
+            console.log(`   🖼️  Drawing signature image at PDFSignature field coordinates...`)
 
             // Extract base64 data from data URL (data:image/png;base64,...)
             const base64Data = value.split(',')[1]
@@ -356,23 +344,69 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
             const imageDims = signatureImage.scale(1)
             console.log(`   Image dimensions: ${imageDims.width}x${imageDims.height}`)
 
-            // Get the button field
-            const button = form.getButton(pdfFieldName)
+            // Get the signature field and extract coordinates from widget
+            const signatureField = form.getField(pdfFieldName)
+            const widgets = signatureField.acroField.getWidgets()
 
-            // Set the image as the button's appearance
-            button.setImage(signatureImage)
+            if (widgets.length === 0) {
+              throw new Error('No widgets found for signature field')
+            }
 
-            console.log(`   ✅ ${ourFieldName}: Signature image embedded into ${pdfFieldName}`)
+            const widget = widgets[0]
+            const rect = widget.getRectangle()
+            console.log(`   Widget rectangle: x=${rect.x}, y=${rect.y}, width=${rect.width}, height=${rect.height}`)
+
+            // Get the page from the widget
+            const widgetPage = widget.P()
+            const pageRef = widgetPage ? pdfDoc.getPage(pdfDoc.getPages().findIndex(p => p.ref === widgetPage)) : pdfDoc.getPage(0)
+            console.log(`   Drawing on page index: ${pdfDoc.getPages().indexOf(pageRef)}`)
+
+            // Calculate scaling to fit signature within the field bounds
+            const scaleX = rect.width / imageDims.width
+            const scaleY = rect.height / imageDims.height
+            const scale = Math.min(scaleX, scaleY, 1) // Don't scale up, only down if needed
+            const scaledWidth = imageDims.width * scale
+            const scaledHeight = imageDims.height * scale
+
+            // Center the image within the field
+            const x = rect.x + (rect.width - scaledWidth) / 2
+            const y = rect.y + (rect.height - scaledHeight) / 2
+
+            console.log(`   Drawing signature: x=${x}, y=${y}, width=${scaledWidth}, height=${scaledHeight}`)
+
+            // Draw the signature image at the extracted coordinates
+            pageRef.drawImage(signatureImage, {
+              x: x,
+              y: y,
+              width: scaledWidth,
+              height: scaledHeight
+            })
+
+            console.log(`   ✅ ${ourFieldName}: Signature image drawn at ${pdfFieldName} coordinates`)
             fieldsFilled++
           } catch (e) {
-            console.warn(`   ⚠️  ${ourFieldName} (${pdfFieldName}): Could not embed signature image: ${e.message}`)
+            console.warn(`   ⚠️  ${ourFieldName} (${pdfFieldName}): Could not draw signature image: ${e.message}`)
             console.warn(`   Error details:`, e)
             fieldsSkipped++
           }
         } else {
-          console.warn(`   ⚠️  ${ourFieldName} (${pdfFieldName}): PDFButton field requires image data`)
-          fieldsSkipped++
+          // For text signatures (Pets Best), try to fill as text field
+          try {
+            const textField = form.getTextField(pdfFieldName)
+            textField.acroField.dict.delete(PDFName.of('AP'))
+            textField.setText('')
+            textField.setText(String(value))
+            console.log(`   ✅ ${ourFieldName}: "${value}" (PDFSignature field filled as text)`)
+            fieldsFilled++
+          } catch (e) {
+            console.warn(`   ⚠️  ${ourFieldName} (${pdfFieldName}): Could not fill signature field: ${e.message}`)
+            fieldsSkipped++
+          }
         }
+      } else if (fieldType === 'PDFButton') {
+        // PDFButton fields - not currently used for signature handling
+        console.warn(`   ⚠️  ${ourFieldName} (${pdfFieldName}): PDFButton field type not currently supported`)
+        fieldsSkipped++
       } else {
         console.warn(`   ⚠️  ${ourFieldName} (${pdfFieldName}): Unsupported field type ${fieldType}`)
         fieldsSkipped++

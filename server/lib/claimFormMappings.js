@@ -242,7 +242,7 @@ const FORM_FIELD_MAPPINGS = {
     vetClinicName: 'Text_1',
     diagnosis: 'TreatmentDescription',
     signatureDate: 'Date_1',
-    signature: 'Image_1'
+    signature: 'Signature_1'
   }
 }
 
