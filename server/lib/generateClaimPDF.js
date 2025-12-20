@@ -260,10 +260,16 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
   for (const [ourFieldName, pdfFieldName] of Object.entries(mapping)) {
     if (!pdfFieldName) continue // Skip null mappings
 
-    // Get the value for this field from our claim data
-    const value = getValueForField(ourFieldName, claimData, dateSigned)
-
-    console.log(`🔍 Filling field: ${pdfFieldName} (${ourFieldName}) with value: ${value}`)
+    // Special handling for signature field - use userSignature image instead of text value
+    let value
+    if (ourFieldName === 'signature' && userSignature && typeof userSignature === 'string' && userSignature.startsWith('data:image')) {
+      value = userSignature // Use the PNG image for signature field
+      console.log(`🔍 Filling field: ${pdfFieldName} (${ourFieldName}) with signature image`)
+    } else {
+      // Get the value for this field from our claim data
+      value = getValueForField(ourFieldName, claimData, dateSigned)
+      console.log(`🔍 Filling field: ${pdfFieldName} (${ourFieldName}) with value: ${value}`)
+    }
 
     if (!value && value !== false) {
       console.log(`   ⚠️  Skipping ${ourFieldName} - no value`)
@@ -332,6 +338,39 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
           fieldsFilled++
         } catch (e) {
           console.warn(`   ⚠️  ${ourFieldName} (${pdfFieldName}): Could not fill signature field: ${e.message}`)
+          fieldsSkipped++
+        }
+      } else if (fieldType === 'PDFButton') {
+        // PDFButton fields - used for image fields like Figo's signature Image_1
+        if (ourFieldName === 'signature' && typeof value === 'string' && value.startsWith('data:image')) {
+          try {
+            console.log(`   🖼️  Embedding signature image into PDFButton field...`)
+
+            // Extract base64 data from data URL (data:image/png;base64,...)
+            const base64Data = value.split(',')[1]
+            const imageBytes = Buffer.from(base64Data, 'base64')
+            console.log(`   Image bytes length: ${imageBytes.length}`)
+
+            // Embed the PNG image
+            const signatureImage = await pdfDoc.embedPng(imageBytes)
+            const imageDims = signatureImage.scale(1)
+            console.log(`   Image dimensions: ${imageDims.width}x${imageDims.height}`)
+
+            // Get the button field
+            const button = form.getButton(pdfFieldName)
+
+            // Set the image as the button's appearance
+            button.setImage(signatureImage)
+
+            console.log(`   ✅ ${ourFieldName}: Signature image embedded into ${pdfFieldName}`)
+            fieldsFilled++
+          } catch (e) {
+            console.warn(`   ⚠️  ${ourFieldName} (${pdfFieldName}): Could not embed signature image: ${e.message}`)
+            console.warn(`   Error details:`, e)
+            fieldsSkipped++
+          }
+        } else {
+          console.warn(`   ⚠️  ${ourFieldName} (${pdfFieldName}): PDFButton field requires image data`)
           fieldsSkipped++
         }
       } else {

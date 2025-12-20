@@ -232,17 +232,17 @@ const FORM_FIELD_MAPPINGS = {
   },
 
   figo: {
-    policyNumber: 'Number_1',
+    policyNumber: 'Number_2',
     petName: 'Name_1',
     policyholderName: 'Name_2',
     policyholderEmail: 'Email_1',
     policyholderPhone: 'Number_3',
-    invoiceNumber: 'Number_2',
+    invoiceNumber: 'Number_1',
     totalAmount: 'USD_1',
     vetClinicName: 'Text_1',
     diagnosis: 'TreatmentDescription',
     signatureDate: 'Date_1',
-    signature: 'Text_2'
+    signature: 'Image_1'
   }
 }
 
