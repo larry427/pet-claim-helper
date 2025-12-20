@@ -330,7 +330,7 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
       } else if (fieldType === 'PDFSignature') {
         // PDFSignature fields - handle differently based on whether we have image data
         if (ourFieldName === 'signature' && typeof value === 'string' && value.startsWith('data:image')) {
-          // For image signatures (Figo), extract coordinates and draw the image
+          // For image signatures (Figo and Pets Best), extract coordinates and draw the image
           try {
             console.log(`   🖼️  Drawing signature image at PDFSignature field coordinates...`)
 
@@ -390,7 +390,7 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
             fieldsSkipped++
           }
         } else {
-          // For text signatures (Pets Best), try to fill as text field
+          // Fallback: For non-image values, try to fill as text field (legacy support)
           try {
             const textField = form.getTextField(pdfFieldName)
             textField.acroField.dict.delete(PDFName.of('AP'))
