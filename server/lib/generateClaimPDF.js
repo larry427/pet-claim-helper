@@ -22,7 +22,7 @@ const __dirname = path.dirname(__filename)
 const TEST_MODE = true
 const TEST_EMAIL = 'larry@uglydogadventures.com'
 // Insurers in production (bypass TEST_MODE)
-const PRODUCTION_INSURERS = ['pumpkin', 'spot', 'healthy paws', 'nationwide', 'trupanion', 'pets best']
+const PRODUCTION_INSURERS = ['pumpkin', 'spot', 'healthy paws', 'nationwide', 'trupanion', 'pets best', 'figo']
 // Demo accounts always route to TEST_EMAIL regardless of insurer
 const DEMO_ACCOUNTS = [
   'demo@petclaimhelper.com',
