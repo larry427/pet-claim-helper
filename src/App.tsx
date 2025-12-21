@@ -281,6 +281,14 @@ function MainApp() {
   // Add to Home Screen modal state
   const [showAddToHomeScreen, setShowAddToHomeScreen] = useState(false)
 
+  // Test mode: Force show Add to Home Screen modal with URL parameter
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get('test-homescreen') === 'true') {
+      setShowAddToHomeScreen(true)
+    }
+  }, [])
+
   // Force re-render when extracted data changes - fix for mobile Safari
   useEffect(() => {
     if (extracted) {
