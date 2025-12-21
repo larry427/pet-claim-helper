@@ -30,7 +30,7 @@ const DEVICE_INSTRUCTIONS = {
       </svg>
     ),
     steps: [
-      "Tap ••• below → 'Add to Home Screen' → 'Add'"
+      "Tap ••• → Share → 'Add to Home Screen' → Add"
     ]
   },
   'ios-chrome': {
