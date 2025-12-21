@@ -243,6 +243,23 @@ const FORM_FIELD_MAPPINGS = {
     diagnosis: 'TreatmentDescription',
     signatureDate: 'Date_1',
     signature: 'Signature_1'
+  },
+
+  aspca: {
+    policyholderName: 'Name_1',
+    policyholderPhone: 'Number_1',
+    address: 'Text_1',
+    cityStateZip: 'Text_4',
+    policyholderEmail: 'Email_1',
+    policyNumber: 'Number_2',
+    petName: 'Text_2',
+    breed: 'Text_5',
+    age: 'Text_6',
+    gender: 'Text_7',
+    diagnosis: 'Text_8',
+    totalAmount: 'USD_1',
+    signature: 'Signature_1',
+    signatureDate: 'Date_1'
   }
 }
 

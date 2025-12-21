@@ -22,7 +22,7 @@ const __dirname = path.dirname(__filename)
 const TEST_MODE = true
 const TEST_EMAIL = 'larry@uglydogadventures.com'
 // Insurers in production (bypass TEST_MODE)
-const PRODUCTION_INSURERS = ['pumpkin', 'spot', 'healthy paws', 'nationwide', 'trupanion', 'pets best', 'figo']
+const PRODUCTION_INSURERS = ['pumpkin', 'spot', 'healthy paws', 'nationwide', 'trupanion', 'pets best', 'figo', 'aspca']
 // Demo accounts always route to TEST_EMAIL regardless of insurer
 const DEMO_ACCOUNTS = [
   'demo@petclaimhelper.com',
@@ -826,7 +826,25 @@ function getValueForField(fieldName, claimData, dateSigned) {
     vetClinicName: claimData.vetClinicName || claimData.providerName || claimData.veterinaryClinic || '',
     diagnosis: 'See attached invoice',
     signatureDate: dateSigned,
-    signature: claimData.policyholderName || ''  // Fixed: was signatureName, should be signature to match mapping
+    signature: claimData.policyholderName || '',  // Fixed: was signatureName, should be signature to match mapping
+
+    // ASPCA FORM FIELDS
+    ...(normalizedInsurer.includes('aspca') && {
+      policyholderName: claimData.policyholderName || '',
+      policyholderPhone: formatPhone(claimData.policyholderPhone) || '',
+      address: claimData.address || '',
+      cityStateZip: claimData.cityStateZip || `${claimData.city || ''}, ${claimData.state || ''} ${claimData.zip || ''}`.trim(),
+      policyholderEmail: claimData.policyholderEmail || '',
+      policyNumber: claimData.policyNumber || '',
+      petName: claimData.petName || '',
+      breed: claimData.breed || '',
+      age: claimData.age || '',
+      gender: claimData.gender || '',
+      diagnosis: 'See invoice',
+      totalAmount: formatAmount(claimData.totalAmount) || '',
+      signature: claimData.policyholderName || '',
+      signatureDate: dateSigned
+    })
   }
 
   return fieldMap[fieldName]
@@ -1442,7 +1460,8 @@ function getProductionEmail(insurer) {
     'pumpkin': 'claims@pumpkin.care',
     'spot': 'claims@customer.spotpetins.com',
     'figo': 'claims@figopetinsurance.com',
-    'pets best': 'claims@petsbest.com'
+    'pets best': 'claims@petsbest.com',
+    'aspca': 'claims@aspcapetinsurance.com'
   }
   const normalizedName = insurer.toLowerCase()
   return emails[normalizedName] || null
