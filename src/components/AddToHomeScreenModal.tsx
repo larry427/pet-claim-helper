@@ -30,9 +30,9 @@ const DEVICE_INSTRUCTIONS = {
       </svg>
     ),
     steps: [
-      "Tap the Share button at the bottom of your screen",
-      "Scroll down and tap 'Add to Home Screen'",
-      "Tap 'Add' to confirm"
+      "Tap the Share icon (□↑) or ••• menu at the bottom of your screen",
+      "Look for 'Add to Home Screen' and tap it (you may need to scroll)",
+      "Tap 'Add' in the top right corner"
     ]
   },
   'ios-chrome': {
@@ -71,8 +71,8 @@ const DEVICE_INSTRUCTIONS = {
       </svg>
     ),
     steps: [
-      "Bookmark this page for easy access",
-      "Or simply type petclaimhelper.com anytime"
+      "Press ⌘+D (Mac) or Ctrl+D (Windows) to bookmark this page",
+      "Or drag the URL to your bookmarks bar for one-click access"
     ]
   }
 }
@@ -284,7 +284,7 @@ export default function AddToHomeScreenModal({ open, onClose, onConfirm }: AddTo
                 fontWeight: 500,
                 letterSpacing: '-0.01em'
               }}>
-                Add PCH to your home screen for instant access
+                One tap to manage your pet's claims
               </p>
             </div>
 
