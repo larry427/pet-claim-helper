@@ -96,7 +96,8 @@ function shouldUseOfficialForm(normalizedInsurer) {
          normalizedInsurer.includes('pumpkin') ||
          normalizedInsurer.includes('spot') ||
          normalizedInsurer.includes('figo') ||
-         normalizedInsurer.includes('pets best')
+         normalizedInsurer.includes('pets best') ||
+         normalizedInsurer.includes('aspca')
 }
 
 /**
