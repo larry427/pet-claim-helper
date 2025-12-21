@@ -7,6 +7,7 @@ import { supabase, updateUserTimezone } from './lib/supabase'
 import { generateClaimPdf, generateClaimPdfForPet } from './lib/pdfClaim'
 import AddMedicationForm from './components/AddMedicationForm'
 import OnboardingModal from './components/OnboardingModal'
+import AddToHomeScreenModal from './components/AddToHomeScreenModal'
 import FinancialSummary from './components/FinancialSummary'
 import MedicationsDashboard from './components/MedicationsDashboard'
 import DoseMarkingPage from './components/DoseMarkingPage'
@@ -277,6 +278,8 @@ function MainApp() {
   // Pet photo upload state
   const [uploadingPhotoForPetId, setUploadingPhotoForPetId] = useState<string | null>(null)
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null)
+  // Add to Home Screen modal state
+  const [showAddToHomeScreen, setShowAddToHomeScreen] = useState(false)
 
   // Force re-render when extracted data changes - fix for mobile Safari
   useEffect(() => {
@@ -3631,9 +3634,43 @@ function MainApp() {
           if (userId) {
             dbLoadPets(userId).then(setPets).catch(() => {})
           }
+
+          // Check if we should show Add to Home Screen modal after onboarding
+          const addedToHomeScreen = localStorage.getItem('pch_added_to_homescreen')
+          const dismissedAt = localStorage.getItem('pch_homescreen_dismissed_at')
+
+          if (addedToHomeScreen === 'true') {
+            // User already confirmed they added it
+            return
+          }
+
+          if (dismissedAt) {
+            const dismissedDate = new Date(dismissedAt)
+            const daysSinceDismissed = (Date.now() - dismissedDate.getTime()) / (1000 * 60 * 60 * 24)
+            if (daysSinceDismissed < 3) {
+              // Dismissed less than 3 days ago
+              return
+            }
+          }
+
+          // Show the Add to Home Screen modal
+          setTimeout(() => setShowAddToHomeScreen(true), 500)
         }}
         userId={userId || ''}
         userEmail={userEmail}
+      />
+
+      {/* Add to Home Screen Modal */}
+      <AddToHomeScreenModal
+        open={showAddToHomeScreen}
+        onClose={() => {
+          setShowAddToHomeScreen(false)
+          localStorage.setItem('pch_homescreen_dismissed_at', new Date().toISOString())
+        }}
+        onConfirm={() => {
+          setShowAddToHomeScreen(false)
+          localStorage.setItem('pch_added_to_homescreen', 'true')
+        }}
       />
 
       {/* SMS Intro Modal (first time clicking Medication tab) */}
@@ -3914,6 +3951,20 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg"
               />
+            </div>
+
+            {/* Add to Home Screen Link */}
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+              <button
+                onClick={() => {
+                  onClose()
+                  setShowAddToHomeScreen(true)
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                <span>🐾</span>
+                <span>Add to Home Screen</span>
+              </button>
             </div>
           </div>
           <button
