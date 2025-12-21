@@ -26,7 +26,8 @@ export const INSURANCE_OPTIONS: InsuranceOption[] = [
   { display: 'Pumpkin (270 days)', value: 'Pumpkin', deadlineDays: 270 },
   { display: 'Spot (270 days)', value: 'Spot', deadlineDays: 270 },
   { display: 'Figo (180 days)', value: 'Figo', deadlineDays: 180 },
-  { display: 'Pets Best (90 days)', value: 'Pets Best', deadlineDays: 90 }
+  { display: 'Pets Best (90 days)', value: 'Pets Best', deadlineDays: 90 },
+  { display: 'ASPCA (90 days)', value: 'ASPCA', deadlineDays: 90 }
 ]
 
 /**
@@ -104,6 +105,7 @@ export function isAutoSubmitSupported(insuranceCompany: string): boolean {
     normalized.includes('pumpkin') ||
     normalized.includes('spot') ||
     normalized.includes('figo') ||
-    normalized.includes('pets best')
+    normalized.includes('pets best') ||
+    normalized.includes('aspca')
   )
 }
