@@ -30,9 +30,7 @@ const DEVICE_INSTRUCTIONS = {
       </svg>
     ),
     steps: [
-      "Tap the Share icon (□↑) or ••• menu at the bottom of your screen",
-      "Look for 'Add to Home Screen' and tap it (you may need to scroll)",
-      "Tap 'Add' in the top right corner"
+      "Tap ••• below → 'Add to Home Screen' → 'Add'"
     ]
   },
   'ios-chrome': {
@@ -71,8 +69,7 @@ const DEVICE_INSTRUCTIONS = {
       </svg>
     ),
     steps: [
-      "Press ⌘+D (Mac) or Ctrl+D (Windows) to bookmark this page",
-      "Or drag the URL to your bookmarks bar for one-click access"
+      "Press ⌘+D (Mac) or Ctrl+D (Windows) to bookmark this page"
     ]
   }
 }
@@ -284,7 +281,7 @@ export default function AddToHomeScreenModal({ open, onClose, onConfirm }: AddTo
                 fontWeight: 500,
                 letterSpacing: '-0.01em'
               }}>
-                One tap to manage your pet's claims
+                Add the PCH icon to your home screen — never lose it
               </p>
             </div>
 
