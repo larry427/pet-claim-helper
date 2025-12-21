@@ -137,6 +137,9 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
   } else if (normalizedInsurer.includes('pets best')) {
     pdfFilename = 'pets-best-claim-form.pdf'
     console.log(`   ✅ Matched: Pets Best`)
+  } else if (normalizedInsurer.includes('aspca')) {
+    pdfFilename = 'aspca_claim_form.pdf'
+    console.log(`   ✅ Matched: ASPCA`)
   } else {
     console.log(`   ❌ NO MATCH for insurer: "${insurer}"`)
     throw new Error(`No official form available for insurer: ${insurer}`)

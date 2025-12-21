@@ -364,6 +364,8 @@ export function getMappingForInsurer(insurerName) {
     return FORM_FIELD_MAPPINGS.figo
   } else if (normalized.includes('pets best')) {
     return FORM_FIELD_MAPPINGS['pets best']
+  } else if (normalized.includes('aspca')) {
+    return FORM_FIELD_MAPPINGS.aspca
   }
 
   return null
