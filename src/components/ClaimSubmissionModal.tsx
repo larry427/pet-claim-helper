@@ -2,6 +2,26 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import MissingFieldsModal from './MissingFieldsModal'
 
+// Constants for test mode detection
+const DEMO_ACCOUNTS = [
+  'demo@petclaimhelper.com',
+  'drsarah@petclaimhelper.com',
+  'david@mybenefitexperience.com',
+  'larry@uglydogadventures.com',
+  'larrysecrets@gmail.com'
+]
+
+const PRODUCTION_INSURERS = [
+  'pumpkin',
+  'spot',
+  'healthy paws',
+  'nationwide',
+  'trupanion',
+  'pets best',
+  'figo',
+  'aspca'
+]
+
 interface ClaimSubmissionModalProps {
   claim: any
   pet: any
@@ -25,6 +45,22 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
 
   const insurer = pet?.insurance_company || 'Nationwide'
   const amount = claim.total_amount ? `$${parseFloat(claim.total_amount).toFixed(2)}` : '$0.00'
+
+  // Determine if test mode is active based on user email and insurer
+  const isTestMode = () => {
+    const userEmail = (profile?.email || '').toLowerCase()
+    const normalizedInsurer = (insurer || '').toLowerCase()
+
+    // Test mode is active if:
+    // 1. User is a demo account, OR
+    // 2. Insurer is not in production list
+    const isDemoAccount = DEMO_ACCOUNTS.some(email => email.toLowerCase() === userEmail)
+    const isProductionInsurer = PRODUCTION_INSURERS.some(prodInsurer =>
+      normalizedInsurer.includes(prodInsurer.toLowerCase())
+    )
+
+    return isDemoAccount || !isProductionInsurer
+  }
 
   // Validate required data using API
   useEffect(() => {
@@ -668,19 +704,21 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
           </ul>
         </div>
 
-        {/* Test Mode Warning */}
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-lg p-4 mb-6">
-          <div className="flex items-start gap-3">
-            <span className="text-2xl">🧪</span>
-            <div>
-              <h4 className="font-semibold text-yellow-800 dark:text-yellow-300 mb-1">Test Mode Active</h4>
-              <p className="text-sm text-yellow-700 dark:text-yellow-400">
-                This submission will be sent to <strong>larry@uglydogadventures.com</strong> for testing,
-                not to the actual insurance company. Perfect for testing!
-              </p>
+        {/* Test Mode Warning - Only show for demo accounts or non-production insurers */}
+        {isTestMode() && (
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-lg p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">🧪</span>
+              <div>
+                <h4 className="font-semibold text-yellow-800 dark:text-yellow-300 mb-1">Test Mode Active</h4>
+                <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                  This submission will be sent to <strong>larry@uglydogadventures.com</strong> for testing,
+                  not to the actual insurance company. Perfect for testing!
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Action Buttons */}
         <div className="flex gap-3">
