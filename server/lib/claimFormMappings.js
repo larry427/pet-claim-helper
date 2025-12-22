@@ -1069,15 +1069,6 @@ export const INSURER_REQUIRED_FIELDS = {
       prompt: "Pet's gender",
       options: ['Male', 'Female'],
       saveToDb: true
-    },
-    {
-      field: 'totalAmount',
-      source: 'claim.total_amount',
-      required: true,
-      type: 'currency',
-      prompt: 'Total claim amount',
-      placeholder: '171.71',
-      description: 'Total amount from the vet invoice'
     }
   ],
 
