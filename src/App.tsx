@@ -3644,7 +3644,7 @@ function MainApp() {
             dbLoadPets(userId).then(setPets).catch(() => {})
           }
 
-          // Only show add-to-homescreen if user completed onboarding (not just closed it)
+          // Check flag immediately before photo tooltip useEffect can clear it
           const justCompleted = localStorage.getItem('justCompletedOnboarding')
           if (justCompleted !== 'true') {
             // User cancelled onboarding, don't show add-to-homescreen
@@ -3669,9 +3669,11 @@ function MainApp() {
             }
           }
 
-          // Show add-to-homescreen modal after onboarding completes
+          // Passed all checks - show add-to-homescreen modal after brief delay
           setTimeout(() => {
             if (window.AddToHomeScreenInstance) {
+              // Clear display count in case modal was shown during testing
+              window.AddToHomeScreenInstance.clearModalDisplayCount()
               window.AddToHomeScreenInstance.show('en')
             }
           }, 500)
