@@ -247,12 +247,12 @@ const FORM_FIELD_MAPPINGS = {
 
   aspca: {
     policyholderName: 'Name_1',
-    policyholderPhone: 'Number_1',
+    policyholderPhone: 'Number_2',      // SWAPPED - was Number_1
     address: 'Text_1',
-    cityStateZip: 'Text_4',
+    cityStateZip: 'Text_2',             // SWAPPED - was Text_4
     policyholderEmail: 'Email_1',
-    policyNumber: 'Number_2',
-    petName: 'Text_2',
+    policyNumber: 'Number_1',           // SWAPPED - was Number_2 (this is Account Number)
+    petName: 'Text_4',                  // SWAPPED - was Text_2
     breed: 'Text_5',
     age: 'Text_6',
     gender: 'Text_7',

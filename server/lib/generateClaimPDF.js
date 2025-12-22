@@ -74,6 +74,30 @@ export async function generateClaimFormPDF(insurer, claimData, userSignature, da
     console.log(`${'🔍'.repeat(40)}\n`)
   }
 
+  // ASPCA DEBUG: Log all ASPCA-specific fields
+  if (normalizedInsurer.includes('aspca')) {
+    console.log(`\n${'🐾'.repeat(40)}`)
+    console.log(`🐾 ASPCA PDF GENERATION - CLAIMDATA INSPECTION:`)
+    console.log(`${'🐾'.repeat(40)}`)
+    console.log(`  policyholderName: "${claimData.policyholderName}"`)
+    console.log(`  policyholderPhone: "${claimData.policyholderPhone}"`)
+    console.log(`  policyholderEmail: "${claimData.policyholderEmail}"`)
+    console.log(`  address: "${claimData.address}"`)
+    console.log(`  city: "${claimData.city}"`)
+    console.log(`  state: "${claimData.state}"`)
+    console.log(`  zip: "${claimData.zip}"`)
+    console.log(`  cityStateZip: "${claimData.cityStateZip}"`)
+    console.log(`  policyNumber: "${claimData.policyNumber}"`)
+    console.log(`  petName: "${claimData.petName}"`)
+    console.log(`  breed: "${claimData.breed}"`)
+    console.log(`  age: "${claimData.age}"`)
+    console.log(`  gender: "${claimData.gender}"`)
+    console.log(`  petGender: "${claimData.petGender}"`)
+    console.log(`  diagnosis: "${claimData.diagnosis}"`)
+    console.log(`  totalAmount: "${claimData.totalAmount}"`)
+    console.log(`${'🐾'.repeat(40)}\n`)
+  }
+
   console.log(`${'='.repeat(80)}\n`)
 
   // Use official forms for Nationwide and Trupanion
@@ -296,11 +320,28 @@ async function fillOfficialForm(insurer, claimData, userSignature, dateSigned) {
           // Field may not have an AP entry
         }
 
+        // ASPCA-specific adjustments
+        let finalValue = String(value)
+        if (normalizedInsurer.includes('aspca')) {
+          // Add $ prefix to USD_1 field
+          if (pdfFieldName === 'USD_1' && !finalValue.startsWith('$')) {
+            finalValue = '$' + finalValue
+          }
+          // Reduce font size for email field to fit long emails
+          if (pdfFieldName === 'Email_1') {
+            try {
+              textField.setFontSize(8)
+            } catch (e) {
+              // Font size may not be adjustable on some fields
+            }
+          }
+        }
+
         // Set the actual value
         textField.setText('')
-        textField.setText(String(value))
+        textField.setText(finalValue)
 
-        console.log(`   ✅ ${ourFieldName}: "${value}"`)
+        console.log(`   ✅ ${ourFieldName}: "${finalValue}"`)
         fieldsFilled++
       } else if (fieldType === 'PDFCheckBox') {
         if (value === true) {
@@ -794,7 +835,7 @@ function getValueForField(fieldName, claimData, dateSigned) {
     petName: claimData.petName,  // "Pet Name" field
     breed: claimData.breed,
     age: claimData.age || null,  // Use age directly from user input (not calculated)
-    gender: claimData.petGender,
+    gender: claimData.petGender || claimData.gender,  // Try petGender first, fallback to gender
 
     // Claim Information
     diagnosis: claimData.diagnosis,  // "Please describe this incident..." field
