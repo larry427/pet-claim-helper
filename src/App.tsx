@@ -3644,6 +3644,13 @@ function MainApp() {
             dbLoadPets(userId).then(setPets).catch(() => {})
           }
 
+          // Only show add-to-homescreen if user completed onboarding (not just closed it)
+          const justCompleted = localStorage.getItem('justCompletedOnboarding')
+          if (justCompleted !== 'true') {
+            // User cancelled onboarding, don't show add-to-homescreen
+            return
+          }
+
           // Check if we should show Add to Home Screen modal after onboarding
           const addedToHomeScreen = localStorage.getItem('pch_added_to_homescreen')
           const dismissedAt = localStorage.getItem('pch_homescreen_dismissed_at')
