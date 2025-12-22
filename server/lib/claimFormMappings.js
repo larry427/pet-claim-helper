@@ -1065,19 +1065,10 @@ export const INSURER_REQUIRED_FIELDS = {
       field: 'gender',
       source: 'pets.gender',
       required: true,
-      type: 'select',
+      type: 'radio',
       prompt: "Pet's gender",
       options: ['Male', 'Female'],
       saveToDb: true
-    },
-    {
-      field: 'diagnosis',
-      source: 'claim.diagnosis',
-      required: true,
-      type: 'text',
-      prompt: 'Diagnosis / Reason for visit',
-      placeholder: 'e.g., Ear infection',
-      description: 'Brief description of why your pet visited the vet'
     },
     {
       field: 'totalAmount',
@@ -1203,6 +1194,17 @@ function getFieldValue(fieldName, profileData, petData, claimData) {
     console.log('🔍 [SPOT DEBUG - getFieldValue] Checking spotAccountNumber:')
     console.log('  - petData.spot_account_number:', petData?.spot_account_number)
     console.log('  - petData keys:', petData ? Object.keys(petData) : 'petData is null/undefined')
+  }
+
+  // DEBUG: Log ASPCA fields specifically
+  if (fieldName === 'gender' || fieldName === 'breed' || fieldName === 'age') {
+    console.log(`🐾 [ASPCA DEBUG - getFieldValue] Checking ${fieldName}:`)
+    console.log(`  - petData.${fieldName}:`, petData?.[fieldName])
+    console.log(`  - claimData.${fieldName}:`, claimData?.[fieldName])
+    console.log(`  - Type:`, typeof petData?.[fieldName])
+    console.log(`  - Is null?:`, petData?.[fieldName] === null)
+    console.log(`  - Is undefined?:`, petData?.[fieldName] === undefined)
+    console.log(`  - Is empty string?:`, petData?.[fieldName] === '')
   }
 
   // Map field names to data sources
