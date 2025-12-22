@@ -25,6 +25,14 @@
           allowClose: true,
           showArrow: true
         });
+
+        // Check for ?showInstall=true URL parameter to force show the modal
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('showInstall') === 'true') {
+          console.log('[Add to Home Screen] showInstall=true detected, clearing modal count');
+          window.AddToHomeScreenInstance.clearModalDisplayCount();
+        }
+
         window.AddToHomeScreenInstance.show('en');
       });
     </script>
