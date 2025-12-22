@@ -830,25 +830,7 @@ function getValueForField(fieldName, claimData, dateSigned) {
     vetClinicName: claimData.vetClinicName || claimData.providerName || claimData.veterinaryClinic || '',
     diagnosis: 'See attached invoice',
     signatureDate: dateSigned,
-    signature: claimData.policyholderName || '',  // Fixed: was signatureName, should be signature to match mapping
-
-    // ASPCA FORM FIELDS
-    ...(normalizedInsurer.includes('aspca') && {
-      policyholderName: claimData.policyholderName || '',
-      policyholderPhone: formatPhone(claimData.policyholderPhone) || '',
-      address: claimData.address || '',
-      cityStateZip: claimData.cityStateZip || `${claimData.city || ''}, ${claimData.state || ''} ${claimData.zip || ''}`.trim(),
-      policyholderEmail: claimData.policyholderEmail || '',
-      policyNumber: claimData.policyNumber || '',
-      petName: claimData.petName || '',
-      breed: claimData.breed || '',
-      age: claimData.age || '',
-      gender: claimData.gender || '',
-      diagnosis: 'See invoice',
-      totalAmount: formatAmount(claimData.totalAmount) || '',
-      signature: claimData.policyholderName || '',
-      signatureDate: dateSigned
-    })
+    signature: claimData.policyholderName || ''  // Fixed: was signatureName, should be signature to match mapping
   }
 
   return fieldMap[fieldName]
