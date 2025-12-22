@@ -6,6 +6,28 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Pet Claim Helper</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" crossorigin="use-credentials" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- Add to Home Screen Library -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/philfung/add-to-homescreen@3.5/dist/add-to-homescreen.min.css" />
+    <script src="https://cdn.jsdelivr.net/gh/philfung/add-to-homescreen@3.5/dist/add-to-homescreen.min.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        window.AddToHomeScreenInstance = window.AddToHomeScreen({
+          appName: 'Pet Claim Helper',
+          appIconUrl: '/apple-touch-icon.png',
+          assetUrl: 'https://cdn.jsdelivr.net/gh/philfung/add-to-homescreen@3.5/dist/assets/img/',
+          maxModalDisplayCount: 1,
+          displayOptions: { showMobile: true, showDesktop: false },
+          allowClose: true,
+          showArrow: true
+        });
+        window.AddToHomeScreenInstance.show('en');
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>

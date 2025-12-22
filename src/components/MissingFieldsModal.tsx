@@ -65,7 +65,12 @@ export default function MissingFieldsModal({
   }, [missingFields, existingData, suggestedValues])
 
   const setFieldValue = (fieldName: string, value: any) => {
-    setFormData(prev => ({ ...prev, [fieldName]: value }))
+    console.log(`[MissingFieldsModal] setFieldValue called:`, { fieldName, value, type: typeof value })
+    setFormData(prev => {
+      const updated = { ...prev, [fieldName]: value }
+      console.log(`[MissingFieldsModal] Updated formData:`, updated)
+      return updated
+    })
     setError(null)
   }
 
@@ -293,16 +298,40 @@ export default function MissingFieldsModal({
     e.preventDefault()
     setError(null)
 
+    console.log('[MissingFieldsModal] handleSubmit called')
+    console.log('[MissingFieldsModal] Current formData:', formData)
+    console.log('[MissingFieldsModal] Visible fields:', visibleFields.map(f => f.field))
+
     // Validate all required fields that are currently shown
+    const validationResults: Record<string, boolean> = {}
     const allFilled = visibleFields.every(field => {
-      if (!field.required) return true
+      if (!field.required) {
+        validationResults[field.field] = true
+        return true
+      }
       const value = formData[field.field]
-      if (!value) return false
-      if (typeof value === 'string' && value.trim() === '') return false
+      const isFilled = !(!value || (typeof value === 'string' && value.trim() === ''))
+      validationResults[field.field] = isFilled
+
+      console.log(`[MissingFieldsModal] Field ${field.field}:`, {
+        value,
+        type: typeof value,
+        isFilled,
+        required: field.required
+      })
+
+      if (!isFilled) return false
       return true
     })
 
+    console.log('[MissingFieldsModal] Validation results:', validationResults)
+    console.log('[MissingFieldsModal] All filled?', allFilled)
+
     if (!allFilled) {
+      const missingFieldNames = Object.entries(validationResults)
+        .filter(([_, filled]) => !filled)
+        .map(([fieldName]) => fieldName)
+      console.log('[MissingFieldsModal] Missing fields:', missingFieldNames)
       setError('Please fill out all required fields')
       return
     }

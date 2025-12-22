@@ -1114,6 +1114,19 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         console.log('  - Full pet object keys:', Object.keys(pet))
       }
 
+      // DEBUG: Show ASPCA data if ASPCA insurer
+      if (insurer.toLowerCase().includes('aspca')) {
+        console.log('🐾 [ASPCA DEBUG] Pet data for ASPCA claim:')
+        console.log('  - pet.breed:', pet.breed)
+        console.log('  - pet.gender:', pet.gender)
+        console.log('  - pet.policy_number:', pet.policy_number)
+        console.log('  - Full pet object keys:', Object.keys(pet))
+        console.log('🐾 [ASPCA DEBUG] Claim data:')
+        console.log('  - claim.diagnosis:', claim.diagnosis)
+        console.log('  - claim.total_amount:', claim.total_amount)
+        console.log('  - claim.age:', claim.age)
+      }
+
       // 3. Get profile data
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -1146,6 +1159,31 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
           console.log('  - ❌ spotAccountNumber IS MISSING (this is the bug!)')
         } else {
           console.log('  - ✅ spotAccountNumber is NOT missing')
+        }
+      }
+
+      // DEBUG: Show missing fields for ASPCA
+      if (insurer.toLowerCase().includes('aspca')) {
+        console.log('🐾 [ASPCA DEBUG] Missing fields check:')
+        console.log('  - Total missing fields:', missingFields.length)
+        console.log('  - Missing field names:', missingFields.map(f => f.field))
+        console.log('  - Missing field types:', missingFields.map(f => `${f.field}:${f.type}`))
+
+        const genderField = missingFields.find(f => f.field === 'gender')
+        if (genderField) {
+          console.log('  - ✅ gender IS in missing fields array')
+          console.log('  - gender field definition:', JSON.stringify(genderField, null, 2))
+        } else {
+          console.log('  - ❌ gender is NOT in missing fields (WHY?)')
+          console.log('  - Checking all required fields for ASPCA:')
+          const allFields = getRequiredFieldsForInsurer(insurer)
+          console.log('  - Total required fields:', allFields.length)
+          console.log('  - All required field names:', allFields.map(f => f.field))
+          const genderReq = allFields.find(f => f.field === 'gender')
+          if (genderReq) {
+            console.log('  - gender IS in required fields')
+            console.log('  - gender definition:', JSON.stringify(genderReq, null, 2))
+          }
         }
       }
 

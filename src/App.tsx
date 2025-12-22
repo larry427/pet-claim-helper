@@ -7,7 +7,8 @@ import { supabase, updateUserTimezone } from './lib/supabase'
 import { generateClaimPdf, generateClaimPdfForPet } from './lib/pdfClaim'
 import AddMedicationForm from './components/AddMedicationForm'
 import OnboardingModal from './components/OnboardingModal'
-import AddToHomeScreenModal from './components/AddToHomeScreenModal'
+// DISABLED: Using add-to-homescreen library in index.html instead
+// import AddToHomeScreenModal from './components/AddToHomeScreenModal'
 import FinancialSummary from './components/FinancialSummary'
 import MedicationsDashboard from './components/MedicationsDashboard'
 import DoseMarkingPage from './components/DoseMarkingPage'
@@ -278,16 +279,16 @@ function MainApp() {
   // Pet photo upload state
   const [uploadingPhotoForPetId, setUploadingPhotoForPetId] = useState<string | null>(null)
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null)
-  // Add to Home Screen modal state
-  const [showAddToHomeScreen, setShowAddToHomeScreen] = useState(false)
+  // DISABLED: Using add-to-homescreen library in index.html instead
+  // const [showAddToHomeScreen, setShowAddToHomeScreen] = useState(false)
 
-  // Test mode: Force show Add to Home Screen modal with URL parameter
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    if (urlParams.get('test-homescreen') === 'true') {
-      setShowAddToHomeScreen(true)
-    }
-  }, [])
+  // DISABLED: Using add-to-homescreen library in index.html instead
+  // useEffect(() => {
+  //   const urlParams = new URLSearchParams(window.location.search)
+  //   if (urlParams.get('test-homescreen') === 'true') {
+  //     setShowAddToHomeScreen(true)
+  //   }
+  // }, [])
 
   // Force re-render when extracted data changes - fix for mobile Safari
   useEffect(() => {
@@ -3661,15 +3662,15 @@ function MainApp() {
             }
           }
 
-          // Show the Add to Home Screen modal
-          setTimeout(() => setShowAddToHomeScreen(true), 500)
+          // DISABLED: Using add-to-homescreen library in index.html instead
+          // setTimeout(() => setShowAddToHomeScreen(true), 500)
         }}
         userId={userId || ''}
         userEmail={userEmail}
       />
 
-      {/* Add to Home Screen Modal */}
-      <AddToHomeScreenModal
+      {/* DISABLED: Using add-to-homescreen library in index.html instead */}
+      {/* <AddToHomeScreenModal
         open={showAddToHomeScreen}
         onClose={() => {
           setShowAddToHomeScreen(false)
@@ -3679,7 +3680,7 @@ function MainApp() {
           setShowAddToHomeScreen(false)
           localStorage.setItem('pch_added_to_homescreen', 'true')
         }}
-      />
+      /> */}
 
       {/* SMS Intro Modal (first time clicking Medication tab) */}
       {showSmsIntroModal && (
@@ -3961,8 +3962,8 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
               />
             </div>
 
-            {/* Add to Home Screen Link */}
-            <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+            {/* DISABLED: Using add-to-homescreen library in index.html instead */}
+            {/* <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
               <button
                 onClick={() => {
                   onClose()
@@ -3973,7 +3974,7 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
                 <span>🐾</span>
                 <span>Add to Home Screen</span>
               </button>
-            </div>
+            </div> */}
           </div>
           <button
             onClick={onClose}
