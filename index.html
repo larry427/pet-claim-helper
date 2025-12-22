@@ -31,9 +31,10 @@
         if (urlParams.get('showInstall') === 'true') {
           console.log('[Add to Home Screen] showInstall=true detected, clearing modal count');
           window.AddToHomeScreenInstance.clearModalDisplayCount();
+          window.AddToHomeScreenInstance.show('en');
         }
 
-        window.AddToHomeScreenInstance.show('en');
+        // Don't show automatically - will be triggered after onboarding completes
       });
     </script>
   </head>

@@ -3662,8 +3662,12 @@ function MainApp() {
             }
           }
 
-          // DISABLED: Using add-to-homescreen library in index.html instead
-          // setTimeout(() => setShowAddToHomeScreen(true), 500)
+          // Show add-to-homescreen modal after onboarding completes
+          setTimeout(() => {
+            if (window.AddToHomeScreenInstance) {
+              window.AddToHomeScreenInstance.show('en')
+            }
+          }, 500)
         }}
         userId={userId || ''}
         userEmail={userEmail}
