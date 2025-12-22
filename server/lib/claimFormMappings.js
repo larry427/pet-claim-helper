@@ -961,6 +961,135 @@ export const INSURER_REQUIRED_FIELDS = {
     }
   ],
 
+  aspca: [
+    {
+      field: 'signature',
+      source: 'profiles.signature',
+      required: true,
+      type: 'signature',
+      prompt: 'Your signature',
+      description: 'Required to authorize the claim'
+    },
+    {
+      field: 'policyholderName',
+      source: 'profiles.full_name',
+      required: true,
+      type: 'text',
+      prompt: 'Your full name',
+      placeholder: 'John Smith'
+    },
+    {
+      field: 'policyholderPhone',
+      source: 'profiles.phone',
+      required: true,
+      type: 'phone',
+      prompt: 'Your phone number',
+      placeholder: '(555) 123-4567'
+    },
+    {
+      field: 'policyholderEmail',
+      source: 'profiles.email',
+      required: true,
+      type: 'email',
+      prompt: 'Your email address',
+      placeholder: 'john@example.com'
+    },
+    {
+      field: 'address',
+      source: 'profiles.address',
+      required: true,
+      type: 'text',
+      prompt: 'Street address',
+      placeholder: '123 Main St'
+    },
+    {
+      field: 'city',
+      source: 'profiles.city',
+      required: true,
+      type: 'text',
+      prompt: 'City',
+      placeholder: 'Los Angeles'
+    },
+    {
+      field: 'state',
+      source: 'profiles.state',
+      required: true,
+      type: 'text',
+      prompt: 'State',
+      placeholder: 'CA'
+    },
+    {
+      field: 'zip',
+      source: 'profiles.zip',
+      required: true,
+      type: 'text',
+      prompt: 'ZIP code',
+      placeholder: '90210'
+    },
+    {
+      field: 'policyNumber',
+      source: 'pets.policy_number',
+      required: true,
+      type: 'text',
+      prompt: 'Policy number',
+      placeholder: 'ASPCA123456'
+    },
+    {
+      field: 'petName',
+      source: 'pets.name',
+      required: true,
+      type: 'text',
+      prompt: 'Pet name',
+      placeholder: 'Fluffy'
+    },
+    {
+      field: 'breed',
+      source: 'pets.breed',
+      required: true,
+      type: 'text',
+      prompt: "Pet's breed",
+      placeholder: 'e.g., Golden Retriever',
+      saveToDb: true
+    },
+    {
+      field: 'age',
+      source: 'claim.age',
+      required: true,
+      type: 'text',
+      prompt: "How old is your pet?",
+      placeholder: 'e.g., 4',
+      description: 'Enter age as a whole number',
+      saveToDb: false
+    },
+    {
+      field: 'gender',
+      source: 'pets.gender',
+      required: true,
+      type: 'select',
+      prompt: "Pet's gender",
+      options: ['Male', 'Female'],
+      saveToDb: true
+    },
+    {
+      field: 'diagnosis',
+      source: 'claim.diagnosis',
+      required: true,
+      type: 'text',
+      prompt: 'Diagnosis / Reason for visit',
+      placeholder: 'e.g., Ear infection',
+      description: 'Brief description of why your pet visited the vet'
+    },
+    {
+      field: 'totalAmount',
+      source: 'claim.total_amount',
+      required: true,
+      type: 'currency',
+      prompt: 'Total claim amount',
+      placeholder: '171.71',
+      description: 'Total amount from the vet invoice'
+    }
+  ],
+
   figo: [
     {
       field: 'signature',
@@ -1034,6 +1163,8 @@ export function getRequiredFieldsForInsurer(insurerName) {
     return INSURER_REQUIRED_FIELDS.figo
   } else if (normalized.includes('pets best')) {
     return INSURER_REQUIRED_FIELDS['pets best']
+  } else if (normalized.includes('aspca')) {
+    return INSURER_REQUIRED_FIELDS.aspca
   }
 
   return []
