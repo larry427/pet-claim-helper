@@ -11,6 +11,7 @@ import OnboardingModal from './components/OnboardingModal'
 // import AddToHomeScreenModal from './components/AddToHomeScreenModal'
 import FinancialSummary from './components/FinancialSummary'
 import MedicationsDashboard from './components/MedicationsDashboard'
+import FoodTrackingDashboard from './components/FoodTrackingDashboard'
 import DoseMarkingPage from './components/DoseMarkingPage'
 import DoseSuccess from './components/DoseSuccess'
 import ClaimSubmissionModal from './components/ClaimSubmissionModal'
@@ -222,7 +223,7 @@ function MainApp() {
   const [showClaims, setShowClaims] = useState(false)
   
   const [finPeriod, setFinPeriod] = useState<'all' | '2026' | '2025' | '2024' | 'last12'>('all')
-  const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications' | 'admin'>('app')
+  const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications' | 'food' | 'admin'>('app')
   const [isAdmin, setIsAdmin] = useState(false)
   const [editingClaim, setEditingClaim] = useState<any | null>(null)
   const [editPetId, setEditPetId] = useState<string | null>(null)
@@ -1559,6 +1560,15 @@ function MainApp() {
               >
                 💊 Medications
               </button>
+              {userEmail === 'larry@uglydogadventures.com' && (
+                <button
+                  type="button"
+                  onClick={() => setActiveView(activeView === 'food' ? 'app' : 'food')}
+                  className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow"
+                >
+                  🍖 Food
+                </button>
+              )}
             )}
             {authView === 'app' && isAdmin && (
               <button
@@ -1599,6 +1609,11 @@ function MainApp() {
         {authView === 'app' && activeView === 'medications' && (
           <section className="mx-auto mt-8 max-w-6xl px-2">
             <MedicationsDashboard userId={userId} pets={pets} refreshKey={medicationsRefreshKey} />
+          </section>
+        )}
+        {authView === 'app' && activeView === 'food' && userEmail === 'larry@uglydogadventures.com' && userId && (
+          <section className="mx-auto mt-8 max-w-6xl px-2">
+            <FoodTrackingDashboard userId={userId} />
           </section>
         )}
         {authView === 'app' && activeView === 'admin' && (
