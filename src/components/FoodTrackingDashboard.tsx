@@ -1,28 +1,17 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
-import AddFoodModal from './AddFoodModal'
-import AssignFoodModal from './AssignFoodModal'
-import EditFeedingPlanModal from './EditFeedingPlanModal'
+import AddFoodEntryModal from './AddFoodEntryModal'
+import EditFoodEntryModal from './EditFoodEntryModal'
 
-type FoodItem = {
-  id: string
-  user_id: string
-  name: string
-  brand: string | null
-  cost: number
-  purchase_date: string
-  source: string
-  total_servings: number
-  serving_unit: string
-  created_at: string
-}
-
-type FeedingPlan = {
+type FoodEntry = {
   id: string
   pet_id: string
-  food_item_id: string
-  servings_per_meal: number
-  meals_per_day: number
+  food_name: string
+  food_type: 'dry' | 'wet' | 'freeze-dried'
+  bag_size_lbs: number
+  bag_cost: number
+  cups_per_day: number
+  start_date: string
   created_at: string
 }
 
@@ -35,40 +24,43 @@ type Pet = {
 
 type PetFoodStats = {
   pet: Pet
-  foodItem: FoodItem
-  plan: FeedingPlan
-  costPerMeal: number
+  entry: FoodEntry
+  totalCups: number
+  daysPerBag: number
   costPerDay: number
+  costPerWeek: number
   costPerMonth: number
-  daysRemaining: number
+  costPerYear: number
+  daysLeft: number
   reorderDate: string
+  statusColor: '🟢' | '🟡' | '🔴'
+}
+
+const CUPS_PER_LB = {
+  dry: 4,
+  wet: 2,
+  'freeze-dried': 9
 }
 
 export default function FoodTrackingDashboard({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true)
-  const [foodItems, setFoodItems] = useState<FoodItem[]>([])
-  const [feedingPlans, setFeedingPlans] = useState<FeedingPlan[]>([])
+  const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([])
   const [pets, setPets] = useState<Pet[]>([])
   const [showAddFood, setShowAddFood] = useState(false)
-  const [showAssignFood, setShowAssignFood] = useState(false)
-  const [selectedFoodItem, setSelectedFoodItem] = useState<FoodItem | null>(null)
-  const [editingPlan, setEditingPlan] = useState<PetFoodStats | null>(null)
+  const [editingEntry, setEditingEntry] = useState<{ entry: FoodEntry; petName: string } | null>(null)
 
   const loadData = async () => {
     setLoading(true)
     try {
-      const [foodRes, plansRes, petsRes] = await Promise.all([
-        supabase.from('food_items').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
-        supabase.from('feeding_plans').select('*'),
+      const [entriesRes, petsRes] = await Promise.all([
+        supabase.from('food_entries').select('*').order('created_at', { ascending: false }),
         supabase.from('pets').select('id, name, species, photo_url').eq('user_id', userId)
       ])
 
-      if (foodRes.error) throw foodRes.error
-      if (plansRes.error) throw plansRes.error
+      if (entriesRes.error) throw entriesRes.error
       if (petsRes.error) throw petsRes.error
 
-      setFoodItems((foodRes.data || []) as FoodItem[])
-      setFeedingPlans((plansRes.data || []) as FeedingPlan[])
+      setFoodEntries((entriesRes.data || []) as FoodEntry[])
       setPets((petsRes.data || []) as Pet[])
     } catch (error: any) {
       console.error('Error loading food tracking data:', error)
@@ -83,84 +75,87 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
 
   const petFoodStats = useMemo(() => {
     const stats: PetFoodStats[] = []
+    const today = new Date()
 
-    feedingPlans.forEach(plan => {
-      const pet = pets.find(p => p.id === plan.pet_id)
-      const foodItem = foodItems.find(f => f.id === plan.food_item_id)
+    foodEntries.forEach(entry => {
+      const pet = pets.find(p => p.id === entry.pet_id)
+      if (!pet) return
 
-      if (!pet || !foodItem) return
-
-      const servingsPerDay = plan.servings_per_meal * plan.meals_per_day
-      const costPerServing = foodItem.cost / foodItem.total_servings
-      const costPerMeal = costPerServing * plan.servings_per_meal
-      const costPerDay = costPerMeal * plan.meals_per_day
+      // Calculations
+      const cupsPerLb = CUPS_PER_LB[entry.food_type]
+      const totalCups = entry.bag_size_lbs * cupsPerLb
+      const daysPerBag = totalCups / entry.cups_per_day
+      const costPerDay = entry.bag_cost / daysPerBag
+      const costPerWeek = costPerDay * 7
       const costPerMonth = costPerDay * 30
+      const costPerYear = costPerDay * 365
 
-      // Calculate days remaining (assuming we start with total_servings)
-      const daysRemaining = Math.floor(foodItem.total_servings / servingsPerDay)
+      // Days left calculation
+      const startDate = new Date(entry.start_date)
+      const daysSinceStart = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+      const daysLeft = Math.max(0, Math.floor(daysPerBag - daysSinceStart))
 
-      // Reorder date (with 5-day buffer)
-      const reorderDays = Math.max(0, daysRemaining - 5)
+      // Reorder date (5-day buffer)
+      const reorderDays = Math.max(0, daysLeft - 5)
       const reorderDate = new Date()
       reorderDate.setDate(reorderDate.getDate() + reorderDays)
 
+      // Status color
+      let statusColor: '🟢' | '🟡' | '🔴' = '🟢'
+      if (daysLeft <= 7) statusColor = '🔴'
+      else if (daysLeft <= 14) statusColor = '🟡'
+
       stats.push({
         pet,
-        foodItem,
-        plan,
-        costPerMeal,
+        entry,
+        totalCups,
+        daysPerBag: Math.floor(daysPerBag),
         costPerDay,
+        costPerWeek,
         costPerMonth,
-        daysRemaining,
-        reorderDate: reorderDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        costPerYear,
+        daysLeft,
+        reorderDate: reorderDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        statusColor
       })
     })
 
     return stats
-  }, [feedingPlans, pets, foodItems])
+  }, [foodEntries, pets])
 
   const householdTotal = useMemo(() => {
     return petFoodStats.reduce((sum, stat) => sum + stat.costPerMonth, 0)
   }, [petFoodStats])
 
-  const handleAddFoodComplete = (foodItem: FoodItem) => {
-    setSelectedFoodItem(foodItem)
-    setShowAddFood(false)
-    setShowAssignFood(true)
-  }
+  const alertCount = useMemo(() => {
+    return petFoodStats.filter(stat => stat.statusColor === '🟡' || stat.statusColor === '🔴').length
+  }, [petFoodStats])
 
-  const handleAssignComplete = () => {
-    setShowAssignFood(false)
-    setSelectedFoodItem(null)
-    loadData()
-  }
+  const availablePets = useMemo(() => {
+    return pets.filter(pet => !foodEntries.some(entry => entry.pet_id === pet.id))
+  }, [pets, foodEntries])
 
-  const handleEditComplete = () => {
-    setEditingPlan(null)
-    loadData()
-  }
-
-  const handleDelete = async (planId: string, petName: string) => {
-    if (!confirm(`Remove feeding plan for ${petName}?`)) return
+  const handleDelete = async (entryId: string, petName: string) => {
+    if (!confirm(`Remove food entry for ${petName}? This cannot be undone.`)) return
 
     try {
       const { error } = await supabase
-        .from('feeding_plans')
+        .from('food_entries')
         .delete()
-        .eq('id', planId)
+        .eq('id', entryId)
 
       if (error) throw error
 
       loadData()
     } catch (error: any) {
-      alert('Failed to delete feeding plan: ' + (error?.message || 'Unknown error'))
+      alert('Failed to delete food entry: ' + (error?.message || 'Unknown error'))
     }
   }
 
   const getDaysLeftColor = (days: number) => {
-    if (days > 14) return 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
-    if (days >= 7) return 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
-    return 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
+    if (days > 14) return 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800'
+    if (days >= 7) return 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+    return 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800'
   }
 
   if (loading) {
@@ -177,7 +172,9 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Food Tracking</h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Track costs and manage reorders</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+            Know what you're spending. Know when to reorder. Never run out.
+          </p>
         </div>
         <button
           onClick={() => setShowAddFood(true)}
@@ -188,24 +185,38 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
         </button>
       </div>
 
+      {/* Alert Summary */}
+      {alertCount > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">⚠️</span>
+            <div className="text-sm">
+              <span className="font-semibold text-amber-900 dark:text-amber-400">
+                {alertCount} {alertCount === 1 ? 'pet needs' : 'pets need'} food reordered soon
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Pet Food Cards */}
       {petFoodStats.length === 0 ? (
         <div className="text-center py-12 bg-slate-50 dark:bg-slate-800/50 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700">
           <div className="text-4xl mb-3">🍖</div>
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">No food items yet</h3>
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">No food entries yet</h3>
           <p className="text-slate-600 dark:text-slate-400 mb-4">Start tracking your pet food costs</p>
           <button
             onClick={() => setShowAddFood(true)}
             className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
           >
-            Add Your First Food Item
+            Add Your First Food Entry
           </button>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {petFoodStats.map((stat) => (
             <div
-              key={stat.plan.id}
+              key={stat.entry.id}
               className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow"
             >
               {/* Pet Header with Edit/Delete buttons */}
@@ -224,23 +235,23 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                 <div className="flex-1">
                   <h3 className="font-semibold text-slate-900 dark:text-white">{stat.pet.name}</h3>
                   <p className="text-sm text-slate-600 dark:text-slate-400">
-                    {stat.foodItem.brand || ''} {stat.foodItem.name}
+                    {stat.entry.food_name}
                   </p>
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setEditingPlan(stat)}
+                    onClick={() => setEditingEntry({ entry: stat.entry, petName: stat.pet.name })}
                     className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-400"
-                    title="Edit feeding plan"
+                    title="Edit food entry"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                     </svg>
                   </button>
                   <button
-                    onClick={() => handleDelete(stat.plan.id, stat.pet.name)}
+                    onClick={() => handleDelete(stat.entry.id, stat.pet.name)}
                     className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-red-600 dark:text-red-400"
-                    title="Delete feeding plan"
+                    title="Delete food entry"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -249,61 +260,57 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                 </div>
               </div>
 
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3">
-                  <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Per Meal</div>
-                  <div className="text-lg font-bold text-slate-900 dark:text-white">
-                    ${stat.costPerMeal.toFixed(2)}
+              {/* Status Light + Days Left */}
+              <div className={`rounded-lg p-4 mb-4 border ${getDaysLeftColor(stat.daysLeft)}`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-2xl">{stat.statusColor}</span>
+                      <span className="text-xs font-medium uppercase tracking-wide">
+                        {stat.daysLeft <= 7 ? 'Reorder Now' : stat.daysLeft <= 14 ? 'Reorder Soon' : 'Good Stock'}
+                      </span>
+                    </div>
+                    <div className="text-3xl font-bold">
+                      {stat.daysLeft} {stat.daysLeft === 1 ? 'day' : 'days'} left
+                    </div>
                   </div>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3">
+                <div className="text-sm mt-2 opacity-90">
+                  Reorder by {stat.reorderDate}
+                </div>
+              </div>
+
+              {/* Cost Breakdown */}
+              <div className="grid grid-cols-4 gap-2 mb-3">
+                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 text-center">
                   <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Per Day</div>
-                  <div className="text-lg font-bold text-slate-900 dark:text-white">
+                  <div className="text-sm font-bold text-slate-900 dark:text-white">
                     ${stat.costPerDay.toFixed(2)}
                   </div>
                 </div>
-                <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-3">
+                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 text-center">
+                  <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Per Week</div>
+                  <div className="text-sm font-bold text-slate-900 dark:text-white">
+                    ${stat.costPerWeek.toFixed(2)}
+                  </div>
+                </div>
+                <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-3 text-center">
                   <div className="text-xs text-emerald-700 dark:text-emerald-400 mb-1">Per Month</div>
-                  <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
+                  <div className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
                     ${stat.costPerMonth.toFixed(2)}
                   </div>
                 </div>
-                <div className={`rounded-lg p-3 ${getDaysLeftColor(stat.daysRemaining)}`}>
-                  <div className="text-xs mb-1">Days Left</div>
-                  <div className="text-lg font-bold">
-                    {stat.daysRemaining}
+                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 text-center">
+                  <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Per Year</div>
+                  <div className="text-sm font-bold text-slate-900 dark:text-white">
+                    ${stat.costPerYear.toFixed(0)}
                   </div>
                 </div>
               </div>
 
-              {/* Reorder Alert */}
-              <div
-                className={`rounded-lg p-3 ${
-                  stat.daysRemaining <= 5
-                    ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
-                    : 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">{stat.daysRemaining <= 5 ? '⚠️' : '📅'}</span>
-                  <div className="text-sm">
-                    <span className={stat.daysRemaining <= 5 ? 'text-red-700 dark:text-red-400 font-semibold' : 'text-blue-700 dark:text-blue-400'}>
-                      {stat.daysRemaining <= 5 ? 'Reorder soon!' : 'Reorder by'}
-                    </span>
-                    {stat.daysRemaining > 5 && (
-                      <span className="text-blue-600 dark:text-blue-400 ml-1">{stat.reorderDate}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Feeding Details */}
-              <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-                {(stat.plan.servings_per_meal * stat.plan.meals_per_day) % 1 === 0
-                  ? (stat.plan.servings_per_meal * stat.plan.meals_per_day).toFixed(0)
-                  : (stat.plan.servings_per_meal * stat.plan.meals_per_day).toFixed(1)
-                } {stat.foodItem.serving_unit}s/day
+              {/* Details */}
+              <div className="text-xs text-slate-500 dark:text-slate-400 pt-3 border-t border-slate-200 dark:border-slate-700">
+                {stat.entry.cups_per_day} cups/day • {stat.daysPerBag} days per bag • {stat.entry.food_type} food
               </div>
             </div>
           ))}
@@ -325,33 +332,25 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
 
       {/* Modals */}
       {showAddFood && (
-        <AddFoodModal
-          userId={userId}
+        <AddFoodEntryModal
+          availablePets={availablePets}
           onClose={() => setShowAddFood(false)}
-          onComplete={handleAddFoodComplete}
-        />
-      )}
-
-      {showAssignFood && selectedFoodItem && (
-        <AssignFoodModal
-          foodItem={selectedFoodItem}
-          pets={pets}
-          onClose={() => {
-            setShowAssignFood(false)
-            setSelectedFoodItem(null)
+          onComplete={() => {
+            setShowAddFood(false)
+            loadData()
           }}
-          onComplete={handleAssignComplete}
         />
       )}
 
-      {editingPlan && (
-        <EditFeedingPlanModal
-          plan={editingPlan.plan}
-          petName={editingPlan.pet.name}
-          foodName={`${editingPlan.foodItem.brand ? editingPlan.foodItem.brand + ' ' : ''}${editingPlan.foodItem.name}`}
-          servingUnit={editingPlan.foodItem.serving_unit}
-          onClose={() => setEditingPlan(null)}
-          onComplete={handleEditComplete}
+      {editingEntry && (
+        <EditFoodEntryModal
+          entry={editingEntry.entry}
+          petName={editingEntry.petName}
+          onClose={() => setEditingEntry(null)}
+          onComplete={() => {
+            setEditingEntry(null)
+            loadData()
+          }}
         />
       )}
     </div>

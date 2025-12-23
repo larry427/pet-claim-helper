@@ -1,96 +1,19 @@
-# Food Tracking Feature - Setup Instructions
+# Food Tracking V1 - Setup Instructions
+
+## Core Value
+**"Know what you're spending. Know when to reorder. Never run out."**
 
 ## Overview
-Feature-flagged food tracking dashboard for `larry@uglydogadventures.com` only.
+Simplified food tracking: one entry per pet, focused on cost visibility and reorder alerts.
 
 ## Step 1: Run SQL in Supabase Dashboard
 
-Copy and paste this entire SQL block into the Supabase SQL Editor:
+The SQL schema is available in `FOOD_TRACKING_V1_SCHEMA.sql`.
 
-```sql
--- Create food_items table
-CREATE TABLE food_items (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  brand TEXT,
-  cost DECIMAL(10, 2) NOT NULL,
-  purchase_date DATE NOT NULL,
-  source TEXT CHECK (source IN ('subscription', 'online', 'store')),
-  total_servings INTEGER NOT NULL,
-  serving_unit TEXT NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Create feeding_plans table
-CREATE TABLE feeding_plans (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  pet_id UUID NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
-  food_item_id UUID NOT NULL REFERENCES food_items(id) ON DELETE CASCADE,
-  servings_per_meal DECIMAL(5, 2) NOT NULL,
-  meals_per_day INTEGER NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- RLS policies for food_items
-ALTER TABLE food_items ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view own food items"
-ON food_items FOR SELECT
-USING (user_id = auth.uid());
-
-CREATE POLICY "Users can insert own food items"
-ON food_items FOR INSERT
-WITH CHECK (user_id = auth.uid());
-
-CREATE POLICY "Users can update own food items"
-ON food_items FOR UPDATE
-USING (user_id = auth.uid());
-
-CREATE POLICY "Users can delete own food items"
-ON food_items FOR DELETE
-USING (user_id = auth.uid());
-
--- RLS policies for feeding_plans
-ALTER TABLE feeding_plans ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view own feeding plans"
-ON feeding_plans FOR SELECT
-USING (
-  pet_id IN (
-    SELECT id FROM pets WHERE user_id = auth.uid()
-  )
-);
-
-CREATE POLICY "Users can insert own feeding plans"
-ON feeding_plans FOR INSERT
-WITH CHECK (
-  pet_id IN (
-    SELECT id FROM pets WHERE user_id = auth.uid()
-  )
-);
-
-CREATE POLICY "Users can update own feeding plans"
-ON feeding_plans FOR UPDATE
-USING (
-  pet_id IN (
-    SELECT id FROM pets WHERE user_id = auth.uid()
-  )
-);
-
-CREATE POLICY "Users can delete own feeding plans"
-ON feeding_plans FOR DELETE
-USING (
-  pet_id IN (
-    SELECT id FROM pets WHERE user_id = auth.uid()
-  )
-);
-
--- Indexes for performance
-CREATE INDEX idx_food_items_user_id ON food_items(user_id);
-CREATE INDEX idx_feeding_plans_pet_id ON feeding_plans(pet_id);
-CREATE INDEX idx_feeding_plans_food_item_id ON feeding_plans(food_item_id);
-```
+**Key changes from previous version:**
+- Dropped `food_items` and `feeding_plans` tables
+- Created simpler `food_entries` table (one per pet)
+- Hardcoded conversion factors (no longer stored in DB)
 
 ## Step 2: Access the Feature
 
@@ -100,102 +23,132 @@ CREATE INDEX idx_feeding_plans_food_item_id ON feeding_plans(food_item_id);
 
 ## Features
 
-### Dashboard
-- Beautiful pet-by-pet breakdown cards
-- Cost per meal, day, and month
-- Days of food remaining
-- Reorder alerts (5-day buffer)
-- Household total at bottom
+### Add Food Form
+1. **Select Pet** - Only pets without food entries shown
+2. **Food Name** - e.g., "Purina Pro Plan 30lb"
+3. **Food Type** - Dropdown:
+   - Dry kibble (4 cups/lb)
+   - Wet food (2 cups/lb)
+   - Freeze-dried (9 cups/lb)
+4. **Bag Size** - Number + unit (lbs or oz)
+5. **Cost** - Purchase price ($)
+6. **Cups Per Day** - How much pet eats
+7. **Start Date** - When bag was opened (defaults to today)
 
-### Add Food Flow
-1. Click "Add Food" button
-2. Enter food details:
-   - Name (required)
-   - Brand (optional)
-   - Cost (required)
-   - Purchase date (required)
-   - Source: subscription/online/store (required)
-   - Total servings (required)
-   - Serving unit: scoop/cup/can/portion (required)
-3. Click "Next: Assign to Pet"
-4. Select which pet eats this food
-5. Enter feeding schedule:
-   - Servings per meal
-   - Meals per day
-6. Click "Create Feeding Plan"
+**Preview shows:**
+- Days per bag
+- Cost per day, month, year
 
-### Dashboard Cards Show
-- Pet photo + name
-- Food brand and name
-- Cost per meal ($X.XX)
-- Cost per day ($X.XX)
-- Cost per month ($X.XX) - highlighted in green
-- Days of food remaining
+### Dashboard - Per Pet Card
+
+Each pet's card displays:
+
+**Status Section (color-coded):**
+- 🟢 Green: >14 days left - "Good Stock"
+- 🟡 Yellow: 7-14 days left - "Reorder Soon"
+- 🔴 Red: <7 days left - "Reorder Now"
+- Big prominent "X days left" display
 - Reorder date with 5-day buffer
-- Red alert if ≤5 days remaining
-- Feeding details (e.g., "2 scoops × 2 meals/day")
 
-### Household Total
-- Gradient emerald card at bottom
-- Shows total monthly food budget across all pets
+**Cost Breakdown:**
+- Per Day
+- Per Week
+- Per Month (highlighted in emerald)
+- Per Year
 
-## UI Design
+**Details:**
+- Pet photo + name
+- Food name
+- Cups/day, days per bag, food type
+- Edit/Delete buttons
 
-Following PCH's existing design patterns:
-- Dark mode support
-- Emerald green accent color
-- Rounded corners and shadows
-- Hover effects and transitions
-- Responsive grid layout
-- Beautiful gradient cards
-- Icon usage (🍖, 🐕, 🐈, ⚠️, 📅)
+### Household Summary
 
-## Feature Flag
+- **Alert Banner** - Shows count of pets needing reorder (yellow/red status)
+- **Total Monthly Cost** - Gradient emerald card at bottom
 
-Only visible to `larry@uglydogadventures.com`. To expand:
-1. Update feature flag check in `src/App.tsx` line 1563 and 1605
-2. Change from `userEmail === 'larry@uglydogadventures.com'` to your logic
+## Calculations (Hardcoded)
 
-## Files Created
+```javascript
+CUPS_PER_LB = {
+  dry: 4,
+  wet: 2,
+  'freeze-dried': 9
+}
 
-- `src/components/FoodTrackingDashboard.tsx` - Main dashboard
-- `src/components/AddFoodModal.tsx` - Add food item modal
-- `src/components/AssignFoodModal.tsx` - Assign food to pet modal
-- `src/App.tsx` - Integration and feature flag
+total_cups = bag_size_lbs × CUPS_PER_LB[food_type]
+days_per_bag = total_cups ÷ cups_per_day
+cost_per_day = bag_cost ÷ days_per_bag
+cost_per_week = cost_per_day × 7
+cost_per_month = cost_per_day × 30
+cost_per_year = cost_per_day × 365
+
+days_left = days_per_bag - (today - start_date)
+reorder_date = today + days_left - 5  // 5-day buffer
+```
 
 ## Database Schema
 
-### food_items
+### food_entries
+
 | Column | Type | Description |
 |--------|------|-------------|
 | id | UUID | Primary key |
-| user_id | UUID | FK to profiles |
-| name | TEXT | Food name (e.g., "Purina Pro Plan 30lb") |
-| brand | TEXT | Brand (nullable) |
-| cost | DECIMAL(10,2) | Purchase cost |
-| purchase_date | DATE | When purchased |
-| source | TEXT | subscription/online/store |
-| total_servings | INTEGER | Total servings in bag/container |
-| serving_unit | TEXT | scoop/cup/can/portion |
+| pet_id | UUID | FK to pets, UNIQUE constraint |
+| food_name | TEXT | e.g., "Purina Pro Plan 30lb" |
+| food_type | TEXT | 'dry', 'wet', 'freeze-dried' |
+| bag_size_lbs | DECIMAL(10,2) | Size in pounds |
+| bag_cost | DECIMAL(10,2) | Purchase cost |
+| cups_per_day | DECIMAL(5,2) | Daily consumption |
+| start_date | DATE | When bag was opened |
 | created_at | TIMESTAMP | Created timestamp |
 
-### feeding_plans
-| Column | Type | Description |
-|--------|------|-------------|
-| id | UUID | Primary key |
-| pet_id | UUID | FK to pets |
-| food_item_id | UUID | FK to food_items |
-| servings_per_meal | DECIMAL(5,2) | How many servings per meal |
-| meals_per_day | INTEGER | How many meals per day |
-| created_at | TIMESTAMP | Created timestamp |
+**Key constraints:**
+- One food entry per pet (UNIQUE on pet_id)
+- RLS policies ensure users only see their pets' food
+
+## UI Design
+
+- Dark mode support
+- Emerald green accents for costs
+- Color-coded status lights (🟢🟡🔴)
+- Responsive 2-column grid
+- Edit/delete with icon buttons
+- Live preview in add/edit modals
+- Beautiful gradient cards
+
+## Feature Flag
+
+Only visible to `larry@uglydogadventures.com`.
+
+To expand access, update feature flag checks in `src/App.tsx`:
+- Line ~1564: Navigation button
+- Line ~1605: View rendering
+
+## Files
+
+### Components
+- `src/components/FoodTrackingDashboard.tsx` - Main dashboard
+- `src/components/AddFoodEntryModal.tsx` - Add food entry form
+- `src/components/EditFoodEntryModal.tsx` - Edit existing entry
+
+### Documentation
+- `FOOD_TRACKING_V1_SCHEMA.sql` - Database schema
+- `FOOD_TRACKING_SETUP.md` - This file
+
+## Migration from Previous Version
+
+If you had the old food tracking system:
+
+1. Run the SQL in `FOOD_TRACKING_V1_SCHEMA.sql` (drops old tables)
+2. Data will be lost - this is a clean slate
+3. Re-add food entries using the new simplified form
 
 ## Future Enhancements
 
-1. Edit/delete food items and feeding plans
-2. Food consumption tracking (mark when you open a new bag)
-3. Automatic reorder reminders via SMS
-4. Price history and trends
-5. Cost comparison across brands
-6. Integration with Amazon Subscribe & Save
-7. Nutrition tracking
-8. Multi-pet food sharing
+1. Batch update (opened new bag)
+2. Purchase history tracking
+3. Price trends and analytics
+4. Multi-pet households sharing food
+5. SMS/email reorder reminders
+6. Amazon Subscribe & Save integration
