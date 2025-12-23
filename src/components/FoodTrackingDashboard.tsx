@@ -7,7 +7,7 @@ type FoodEntry = {
   id: string
   pet_id: string
   food_name: string
-  food_type: 'dry' | 'wet' | 'freeze-dried'
+  food_type: 'dry' | 'wet' | 'freeze-dried' | 'raw' | 'cooked'
   bag_size_lbs: number
   bag_cost: number
   cups_per_day: number
@@ -39,7 +39,9 @@ type PetFoodStats = {
 const CUPS_PER_LB = {
   dry: 4,
   wet: 2,
-  'freeze-dried': 9
+  'freeze-dried': 9,
+  raw: 2,
+  cooked: 2.5
 }
 
 export default function FoodTrackingDashboard({ userId }: { userId: string }) {

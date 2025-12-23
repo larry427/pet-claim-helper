@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 type FoodEntry = {
   id: string
   food_name: string
-  food_type: 'dry' | 'wet' | 'freeze-dried'
+  food_type: 'dry' | 'wet' | 'freeze-dried' | 'raw' | 'cooked'
   bag_size_lbs: number
   bag_cost: number
   cups_per_day: number
@@ -21,7 +21,9 @@ type Props = {
 const CUPS_PER_LB = {
   dry: 4,
   wet: 2,
-  'freeze-dried': 9
+  'freeze-dried': 9,
+  raw: 2,
+  cooked: 2.5
 }
 
 export default function EditFoodEntryModal({ entry, petName, onClose, onComplete }: Props) {
@@ -29,7 +31,7 @@ export default function EditFoodEntryModal({ entry, petName, onClose, onComplete
   const [error, setError] = useState<string | null>(null)
 
   const [foodName, setFoodName] = useState(entry.food_name)
-  const [foodType, setFoodType] = useState<'dry' | 'wet' | 'freeze-dried'>(entry.food_type)
+  const [foodType, setFoodType] = useState<'dry' | 'wet' | 'freeze-dried' | 'raw' | 'cooked'>(entry.food_type)
   const [bagSize, setBagSize] = useState(entry.bag_size_lbs.toString())
   const [bagCost, setBagCost] = useState(entry.bag_cost.toString())
   const [cupsPerDay, setCupsPerDay] = useState(entry.cups_per_day.toString())
@@ -144,12 +146,14 @@ export default function EditFoodEntryModal({ entry, petName, onClose, onComplete
               </label>
               <select
                 value={foodType}
-                onChange={(e) => setFoodType(e.target.value as 'dry' | 'wet' | 'freeze-dried')}
+                onChange={(e) => setFoodType(e.target.value as 'dry' | 'wet' | 'freeze-dried' | 'raw' | 'cooked')}
                 className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white"
               >
-                <option value="dry">Dry kibble ({CUPS_PER_LB.dry} cups/lb)</option>
-                <option value="wet">Wet food ({CUPS_PER_LB.wet} cups/lb)</option>
-                <option value="freeze-dried">Freeze-dried ({CUPS_PER_LB['freeze-dried']} cups/lb)</option>
+                <option value="dry">Dry Kibble ({CUPS_PER_LB.dry} cups/lb)</option>
+                <option value="wet">Wet/Canned ({CUPS_PER_LB.wet} cups/lb)</option>
+                <option value="freeze-dried">Freeze-Dried ({CUPS_PER_LB['freeze-dried']} cups/lb)</option>
+                <option value="raw">Raw ({CUPS_PER_LB.raw} cups/lb)</option>
+                <option value="cooked">Cooked - Ollie, JustFoodForDogs, etc. ({CUPS_PER_LB.cooked} cups/lb)</option>
               </select>
             </div>
 

@@ -27,9 +27,11 @@ The SQL schema is available in `FOOD_TRACKING_V1_SCHEMA.sql`.
 1. **Select Pet** - Only pets without food entries shown
 2. **Food Name** - e.g., "Purina Pro Plan 30lb"
 3. **Food Type** - Dropdown:
-   - Dry kibble (4 cups/lb)
-   - Wet food (2 cups/lb)
-   - Freeze-dried (9 cups/lb)
+   - Dry Kibble (4 cups/lb)
+   - Wet/Canned (2 cups/lb)
+   - Freeze-Dried (9 cups/lb)
+   - Raw (2 cups/lb)
+   - Cooked - Ollie, JustFoodForDogs, etc. (2.5 cups/lb)
 4. **Bag Size** - Number + unit (lbs or oz)
 5. **Cost** - Purchase price ($)
 6. **Cups Per Day** - How much pet eats
@@ -73,7 +75,9 @@ Each pet's card displays:
 CUPS_PER_LB = {
   dry: 4,
   wet: 2,
-  'freeze-dried': 9
+  'freeze-dried': 9,
+  raw: 2,
+  cooked: 2.5
 }
 
 total_cups = bag_size_lbs × CUPS_PER_LB[food_type]
@@ -96,7 +100,7 @@ reorder_date = today + days_left - 5  // 5-day buffer
 | id | UUID | Primary key |
 | pet_id | UUID | FK to pets, UNIQUE constraint |
 | food_name | TEXT | e.g., "Purina Pro Plan 30lb" |
-| food_type | TEXT | 'dry', 'wet', 'freeze-dried' |
+| food_type | TEXT | 'dry', 'wet', 'freeze-dried', 'raw', 'cooked' |
 | bag_size_lbs | DECIMAL(10,2) | Size in pounds |
 | bag_cost | DECIMAL(10,2) | Purchase cost |
 | cups_per_day | DECIMAL(5,2) | Daily consumption |

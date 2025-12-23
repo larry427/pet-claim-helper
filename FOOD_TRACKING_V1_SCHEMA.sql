@@ -10,7 +10,7 @@ CREATE TABLE food_entries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   pet_id UUID NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
   food_name TEXT NOT NULL,
-  food_type TEXT NOT NULL CHECK (food_type IN ('dry', 'wet', 'freeze-dried')),
+  food_type TEXT NOT NULL CHECK (food_type IN ('dry', 'wet', 'freeze-dried', 'raw', 'cooked')),
   bag_size_lbs DECIMAL(10, 2) NOT NULL,
   bag_cost DECIMAL(10, 2) NOT NULL,
   cups_per_day DECIMAL(5, 2) NOT NULL,
@@ -57,7 +57,9 @@ USING (
 -- Index for performance
 CREATE INDEX idx_food_entries_pet_id ON food_entries(pet_id);
 
--- Conversion factors (for reference, will be hardcoded in frontend):
+-- Conversion factors (for reference, hardcoded in frontend):
 -- Dry kibble: 4 cups per lb
 -- Wet food: 2 cups per lb
 -- Freeze-dried: 9 cups per lb
+-- Raw: 2 cups per lb
+-- Cooked: 2.5 cups per lb
