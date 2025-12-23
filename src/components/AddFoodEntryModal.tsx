@@ -29,11 +29,33 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
   const [petId, setPetId] = useState(availablePets[0]?.id || '')
   const [foodName, setFoodName] = useState('')
   const [foodType, setFoodType] = useState<'dry' | 'wet' | 'freeze-dried' | 'raw' | 'cooked'>('dry')
+  const [weightEntryType, setWeightEntryType] = useState<'lbs' | 'oz' | 'cans' | 'bags'>('lbs')
   const [bagSize, setBagSize] = useState('')
-  const [bagUnit, setBagUnit] = useState<'lbs' | 'oz'>('lbs')
+  const [canQty, setCanQty] = useState('')
+  const [canOz, setCanOz] = useState('')
+  const [bagQty, setBagQty] = useState('')
+  const [bagLbs, setBagLbs] = useState('')
   const [bagCost, setBagCost] = useState('')
   const [cupsPerDay, setCupsPerDay] = useState('')
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
+
+  // Calculate total lbs based on entry type
+  const calculateTotalLbs = () => {
+    switch (weightEntryType) {
+      case 'lbs':
+        return parseFloat(bagSize) || 0
+      case 'oz':
+        return (parseFloat(bagSize) || 0) / 16
+      case 'cans':
+        return ((parseFloat(canQty) || 0) * (parseFloat(canOz) || 0)) / 16
+      case 'bags':
+        return (parseFloat(bagQty) || 0) * (parseFloat(bagLbs) || 0)
+      default:
+        return 0
+    }
+  }
+
+  const totalLbs = calculateTotalLbs()
 
   const handleSubmit = async () => {
     setError(null)
@@ -46,7 +68,7 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
       setError('Please enter a food name')
       return
     }
-    if (!bagSize || parseFloat(bagSize) <= 0) {
+    if (totalLbs <= 0) {
       setError('Please enter a valid bag size')
       return
     }
@@ -62,8 +84,7 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
     setSaving(true)
 
     try {
-      // Convert oz to lbs if needed
-      const bagSizeLbs = bagUnit === 'oz' ? parseFloat(bagSize) / 16 : parseFloat(bagSize)
+      const bagSizeLbs = totalLbs
 
       const { error: insertError } = await supabase
         .from('food_entries')
@@ -88,14 +109,12 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
 
   // Calculate preview stats
   const calculatePreview = () => {
-    const size = parseFloat(bagSize)
     const cost = parseFloat(bagCost)
     const cups = parseFloat(cupsPerDay)
 
-    if (!size || !cost || !cups) return null
+    if (totalLbs <= 0 || !cost || !cups) return null
 
-    const bagSizeLbs = bagUnit === 'oz' ? size / 16 : size
-    const totalCups = bagSizeLbs * CUPS_PER_LB[foodType]
+    const totalCups = totalLbs * CUPS_PER_LB[foodType]
     const daysPerBag = totalCups / cups
     const costPerDay = cost / daysPerBag
 
@@ -203,12 +222,26 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
               </select>
             </div>
 
-            {/* Bag Size */}
+            {/* Bag Size - Flexible Entry */}
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 Bag Size <span className="text-red-500">*</span>
               </label>
-              <div className="flex gap-3">
+
+              {/* Entry Type Selector */}
+              <select
+                value={weightEntryType}
+                onChange={(e) => setWeightEntryType(e.target.value as 'lbs' | 'oz' | 'cans' | 'bags')}
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white mb-3"
+              >
+                <option value="lbs">Pounds</option>
+                <option value="oz">Ounces</option>
+                <option value="cans">Cans (quantity × oz per can)</option>
+                <option value="bags">Bags/Boxes (quantity × lbs per bag)</option>
+              </select>
+
+              {/* Input Fields Based on Type */}
+              {weightEntryType === 'lbs' && (
                 <input
                   type="number"
                   step="0.1"
@@ -216,17 +249,78 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
                   placeholder="30"
                   value={bagSize}
                   onChange={(e) => setBagSize(e.target.value)}
-                  className="flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400"
                 />
-                <select
-                  value={bagUnit}
-                  onChange={(e) => setBagUnit(e.target.value as 'lbs' | 'oz')}
-                  className="w-24 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-3 text-slate-900 dark:text-white"
-                >
-                  <option value="lbs">lbs</option>
-                  <option value="oz">oz</option>
-                </select>
-              </div>
+              )}
+
+              {weightEntryType === 'oz' && (
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  placeholder="12"
+                  value={bagSize}
+                  onChange={(e) => setBagSize(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400"
+                />
+              )}
+
+              {weightEntryType === 'cans' && (
+                <div className="flex gap-3">
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    placeholder="24"
+                    value={canQty}
+                    onChange={(e) => setCanQty(e.target.value)}
+                    className="flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400"
+                  />
+                  <span className="flex items-center text-slate-600 dark:text-slate-400">×</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    placeholder="5.5"
+                    value={canOz}
+                    onChange={(e) => setCanOz(e.target.value)}
+                    className="flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400"
+                  />
+                  <span className="flex items-center text-slate-600 dark:text-slate-400 text-sm">oz</span>
+                </div>
+              )}
+
+              {weightEntryType === 'bags' && (
+                <div className="flex gap-3">
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    placeholder="3"
+                    value={bagQty}
+                    onChange={(e) => setBagQty(e.target.value)}
+                    className="flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400"
+                  />
+                  <span className="flex items-center text-slate-600 dark:text-slate-400">×</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    placeholder="2"
+                    value={bagLbs}
+                    onChange={(e) => setBagLbs(e.target.value)}
+                    className="flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400"
+                  />
+                  <span className="flex items-center text-slate-600 dark:text-slate-400 text-sm">lbs</span>
+                </div>
+              )}
+
+              {/* Calculated Total */}
+              {totalLbs > 0 && (
+                <div className="mt-2 text-sm text-emerald-600 dark:text-emerald-400 font-medium">
+                  = {totalLbs.toFixed(2)} lbs total
+                </div>
+              )}
             </div>
 
             {/* Cost */}
