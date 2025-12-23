@@ -1560,15 +1560,15 @@ function MainApp() {
               >
                 💊 Medications
               </button>
-              {userEmail === 'larry@uglydogadventures.com' && (
-                <button
-                  type="button"
-                  onClick={() => setActiveView(activeView === 'food' ? 'app' : 'food')}
-                  className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow"
-                >
-                  🍖 Food
-                </button>
-              )}
+            )}
+            {authView === 'app' && userEmail === 'larry@uglydogadventures.com' && (
+              <button
+                type="button"
+                onClick={() => setActiveView(activeView === 'food' ? 'app' : 'food')}
+                className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow"
+              >
+                🍖 Food
+              </button>
             )}
             {authView === 'app' && isAdmin && (
               <button
