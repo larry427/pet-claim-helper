@@ -189,15 +189,26 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
         </button>
       </div>
 
-      {/* Alert Summary */}
+      {/* Alert Summary - Premium Banner */}
       {alertCount > 0 && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">⚠️</span>
-            <div className="text-sm">
-              <span className="font-semibold text-amber-900 dark:text-amber-400">
-                {alertCount} {alertCount === 1 ? 'pet needs' : 'pets need'} food reordered soon
-              </span>
+        <div className="relative bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-[2px] shadow-xl">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-4">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <span className="text-3xl">⚠️</span>
+                <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                </span>
+              </div>
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1">
+                  Action Needed
+                </div>
+                <div className="font-bold text-slate-900 dark:text-white">
+                  {alertCount} {alertCount === 1 ? 'pet needs' : 'pets need'} food reordered soon
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -221,10 +232,12 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
           {petFoodStats.map((stat) => (
             <div
               key={stat.entry.id}
-              className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow"
+              className="relative bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-700 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] overflow-hidden"
             >
+              {/* Subtle gradient background */}
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/30 via-transparent to-transparent dark:from-emerald-900/10 pointer-events-none" />
               {/* Pet Header with Edit/Delete buttons */}
-              <div className="flex items-center gap-3 mb-4">
+              <div className="relative flex items-center gap-3 mb-4">
                 {stat.pet.photo_url ? (
                   <img
                     src={stat.pet.photo_url}
@@ -250,12 +263,10 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                       foodName: stat.entry.food_name,
                       currentCost: stat.entry.bag_cost
                     })}
-                    className="p-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors text-emerald-600 dark:text-emerald-400"
-                    title="Refill - bought more food"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-xs font-semibold shadow-sm hover:shadow-md transition-all duration-200"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
+                    <span>🛒</span>
+                    <span>Bought More</span>
                   </button>
                   <button
                     onClick={() => setEditingEntry({ entry: stat.entry, petName: stat.pet.name })}
@@ -278,48 +289,75 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                 </div>
               </div>
 
-              {/* Status Light + Days Left */}
-              <div className={`rounded-lg p-4 mb-4 border ${getDaysLeftColor(stat.daysLeft)}`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-2xl">{stat.statusColor}</span>
-                      <span className="text-xs font-medium uppercase tracking-wide">
-                        {stat.daysLeft <= 7 ? 'Reorder Now' : stat.daysLeft <= 14 ? 'Reorder Soon' : 'Good Stock'}
-                      </span>
-                    </div>
-                    <div className="text-3xl font-bold">
-                      {stat.daysLeft} {stat.daysLeft === 1 ? 'day' : 'days'} left
+              {/* Status Light + Days Left - Premium Design */}
+              <div className={`relative rounded-xl p-5 mb-4 border-2 ${getDaysLeftColor(stat.daysLeft)} overflow-hidden`}>
+                {/* Subtle gradient overlay for depth */}
+                <div className="absolute inset-0 bg-gradient-to-br from-white/50 to-transparent dark:from-white/5 pointer-events-none" />
+
+                <div className="relative">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      {/* Pulsing status indicator */}
+                      <div className="relative">
+                        <span className="text-3xl">{stat.statusColor}</span>
+                        {stat.daysLeft <= 7 && (
+                          <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold uppercase tracking-wider mb-1 opacity-75">
+                          {stat.daysLeft <= 7 ? '⚠️ Urgent' : stat.daysLeft <= 14 ? '⏰ Soon' : '✓ Stocked'}
+                        </div>
+                        <div className="text-sm font-semibold">
+                          {stat.daysLeft <= 7 ? 'Reorder Now' : stat.daysLeft <= 14 ? 'Reorder Soon' : 'Good Stock'}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="text-sm mt-2 opacity-90">
-                  Reorder by {stat.reorderDate}
+
+                  <div className="flex items-baseline gap-2 mb-2">
+                    <span className="text-4xl font-black tracking-tight">
+                      {stat.daysLeft}
+                    </span>
+                    <span className="text-lg font-medium opacity-75">
+                      {stat.daysLeft === 1 ? 'day' : 'days'} left
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm opacity-90">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span>Reorder by <strong>{stat.reorderDate}</strong></span>
+                  </div>
                 </div>
               </div>
 
-              {/* Cost Breakdown */}
-              <div className="grid grid-cols-4 gap-2 mb-3">
-                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 text-center">
-                  <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Per Day</div>
+              {/* Cost Breakdown - Premium Grid */}
+              <div className="relative grid grid-cols-4 gap-2 mb-3">
+                <div className="relative bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700/50 dark:to-slate-700/30 rounded-xl p-3 text-center shadow-sm">
+                  <div className="text-xs text-slate-600 dark:text-slate-400 mb-1 font-medium">Per Day</div>
                   <div className="text-sm font-bold text-slate-900 dark:text-white">
                     ${stat.costPerDay.toFixed(2)}
                   </div>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 text-center">
-                  <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Per Week</div>
+                <div className="relative bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700/50 dark:to-slate-700/30 rounded-xl p-3 text-center shadow-sm">
+                  <div className="text-xs text-slate-600 dark:text-slate-400 mb-1 font-medium">Per Week</div>
                   <div className="text-sm font-bold text-slate-900 dark:text-white">
                     ${stat.costPerWeek.toFixed(2)}
                   </div>
                 </div>
-                <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-3 text-center">
-                  <div className="text-xs text-emerald-700 dark:text-emerald-400 mb-1">Per Month</div>
-                  <div className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
+                <div className="relative bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-3 text-center shadow-md">
+                  <div className="text-xs text-emerald-50 mb-1 font-semibold">Per Month</div>
+                  <div className="text-sm font-bold text-white">
                     ${stat.costPerMonth.toFixed(2)}
                   </div>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 text-center">
-                  <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Per Year</div>
+                <div className="relative bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700/50 dark:to-slate-700/30 rounded-xl p-3 text-center shadow-sm">
+                  <div className="text-xs text-slate-600 dark:text-slate-400 mb-1 font-medium">Per Year</div>
                   <div className="text-sm font-bold text-slate-900 dark:text-white">
                     ${stat.costPerYear.toFixed(0)}
                   </div>
@@ -335,15 +373,36 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
         </div>
       )}
 
-      {/* Household Total */}
+      {/* Household Total - Premium Card */}
       {petFoodStats.length > 0 && (
-        <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm opacity-90 mb-1">Household Food Budget</div>
-              <div className="text-3xl font-bold">${householdTotal.toFixed(2)}/month</div>
+        <div className="relative bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 rounded-2xl p-[2px] shadow-2xl hover:shadow-emerald-500/50 transition-all duration-300">
+          <div className="relative bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-8 overflow-hidden">
+            {/* Decorative pattern */}
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="absolute bottom-0 left-0 w-48 h-48 bg-white rounded-full translate-y-1/2 -translate-x-1/2" />
             </div>
-            <div className="text-5xl opacity-20">🍽️</div>
+
+            <div className="relative flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <svg className="w-5 h-5 text-emerald-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                  </svg>
+                  <div className="text-sm font-bold text-emerald-100 uppercase tracking-wider">
+                    Household Food Budget
+                  </div>
+                </div>
+                <div className="text-5xl font-black text-white mb-1">
+                  ${householdTotal.toFixed(2)}
+                  <span className="text-2xl font-semibold text-emerald-100 ml-2">/month</span>
+                </div>
+                <div className="text-sm text-emerald-100 font-medium">
+                  {petFoodStats.length} {petFoodStats.length === 1 ? 'pet' : 'pets'} • ${(householdTotal / 30).toFixed(2)}/day
+                </div>
+              </div>
+              <div className="text-7xl opacity-30 hidden md:block">🍽️</div>
+            </div>
           </div>
         </div>
       )}
