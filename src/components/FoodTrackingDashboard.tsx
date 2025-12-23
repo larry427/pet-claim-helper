@@ -104,10 +104,10 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
       const reorderDate = new Date()
       reorderDate.setDate(reorderDate.getDate() + reorderDays)
 
-      // Status color
+      // Status color - realistic shipping times
       let statusColor: '🟢' | '🟡' | '🔴' = '🟢'
-      if (daysLeft <= 7) statusColor = '🔴'
-      else if (daysLeft <= 14) statusColor = '🟡'
+      if (daysLeft < 3) statusColor = '🔴'
+      else if (daysLeft < 7) statusColor = '🟡'
 
       stats.push({
         pet,
@@ -157,8 +157,8 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
   }
 
   const getDaysLeftColor = (days: number) => {
-    if (days > 14) return 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800'
-    if (days >= 7) return 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+    if (days >= 7) return 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800'
+    if (days >= 3) return 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
     return 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800'
   }
 
@@ -300,7 +300,7 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                       {/* Pulsing status indicator */}
                       <div className="relative">
                         <span className="text-3xl">{stat.statusColor}</span>
-                        {stat.daysLeft <= 7 && (
+                        {stat.daysLeft < 3 && (
                           <span className="absolute -top-1 -right-1 flex h-3 w-3">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
@@ -309,10 +309,10 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                       </div>
                       <div>
                         <div className="text-xs font-bold uppercase tracking-wider mb-1 opacity-75">
-                          {stat.daysLeft <= 7 ? '⚠️ Urgent' : stat.daysLeft <= 14 ? '⏰ Soon' : '✓ Stocked'}
+                          {stat.daysLeft < 3 ? '⚠️ Urgent' : stat.daysLeft < 7 ? '⏰ Soon' : '✓ Stocked'}
                         </div>
                         <div className="text-sm font-semibold">
-                          {stat.daysLeft <= 7 ? 'Reorder Now' : stat.daysLeft <= 14 ? 'Reorder Soon' : 'Good Stock'}
+                          {stat.daysLeft < 3 ? 'Order Now' : stat.daysLeft < 7 ? 'Order Soon' : 'Good Stock'}
                         </div>
                       </div>
                     </div>

@@ -46,9 +46,9 @@ The SQL schema is available in `FOOD_TRACKING_V1_SCHEMA.sql`.
 Each pet's card displays:
 
 **Status Section (color-coded):**
-- 🟢 Green: >14 days left - "Good Stock"
-- 🟡 Yellow: 7-14 days left - "Reorder Soon"
-- 🔴 Red: <7 days left - "Reorder Now"
+- 🟢 Green: ≥7 days left - "Good Stock"
+- 🟡 Yellow: 3-6 days left - "Order Soon"
+- 🔴 Red: <3 days left - "Order Now" (Urgent)
 - Big prominent "X days left" display
 - Reorder date with 5-day buffer
 
