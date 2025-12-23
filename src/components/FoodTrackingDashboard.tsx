@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import AddFoodEntryModal from './AddFoodEntryModal'
 import EditFoodEntryModal from './EditFoodEntryModal'
+import RefillFoodModal from './RefillFoodModal'
 
 type FoodEntry = {
   id: string
@@ -50,6 +51,7 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
   const [pets, setPets] = useState<Pet[]>([])
   const [showAddFood, setShowAddFood] = useState(false)
   const [editingEntry, setEditingEntry] = useState<{ entry: FoodEntry; petName: string } | null>(null)
+  const [refillingEntry, setRefillingEntry] = useState<{ entryId: string; petName: string; foodName: string; currentCost: number } | null>(null)
 
   const loadData = async () => {
     setLoading(true)
@@ -242,6 +244,20 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                 </div>
                 <div className="flex gap-2">
                   <button
+                    onClick={() => setRefillingEntry({
+                      entryId: stat.entry.id,
+                      petName: stat.pet.name,
+                      foodName: stat.entry.food_name,
+                      currentCost: stat.entry.bag_cost
+                    })}
+                    className="p-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors text-emerald-600 dark:text-emerald-400"
+                    title="Refill - bought more food"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                  <button
                     onClick={() => setEditingEntry({ entry: stat.entry, petName: stat.pet.name })}
                     className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-400"
                     title="Edit food entry"
@@ -351,6 +367,20 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
           onClose={() => setEditingEntry(null)}
           onComplete={() => {
             setEditingEntry(null)
+            loadData()
+          }}
+        />
+      )}
+
+      {refillingEntry && (
+        <RefillFoodModal
+          entryId={refillingEntry.entryId}
+          petName={refillingEntry.petName}
+          foodName={refillingEntry.foodName}
+          currentCost={refillingEntry.currentCost}
+          onClose={() => setRefillingEntry(null)}
+          onComplete={() => {
+            setRefillingEntry(null)
             loadData()
           }}
         />
