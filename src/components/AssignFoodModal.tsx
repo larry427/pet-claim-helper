@@ -91,30 +91,31 @@ export default function AssignFoodModal({ foodItem, pets, onClose, onComplete }:
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
-        className="relative w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 p-6 shadow-2xl border border-slate-200 dark:border-slate-800"
+        className="relative w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="mb-6">
+        {/* Header (Fixed) */}
+        <div className="p-6 pb-4 border-b border-slate-200 dark:border-slate-700">
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Assign to Pet</h2>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
             {foodItem.brand ? `${foodItem.brand} ` : ''}{foodItem.name}
           </p>
         </div>
 
-        {error && (
-          <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-400">
-            {error}
-          </div>
-        )}
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {error && (
+            <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+              {error}
+            </div>
+          )}
 
-        <div className="space-y-5">
-          {/* Pet Selection */}
-          <div>
+          {/* Pet Selection (Scrollable) */}
+          <div className="mb-5">
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
               Select Pet <span className="text-red-500">*</span>
             </label>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
               {pets.map((pet) => (
                 <button
                   key={pet.id}
@@ -130,15 +131,15 @@ export default function AssignFoodModal({ foodItem, pets, onClose, onComplete }:
                     <img
                       src={pet.photo_url}
                       alt={pet.name}
-                      className="w-12 h-12 rounded-full object-cover"
+                      className="w-12 h-12 rounded-full object-cover flex-shrink-0"
                     />
                   ) : (
-                    <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-2xl">
+                    <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-2xl flex-shrink-0">
                       {pet.species === 'dog' ? '🐕' : '🐈'}
                     </div>
                   )}
-                  <div className="text-left">
-                    <div className={`font-semibold ${selectedPetId === pet.id ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>
+                  <div className="text-left flex-1 min-w-0">
+                    <div className={`font-semibold truncate ${selectedPetId === pet.id ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>
                       {pet.name}
                     </div>
                     <div className="text-sm text-slate-600 dark:text-slate-400 capitalize">
@@ -146,14 +147,14 @@ export default function AssignFoodModal({ foodItem, pets, onClose, onComplete }:
                     </div>
                   </div>
                   {selectedPetId === pet.id && (
-                    <div className="ml-auto text-emerald-600 dark:text-emerald-400 text-xl">✓</div>
+                    <div className="ml-auto text-emerald-600 dark:text-emerald-400 text-xl flex-shrink-0">✓</div>
                   )}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Feeding Schedule */}
+          {/* Feeding Schedule (Fixed) */}
           <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 space-y-4">
             <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">
               Feeding Schedule
@@ -202,21 +203,23 @@ export default function AssignFoodModal({ foodItem, pets, onClose, onComplete }:
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="mt-6 flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={saving}
-            className="flex-1 px-4 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors disabled:opacity-50"
-          >
-            {saving ? 'Creating...' : 'Create Feeding Plan'}
-          </button>
+        {/* Actions (Fixed) */}
+        <div className="p-6 pt-4 border-t border-slate-200 dark:border-slate-700">
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={saving}
+              className="flex-1 px-4 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors disabled:opacity-50"
+            >
+              {saving ? 'Creating...' : 'Create Feeding Plan'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
