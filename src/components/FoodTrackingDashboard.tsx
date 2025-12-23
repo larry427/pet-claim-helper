@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import AddFoodModal from './AddFoodModal'
 import AssignFoodModal from './AssignFoodModal'
+import EditFeedingPlanModal from './EditFeedingPlanModal'
 
 type FoodItem = {
   id: string
@@ -51,6 +52,7 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
   const [showAddFood, setShowAddFood] = useState(false)
   const [showAssignFood, setShowAssignFood] = useState(false)
   const [selectedFoodItem, setSelectedFoodItem] = useState<FoodItem | null>(null)
+  const [editingPlan, setEditingPlan] = useState<PetFoodStats | null>(null)
 
   const loadData = async () => {
     setLoading(true)
@@ -133,6 +135,34 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
     loadData()
   }
 
+  const handleEditComplete = () => {
+    setEditingPlan(null)
+    loadData()
+  }
+
+  const handleDelete = async (planId: string, petName: string) => {
+    if (!confirm(`Remove feeding plan for ${petName}?`)) return
+
+    try {
+      const { error } = await supabase
+        .from('feeding_plans')
+        .delete()
+        .eq('id', planId)
+
+      if (error) throw error
+
+      loadData()
+    } catch (error: any) {
+      alert('Failed to delete feeding plan: ' + (error?.message || 'Unknown error'))
+    }
+  }
+
+  const getDaysLeftColor = (days: number) => {
+    if (days > 14) return 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+    if (days >= 7) return 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
+    return 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -178,7 +208,7 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
               key={stat.plan.id}
               className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow"
             >
-              {/* Pet Header */}
+              {/* Pet Header with Edit/Delete buttons */}
               <div className="flex items-center gap-3 mb-4">
                 {stat.pet.photo_url ? (
                   <img
@@ -191,11 +221,31 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                     {stat.pet.species === 'dog' ? '🐕' : '🐈'}
                   </div>
                 )}
-                <div>
+                <div className="flex-1">
                   <h3 className="font-semibold text-slate-900 dark:text-white">{stat.pet.name}</h3>
                   <p className="text-sm text-slate-600 dark:text-slate-400">
                     {stat.foodItem.brand || ''} {stat.foodItem.name}
                   </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEditingPlan(stat)}
+                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-400"
+                    title="Edit feeding plan"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => handleDelete(stat.plan.id, stat.pet.name)}
+                    className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-red-600 dark:text-red-400"
+                    title="Delete feeding plan"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
                 </div>
               </div>
 
@@ -219,9 +269,9 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                     ${stat.costPerMonth.toFixed(2)}
                   </div>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3">
-                  <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Days Left</div>
-                  <div className="text-lg font-bold text-slate-900 dark:text-white">
+                <div className={`rounded-lg p-3 ${getDaysLeftColor(stat.daysRemaining)}`}>
+                  <div className="text-xs mb-1">Days Left</div>
+                  <div className="text-lg font-bold">
                     {stat.daysRemaining}
                   </div>
                 </div>
@@ -250,7 +300,10 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
 
               {/* Feeding Details */}
               <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-                {stat.plan.servings_per_meal} {stat.foodItem.serving_unit}(s) × {stat.plan.meals_per_day} meal(s)/day
+                {(stat.plan.servings_per_meal * stat.plan.meals_per_day) % 1 === 0
+                  ? (stat.plan.servings_per_meal * stat.plan.meals_per_day).toFixed(0)
+                  : (stat.plan.servings_per_meal * stat.plan.meals_per_day).toFixed(1)
+                } {stat.foodItem.serving_unit}s/day
               </div>
             </div>
           ))}
@@ -288,6 +341,17 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
             setSelectedFoodItem(null)
           }}
           onComplete={handleAssignComplete}
+        />
+      )}
+
+      {editingPlan && (
+        <EditFeedingPlanModal
+          plan={editingPlan.plan}
+          petName={editingPlan.pet.name}
+          foodName={`${editingPlan.foodItem.brand ? editingPlan.foodItem.brand + ' ' : ''}${editingPlan.foodItem.name}`}
+          servingUnit={editingPlan.foodItem.serving_unit}
+          onClose={() => setEditingPlan(null)}
+          onComplete={handleEditComplete}
         />
       )}
     </div>
