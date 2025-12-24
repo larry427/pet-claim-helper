@@ -253,8 +253,8 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                     {stat.pet.species === 'dog' ? '🐕' : '🐈'}
                   </div>
                 )}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-semibold text-slate-900 dark:text-white">{stat.pet.name}</h3>
                     {stat.entry.is_subscription && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs font-semibold">
@@ -263,7 +263,10 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                     )}
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                    <p
+                      className="text-sm sm:text-sm text-slate-600 dark:text-slate-400 truncate"
+                      title={stat.entry.food_name}
+                    >
                       {stat.entry.food_name}
                     </p>
                     {stat.entry.reorder_url && (
@@ -271,7 +274,7 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                         href={stat.entry.reorder_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
+                        className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors flex-shrink-0"
                         title={stat.entry.is_subscription ? "Manage subscription" : "Reorder"}
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -281,7 +284,7 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                     )}
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-shrink-0">
                   <button
                     onClick={() => setRefillingEntry({
                       entryId: stat.entry.id,
@@ -290,9 +293,11 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                       currentCost: stat.entry.bag_cost
                     })}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-xs font-semibold shadow-sm hover:shadow-md transition-all duration-200"
+                    title="Mark as refilled"
                   >
                     <span>🛒</span>
-                    <span>Bought More</span>
+                    <span className="hidden xs:inline sm:inline">Bought More</span>
+                    <span className="xs:hidden sm:hidden">Refill</span>
                   </button>
                   <button
                     onClick={() => setEditingEntry({ entry: stat.entry, petName: stat.pet.name })}
@@ -354,18 +359,18 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                   </div>
 
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-sm opacity-90">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="flex items-center gap-2 text-xs sm:text-sm opacity-90">
+                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
-                      <span>Reorder by <strong>{stat.reorderDate}</strong></span>
+                      <span className="break-words">Reorder by <strong className="whitespace-nowrap">{stat.reorderDate}</strong></span>
                     </div>
                     {stat.entry.is_subscription && stat.entry.next_delivery_date && (
-                      <div className="flex items-center gap-2 text-sm opacity-90">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="flex items-center gap-2 text-xs sm:text-sm opacity-90">
+                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                         </svg>
-                        <span>Next delivery: <strong>{new Date(stat.entry.next_delivery_date).toLocaleDateString()}</strong></span>
+                        <span className="break-words">Next delivery: <strong className="whitespace-nowrap">{new Date(stat.entry.next_delivery_date).toLocaleDateString()}</strong></span>
                       </div>
                     )}
                   </div>
@@ -373,26 +378,26 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
               </div>
 
               {/* Cost Breakdown - Premium Grid */}
-              <div className="relative grid grid-cols-4 gap-2 mb-3">
-                <div className="relative bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700/50 dark:to-slate-700/30 rounded-xl p-3 text-center shadow-sm">
+              <div className="relative grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                <div className="relative bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700/50 dark:to-slate-700/30 rounded-xl p-2.5 sm:p-3 text-center shadow-sm">
                   <div className="text-xs text-slate-600 dark:text-slate-400 mb-1 font-medium">Per Day</div>
                   <div className="text-sm font-bold text-slate-900 dark:text-white">
                     ${stat.costPerDay.toFixed(2)}
                   </div>
                 </div>
-                <div className="relative bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700/50 dark:to-slate-700/30 rounded-xl p-3 text-center shadow-sm">
+                <div className="relative bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700/50 dark:to-slate-700/30 rounded-xl p-2.5 sm:p-3 text-center shadow-sm">
                   <div className="text-xs text-slate-600 dark:text-slate-400 mb-1 font-medium">Per Week</div>
                   <div className="text-sm font-bold text-slate-900 dark:text-white">
                     ${stat.costPerWeek.toFixed(2)}
                   </div>
                 </div>
-                <div className="relative bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-3 text-center shadow-md">
+                <div className="relative bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-2.5 sm:p-3 text-center shadow-md">
                   <div className="text-xs text-emerald-50 mb-1 font-semibold">Per Month</div>
                   <div className="text-sm font-bold text-white">
                     ${stat.costPerMonth.toFixed(2)}
                   </div>
                 </div>
-                <div className="relative bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700/50 dark:to-slate-700/30 rounded-xl p-3 text-center shadow-sm">
+                <div className="relative bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700/50 dark:to-slate-700/30 rounded-xl p-2.5 sm:p-3 text-center shadow-sm">
                   <div className="text-xs text-slate-600 dark:text-slate-400 mb-1 font-medium">Per Year</div>
                   <div className="text-sm font-bold text-slate-900 dark:text-white">
                     ${stat.costPerYear.toFixed(0)}
