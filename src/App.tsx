@@ -1561,15 +1561,6 @@ function MainApp() {
                 💊 Medications
               </button>
             )}
-            {authView === 'app' && (
-              <button
-                type="button"
-                onClick={() => setActiveView(activeView === 'food' ? 'app' : 'food')}
-                className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow"
-              >
-                🍖 Food
-              </button>
-            )}
             {authView === 'app' && isAdmin && (
               <button
                 type="button"
@@ -1609,11 +1600,6 @@ function MainApp() {
         {authView === 'app' && activeView === 'medications' && (
           <section className="mx-auto mt-8 max-w-6xl px-2">
             <MedicationsDashboard userId={userId} pets={pets} refreshKey={medicationsRefreshKey} />
-          </section>
-        )}
-        {authView === 'app' && activeView === 'food' && userId && (
-          <section className="mx-auto mt-8 max-w-6xl px-2">
-            <FoodTrackingDashboard userId={userId} />
           </section>
         )}
         {authView === 'app' && activeView === 'admin' && (
@@ -2870,16 +2856,14 @@ function MainApp() {
 
         {/* Food Tracking Section - NEW! */}
         {authView === 'app' && (
-          <section className="mx-auto mt-10 max-w-6xl bg-yellow-200 border-4 border-red-500 p-8">
+          <section className="mx-auto mt-10 max-w-6xl">
             <div className="flex items-center gap-3 mb-6">
               <h2 className="text-xl font-semibold">🍖 Food Tracking</h2>
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold shadow-sm animate-pulse">
                 NEW ✨
               </span>
             </div>
-            <div className="text-4xl font-bold text-red-600 bg-white p-8 border-2 border-black">
-              FOOD TRACKING TEST - IF YOU SEE THIS, THE SECTION RENDERS
-            </div>
+            <FoodTrackingDashboard userId={userId} />
           </section>
         )}
 
