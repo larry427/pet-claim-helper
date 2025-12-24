@@ -1561,7 +1561,7 @@ function MainApp() {
                 💊 Medications
               </button>
             )}
-            {authView === 'app' && userEmail === 'larry@uglydogadventures.com' && (
+            {authView === 'app' && (
               <button
                 type="button"
                 onClick={() => setActiveView(activeView === 'food' ? 'app' : 'food')}
@@ -1611,7 +1611,7 @@ function MainApp() {
             <MedicationsDashboard userId={userId} pets={pets} refreshKey={medicationsRefreshKey} />
           </section>
         )}
-        {authView === 'app' && activeView === 'food' && userEmail === 'larry@uglydogadventures.com' && userId && (
+        {authView === 'app' && activeView === 'food' && userId && (
           <section className="mx-auto mt-8 max-w-6xl px-2">
             <FoodTrackingDashboard userId={userId} />
           </section>
@@ -2865,6 +2865,19 @@ function MainApp() {
               </div>
             </div>
             <FinancialSummary userId={userId} refreshToken={dataRefreshToken} period={finPeriod} />
+          </section>
+        )}
+
+        {/* Food Tracking Section - NEW! */}
+        {authView === 'app' && activeView === 'app' && userId && (
+          <section className="mx-auto mt-10 max-w-6xl">
+            <div className="flex items-center gap-3 mb-6">
+              <h2 className="text-xl font-semibold">🍖 Food Tracking</h2>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold shadow-sm animate-pulse">
+                NEW ✨
+              </span>
+            </div>
+            <FoodTrackingDashboard userId={userId} />
           </section>
         )}
 
