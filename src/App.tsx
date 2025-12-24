@@ -2174,6 +2174,19 @@ function MainApp() {
         </section>
         )}
 
+        {/* Food Tracking Section - NEW! */}
+        {authView === 'app' && (
+          <section className="mx-auto mt-10 max-w-6xl">
+            <div className="flex items-center gap-3 mb-6">
+              <h2 className="text-xl font-semibold">🍖 Food Tracking</h2>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold shadow-sm animate-pulse">
+                NEW ✨
+              </span>
+            </div>
+            <FoodTrackingDashboard userId={userId} />
+          </section>
+        )}
+
         {/* Upload section */}
         {authView === 'app' && (
         <section key="upload-section" className="mx-auto max-w-3xl text-center mt-8 px-2">
@@ -2851,19 +2864,6 @@ function MainApp() {
               </div>
             </div>
             <FinancialSummary userId={userId} refreshToken={dataRefreshToken} period={finPeriod} />
-          </section>
-        )}
-
-        {/* Food Tracking Section - NEW! */}
-        {authView === 'app' && (
-          <section className="mx-auto mt-10 max-w-6xl">
-            <div className="flex items-center gap-3 mb-6">
-              <h2 className="text-xl font-semibold">🍖 Food Tracking</h2>
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold shadow-sm animate-pulse">
-                NEW ✨
-              </span>
-            </div>
-            <FoodTrackingDashboard userId={userId} />
           </section>
         )}
 
