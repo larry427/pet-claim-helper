@@ -38,6 +38,10 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
   const [bagCost, setBagCost] = useState('')
   const [cupsPerDay, setCupsPerDay] = useState('')
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
+  const [isSubscription, setIsSubscription] = useState(false)
+  const [subscriptionFrequency, setSubscriptionFrequency] = useState('28')
+  const [nextDeliveryDate, setNextDeliveryDate] = useState('')
+  const [reorderUrl, setReorderUrl] = useState('')
 
   // Calculate total lbs based on entry type
   const calculateTotalLbs = () => {
@@ -95,7 +99,11 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
           bag_size_lbs: bagSizeLbs,
           bag_cost: parseFloat(bagCost),
           cups_per_day: parseFloat(cupsPerDay),
-          start_date: startDate
+          start_date: startDate,
+          is_subscription: isSubscription,
+          subscription_frequency_days: isSubscription ? parseInt(subscriptionFrequency) : null,
+          next_delivery_date: isSubscription && nextDeliveryDate ? nextDeliveryDate : null,
+          reorder_url: reorderUrl.trim() || null
         })
 
       if (insertError) throw insertError
@@ -368,6 +376,71 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white"
+              />
+            </div>
+
+            {/* Subscription Toggle */}
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isSubscription}
+                  onChange={(e) => setIsSubscription(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  This is a subscription
+                </span>
+              </label>
+            </div>
+
+            {/* Subscription Fields - Conditional */}
+            {isSubscription && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      Delivery frequency
+                    </label>
+                    <select
+                      value={subscriptionFrequency}
+                      onChange={(e) => setSubscriptionFrequency(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white"
+                    >
+                      <option value="14">Every 2 weeks</option>
+                      <option value="21">Every 3 weeks</option>
+                      <option value="28">Every 4 weeks</option>
+                      <option value="42">Every 6 weeks</option>
+                      <option value="56">Every 8 weeks</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      Next delivery date
+                    </label>
+                    <input
+                      type="date"
+                      value={nextDeliveryDate}
+                      onChange={(e) => setNextDeliveryDate(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Reorder/Account Link */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                {isSubscription ? 'Subscription account link (optional)' : 'Reorder link (optional)'}
+              </label>
+              <input
+                type="url"
+                placeholder="https://www.chewy.com/app/account/orders"
+                value={reorderUrl}
+                onChange={(e) => setReorderUrl(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400"
               />
             </div>
 

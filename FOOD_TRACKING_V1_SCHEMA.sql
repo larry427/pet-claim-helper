@@ -15,6 +15,10 @@ CREATE TABLE food_entries (
   bag_cost DECIMAL(10, 2) NOT NULL,
   cups_per_day DECIMAL(5, 2) NOT NULL,
   start_date DATE NOT NULL,
+  is_subscription BOOLEAN DEFAULT FALSE,
+  subscription_frequency_days INTEGER,
+  next_delivery_date DATE,
+  reorder_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   CONSTRAINT one_food_per_pet UNIQUE (pet_id)
 );

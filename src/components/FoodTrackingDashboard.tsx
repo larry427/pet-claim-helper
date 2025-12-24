@@ -13,6 +13,10 @@ type FoodEntry = {
   bag_cost: number
   cups_per_day: number
   start_date: string
+  is_subscription: boolean
+  subscription_frequency_days: number | null
+  next_delivery_date: string | null
+  reorder_url: string | null
   created_at: string
 }
 
@@ -250,10 +254,32 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                   </div>
                 )}
                 <div className="flex-1">
-                  <h3 className="font-semibold text-slate-900 dark:text-white">{stat.pet.name}</h3>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    {stat.entry.food_name}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-slate-900 dark:text-white">{stat.pet.name}</h3>
+                    {stat.entry.is_subscription && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs font-semibold">
+                        📦 Subscription
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      {stat.entry.food_name}
+                    </p>
+                    {stat.entry.reorder_url && (
+                      <a
+                        href={stat.entry.reorder_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
+                        title={stat.entry.is_subscription ? "Manage subscription" : "Reorder"}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    )}
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -327,11 +353,21 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2 text-sm opacity-90">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span>Reorder by <strong>{stat.reorderDate}</strong></span>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-sm opacity-90">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span>Reorder by <strong>{stat.reorderDate}</strong></span>
+                    </div>
+                    {stat.entry.is_subscription && stat.entry.next_delivery_date && (
+                      <div className="flex items-center gap-2 text-sm opacity-90">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                        </svg>
+                        <span>Next delivery: <strong>{new Date(stat.entry.next_delivery_date).toLocaleDateString()}</strong></span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
