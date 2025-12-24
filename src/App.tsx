@@ -2869,20 +2869,17 @@ function MainApp() {
         )}
 
         {/* Food Tracking Section - NEW! */}
-        {(() => {
-          console.log('Food Tracking render check:', { authView, activeView, userId, userIdExists: !!userId })
-          return authView === 'app' && activeView === 'app' && userId ? (
-            <section className="mx-auto mt-10 max-w-6xl">
-              <div className="flex items-center gap-3 mb-6">
-                <h2 className="text-xl font-semibold">🍖 Food Tracking</h2>
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold shadow-sm animate-pulse">
-                  NEW ✨
-                </span>
-              </div>
-              <FoodTrackingDashboard userId={userId} />
-            </section>
-          ) : null
-        })()}
+        {authView === 'app' && (
+          <section className="mx-auto mt-10 max-w-6xl">
+            <div className="flex items-center gap-3 mb-6">
+              <h2 className="text-xl font-semibold">🍖 Food Tracking</h2>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold shadow-sm animate-pulse">
+                NEW ✨
+              </span>
+            </div>
+            <FoodTrackingDashboard userId={userId} />
+          </section>
+        )}
 
         {/* Claims History Dashboard */}
         {authView === 'app' && claims.length > 0 && (
