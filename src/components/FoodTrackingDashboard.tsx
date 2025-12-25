@@ -454,7 +454,7 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                       </div>
                       <div>
                         <div className="text-xs font-bold uppercase tracking-wider text-red-700 dark:text-red-400 mb-1">
-                          GAP ALERT
+                          ORDER SOON
                         </div>
                         <div className="text-sm font-bold text-red-900 dark:text-red-300">
                           You'll run out <strong>{stat.gapDays} {stat.gapDays === 1 ? 'day' : 'days'}</strong> before your delivery arrives
