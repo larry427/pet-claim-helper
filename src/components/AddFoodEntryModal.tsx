@@ -143,9 +143,9 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
           className="relative w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 p-6 shadow-2xl border border-slate-200 dark:border-slate-800"
           onClick={(e) => e.stopPropagation()}
         >
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">All Pets Have Food Entries</h2>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">No Pets Available</h2>
           <p className="text-slate-600 dark:text-slate-400 mb-6">
-            Each pet can only have one food entry. Edit existing entries or add more pets first.
+            Add a pet first before tracking their food.
           </p>
           <button
             onClick={onClose}

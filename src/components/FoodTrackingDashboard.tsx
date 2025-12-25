@@ -131,6 +131,27 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
     return stats
   }, [foodEntries, pets])
 
+  // Group food entries by pet
+  const petGroups = useMemo(() => {
+    const groups = new Map<string, { pet: Pet; stats: PetFoodStats[]; total: number }>()
+
+    petFoodStats.forEach(stat => {
+      const existing = groups.get(stat.pet.id)
+      if (existing) {
+        existing.stats.push(stat)
+        existing.total += stat.costPerMonth
+      } else {
+        groups.set(stat.pet.id, {
+          pet: stat.pet,
+          stats: [stat],
+          total: stat.costPerMonth
+        })
+      }
+    })
+
+    return Array.from(groups.values())
+  }, [petFoodStats])
+
   const householdTotal = useMemo(() => {
     return petFoodStats.reduce((sum, stat) => sum + stat.costPerMonth, 0)
   }, [petFoodStats])
@@ -139,9 +160,8 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
     return petFoodStats.filter(stat => stat.statusColor === '🟡' || stat.statusColor === '🔴').length
   }, [petFoodStats])
 
-  const availablePets = useMemo(() => {
-    return pets.filter(pet => !foodEntries.some(entry => entry.pet_id === pet.id))
-  }, [pets, foodEntries])
+  // All pets are available for adding food (multiple foods per pet allowed)
+  const availablePets = pets
 
   const handleDelete = async (entryId: string, petName: string) => {
     if (!confirm(`Remove food entry for ${petName}? This cannot be undone.`)) return
@@ -218,8 +238,8 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
         </div>
       )}
 
-      {/* Pet Food Cards */}
-      {petFoodStats.length === 0 ? (
+      {/* Pet Food Cards - Grouped by Pet */}
+      {petGroups.length === 0 ? (
         <div className="text-center py-12 bg-slate-50 dark:bg-slate-800/50 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700">
           <div className="text-4xl mb-3">🍖</div>
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">No food entries yet</h3>
@@ -232,43 +252,52 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
           </button>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {petFoodStats.map((stat) => (
+        <div className="space-y-8">
+          {petGroups.map((group) => (
+            <div key={group.pet.id} className="space-y-4">
+              {/* Pet Header */}
+              <div className="flex items-center gap-3">
+                {group.pet.photo_url ? (
+                  <img
+                    src={group.pet.photo_url}
+                    alt={group.pet.name}
+                    className="w-16 h-16 rounded-full object-cover border-2 border-slate-200 dark:border-slate-700 shadow-md"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-3xl border-2 border-slate-200 dark:border-slate-700 shadow-md">
+                    {group.pet.species === 'dog' ? '🐕' : '🐈'}
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{group.pet.name}</h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 capitalize">
+                    {group.stats.length} food {group.stats.length === 1 ? 'item' : 'items'} • ${group.total.toFixed(2)}/month
+                  </p>
+                </div>
+              </div>
+
+              {/* Food Cards for this Pet */}
+              <div className="grid gap-4 md:grid-cols-2 pl-0 sm:pl-20">
+                {group.stats.map((stat) => (
             <div
               key={stat.entry.id}
               className="relative bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-700 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] overflow-hidden"
             >
               {/* Subtle gradient background */}
               <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/30 via-transparent to-transparent dark:from-emerald-900/10 pointer-events-none" />
-              {/* Pet Header with Edit/Delete buttons */}
+
+              {/* Food Header with Edit/Delete buttons */}
               <div className="relative flex items-center gap-3 mb-4">
-                {stat.pet.photo_url ? (
-                  <img
-                    src={stat.pet.photo_url}
-                    alt={stat.pet.name}
-                    className="w-12 h-12 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-2xl">
-                    {stat.pet.species === 'dog' ? '🐕' : '🐈'}
-                  </div>
-                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-semibold text-slate-900 dark:text-white">{stat.pet.name}</h3>
+                    <h4 className="font-semibold text-slate-900 dark:text-white truncate" title={stat.entry.food_name}>
+                      {stat.entry.food_name}
+                    </h4>
                     {stat.entry.is_subscription && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs font-semibold">
-                        📦 Subscription
+                        📦 Sub
                       </span>
                     )}
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <p
-                      className="text-sm sm:text-sm text-slate-600 dark:text-slate-400 truncate"
-                      title={stat.entry.food_name}
-                    >
-                      {stat.entry.food_name}
-                    </p>
                     {stat.entry.reorder_url && (
                       <a
                         href={stat.entry.reorder_url}
@@ -408,6 +437,9 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
               {/* Details */}
               <div className="text-xs text-slate-500 dark:text-slate-400 pt-3 border-t border-slate-200 dark:border-slate-700">
                 {stat.entry.cups_per_day} cups/day • {stat.daysPerBag} days per bag • {stat.entry.food_type} food
+              </div>
+            </div>
+                ))}
               </div>
             </div>
           ))}
