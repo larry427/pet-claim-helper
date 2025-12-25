@@ -39,6 +39,9 @@ type PetFoodStats = {
   daysLeft: number
   reorderDate: string
   statusColor: '🟢' | '🟡' | '🔴'
+  hasGap?: boolean
+  gapDays?: number
+  daysUntilDelivery?: number
 }
 
 const CUPS_PER_LB = {
@@ -113,6 +116,21 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
       if (daysLeft < 3) statusColor = '🔴'
       else if (daysLeft < 7) statusColor = '🟡'
 
+      // Gap detection for subscriptions
+      let hasGap = false
+      let gapDays: number | undefined
+      let daysUntilDelivery: number | undefined
+
+      if (entry.is_subscription && entry.next_delivery_date) {
+        const deliveryDate = new Date(entry.next_delivery_date)
+        daysUntilDelivery = Math.ceil((deliveryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+
+        if (daysLeft < daysUntilDelivery) {
+          hasGap = true
+          gapDays = daysUntilDelivery - daysLeft
+        }
+      }
+
       stats.push({
         pet,
         entry,
@@ -124,7 +142,10 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
         costPerYear,
         daysLeft,
         reorderDate: reorderDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        statusColor
+        statusColor,
+        hasGap,
+        gapDays,
+        daysUntilDelivery
       })
     })
 
@@ -157,7 +178,11 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
   }, [petFoodStats])
 
   const alertCount = useMemo(() => {
-    return petFoodStats.filter(stat => stat.statusColor === '🟡' || stat.statusColor === '🔴').length
+    return petFoodStats.filter(stat => stat.statusColor === '🟡' || stat.statusColor === '🔴' || stat.hasGap).length
+  }, [petFoodStats])
+
+  const gapAlerts = useMemo(() => {
+    return petFoodStats.filter(stat => stat.hasGap)
   }, [petFoodStats])
 
   // All pets are available for adding food (multiple foods per pet allowed)
@@ -225,13 +250,22 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                   <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
                 </span>
               </div>
-              <div>
+              <div className="flex-1">
                 <div className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1">
                   Action Needed
                 </div>
-                <div className="font-bold text-slate-900 dark:text-white">
-                  {alertCount} {alertCount === 1 ? 'pet needs' : 'pets need'} food reordered soon
+                <div className="font-bold text-slate-900 dark:text-white mb-2">
+                  {alertCount} {alertCount === 1 ? 'alert' : 'alerts'}
                 </div>
+                {gapAlerts.length > 0 && (
+                  <div className="space-y-1">
+                    {gapAlerts.map(stat => (
+                      <div key={stat.entry.id} className="text-sm text-slate-700 dark:text-slate-300">
+                        ⚠️ <strong>{stat.entry.food_name}</strong> for <strong>{stat.pet.name}</strong> will run out {stat.gapDays} {stat.gapDays === 1 ? 'day' : 'days'} before delivery - consider ordering a bridge supply
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -405,6 +439,34 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                   </div>
                 </div>
               </div>
+
+              {/* Gap Alert Banner */}
+              {stat.hasGap && stat.gapDays && (
+                <div className="relative bg-gradient-to-r from-red-500 to-orange-500 rounded-xl p-[2px] mb-4 shadow-lg">
+                  <div className="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950 dark:to-orange-950 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="relative flex-shrink-0">
+                        <span className="text-2xl">⚠️</span>
+                        <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                        </span>
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold uppercase tracking-wider text-red-700 dark:text-red-400 mb-1">
+                          GAP ALERT
+                        </div>
+                        <div className="text-sm font-bold text-red-900 dark:text-red-300">
+                          You'll run out <strong>{stat.gapDays} {stat.gapDays === 1 ? 'day' : 'days'}</strong> before your delivery arrives
+                        </div>
+                        <div className="text-xs text-red-700 dark:text-red-400 mt-1">
+                          Consider ordering a bridge supply to avoid running out
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Cost Breakdown - Premium Grid */}
               <div className="relative grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
