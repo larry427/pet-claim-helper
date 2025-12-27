@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 type Profile = any;
 type Pet = any;
 type Claim = any;
+type FoodEntry = any;
 
 interface UserWithStats {
   profile: Profile;
@@ -23,8 +24,24 @@ interface ClaimWithDetails extends Claim {
   insuranceCompany: string;
 }
 
+interface FoodEntryWithDetails extends FoodEntry {
+  userEmail: string;
+  petName: string;
+  monthlyCost: number;
+  daysLeft: number;
+  status: 'Stocked' | 'Order Soon' | 'Urgent';
+}
+
 type SortColumn = 'email' | 'name' | 'petsCount' | 'claimsCount' | 'lastActive';
 type SortDirection = 'asc' | 'desc';
+
+const CUPS_PER_LB = {
+  dry: 4,
+  wet: 2,
+  'freeze-dried': 9,
+  raw: 2,
+  cooked: 2.5
+};
 
 export default function AdminDashboard() {
   // Parse YYYY-MM-DD safely as a local Date (no timezone shift)
@@ -42,6 +59,7 @@ export default function AdminDashboard() {
 
   const [users, setUsers] = useState<UserWithStats[]>([]);
   const [allClaims, setAllClaims] = useState<ClaimWithDetails[]>([]);
+  const [allFoodEntries, setAllFoodEntries] = useState<FoodEntryWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -143,8 +161,55 @@ export default function AdminDashboard() {
         };
       });
 
+      // Load all food entries
+      const { data: foodEntries, error: foodError } = await supabase
+        .from('food_entries')
+        .select('*');
+
+      if (foodError) throw foodError;
+
+      // Filter food entries to only those belonging to real users
+      const realFoodEntries = foodEntries?.filter(entry => {
+        const pet = realPets.find(p => p.id === entry.pet_id);
+        return pet && realUserIds.has(pet.user_id);
+      }) || [];
+
+      // Create food entries with details
+      const today = new Date();
+      const foodEntriesWithDetails: FoodEntryWithDetails[] = realFoodEntries.map(entry => {
+        const pet = realPets.find(p => p.id === entry.pet_id);
+        const user = realProfiles.find(p => p.id === pet?.user_id);
+
+        // Calculate metrics
+        const cupsPerLb = CUPS_PER_LB[entry.food_type as keyof typeof CUPS_PER_LB] || 4;
+        const totalCups = entry.bag_size_lbs * cupsPerLb;
+        const daysPerBag = totalCups / entry.cups_per_day;
+        const costPerDay = entry.bag_cost / daysPerBag;
+        const monthlyCost = costPerDay * 30;
+
+        // Calculate days left
+        const startDate = new Date(entry.start_date);
+        const daysSinceStart = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        const daysLeft = Math.max(0, Math.floor(daysPerBag - daysSinceStart));
+
+        // Determine status
+        let status: 'Stocked' | 'Order Soon' | 'Urgent' = 'Stocked';
+        if (daysLeft < 3) status = 'Urgent';
+        else if (daysLeft < 7) status = 'Order Soon';
+
+        return {
+          ...entry,
+          userEmail: user?.email || 'Unknown',
+          petName: pet?.name || 'Unknown',
+          monthlyCost,
+          daysLeft,
+          status
+        };
+      });
+
       setUsers(usersWithStats);
       setAllClaims(claimsWithDetails);
+      setAllFoodEntries(foodEntriesWithDetails);
     } catch (err: any) {
       console.error('Error loading admin data:', err);
       setError(err.message);
@@ -171,6 +236,11 @@ export default function AdminDashboard() {
       insuranceBreakdown[company] = (insuranceBreakdown[company] || 0) + 1;
     });
 
+    // Food tracking metrics
+    const totalFoodEntries = allFoodEntries.length;
+    const usersTrackingFood = new Set(allFoodEntries.map(e => e.userEmail)).size;
+    const totalMonthlyFoodSpend = allFoodEntries.reduce((sum, e) => sum + e.monthlyCost, 0);
+
     return {
       totalUsers: users.length,
       activeUsers,
@@ -181,9 +251,12 @@ export default function AdminDashboard() {
       draftClaims,
       submittedClaims,
       paidClaims,
-      insuranceBreakdown
+      insuranceBreakdown,
+      totalFoodEntries,
+      usersTrackingFood,
+      totalMonthlyFoodSpend
     };
-  }, [users, allClaims]);
+  }, [users, allClaims, allFoodEntries]);
 
   // Sorting function
   const sortedUsers = useMemo(() => {
@@ -336,6 +409,122 @@ export default function AdminDashboard() {
             ${metrics.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
           <p className="text-sm text-gray-600 mt-2">All claims combined</p>
+        </div>
+      </div>
+
+      {/* Food Tracking Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        {/* Total Food Entries */}
+        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg shadow p-6 border border-emerald-200">
+          <h3 className="text-sm font-medium text-emerald-700 uppercase">🍖 Food Entries</h3>
+          <p className="text-3xl font-bold text-emerald-900 mt-2">{metrics.totalFoodEntries}</p>
+          <p className="text-sm text-emerald-600 mt-2">Total tracked foods</p>
+        </div>
+
+        {/* Users Tracking Food */}
+        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg shadow p-6 border border-emerald-200">
+          <h3 className="text-sm font-medium text-emerald-700 uppercase">👥 Users Tracking Food</h3>
+          <p className="text-3xl font-bold text-emerald-900 mt-2">{metrics.usersTrackingFood}</p>
+          <p className="text-sm text-emerald-600 mt-2">Active food trackers</p>
+        </div>
+
+        {/* Total Monthly Spend */}
+        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg shadow p-6 border border-emerald-200">
+          <h3 className="text-sm font-medium text-emerald-700 uppercase">💰 Monthly Food Spend</h3>
+          <p className="text-3xl font-bold text-emerald-900 mt-2">
+            ${metrics.totalMonthlyFoodSpend.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+          <p className="text-sm text-emerald-600 mt-2">All users combined</p>
+        </div>
+      </div>
+
+      {/* Food Tracking Activity */}
+      <div className="bg-white rounded-lg shadow mb-8">
+        <div className="px-6 py-4 border-b">
+          <h2 className="text-xl font-semibold text-gray-900">Food Tracking Activity</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  User Email
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Pet Name
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Food Name
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Food Type
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Monthly Cost
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Days Left
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Subscription
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {allFoodEntries.map(entry => (
+                <tr key={entry.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {entry.userEmail}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {entry.petName}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {entry.food_name}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 capitalize">
+                    {entry.food_type}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                    ${entry.monthlyCost.toFixed(2)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                    {entry.daysLeft}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      entry.status === 'Urgent' ? 'bg-red-100 text-red-800' :
+                      entry.status === 'Order Soon' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-green-100 text-green-800'
+                    }`}>
+                      {entry.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
+                    {entry.is_subscription ? (
+                      <span className="text-emerald-600 font-semibold">Yes</span>
+                    ) : (
+                      <span className="text-gray-400">No</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {/* Food Tracking Summary */}
+        <div className="px-6 py-4 bg-gray-50 border-t">
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-gray-600">
+              Total entries: {allFoodEntries.length}
+            </span>
+            <span className="font-semibold text-gray-900">
+              Total monthly spend: ${allFoodEntries.reduce((sum, e) => sum + e.monthlyCost, 0).toFixed(2)}
+            </span>
+          </div>
         </div>
       </div>
 
