@@ -168,17 +168,27 @@ export default function AdminDashboard() {
 
       if (foodError) throw foodError;
 
+      console.log('🔍 DEBUG: All food entries from DB:', foodEntries?.length || 0);
+      console.log('🔍 DEBUG: Real pets count:', realPets.length);
+      console.log('🔍 DEBUG: Real user IDs:', Array.from(realUserIds));
+      console.log('🔍 DEBUG: Real profiles emails:', realProfiles.map(p => p.email));
+
       // Filter food entries to only those belonging to real users
       const realFoodEntries = foodEntries?.filter(entry => {
         const pet = realPets.find(p => p.id === entry.pet_id);
-        return pet && realUserIds.has(pet.user_id);
+        const isReal = pet && realUserIds.has(pet.user_id);
+        console.log(`🔍 DEBUG: Food entry ${entry.food_name} - pet_id: ${entry.pet_id}, found pet: ${!!pet}, pet user_id: ${pet?.user_id}, is real: ${isReal}`);
+        return isReal;
       }) || [];
+
+      console.log('🔍 DEBUG: Real food entries after filter:', realFoodEntries.length);
 
       // Create food entries with details
       const today = new Date();
       const foodEntriesWithDetails: FoodEntryWithDetails[] = realFoodEntries.map(entry => {
         const pet = realPets.find(p => p.id === entry.pet_id);
         const user = realProfiles.find(p => p.id === pet?.user_id);
+        console.log(`🔍 DEBUG: Mapping entry ${entry.food_name} - pet: ${pet?.name}, user: ${user?.email}`);
 
         // Calculate metrics
         const cupsPerLb = CUPS_PER_LB[entry.food_type as keyof typeof CUPS_PER_LB] || 4;
@@ -206,6 +216,9 @@ export default function AdminDashboard() {
           status
         };
       });
+
+      console.log('🔍 DEBUG: Final food entries with details:', foodEntriesWithDetails.length);
+      console.log('🔍 DEBUG: Food entries details:', foodEntriesWithDetails.map(e => ({ email: e.userEmail, pet: e.petName, food: e.food_name })));
 
       setUsers(usersWithStats);
       setAllClaims(claimsWithDetails);
