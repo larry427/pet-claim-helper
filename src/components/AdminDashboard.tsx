@@ -32,6 +32,17 @@ interface FoodEntryWithDetails extends FoodEntry {
   status: 'Stocked' | 'Order Soon' | 'Urgent';
 }
 
+interface FoodTrackingUserStats {
+  email: string;
+  foodsTracked: number;
+  petsWithFood: number;
+  totalMonthlySpend: number;
+  firstEntryDate: string;
+  mostRecentActivity: string;
+  subscriptions: number;
+  alerts: number;
+}
+
 type SortColumn = 'email' | 'name' | 'petsCount' | 'claimsCount' | 'lastActive';
 type SortDirection = 'asc' | 'desc';
 
@@ -272,6 +283,65 @@ export default function AdminDashboard() {
     };
   }, [users, allClaims, allFoodEntries]);
 
+  // Calculate food tracking user stats
+  const foodTrackingUserStats = useMemo(() => {
+    const userStatsMap = new Map<string, FoodTrackingUserStats>();
+
+    allFoodEntries.forEach(entry => {
+      const existing = userStatsMap.get(entry.userEmail);
+
+      if (existing) {
+        existing.foodsTracked += 1;
+        existing.totalMonthlySpend += entry.monthlyCost;
+        if (entry.is_subscription) existing.subscriptions += 1;
+        if (entry.status === 'Order Soon' || entry.status === 'Urgent') existing.alerts += 1;
+
+        // Update most recent activity
+        const entryDate = new Date(entry.updated_at || entry.created_at);
+        const currentMostRecent = new Date(existing.mostRecentActivity);
+        if (entryDate > currentMostRecent) {
+          existing.mostRecentActivity = entry.updated_at || entry.created_at;
+        }
+
+        // Update first entry date
+        const currentFirst = new Date(existing.firstEntryDate);
+        if (entryDate < currentFirst) {
+          existing.firstEntryDate = entry.created_at;
+        }
+      } else {
+        userStatsMap.set(entry.userEmail, {
+          email: entry.userEmail,
+          foodsTracked: 1,
+          petsWithFood: 0, // Will calculate after
+          totalMonthlySpend: entry.monthlyCost,
+          firstEntryDate: entry.created_at,
+          mostRecentActivity: entry.updated_at || entry.created_at,
+          subscriptions: entry.is_subscription ? 1 : 0,
+          alerts: (entry.status === 'Order Soon' || entry.status === 'Urgent') ? 1 : 0
+        });
+      }
+    });
+
+    // Calculate unique pets per user
+    const userPetsMap = new Map<string, Set<string>>();
+    allFoodEntries.forEach(entry => {
+      if (!userPetsMap.has(entry.userEmail)) {
+        userPetsMap.set(entry.userEmail, new Set());
+      }
+      userPetsMap.get(entry.userEmail)!.add(entry.petName);
+    });
+
+    // Update petsWithFood count
+    userStatsMap.forEach((stats, email) => {
+      stats.petsWithFood = userPetsMap.get(email)?.size || 0;
+    });
+
+    // Convert to array and sort by most recent activity (descending)
+    return Array.from(userStatsMap.values()).sort((a, b) => {
+      return new Date(b.mostRecentActivity).getTime() - new Date(a.mostRecentActivity).getTime();
+    });
+  }, [allFoodEntries]);
+
   // Sorting function
   const sortedUsers = useMemo(() => {
     const sorted = [...users].sort((a, b) => {
@@ -452,10 +522,99 @@ export default function AdminDashboard() {
         </div>
       </div>
 
+      {/* Food Tracking Users */}
+      <div className="bg-white rounded-lg shadow mb-8">
+        <div className="px-6 py-4 border-b">
+          <h2 className="text-xl font-semibold text-gray-900">Food Tracking Users</h2>
+          <p className="text-sm text-gray-600 mt-1">User engagement and activity summary</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Email
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Foods Tracked
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Pets w/ Food
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Monthly Spend
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  First Entry
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Recent Activity
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Subscriptions
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Alerts
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {foodTrackingUserStats.map(userStat => (
+                <tr key={userStat.email} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {userStat.email}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                    {userStat.foodsTracked}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                    {userStat.petsWithFood}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                    ${userStat.totalMonthlySpend.toFixed(2)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    {new Date(userStat.firstEntryDate).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    {new Date(userStat.mostRecentActivity).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                    {userStat.subscriptions > 0 ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                        {userStat.subscriptions}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">0</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                    {userStat.alerts > 0 ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        {userStat.alerts}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">0</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {/* Summary */}
+        <div className="px-6 py-4 bg-gray-50 border-t">
+          <div className="text-sm text-gray-600">
+            Showing {foodTrackingUserStats.length} {foodTrackingUserStats.length === 1 ? 'user' : 'users'} tracking food
+          </div>
+        </div>
+      </div>
+
       {/* Food Tracking Activity */}
       <div className="bg-white rounded-lg shadow mb-8">
         <div className="px-6 py-4 border-b">
           <h2 className="text-xl font-semibold text-gray-900">Food Tracking Activity</h2>
+          <p className="text-sm text-gray-600 mt-1">Detailed per-food entry view</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
