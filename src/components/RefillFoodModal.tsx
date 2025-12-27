@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 type Props = {
@@ -10,11 +10,65 @@ type Props = {
   onComplete: () => void
 }
 
+const CUPS_PER_LB = {
+  dry: 4,
+  wet: 2,
+  'freeze-dried': 9,
+  raw: 2,
+  cooked: 2.5
+}
+
 export default function RefillFoodModal({ entryId, petName, foodName, currentCost, onClose, onComplete }: Props) {
   const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
   const [bagCost, setBagCost] = useState(currentCost.toString())
+  const [calculatedStartDate, setCalculatedStartDate] = useState('')
+  const [daysLeftMessage, setDaysLeftMessage] = useState('')
+
+  useEffect(() => {
+    const loadAndCalculate = async () => {
+      try {
+        // Fetch current food entry
+        const { data: entry, error: fetchError } = await supabase
+          .from('food_entries')
+          .select('*')
+          .eq('id', entryId)
+          .single()
+
+        if (fetchError) throw fetchError
+        if (!entry) throw new Error('Food entry not found')
+
+        // Calculate days_per_bag
+        const cupsPerLb = CUPS_PER_LB[entry.food_type as keyof typeof CUPS_PER_LB]
+        const totalCups = entry.bag_size_lbs * cupsPerLb
+        const daysPerBag = totalCups / entry.cups_per_day
+
+        // Calculate current days_left
+        const today = new Date()
+        const startDate = new Date(entry.start_date)
+        const daysSinceStart = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+        const daysLeft = Math.max(0, Math.floor(daysPerBag - daysSinceStart))
+
+        // Calculate new total days after refill
+        const newTotalDays = daysLeft + daysPerBag
+
+        // Calculate new start date (in the future)
+        // Formula: start_date = today + daysLeft
+        const newStartDate = new Date()
+        newStartDate.setDate(newStartDate.getDate() + daysLeft)
+
+        setCalculatedStartDate(newStartDate.toISOString().split('T')[0])
+        setDaysLeftMessage(`Current supply: ${daysLeft} days. After refill: ${Math.floor(newTotalDays)} days total.`)
+        setLoading(false)
+      } catch (e: any) {
+        setError(e?.message || 'Failed to load food entry')
+        setLoading(false)
+      }
+    }
+
+    loadAndCalculate()
+  }, [entryId])
 
   const handleSubmit = async () => {
     setError(null)
@@ -30,7 +84,7 @@ export default function RefillFoodModal({ entryId, petName, foodName, currentCos
       const { error: updateError } = await supabase
         .from('food_entries')
         .update({
-          start_date: startDate,
+          start_date: calculatedStartDate,
           bag_cost: parseFloat(bagCost)
         })
         .eq('id', entryId)
@@ -42,6 +96,16 @@ export default function RefillFoodModal({ entryId, petName, foodName, currentCos
       setError(e?.message || 'Failed to refill food entry')
       setSaving(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="rounded-2xl bg-white dark:bg-slate-900 p-8 shadow-2xl border border-slate-200 dark:border-slate-800">
+          <div className="text-slate-600 dark:text-slate-400">Calculating...</div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -64,20 +128,17 @@ export default function RefillFoodModal({ entryId, petName, foodName, currentCos
           </div>
         )}
 
-        <div className="space-y-4 mb-6">
-          {/* Start Date */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              Start Date <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white"
-            />
+        {/* Supply Calculation Info */}
+        {daysLeftMessage && (
+          <div className="mb-4 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-4 py-3">
+            <div className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-1">SUPPLY CALCULATION</div>
+            <div className="text-sm text-emerald-900 dark:text-emerald-300">
+              {daysLeftMessage}
+            </div>
           </div>
+        )}
 
+        <div className="space-y-4 mb-6">
           {/* Cost */}
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
