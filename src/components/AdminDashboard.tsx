@@ -161,24 +161,38 @@ export default function AdminDashboard() {
         };
       });
 
-      // Load all food entries
-      const { data: foodEntries, error: foodError } = await supabase
+      // Load all food entries with joined pet and profile data
+      const { data: foodEntriesWithJoin, error: foodError } = await supabase
         .from('food_entries')
-        .select('*');
+        .select(`
+          *,
+          pets!inner (
+            id,
+            name,
+            user_id,
+            profiles!inner (
+              id,
+              email
+            )
+          )
+        `);
 
       if (foodError) throw foodError;
 
-      // Filter food entries to only those belonging to real users
-      const realFoodEntries = foodEntries?.filter(entry => {
-        const pet = pets.find(p => p.id === entry.pet_id);
-        return pet && realUserIds.has(pet.user_id);
-      }) || [];
+      // Filter out Larry accounts client-side (in case database-level filtering doesn't work on nested joins)
+      const filteredFoodEntries = (foodEntriesWithJoin || []).filter(entry => {
+        const email = (entry.pets?.profiles?.email || '').toLowerCase();
+        return !email.includes('larry') &&
+               !email.includes('uglydogadventures') &&
+               !email.includes('dogstrainedright');
+      });
 
       // Create food entries with details
       const today = new Date();
-      const foodEntriesWithDetails: FoodEntryWithDetails[] = realFoodEntries.map(entry => {
-        const pet = pets.find(p => p.id === entry.pet_id);
-        const user = realProfiles.find(p => p.id === pet?.user_id);
+      const foodEntriesWithDetails: FoodEntryWithDetails[] = filteredFoodEntries.map(entry => {
+        // Data is already joined, no need to find pet/user
+        const petName = entry.pets?.name || 'Unknown';
+        const userEmail = entry.pets?.profiles?.email || 'Unknown';
 
         // Calculate metrics
         const cupsPerLb = CUPS_PER_LB[entry.food_type as keyof typeof CUPS_PER_LB] || 4;
@@ -199,8 +213,8 @@ export default function AdminDashboard() {
 
         return {
           ...entry,
-          userEmail: user?.email || 'Unknown',
-          petName: pet?.name || 'Unknown',
+          userEmail,
+          petName,
           monthlyCost,
           daysLeft,
           status
