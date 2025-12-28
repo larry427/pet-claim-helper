@@ -32,16 +32,25 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
   const [weightEntryType, setWeightEntryType] = useState<'lbs' | 'oz' | 'cans' | 'bags'>('lbs')
   const [bagSize, setBagSize] = useState('')
   const [canQty, setCanQty] = useState('')
-  const [canOz, setCanOz] = useState('')
+  const [canSizeOz, setCanSizeOz] = useState('5.5') // Default can size for wet food
+  const [canOz, setCanOz] = useState('') // Keep for backward compatibility
   const [bagQty, setBagQty] = useState('')
   const [bagLbs, setBagLbs] = useState('')
   const [bagCost, setBagCost] = useState('')
   const [cupsPerDay, setCupsPerDay] = useState('')
+  const [cansPerDay, setCansPerDay] = useState('') // For wet food only
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
   const [isSubscription, setIsSubscription] = useState(false)
   const [subscriptionFrequency, setSubscriptionFrequency] = useState('28')
   const [nextDeliveryDate, setNextDeliveryDate] = useState('')
   const [reorderUrl, setReorderUrl] = useState('')
+
+  // Auto-switch to cans mode when wet food is selected
+  React.useEffect(() => {
+    if (foodType === 'wet' && weightEntryType !== 'cans') {
+      setWeightEntryType('cans')
+    }
+  }, [foodType])
 
   // Calculate total lbs based on entry type
   const calculateTotalLbs = () => {
@@ -51,7 +60,9 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
       case 'oz':
         return (parseFloat(bagSize) || 0) / 16
       case 'cans':
-        return ((parseFloat(canQty) || 0) * (parseFloat(canOz) || 0)) / 16
+        // For wet food, use canSizeOz dropdown; for others use canOz input
+        const ozPerCan = foodType === 'wet' ? parseFloat(canSizeOz) : parseFloat(canOz)
+        return ((parseFloat(canQty) || 0) * ozPerCan) / 16
       case 'bags':
         return (parseFloat(bagQty) || 0) * (parseFloat(bagLbs) || 0)
       default:
@@ -60,6 +71,20 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
   }
 
   const totalLbs = calculateTotalLbs()
+
+  // Calculate cups per day from cans per day for wet food
+  // Formula: cups_per_day = cans_per_day × can_size_oz × 0.125
+  // (Since wet food is 2 cups/lb and 16 oz/lb, that's 0.125 cups/oz)
+  const calculateCupsPerDay = () => {
+    if (foodType === 'wet' && cansPerDay) {
+      const ozPerCan = parseFloat(canSizeOz)
+      const cansDaily = parseFloat(cansPerDay)
+      return cansDaily * ozPerCan * 0.125
+    }
+    return parseFloat(cupsPerDay) || 0
+  }
+
+  const finalCupsPerDay = calculateCupsPerDay()
 
   const handleSubmit = async () => {
     setError(null)
@@ -80,9 +105,18 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
       setError('Please enter a valid cost')
       return
     }
-    if (!cupsPerDay || parseFloat(cupsPerDay) <= 0) {
-      setError('Please enter valid cups per day')
-      return
+
+    // Validate serving size based on food type
+    if (foodType === 'wet') {
+      if (!cansPerDay || parseFloat(cansPerDay) <= 0) {
+        setError('Please enter valid cans per day')
+        return
+      }
+    } else {
+      if (!cupsPerDay || parseFloat(cupsPerDay) <= 0) {
+        setError('Please enter valid cups per day')
+        return
+      }
     }
 
     setSaving(true)
@@ -98,7 +132,7 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
           food_type: foodType,
           bag_size_lbs: bagSizeLbs,
           bag_cost: parseFloat(bagCost),
-          cups_per_day: parseFloat(cupsPerDay),
+          cups_per_day: finalCupsPerDay,
           start_date: startDate,
           is_subscription: isSubscription,
           subscription_frequency_days: isSubscription ? parseInt(subscriptionFrequency) : null,
@@ -118,12 +152,11 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
   // Calculate preview stats
   const calculatePreview = () => {
     const cost = parseFloat(bagCost)
-    const cups = parseFloat(cupsPerDay)
 
-    if (totalLbs <= 0 || !cost || !cups) return null
+    if (totalLbs <= 0 || !cost || finalCupsPerDay <= 0) return null
 
     const totalCups = totalLbs * CUPS_PER_LB[foodType]
-    const daysPerBag = totalCups / cups
+    const daysPerBag = totalCups / finalCupsPerDay
     const costPerDay = cost / daysPerBag
 
     return {
@@ -233,20 +266,22 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
             {/* Bag Size - Flexible Entry */}
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Bag Size <span className="text-red-500">*</span>
+                {foodType === 'wet' ? 'Total Cans' : 'Bag Size'} <span className="text-red-500">*</span>
               </label>
 
-              {/* Entry Type Selector */}
-              <select
-                value={weightEntryType}
-                onChange={(e) => setWeightEntryType(e.target.value as 'lbs' | 'oz' | 'cans' | 'bags')}
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white mb-3"
-              >
-                <option value="lbs">Pounds</option>
-                <option value="oz">Ounces</option>
-                <option value="cans">Cans (quantity × oz per can)</option>
-                <option value="bags">Bags/Boxes (quantity × lbs per bag)</option>
-              </select>
+              {/* Entry Type Selector - Hidden for wet food */}
+              {foodType !== 'wet' && (
+                <select
+                  value={weightEntryType}
+                  onChange={(e) => setWeightEntryType(e.target.value as 'lbs' | 'oz' | 'cans' | 'bags')}
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white mb-3"
+                >
+                  <option value="lbs">Pounds</option>
+                  <option value="oz">Ounces</option>
+                  <option value="cans">Cans (quantity × oz per can)</option>
+                  <option value="bags">Bags/Boxes (quantity × lbs per bag)</option>
+                </select>
+              )}
 
               {/* Input Fields Based on Type */}
               {weightEntryType === 'lbs' && (
@@ -274,27 +309,66 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
               )}
 
               {weightEntryType === 'cans' && (
-                <div className="flex gap-3">
-                  <input
-                    type="number"
-                    step="1"
-                    min="1"
-                    placeholder="24"
-                    value={canQty}
-                    onChange={(e) => setCanQty(e.target.value)}
-                    className="flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400"
-                  />
-                  <span className="flex items-center text-slate-600 dark:text-slate-400">×</span>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0.1"
-                    placeholder="5.5"
-                    value={canOz}
-                    onChange={(e) => setCanOz(e.target.value)}
-                    className="flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400"
-                  />
-                  <span className="flex items-center text-slate-600 dark:text-slate-400 text-sm">oz</span>
+                <div className="space-y-3">
+                  {foodType === 'wet' ? (
+                    <>
+                      {/* Wet food: Number of cans + can size dropdown */}
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                          Number of Cans
+                        </label>
+                        <input
+                          type="number"
+                          step="1"
+                          min="1"
+                          placeholder="12"
+                          value={canQty}
+                          onChange={(e) => setCanQty(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                          Can Size
+                        </label>
+                        <select
+                          value={canSizeOz}
+                          onChange={(e) => setCanSizeOz(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white"
+                        >
+                          <option value="3">3 oz</option>
+                          <option value="5">5 oz</option>
+                          <option value="5.5">5.5 oz</option>
+                          <option value="12">12 oz</option>
+                          <option value="13">13 oz</option>
+                        </select>
+                      </div>
+                    </>
+                  ) : (
+                    /* Other food types: flexible can entry */
+                    <div className="flex gap-3">
+                      <input
+                        type="number"
+                        step="1"
+                        min="1"
+                        placeholder="24"
+                        value={canQty}
+                        onChange={(e) => setCanQty(e.target.value)}
+                        className="flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400"
+                      />
+                      <span className="flex items-center text-slate-600 dark:text-slate-400">×</span>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0.1"
+                        placeholder="5.5"
+                        value={canOz}
+                        onChange={(e) => setCanOz(e.target.value)}
+                        className="flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400"
+                      />
+                      <span className="flex items-center text-slate-600 dark:text-slate-400 text-sm">oz</span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -350,20 +424,37 @@ export default function AddFoodEntryModal({ availablePets, onClose, onComplete }
               </div>
             </div>
 
-            {/* Cups Per Day */}
+            {/* Cups/Cans Per Day */}
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Cups Per Day <span className="text-red-500">*</span>
+                {foodType === 'wet' ? 'Cans Per Day' : 'Cups Per Day'} <span className="text-red-500">*</span>
               </label>
-              <input
-                type="number"
-                step="0.25"
-                min="0.25"
-                placeholder="2.5"
-                value={cupsPerDay}
-                onChange={(e) => setCupsPerDay(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400"
-              />
+              {foodType === 'wet' ? (
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0.5"
+                  placeholder="1.5"
+                  value={cansPerDay}
+                  onChange={(e) => setCansPerDay(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400"
+                />
+              ) : (
+                <input
+                  type="number"
+                  step="0.25"
+                  min="0.25"
+                  placeholder="2.5"
+                  value={cupsPerDay}
+                  onChange={(e) => setCupsPerDay(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400"
+                />
+              )}
+              {foodType === 'wet' && cansPerDay && (
+                <div className="mt-2 text-sm text-emerald-600 dark:text-emerald-400 font-medium">
+                  = {finalCupsPerDay.toFixed(2)} cups/day
+                </div>
+              )}
             </div>
 
             {/* Start Date */}
