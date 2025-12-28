@@ -153,80 +153,125 @@ export default function TreatsTrackingDashboard({ userId }: { userId: string }) 
           </button>
         </div>
       ) : (
-        <div className="space-y-4">
-          {treats.map(treat => (
-            <div
-              key={treat.id}
-              className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+        <div className="grid gap-4 md:grid-cols-2">
+          {treats.map(treat => {
+            const pet = treat.pet_id ? pets.find(p => p.id === treat.pet_id) : null
+            const purchaseDate = new Date(treat.purchase_date)
+            const formattedDate = purchaseDate.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric'
+            })
+
+            return (
+              <div
+                key={treat.id}
+                className="relative bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-700 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] overflow-hidden"
+              >
+                {/* Subtle gradient background */}
+                <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/30 via-transparent to-transparent dark:from-emerald-900/10 pointer-events-none" />
+
+                {/* Header with Pet Info and Actions */}
+                <div className="relative flex items-start gap-3 mb-4">
+                  {/* Pet Photo/Icon */}
+                  <div className="flex-shrink-0">
+                    {pet?.photo_url ? (
+                      <img
+                        src={pet.photo_url}
+                        alt={pet.name}
+                        className="w-10 h-10 rounded-full object-cover border-2 border-slate-200 dark:border-slate-700"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-lg border-2 border-slate-200 dark:border-slate-700">
+                        🐾
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Title and Pet Name */}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-bold text-lg text-slate-900 dark:text-white truncate mb-1" title={treat.item_name}>
                       {treat.item_name}
-                    </h3>
+                    </h4>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      {treat.petName || 'All Pets'}
+                    </p>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => handleDelete(treat.id)}
+                      className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-red-600 dark:text-red-400"
+                      title="Delete treat"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Cost Highlight */}
+                <div className="relative rounded-xl p-4 mb-4 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-200 dark:border-emerald-800">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-emerald-700 dark:text-emerald-400">
+                      ${treat.amount.toFixed(2)}
+                    </span>
                     {treat.is_subscription && (
-                      <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-medium rounded">
-                        Subscription
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-600 text-white text-xs font-semibold">
+                        📦 Subscription
                       </span>
                     )}
                   </div>
-
-                  <div className="space-y-1 text-sm text-slate-600 dark:text-slate-400">
-                    <div>
-                      <span className="font-medium">Pet:</span>{' '}
-                      {treat.petName || 'All Pets'}
+                  {treat.is_subscription && treat.subscription_frequency_days && (
+                    <div className="text-xs text-emerald-700 dark:text-emerald-400 mt-1 font-medium">
+                      {treat.subscription_frequency_days === 7
+                        ? 'Weekly'
+                        : treat.subscription_frequency_days === 14
+                        ? 'Every 2 Weeks'
+                        : 'Monthly'}
                     </div>
-                    <div>
-                      <span className="font-medium">Cost:</span>{' '}
-                      ${treat.amount.toFixed(2)}
-                    </div>
-                    <div>
-                      <span className="font-medium">Purchased:</span>{' '}
-                      {new Date(treat.purchase_date).toLocaleDateString()}
-                    </div>
-                    {treat.vendor && (
-                      <div>
-                        <span className="font-medium">Vendor:</span>{' '}
-                        {treat.vendor}
-                      </div>
-                    )}
-                    {treat.is_subscription && treat.subscription_frequency_days && (
-                      <div>
-                        <span className="font-medium">Frequency:</span>{' '}
-                        {treat.subscription_frequency_days === 7
-                          ? 'Weekly'
-                          : treat.subscription_frequency_days === 14
-                          ? 'Every 2 Weeks'
-                          : 'Monthly'}
-                      </div>
-                    )}
-                    {treat.reorder_url && (
-                      <div>
-                        <a
-                          href={treat.reorder_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-emerald-600 hover:text-emerald-700 underline"
-                        >
-                          Reorder Link →
-                        </a>
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleDelete(treat.id)}
-                    className="px-3 py-1.5 text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border border-red-300 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                  >
-                    Delete
-                  </button>
+                {/* Details */}
+                <div className="relative space-y-2 text-sm">
+                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span>Purchased {formattedDate}</span>
+                  </div>
+
+                  {treat.vendor && (
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                      </svg>
+                      <span>{treat.vendor}</span>
+                    </div>
+                  )}
+
+                  {treat.reorder_url && (
+                    <div className="pt-2">
+                      <a
+                        href={treat.reorder_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm hover:shadow-md transition-all duration-200"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                        <span>Reorder</span>
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
