@@ -533,7 +533,7 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                   <span className="text-2xl font-semibold text-emerald-100 ml-2">/month</span>
                 </div>
                 <div className="text-sm text-emerald-100 font-medium">
-                  {petFoodStats.length} {petFoodStats.length === 1 ? 'pet' : 'pets'} • ${(householdTotal / 30).toFixed(2)}/day
+                  {petGroups.length} {petGroups.length === 1 ? 'pet' : 'pets'} • ${(householdTotal / 30).toFixed(2)}/day
                 </div>
               </div>
               <div className="text-7xl opacity-30 hidden md:block">🍽️</div>
