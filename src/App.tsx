@@ -87,72 +87,6 @@ export default function App() {
   return <MainApp />
 }
 
-// Coming Soon: Complete Pet Cost Tracking Component
-const ComingSoonExpenses = () => {
-  const demoExpenses = [
-    { date: 'Dec 1', icon: '🍖', vendor: 'Chewy - Dog Food', amount: 67.99 },
-    { date: 'Dec 5', icon: '✂️', vendor: 'Petco Grooming', amount: 45.00 },
-    { date: 'Dec 8', icon: '🎓', vendor: 'Dogs Trained Right', amount: 150.00 },
-    { date: 'Dec 12', icon: '💊', vendor: 'Medication Refill', amount: 32.50 },
-  ]
-
-  const total = demoExpenses.reduce((sum, exp) => sum + exp.amount, 0)
-
-  return (
-    <div className="mt-8 opacity-70">
-      <div className="bg-white dark:bg-slate-800 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xl">📊</span>
-              <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200">
-                COMING SOON: Complete Pet Cost Tracking
-              </h3>
-              <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded-full">
-                Preview
-              </span>
-            </div>
-            <p className="text-sm text-slate-500 mt-1 italic">
-              "QuickBooks for your pets - Track EVERYTHING"
-            </p>
-          </div>
-        </div>
-
-        {/* Expense List */}
-        <div className="space-y-3 mb-4">
-          {demoExpenses.map((expense, i) => (
-            <div key={i} className="flex items-center justify-between py-2 border-b border-slate-200 dark:border-slate-700 last:border-0">
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-slate-400 w-12">{expense.date}</span>
-                <span className="text-lg">{expense.icon}</span>
-                <span className="text-slate-600 dark:text-slate-300">{expense.vendor}</span>
-              </div>
-              <span className="font-medium text-slate-700 dark:text-slate-200">
-                ${expense.amount.toFixed(2)}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* Total */}
-        <div className="flex justify-between items-center pt-3 border-t-2 border-slate-300 dark:border-slate-600">
-          <span className="font-medium text-slate-600 dark:text-slate-300">
-            Monthly Non-Vet Expenses:
-          </span>
-          <span className="text-lg font-bold text-slate-700 dark:text-slate-200">
-            ${total.toFixed(2)}
-          </span>
-        </div>
-
-        {/* Feedback prompt */}
-        <p className="text-xs text-slate-400 mt-3 text-center">
-          Want this feature? Let us know! 💬
-        </p>
-      </div>
-    </div>
-  )
-}
 
 // Main app component with all the hooks
 function MainApp() {
@@ -1469,7 +1403,7 @@ function MainApp() {
           <div className="flex flex-col items-center justify-center mb-1 md:mb-6">
             <img
               src="/pch-logo.png"
-              alt="Pet Claim Helper"
+              alt="Pet Cost Helper"
               className="w-[70vw] max-w-[320px] md:w-[90vw] md:max-w-[500px] h-auto object-contain mt-1 mb-0 md:mt-0 md:mb-0"
             />
 
@@ -1508,8 +1442,7 @@ function MainApp() {
             })()}
 
             <div className="text-base md:text-lg font-bold text-gray-500 dark:text-gray-400 text-center max-w-xl px-4 leading-snug mt-1 mb-3 md:mt-0 md:mb-0">
-              <div>Track Vet Bills. File Pet Insurance Instantly.</div>
-              <div>Get Paid Faster.</div>
+              <div>Know what your pets actually cost you.</div>
             </div>
           </div>
           {/* Navigation row - unified for mobile and desktop */}
@@ -1572,7 +1505,7 @@ function MainApp() {
             )}
             {authView === 'app' && (
               <a
-                href={`mailto:support@petclaimhelper.com?subject=Pet Claim Helper Support Request&body=Hi Pet Claim Helper Team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0A----%0D%0AUser: ${userEmail || 'Not logged in'}%0D%0AUser ID: ${userId || 'N/A'}`}
+                href={`mailto:support@petclaimhelper.com?subject=Pet Cost Helper Support Request&body=Hi Pet Cost Helper Team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0A----%0D%0AUser: ${userEmail || 'Not logged in'}%0D%0AUser ID: ${userId || 'N/A'}`}
                 className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow"
                 title="Need help? Contact support"
               >
@@ -3311,14 +3244,12 @@ function MainApp() {
               </div>
             )}
 
-            {/* Coming Soon: Complete Pet Cost Tracking */}
-            <ComingSoonExpenses />
           </section>
         )}
 
         {authView === 'app' && (
           <footer className="mx-auto max-w-3xl text-center py-10 text-xs text-slate-500 dark:text-slate-400">
-            © {new Date().getFullYear()} Pet Claim Helper
+            © {new Date().getFullYear()} Pet Cost Helper
             </footer> 
           )}
          
