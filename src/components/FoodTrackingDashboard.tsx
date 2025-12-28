@@ -56,23 +56,38 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true)
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([])
   const [pets, setPets] = useState<Pet[]>([])
+  const [treats, setTreats] = useState<any[]>([])
   const [showAddFood, setShowAddFood] = useState(false)
   const [editingEntry, setEditingEntry] = useState<{ entry: FoodEntry; petName: string } | null>(null)
   const [refillingEntry, setRefillingEntry] = useState<{ entryId: string; petName: string; foodName: string; currentCost: number } | null>(null)
 
+  // Month selection state
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), 1)
+  })
+
   const loadData = async () => {
     setLoading(true)
     try {
-      const [entriesRes, petsRes] = await Promise.all([
+      const [entriesRes, petsRes, treatsRes] = await Promise.all([
         supabase.from('food_entries').select('*').order('created_at', { ascending: false }),
-        supabase.from('pets').select('id, name, species, photo_url').eq('user_id', userId)
+        supabase.from('pets').select('id, name, species, photo_url').eq('user_id', userId),
+        supabase
+          .from('expenses')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('category', 'food')
+          .eq('subcategory', 'treats')
       ])
 
       if (entriesRes.error) throw entriesRes.error
       if (petsRes.error) throw petsRes.error
+      if (treatsRes.error) throw treatsRes.error
 
       setFoodEntries((entriesRes.data || []) as FoodEntry[])
       setPets((petsRes.data || []) as Pet[])
+      setTreats(treatsRes.data || [])
     } catch (error: any) {
       console.error('Error loading food tracking data:', error)
     } finally {
@@ -174,8 +189,24 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
   }, [petFoodStats])
 
   const householdTotal = useMemo(() => {
-    return petFoodStats.reduce((sum, stat) => sum + stat.costPerMonth, 0)
-  }, [petFoodStats])
+    // Get days in selected month
+    const year = selectedMonth.getFullYear()
+    const month = selectedMonth.getMonth()
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+
+    // Food cost: consumption-based (cost per day × days in month)
+    const foodTotal = petFoodStats.reduce((sum, stat) => sum + (stat.costPerDay * daysInMonth), 0)
+
+    // Treats cost: actual purchases in selected month
+    const treatsTotal = treats
+      .filter(treat => {
+        const purchaseDate = new Date(treat.purchase_date)
+        return purchaseDate.getFullYear() === year && purchaseDate.getMonth() === month
+      })
+      .reduce((sum, treat) => sum + treat.amount, 0)
+
+    return foodTotal + treatsTotal
+  }, [petFoodStats, treats, selectedMonth])
 
   const alertCount = useMemo(() => {
     return petFoodStats.filter(stat => stat.statusColor === '🟡' || stat.statusColor === '🔴' || stat.hasGap).length
@@ -187,6 +218,23 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
 
   // All pets are available for adding food (multiple foods per pet allowed)
   const availablePets = pets
+
+  // Month navigation handlers
+  const handlePreviousMonth = () => {
+    setSelectedMonth(prev => {
+      const newDate = new Date(prev)
+      newDate.setMonth(newDate.getMonth() - 1)
+      return newDate
+    })
+  }
+
+  const handleNextMonth = () => {
+    setSelectedMonth(prev => {
+      const newDate = new Date(prev)
+      newDate.setMonth(newDate.getMonth() + 1)
+      return newDate
+    })
+  }
 
   const handleDelete = async (entryId: string, petName: string) => {
     if (!confirm(`Remove food entry for ${petName}? This cannot be undone.`)) return
@@ -508,7 +556,7 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
         </div>
       )}
 
-      {/* Household Total - Premium Card */}
+      {/* Food & Consumables Total - Premium Card */}
       {petFoodStats.length > 0 && (
         <div className="relative bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 rounded-2xl p-[2px] shadow-2xl hover:shadow-emerald-500/50 transition-all duration-300">
           <div className="relative bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-8 overflow-hidden">
@@ -519,24 +567,54 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
             </div>
 
             <div className="relative flex items-center justify-between">
-              <div>
+              <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
-                  <svg className="w-5 h-5 text-emerald-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
-                  </svg>
                   <div className="text-sm font-bold text-emerald-100 uppercase tracking-wider">
-                    Household Food Budget
+                    Food & Consumables
                   </div>
                 </div>
+
+                {/* Month Navigation */}
+                <div className="flex items-center gap-4 mb-3">
+                  <button
+                    onClick={handlePreviousMonth}
+                    className="p-1 hover:bg-emerald-700/50 rounded transition-colors"
+                    aria-label="Previous month"
+                  >
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <div className="text-xl font-bold text-white min-w-[180px] text-center">
+                    {selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </div>
+                  <button
+                    onClick={handleNextMonth}
+                    className="p-1 hover:bg-emerald-700/50 rounded transition-colors"
+                    aria-label="Next month"
+                  >
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+
                 <div className="text-5xl font-black text-white mb-1">
                   ${householdTotal.toFixed(2)}
-                  <span className="text-2xl font-semibold text-emerald-100 ml-2">/month</span>
                 </div>
                 <div className="text-sm text-emerald-100 font-medium">
-                  {petGroups.length} {petGroups.length === 1 ? 'pet' : 'pets'} • ${(householdTotal / 30).toFixed(2)}/day
+                  {petGroups.length} {petGroups.length === 1 ? 'pet' : 'pets'} • ${(householdTotal / new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0).getDate()).toFixed(2)}/day
                 </div>
               </div>
-              <div className="text-7xl opacity-30 hidden md:block">🍽️</div>
+
+              {/* PCH Logo */}
+              <div className="hidden md:block">
+                <img
+                  src="/pch-logo.png"
+                  alt="Pet Cost Helper"
+                  className="w-10 h-10 opacity-50"
+                />
+              </div>
             </div>
           </div>
         </div>
