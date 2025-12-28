@@ -52,7 +52,20 @@ const CUPS_PER_LB = {
   cooked: 2.5
 }
 
-export default function FoodTrackingDashboard({ userId }: { userId: string }) {
+type FoodTrackingDashboardProps = {
+  userId: string
+  // Optional props for when used within CategorySection
+  isWrapped?: boolean
+  onMonthChange?: (month: Date) => void
+  onTotalCalculated?: (total: number, petCount: number, daysInMonth: number) => void
+}
+
+export default function FoodTrackingDashboard({
+  userId,
+  isWrapped = false,
+  onMonthChange,
+  onTotalCalculated
+}: FoodTrackingDashboardProps) {
   const [loading, setLoading] = useState(true)
   const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([])
   const [pets, setPets] = useState<Pet[]>([])
@@ -205,8 +218,15 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
       })
       .reduce((sum, treat) => sum + treat.amount, 0)
 
-    return foodTotal + treatsTotal
-  }, [petFoodStats, treats, selectedMonth])
+    const total = foodTotal + treatsTotal
+
+    // Notify parent component of total if callback provided
+    if (onTotalCalculated) {
+      onTotalCalculated(total, petGroups.length, daysInMonth)
+    }
+
+    return total
+  }, [petFoodStats, treats, selectedMonth, onTotalCalculated, petGroups.length])
 
   const alertCount = useMemo(() => {
     return petFoodStats.filter(stat => stat.statusColor === '🟡' || stat.statusColor === '🔴' || stat.hasGap).length
@@ -224,6 +244,7 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
     setSelectedMonth(prev => {
       const newDate = new Date(prev)
       newDate.setMonth(newDate.getMonth() - 1)
+      if (onMonthChange) onMonthChange(newDate)
       return newDate
     })
   }
@@ -232,6 +253,7 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
     setSelectedMonth(prev => {
       const newDate = new Date(prev)
       newDate.setMonth(newDate.getMonth() + 1)
+      if (onMonthChange) onMonthChange(newDate)
       return newDate
     })
   }
@@ -269,22 +291,24 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Food Tracking</h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Know what you're spending. Know when to reorder. Never run out.
-          </p>
+      {/* Header - Only show if not wrapped */}
+      {!isWrapped && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Food Tracking</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+              Know what you're spending. Know when to reorder. Never run out.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowAddFood(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
+          >
+            <span className="text-xl">+</span>
+            Add Food
+          </button>
         </div>
-        <button
-          onClick={() => setShowAddFood(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
-        >
-          <span className="text-xl">+</span>
-          Add Food
-        </button>
-      </div>
+      )}
 
       {/* Alert Summary - Premium Banner */}
       {alertCount > 0 && (
@@ -552,8 +576,8 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
         </div>
       )}
 
-      {/* Food & Consumables Total - Premium Card */}
-      {petFoodStats.length > 0 && (
+      {/* Food & Consumables Total - Only show if not wrapped */}
+      {!isWrapped && petFoodStats.length > 0 && (
         <div className="relative bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 rounded-2xl p-[2px] shadow-2xl hover:shadow-emerald-500/50 transition-all duration-300">
           <div className="relative bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-8">
             <div className="flex items-center justify-between gap-8">

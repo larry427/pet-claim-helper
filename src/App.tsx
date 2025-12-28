@@ -13,6 +13,9 @@ import FinancialSummary from './components/FinancialSummary'
 import MedicationsDashboard from './components/MedicationsDashboard'
 import FoodTrackingDashboard from './components/FoodTrackingDashboard'
 import TreatsTrackingDashboard from './components/TreatsTrackingDashboard'
+import CategorySection from './components/CategorySection'
+import AddFoodEntryModal from './components/AddFoodEntryModal'
+import AddTreatModal from './components/AddTreatModal'
 import DoseMarkingPage from './components/DoseMarkingPage'
 import DoseSuccess from './components/DoseSuccess'
 import ClaimSubmissionModal from './components/ClaimSubmissionModal'
@@ -160,6 +163,15 @@ function MainApp() {
   const [finPeriod, setFinPeriod] = useState<'all' | '2026' | '2025' | '2024' | 'last12'>('all')
   const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications' | 'food' | 'admin'>('app')
   const [isAdmin, setIsAdmin] = useState(false)
+
+  // Food & Consumables Category Section State
+  const [foodMonth, setFoodMonth] = useState(() => {
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), 1)
+  })
+  const [foodTotal, setFoodTotal] = useState({ amount: 0, petCount: 0, daysInMonth: 30 })
+  const [showAddFood, setShowAddFood] = useState(false)
+  const [showAddTreat, setShowAddTreat] = useState(false)
   const [editingClaim, setEditingClaim] = useState<any | null>(null)
   const [editPetId, setEditPetId] = useState<string | null>(null)
   const [editServiceDate, setEditServiceDate] = useState('')
@@ -2108,23 +2120,85 @@ function MainApp() {
         </section>
         )}
 
-        {/* Food Tracking Section - NEW! */}
+        {/* Food & Consumables Category Section */}
         {authView === 'app' && (
-          <section className="mx-auto mt-10 max-w-6xl">
-            <div className="flex items-center gap-3 mb-6">
-              <h2 className="text-xl font-semibold">🍖 Food Tracking</h2>
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold shadow-sm animate-pulse">
-                NEW ✨
-              </span>
-            </div>
-            <FoodTrackingDashboard userId={userId} />
-          </section>
-        )}
+          <section className="mx-auto max-w-6xl px-4">
+            <CategorySection
+              icon="🍖"
+              title="Food & Consumables"
+              actionButton={{
+                label: "Add Food",
+                onClick: () => setShowAddFood(true)
+              }}
+              footerTotal={{
+                amount: foodTotal.amount,
+                selectedMonth: foodMonth,
+                onPreviousMonth: () => {
+                  setFoodMonth(prev => {
+                    const newDate = new Date(prev)
+                    newDate.setMonth(newDate.getMonth() - 1)
+                    return newDate
+                  })
+                },
+                onNextMonth: () => {
+                  setFoodMonth(prev => {
+                    const newDate = new Date(prev)
+                    newDate.setMonth(newDate.getMonth() + 1)
+                    return newDate
+                  })
+                },
+                petCount: foodTotal.petCount,
+                daysInMonth: foodTotal.daysInMonth
+              }}
+            >
+              <FoodTrackingDashboard
+                userId={userId}
+                isWrapped={true}
+                onTotalCalculated={(total, petCount, daysInMonth) => {
+                  setFoodTotal({ amount: total, petCount, daysInMonth })
+                }}
+              />
+              <TreatsTrackingDashboard
+                userId={userId}
+                isWrapped={true}
+                onShowAddTreat={() => setShowAddTreat(true)}
+              />
+            </CategorySection>
 
-        {/* Treats Tracking */}
-        {authView === 'app' && (
-          <section className="mx-auto max-w-6xl px-4 mt-12">
-            <TreatsTrackingDashboard userId={userId} />
+            {/* Add Food Modal */}
+            {showAddFood && pets.length > 0 && (
+              <AddFoodEntryModal
+                availablePets={pets.map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  species: p.species,
+                  photo_url: p.photo || null
+                }))}
+                onClose={() => setShowAddFood(false)}
+                onComplete={() => {
+                  setShowAddFood(false)
+                  setDataRefreshToken(prev => prev + 1)
+                }}
+              />
+            )}
+
+            {/* Add Treat Modal */}
+            {showAddTreat && pets.length > 0 && userId && (
+              <AddTreatModal
+                pets={pets.map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  species: p.species,
+                  photo_url: p.photo || null
+                }))}
+                userId={userId}
+                onClose={() => setShowAddTreat(false)}
+                onComplete={() => {
+                  setShowAddTreat(false)
+                  setDataRefreshToken(prev => prev + 1)
+                }}
+              />
+            )}
           </section>
         )}
 

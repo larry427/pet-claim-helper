@@ -14,7 +14,17 @@ type TreatExpense = Expense & {
   petName: string | null
 }
 
-export default function TreatsTrackingDashboard({ userId }: { userId: string }) {
+type TreatsTrackingDashboardProps = {
+  userId: string
+  isWrapped?: boolean
+  onShowAddTreat?: () => void
+}
+
+export default function TreatsTrackingDashboard({
+  userId,
+  isWrapped = false,
+  onShowAddTreat
+}: TreatsTrackingDashboardProps) {
   const [loading, setLoading] = useState(true)
   const [treats, setTreats] = useState<TreatExpense[]>([])
   const [pets, setPets] = useState<Pet[]>([])
@@ -122,22 +132,44 @@ export default function TreatsTrackingDashboard({ userId }: { userId: string }) 
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">🍖 Treats</h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Track treats, chews, and other consumables
-          </p>
+      {/* Section Divider - Only show if wrapped */}
+      {isWrapped && (
+        <div className="flex items-center justify-between py-4 border-t border-slate-200 dark:border-slate-700 mt-8">
+          <div className="flex items-center gap-3 flex-1">
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-600 to-transparent"></div>
+            <h3 className="text-sm font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              Treats
+            </h3>
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-600 to-transparent"></div>
+          </div>
+          <button
+            onClick={onShowAddTreat || (() => setShowAddTreat(true))}
+            className="ml-4 inline-flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium transition-colors"
+          >
+            <span className="text-lg">+</span>
+            <span>Add Treat</span>
+          </button>
         </div>
-        <button
-          onClick={() => setShowAddTreat(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
-        >
-          <span className="text-xl">+</span>
-          Add Treat
-        </button>
-      </div>
+      )}
+
+      {/* Header - Only show if not wrapped */}
+      {!isWrapped && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">🍖 Treats</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+              Track treats, chews, and other consumables
+            </p>
+          </div>
+          <button
+            onClick={() => setShowAddTreat(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
+          >
+            <span className="text-xl">+</span>
+            Add Treat
+          </button>
+        </div>
+      )}
 
       {/* Treat Cards */}
       {treats.length === 0 ? (
@@ -258,8 +290,8 @@ export default function TreatsTrackingDashboard({ userId }: { userId: string }) 
         </div>
       )}
 
-      {/* Totals */}
-      {treats.length > 0 && (
+      {/* Totals - Only show if not wrapped */}
+      {!isWrapped && treats.length > 0 && (
         <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Spending Summary</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
