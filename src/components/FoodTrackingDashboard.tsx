@@ -451,10 +451,10 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                       </div>
                       <div>
                         <div className="text-xs font-bold uppercase tracking-wider mb-1 opacity-75">
-                          {stat.daysLeft < 3 ? '⚠️ Urgent' : stat.daysLeft < 7 ? '⏰ Soon' : '✓ Stocked'}
+                          {stat.daysLeft < 3 ? '⚠️ Running Out' : stat.daysLeft < 7 ? '⏰ Getting Low' : '✓ All Good'}
                         </div>
                         <div className="text-sm font-semibold">
-                          {stat.daysLeft < 3 ? 'Order Now' : stat.daysLeft < 7 ? 'Order Soon' : 'Good Stock'}
+                          {stat.daysLeft < 3 ? 'Order Now' : stat.daysLeft < 7 ? 'Order Soon' : 'Plenty Left'}
                         </div>
                       </div>
                     </div>
