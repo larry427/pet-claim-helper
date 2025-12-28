@@ -546,7 +546,7 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
 
               {/* Details */}
               <div className="text-xs text-slate-500 dark:text-slate-400 pt-3 border-t border-slate-200 dark:border-slate-700">
-                {stat.entry.cups_per_day} cups/day • {stat.daysPerBag} days per bag • {stat.entry.food_type} food
+                {stat.entry.cups_per_day} cups/day • {stat.daysPerBag} days • {stat.entry.food_type} food
               </div>
             </div>
                 ))}
