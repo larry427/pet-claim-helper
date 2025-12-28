@@ -83,29 +83,32 @@ export default function TreatsTrackingDashboard({ userId }: { userId: string }) 
     }
   }
 
-  // Calculate totals
+  // Calculate totals based on actual spending
   const totals = useMemo(() => {
+    const now = new Date()
+    const currentMonth = now.getMonth()
+    const currentYear = now.getFullYear()
+
     const total = treats.reduce((sum, treat) => sum + treat.amount, 0)
 
-    // Calculate monthly and yearly based on subscriptions
-    let monthlyTotal = 0
-    let yearlyTotal = 0
+    const thisMonth = treats
+      .filter(treat => {
+        const purchaseDate = new Date(treat.purchase_date)
+        return purchaseDate.getMonth() === currentMonth && purchaseDate.getFullYear() === currentYear
+      })
+      .reduce((sum, treat) => sum + treat.amount, 0)
 
-    treats.forEach(treat => {
-      if (treat.is_subscription && treat.subscription_frequency_days) {
-        const perDay = treat.amount / treat.subscription_frequency_days
-        monthlyTotal += perDay * 30
-        yearlyTotal += perDay * 365
-      } else {
-        // One-time purchases - estimate monthly based on purchase frequency
-        // For simplicity, we'll just add them to the total but not monthly recurring
-      }
-    })
+    const thisYear = treats
+      .filter(treat => {
+        const purchaseDate = new Date(treat.purchase_date)
+        return purchaseDate.getFullYear() === currentYear
+      })
+      .reduce((sum, treat) => sum + treat.amount, 0)
 
     return {
       total,
-      monthly: monthlyTotal,
-      yearly: yearlyTotal
+      thisMonth,
+      thisYear
     }
   }, [treats])
 
@@ -231,17 +234,23 @@ export default function TreatsTrackingDashboard({ userId }: { userId: string }) 
       {treats.length > 0 && (
         <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Spending Summary</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <div className="text-sm text-slate-600 dark:text-slate-400">Monthly Spend (Subscriptions)</div>
+              <div className="text-sm text-slate-600 dark:text-slate-400">Total Spent</div>
               <div className="text-2xl font-bold text-slate-900 dark:text-white">
-                ${totals.monthly.toFixed(2)}
+                ${totals.total.toFixed(2)}
               </div>
             </div>
             <div>
-              <div className="text-sm text-slate-600 dark:text-slate-400">Yearly Spend (Subscriptions)</div>
+              <div className="text-sm text-slate-600 dark:text-slate-400">This Month</div>
               <div className="text-2xl font-bold text-slate-900 dark:text-white">
-                ${totals.yearly.toFixed(2)}
+                ${totals.thisMonth.toFixed(2)}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-slate-600 dark:text-slate-400">This Year</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                ${totals.thisYear.toFixed(2)}
               </div>
             </div>
           </div>
