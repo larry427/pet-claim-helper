@@ -153,7 +153,7 @@ export default function TreatsTrackingDashboard({ userId }: { userId: string }) 
           </button>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {treats.map(treat => {
             const pet = treat.pet_id ? pets.find(p => p.id === treat.pet_id) : null
             const purchaseDate = new Date(treat.purchase_date)
@@ -166,43 +166,29 @@ export default function TreatsTrackingDashboard({ userId }: { userId: string }) 
             return (
               <div
                 key={treat.id}
-                className="relative bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-700 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] overflow-hidden"
+                className="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow"
               >
-                {/* Subtle gradient background */}
-                <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/30 via-transparent to-transparent dark:from-emerald-900/10 pointer-events-none" />
-
-                {/* Header with Pet Info and Actions */}
-                <div className="relative flex items-start gap-3 mb-4">
-                  {/* Pet Photo/Icon */}
-                  <div className="flex-shrink-0">
-                    {pet?.photo_url ? (
-                      <img
-                        src={pet.photo_url}
-                        alt={pet.name}
-                        className="w-10 h-10 rounded-full object-cover border-2 border-slate-200 dark:border-slate-700"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-lg border-2 border-slate-200 dark:border-slate-700">
-                        🐾
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Title and Pet Name */}
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-lg text-slate-900 dark:text-white truncate mb-1" title={treat.item_name}>
-                      {treat.item_name}
-                    </h4>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                {/* Header: Paw + Pet Name | Edit + Delete */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🐾</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">
                       {treat.petName || 'All Pets'}
-                    </p>
+                    </span>
                   </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-1 flex-shrink-0">
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setEditingTreat(treat)}
+                      className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-500 dark:text-slate-400"
+                      title="Edit treat"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
                     <button
                       onClick={() => handleDelete(treat.id)}
-                      className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-red-600 dark:text-red-400"
+                      className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400"
                       title="Delete treat"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -212,63 +198,60 @@ export default function TreatsTrackingDashboard({ userId }: { userId: string }) 
                   </div>
                 </div>
 
-                {/* Cost Highlight */}
-                <div className="relative rounded-xl p-4 mb-4 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-200 dark:border-emerald-800">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-black text-emerald-700 dark:text-emerald-400">
-                      ${treat.amount.toFixed(2)}
-                    </span>
-                    {treat.is_subscription && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-600 text-white text-xs font-semibold">
-                        📦 Subscription
-                      </span>
+                {/* Body: Treat Name + Vendor | Cost Badge */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1 min-w-0 pr-3">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">
+                      {treat.item_name}
+                    </h3>
+                    {treat.vendor && (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        {treat.vendor}
+                      </p>
                     )}
                   </div>
-                  {treat.is_subscription && treat.subscription_frequency_days && (
-                    <div className="text-xs text-emerald-700 dark:text-emerald-400 mt-1 font-medium">
-                      {treat.subscription_frequency_days === 7
+                  <div className="flex-shrink-0">
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold text-lg">
+                      ${treat.amount.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Date */}
+                <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 mb-3">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span>{formattedDate}</span>
+                </div>
+
+                {/* Subscription Info */}
+                {treat.is_subscription && (
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 text-xs font-semibold">
+                      🔄 {treat.subscription_frequency_days === 7
                         ? 'Weekly'
                         : treat.subscription_frequency_days === 14
                         ? 'Every 2 Weeks'
                         : 'Monthly'}
-                    </div>
-                  )}
-                </div>
-
-                {/* Details */}
-                <div className="relative space-y-2 text-sm">
-                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span>Purchased {formattedDate}</span>
+                    </span>
                   </div>
+                )}
 
-                  {treat.vendor && (
-                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                      </svg>
-                      <span>{treat.vendor}</span>
-                    </div>
-                  )}
-
-                  {treat.reorder_url && (
-                    <div className="pt-2">
-                      <a
-                        href={treat.reorder_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm hover:shadow-md transition-all duration-200"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                        <span>Reorder</span>
-                      </a>
-                    </div>
-                  )}
-                </div>
+                {/* Reorder Link */}
+                {treat.reorder_url && (
+                  <a
+                    href={treat.reorder_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium"
+                  >
+                    <span>Reorder</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
+                )}
               </div>
             )
           })}
@@ -310,6 +293,19 @@ export default function TreatsTrackingDashboard({ userId }: { userId: string }) 
           onClose={() => setShowAddTreat(false)}
           onComplete={() => {
             setShowAddTreat(false)
+            loadData()
+          }}
+        />
+      )}
+
+      {editingTreat && (
+        <AddTreatModal
+          pets={pets}
+          userId={userId}
+          editTreat={editingTreat}
+          onClose={() => setEditingTreat(null)}
+          onComplete={() => {
+            setEditingTreat(null)
             loadData()
           }}
         />

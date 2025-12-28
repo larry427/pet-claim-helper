@@ -1,5 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { Expense } from '../types/expenses'
 
 type Pet = {
   id: string
@@ -11,22 +12,29 @@ type Pet = {
 type Props = {
   pets: Pet[]
   userId: string
+  editTreat?: Expense | null
   onClose: () => void
   onComplete: () => void
 }
 
-export default function AddTreatModal({ pets, userId, onClose, onComplete }: Props) {
+export default function AddTreatModal({ pets, userId, editTreat = null, onClose, onComplete }: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [petId, setPetId] = useState<string | null>(pets[0]?.id || null)
-  const [treatName, setTreatName] = useState('')
-  const [cost, setCost] = useState('')
-  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0])
-  const [vendor, setVendor] = useState('')
-  const [isSubscription, setIsSubscription] = useState(false)
-  const [frequency, setFrequency] = useState<'weekly' | 'bi-weekly' | 'monthly'>('monthly')
-  const [reorderUrl, setReorderUrl] = useState('')
+  const [petId, setPetId] = useState<string | null>(editTreat?.pet_id || pets[0]?.id || null)
+  const [treatName, setTreatName] = useState(editTreat?.item_name || '')
+  const [cost, setCost] = useState(editTreat?.amount.toString() || '')
+  const [purchaseDate, setPurchaseDate] = useState(editTreat?.purchase_date || new Date().toISOString().split('T')[0])
+  const [vendor, setVendor] = useState(editTreat?.vendor || '')
+  const [isSubscription, setIsSubscription] = useState(editTreat?.is_subscription || false)
+  const [frequency, setFrequency] = useState<'weekly' | 'bi-weekly' | 'monthly'>(
+    editTreat?.subscription_frequency_days === 7
+      ? 'weekly'
+      : editTreat?.subscription_frequency_days === 14
+      ? 'bi-weekly'
+      : 'monthly'
+  )
+  const [reorderUrl, setReorderUrl] = useState(editTreat?.reorder_url || '')
 
   const handleSubmit = async () => {
     setError(null)
@@ -55,23 +63,36 @@ export default function AddTreatModal({ pets, userId, onClose, onComplete }: Pro
           : 30
         : null
 
-      const { error: insertError } = await supabase
-        .from('expenses')
-        .insert({
-          user_id: userId,
-          pet_id: petId, // null for "All Pets"
-          category: 'food',
-          subcategory: 'treats',
-          item_name: treatName.trim(),
-          amount: parseFloat(cost),
-          purchase_date: purchaseDate,
-          vendor: vendor.trim() || null,
-          is_subscription: isSubscription,
-          subscription_frequency_days: frequencyDays,
-          reorder_url: isSubscription && reorderUrl.trim() ? reorderUrl.trim() : null
-        })
+      const data = {
+        user_id: userId,
+        pet_id: petId, // null for "All Pets"
+        category: 'food' as const,
+        subcategory: 'treats',
+        item_name: treatName.trim(),
+        amount: parseFloat(cost),
+        purchase_date: purchaseDate,
+        vendor: vendor.trim() || null,
+        is_subscription: isSubscription,
+        subscription_frequency_days: frequencyDays,
+        reorder_url: isSubscription && reorderUrl.trim() ? reorderUrl.trim() : null
+      }
 
-      if (insertError) throw insertError
+      if (editTreat) {
+        // Update existing treat
+        const { error: updateError } = await supabase
+          .from('expenses')
+          .update(data)
+          .eq('id', editTreat.id)
+
+        if (updateError) throw updateError
+      } else {
+        // Insert new treat
+        const { error: insertError } = await supabase
+          .from('expenses')
+          .insert(data)
+
+        if (insertError) throw insertError
+      }
 
       onComplete()
     } catch (e: any) {
@@ -88,7 +109,9 @@ export default function AddTreatModal({ pets, userId, onClose, onComplete }: Pro
       >
         {/* Header */}
         <div className="mb-6">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Add Treat Purchase</h2>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+            {editTreat ? 'Edit Treat Purchase' : 'Add Treat Purchase'}
+          </h2>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
             Track treats and consumables
           </p>
@@ -240,7 +263,7 @@ export default function AddTreatModal({ pets, userId, onClose, onComplete }: Pro
             disabled={saving}
             className="flex-1 px-4 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors disabled:opacity-50"
           >
-            {saving ? 'Adding...' : 'Add Treat'}
+            {saving ? (editTreat ? 'Saving...' : 'Adding...') : (editTreat ? 'Save Changes' : 'Add Treat')}
           </button>
         </div>
       </div>
