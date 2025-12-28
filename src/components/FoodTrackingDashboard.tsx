@@ -608,11 +608,11 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
               </div>
 
               {/* PCH Logo */}
-              <div className="flex-shrink-0 ml-6">
+              <div className="flex-shrink-0 ml-8 flex items-center">
                 <img
                   src="/pch-logo.png"
                   alt="Pet Cost Helper"
-                  className="w-20 h-20 opacity-80"
+                  className="w-[120px] h-[120px]"
                 />
               </div>
             </div>
