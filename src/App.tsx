@@ -2122,7 +2122,7 @@ function MainApp() {
         )}
 
         {/* Treats Tracking */}
-        {authView === 'app' && activeView === 'food' && userId && (
+        {authView === 'app' && (
           <section className="mx-auto max-w-6xl px-4 mt-12">
             <TreatsTrackingDashboard userId={userId} />
           </section>
