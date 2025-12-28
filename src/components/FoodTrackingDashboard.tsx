@@ -559,14 +559,9 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
       {/* Food & Consumables Total - Premium Card */}
       {petFoodStats.length > 0 && (
         <div className="relative bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 rounded-2xl p-[2px] shadow-2xl hover:shadow-emerald-500/50 transition-all duration-300">
-          <div className="relative bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-8 overflow-hidden">
-            {/* Decorative pattern */}
-            <div className="absolute inset-0 opacity-10">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-1/2 translate-x-1/2" />
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-white rounded-full translate-y-1/2 -translate-x-1/2" />
-            </div>
-
-            <div className="relative flex items-center justify-between">
+          <div className="relative bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-8">
+            <div className="flex items-center justify-between gap-8">
+              {/* Left Side: Content */}
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="text-sm font-bold text-emerald-100 uppercase tracking-wider">
@@ -607,12 +602,12 @@ export default function FoodTrackingDashboard({ userId }: { userId: string }) {
                 </div>
               </div>
 
-              {/* PCH Logo */}
-              <div className="flex-shrink-0 ml-8 flex items-center">
+              {/* Right Side: PCH Logo */}
+              <div className="flex-shrink-0 flex items-center">
                 <img
                   src="/pch-logo.png"
                   alt="Pet Cost Helper"
-                  className="w-[120px] h-[120px]"
+                  className="w-[180px] h-[180px]"
                 />
               </div>
             </div>
