@@ -12,6 +12,7 @@ import OnboardingModal from './components/OnboardingModal'
 import FinancialSummary from './components/FinancialSummary'
 import MedicationsDashboard from './components/MedicationsDashboard'
 import FoodTrackingDashboard from './components/FoodTrackingDashboard'
+import TreatsTrackingDashboard from './components/TreatsTrackingDashboard'
 import DoseMarkingPage from './components/DoseMarkingPage'
 import DoseSuccess from './components/DoseSuccess'
 import ClaimSubmissionModal from './components/ClaimSubmissionModal'
@@ -2117,6 +2118,13 @@ function MainApp() {
               </span>
             </div>
             <FoodTrackingDashboard userId={userId} />
+          </section>
+        )}
+
+        {/* Treats Tracking */}
+        {authView === 'app' && activeView === 'food' && userId && (
+          <section className="mx-auto max-w-6xl px-4 mt-12">
+            <TreatsTrackingDashboard userId={userId} />
           </section>
         )}
 
