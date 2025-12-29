@@ -1,9 +1,15 @@
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
-const supabase = createClient(
-  'https://cchmsrpvmwuzikwjdutv.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNjaG1zcnB2bXd1emlrd2pkdXR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY0NjU5NTQsImV4cCI6MjA1MjA0MTk1NH0.3X3Xuu1lv-30pLAR4IDhJHT-bpVlU0JaKHe1PQPbRWA'
-);
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error('Missing required environment variables: SUPABASE_URL or SUPABASE_ANON_KEY');
+  process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 (async () => {
   const { data, error } = await supabase
