@@ -1502,7 +1502,7 @@ function MainApp() {
                     setActiveView('medications')
                   }
                 }}
-                className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow"
+                className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2 md:px-3 py-1.5 text-xs font-medium shadow-sm hover:shadow"
               >
                 💊 Medications
               </button>
@@ -1641,7 +1641,7 @@ function MainApp() {
             <button
               type="button"
               onClick={() => setAddingPet(v => !v)}
-              className="inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm hover:shadow"
+              className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-sm font-medium shadow-sm hover:shadow"
             >
               + Add Pet
             </button>
@@ -1805,7 +1805,7 @@ function MainApp() {
               <div className="col-span-full text-sm text-slate-500 dark:text-slate-400">No pets saved yet. Click "+ Add Pet" to create one.</div>
             )}
             {pets.map(pet => (
-              <div key={pet.id} className={[ 'rounded-xl border p-6 text-left bg-white dark:bg-slate-900/60 shadow-sm relative', selectedPetId === pet.id ? 'border-emerald-400' : 'border-slate-200 dark:border-slate-800' ].join(' ')} style={{ border: `2px solid ${pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280')}` }}>
+              <div key={pet.id} className={[ 'rounded-xl border p-4 text-left shadow-sm relative transition-all', selectedPetId === pet.id ? 'bg-emerald-50/50 dark:bg-emerald-900/10 ring-2 ring-emerald-500 shadow-md' : 'bg-white dark:bg-slate-900/60' ].join(' ')} style={{ border: `${selectedPetId === pet.id ? '3px' : '2px'} solid ${selectedPetId === pet.id ? '#10b981' : (pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280'))}` }}>
                 {/* Camera button for photo upload - top right */}
                 <div className="absolute top-3 right-3 z-10">
                   <input
@@ -1849,17 +1849,17 @@ function MainApp() {
 
                 <div>
                   {/* Pet photo or fallback icon */}
-                  <div className="flex justify-center mb-4">
+                  <div className="flex justify-center mb-3">
                     {pet.photo_url ? (
                       <img
                         src={pet.photo_url}
                         alt={`${pet.name}'s photo`}
-                        className="w-32 h-32 rounded-full object-cover border-4 shadow-lg transition-transform hover:scale-105"
+                        className="w-24 h-24 rounded-full object-cover border-4 shadow-lg transition-transform hover:scale-105"
                         style={{ borderColor: pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280') }}
                       />
                     ) : (
                       <div
-                        className="w-32 h-32 rounded-full flex items-center justify-center text-6xl border-4 shadow-lg"
+                        className="w-24 h-24 rounded-full flex items-center justify-center text-5xl border-4 shadow-lg"
                         style={{ borderColor: pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280'), backgroundColor: pet.species === 'dog' ? '#EFF6FF' : pet.species === 'cat' ? '#FFF7ED' : '#F3F4F6' }}
                       >
                         {pet.species === 'dog' ? '🐕' : pet.species === 'cat' ? '🐱' : '🐾'}
@@ -1867,7 +1867,7 @@ function MainApp() {
                     )}
                   </div>
 
-                  <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex-1 text-center">
                       <div className="text-base font-semibold flex items-center justify-center gap-2">
                         <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280') }} />
@@ -1876,25 +1876,33 @@ function MainApp() {
                       <div className="text-sm text-slate-500 dark:text-slate-400 capitalize">{pet.species}</div>
                     </div>
                   </div>
-                  <div className="flex flex-col sm:flex-row items-stretch gap-3">
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => setSelectedPetId(pet.id)}
                       className={[
-                        'inline-flex items-center justify-center rounded-lg px-3 py-1.5 h-12 text-sm hover:shadow w-full sm:w-auto whitespace-nowrap',
+                        'inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium hover:shadow transition-all flex-1',
                         selectedPetId === pet.id
-                          ? (pet.species === 'dog'
-                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                              : 'bg-orange-600 hover:bg-orange-700 text-white')
-                          : 'border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900'
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                          : 'border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-emerald-400'
                       ].join(' ')}
                     >
-                      {selectedPetId === pet.id ? 'Selected' : 'Use This Pet'}
+                      {selectedPetId === pet.id && <span className="mr-1">✓</span>}
+                      {selectedPetId === pet.id ? 'Selected' : 'Select'}
                     </button>
-                    <button type="button" onClick={() => startEditPet(pet)} className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-200 w-full sm:w-auto px-3 whitespace-nowrap">Edit</button>
+                    <button
+                      type="button"
+                      onClick={() => startEditPet(pet)}
+                      className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                      title="Edit pet"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
-                <div className="mt-4 text-sm text-slate-700 dark:text-slate-300 space-y-1.5">
+                <div className="mt-3 text-sm text-slate-700 dark:text-slate-300 space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-slate-500">Insurance:</span>
                     {(() => {
@@ -2123,12 +2131,12 @@ function MainApp() {
 
         {/* Upload section */}
         {authView === 'app' && (
-        <section key="upload-section" className="mx-auto max-w-3xl text-center mt-8 px-2">
+        <section key="upload-section" className="mx-auto max-w-3xl text-center mt-6 px-2">
           <h2 className="text-2xl font-semibold">Upload Vet Bill</h2>
-          <div className="mt-4">
+          <div className="mt-3">
             <div
               className={[
-                'rounded-2xl border bg-white dark:bg-slate-900/60 shadow-sm p-6 sm:p-8 transition-colors',
+                'rounded-2xl border bg-white dark:bg-slate-900/60 shadow-sm p-5 sm:p-6 transition-colors',
                 isDragging
                   ? 'border-emerald-400 ring-2 ring-emerald-400/60 dark:ring-emerald-400/50 bg-emerald-50/40 dark:bg-emerald-900/10'
                   : 'border-slate-200 dark:border-slate-800'
@@ -2142,18 +2150,18 @@ function MainApp() {
                 <button
                   type="button"
                   onClick={handlePick}
-                  className="group relative w-full sm:w-auto h-16 rounded-xl border border-slate-300/70 dark:border-slate-700 bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 hover:from-white hover:to-white px-5 text-base sm:text-sm text-slate-800 dark:text-slate-100 shadow hover:shadow-lg transition"
+                  className="w-full sm:w-auto rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02]"
                 >
-                  <div className="flex items-center gap-3">
-                    <svg className="h-6 w-6 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <div className="flex items-center justify-center gap-3">
+                    <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                       <polyline points="17 8 12 3 7 8" />
                       <line x1="12" x2="12" y1="3" y2="15" />
                     </svg>
-                    <span className="font-medium">Upload Vet Bill (PDF or Photo)</span>
+                    <span>Upload Vet Bill</span>
                   </div>
                 </button>
-                <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">or drag & drop here</p>
+                <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">PDF or Photo • Drag & drop or click to browse</p>
 
                 <input
                   ref={inputRef}
