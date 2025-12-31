@@ -1455,7 +1455,7 @@ function MainApp() {
             })()}
 
             <div className="text-base md:text-lg font-bold text-gray-500 dark:text-gray-400 text-center max-w-xl px-4 leading-snug mt-1 mb-3 md:mt-0 md:mb-0">
-              <div>Know what your pets actually cost you.</div>
+              <div>Never miss a claim. Track every dollar.</div>
             </div>
           </div>
           {/* Navigation row - unified for mobile and desktop */}
@@ -2120,87 +2120,6 @@ function MainApp() {
         </section>
         )}
 
-        {/* Food & Consumables Category Section */}
-        {authView === 'app' && (
-          <section className="mx-auto max-w-6xl px-4">
-            <CategorySection
-              icon="🍖"
-              title="Food & Consumables"
-              actionButton={{
-                label: "Add Food",
-                onClick: () => setShowAddFood(true)
-              }}
-              footerTotal={{
-                amount: foodTotal.amount,
-                selectedMonth: foodMonth,
-                onPreviousMonth: () => {
-                  setFoodMonth(prev => {
-                    const newDate = new Date(prev)
-                    newDate.setMonth(newDate.getMonth() - 1)
-                    return newDate
-                  })
-                },
-                onNextMonth: () => {
-                  setFoodMonth(prev => {
-                    const newDate = new Date(prev)
-                    newDate.setMonth(newDate.getMonth() + 1)
-                    return newDate
-                  })
-                },
-                petCount: foodTotal.petCount,
-                daysInMonth: foodTotal.daysInMonth
-              }}
-            >
-              <FoodTrackingDashboard
-                userId={userId}
-                isWrapped={true}
-                onTotalCalculated={(total, petCount, daysInMonth) => {
-                  setFoodTotal({ amount: total, petCount, daysInMonth })
-                }}
-              />
-              <TreatsTrackingDashboard
-                userId={userId}
-                isWrapped={true}
-                onShowAddTreat={() => setShowAddTreat(true)}
-              />
-            </CategorySection>
-
-            {/* Add Food Modal */}
-            {showAddFood && pets.length > 0 && (
-              <AddFoodEntryModal
-                availablePets={pets.map(p => ({
-                  id: p.id,
-                  name: p.name,
-                  species: p.species,
-                  photo_url: p.photo || null
-                }))}
-                onClose={() => setShowAddFood(false)}
-                onComplete={() => {
-                  setShowAddFood(false)
-                  setDataRefreshToken(prev => prev + 1)
-                }}
-              />
-            )}
-
-            {/* Add Treat Modal */}
-            {showAddTreat && pets.length > 0 && userId && (
-              <AddTreatModal
-                pets={pets.map(p => ({
-                  id: p.id,
-                  name: p.name,
-                  species: p.species,
-                  photo_url: p.photo || null
-                }))}
-                userId={userId}
-                onClose={() => setShowAddTreat(false)}
-                onComplete={() => {
-                  setShowAddTreat(false)
-                  setDataRefreshToken(prev => prev + 1)
-                }}
-              />
-            )}
-          </section>
-        )}
 
         {/* Upload section */}
         {authView === 'app' && (
