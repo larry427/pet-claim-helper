@@ -1421,40 +1421,6 @@ function MainApp() {
               className="w-[70vw] max-w-[320px] md:w-[90vw] md:max-w-[500px] h-auto object-contain mt-1 mb-0 md:mt-0 md:mb-0"
             />
 
-            {/* Auto-submission teaser banner - PRIME LOCATION - Only show if user cannot auto-submit yet */}
-            {(() => {
-              const hasProductionInsurer = pets.some(pet => {
-                const insurer = pet.insuranceCompany?.toLowerCase() || ''
-                return PRODUCTION_INSURERS.some(prod => insurer.includes(prod))
-              })
-              const isDemoAccount = userEmail && DEMO_ACCOUNTS.includes(userEmail.toLowerCase())
-
-              // Hide banner if user has Pumpkin/Spot OR is a demo account
-              if (hasProductionInsurer || isDemoAccount) return null
-
-              return (
-                <div className="w-full px-4 mt-4 mb-3 md:mt-6 md:mb-4 animate-fade-in">
-                  <div className="max-w-3xl mx-auto">
-                    <div className="relative bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl p-[2px] shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]">
-                      <div className="bg-white dark:bg-gray-900 rounded-2xl px-6 py-4 md:px-8 md:py-5">
-                        <div className="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-4">
-                          <span className="text-3xl md:text-4xl animate-pulse">🚀</span>
-                          <div className="text-center md:text-left">
-                            <div className="font-bold text-lg md:text-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                              Coming Soon: Auto-Submit Claims
-                            </div>
-                            <div className="text-sm md:text-base text-gray-600 dark:text-gray-300 mt-1">
-                              One-click submission. Track payments. Never miss deadlines.
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )
-            })()}
-
             <div className="text-base md:text-lg font-bold text-gray-500 dark:text-gray-400 text-center max-w-xl px-4 leading-snug mt-1 mb-3 md:mt-0 md:mb-0">
               <div>Never miss a claim. Track every dollar.</div>
             </div>
@@ -2827,32 +2793,6 @@ function MainApp() {
               <h2 className="text-xl font-semibold">Vet Bills</h2>
             </div>
 
-            {/* Coming Soon: Auto-Submit Banner - Only show if user cannot auto-submit yet */}
-            {(() => {
-              const hasProductionInsurer = pets.some(pet => {
-                const insurer = pet.insuranceCompany?.toLowerCase() || ''
-                return PRODUCTION_INSURERS.some(prod => insurer.includes(prod))
-              })
-              const isDemoAccount = userEmail && DEMO_ACCOUNTS.includes(userEmail.toLowerCase())
-
-              // Hide banner if user has Pumpkin/Spot OR is a demo account (they can already auto-submit)
-              if (hasProductionInsurer || isDemoAccount) return null
-
-              return (
-                <div className="mt-4 mb-4 p-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-md">
-                  <div className="flex items-center space-x-3 text-white">
-                    <span className="text-3xl">🚀</span>
-                    <div>
-                      <h3 className="font-bold text-lg">Auto-Submit Coming Soon!</h3>
-                      <p className="text-sm text-blue-100">
-                        Soon we'll file claims directly with your insurance company. No more manual work!
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )
-            })()}
-
             {/* Summary */}
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
@@ -3138,22 +3078,6 @@ function MainApp() {
                                   </select>
                                 </div>
                               )}
-                              {/* Coming Soon: Auto-Submit Teaser - Only show if claim does NOT support auto-submit */}
-                              {!showAutoSubmit && (
-                                <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/30 border-l-4 border-blue-400 rounded">
-                                  <div className="flex items-start">
-                                    <span className="text-2xl mr-2">🚀</span>
-                                    <div>
-                                      <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
-                                        Coming Soon: Auto-Submit
-                                      </p>
-                                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                                        We'll file claims directly with your insurance company - no more manual work!
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
                             </>
                           )
                         }
@@ -3221,6 +3145,13 @@ function MainApp() {
                         return null
                       })()}
                       <div className="flex items-center gap-2 flex-wrap justify-end">
+                        <button
+                          type="button"
+                          className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0 whitespace-nowrap"
+                          onClick={() => setEditingClaim(c)}
+                        >
+                          Edit
+                        </button>
                         {c.pdf_path && (
                           <a
                             href="#"
