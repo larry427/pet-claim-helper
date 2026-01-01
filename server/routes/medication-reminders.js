@@ -113,13 +113,14 @@ export async function runMedicationReminders(options = {}) {
 
       // Check if medication is active (within start/end date range)
       // Use PST date for consistent timezone handling
+      // Note: null end_date means "ongoing" medication
       const today = nowPST.toISODate()
       if (med.start_date > today) {
         console.log('[DEBUG] Skipping', med.medication_name, '- reason: Not started yet (start_date:', med.start_date, 'today:', today, ')')
         remindersSkipped.push({ medicationId: med.id, reason: 'Not started yet' })
         continue
       }
-      if (med.end_date && med.end_date < today) {
+      if (med.end_date !== null && med.end_date < today) {
         console.log('[DEBUG] Skipping', med.medication_name, '- reason: Already ended (end_date:', med.end_date, 'today:', today, ')')
         remindersSkipped.push({ medicationId: med.id, reason: 'Already ended' })
         continue
@@ -137,23 +138,60 @@ export async function runMedicationReminders(options = {}) {
         continue
       }
 
-      // Check if any reminder time matches current time
-      const reminderTimes = Array.isArray(med.reminder_times) ? med.reminder_times : []
-      console.log('[DEBUG] Comparing current time:', currentTime, 'against reminder_times:', reminderTimes)
+      // Check if reminder should fire based on frequency type
+      const reminderConfig = med.reminder_times
+      let shouldSendNow = false
 
-      const shouldSendNow = reminderTimes.some(time => {
-        // Compare hour and minute (ignore seconds)
-        const [hour, minute] = time.split(':')
-        const matches = hour === String(currentHour).padStart(2, '0') &&
-               minute === String(currentMinute).padStart(2, '0')
-        console.log('[DEBUG] Time', time, 'matches current', currentTime, '?', matches)
-        return matches
-      })
+      if (Array.isArray(reminderConfig)) {
+        // OLD FORMAT: Daily - array of times like ["08:00", "20:00"]
+        console.log('[DEBUG] Daily format detected - checking times:', reminderConfig)
+        shouldSendNow = reminderConfig.some(time => {
+          const [hour, minute] = time.split(':')
+          const matches = hour === String(currentHour).padStart(2, '0') &&
+                 minute === String(currentMinute).padStart(2, '0')
+          console.log('[DEBUG] Time', time, 'matches current', currentTime, '?', matches)
+          return matches
+        })
+      } else if (reminderConfig && typeof reminderConfig === 'object') {
+        // NEW FORMAT: Object with type property
+        const { type, dayOfWeek, dayOfMonth, time } = reminderConfig
+        console.log('[DEBUG] New format detected - type:', type, 'dayOfWeek:', dayOfWeek, 'dayOfMonth:', dayOfMonth, 'time:', time)
+
+        if (type === 'weekly') {
+          // Weekly: Check if today's day of week matches AND current time matches
+          const todayDayOfWeek = nowPST.weekday % 7 // 0=Sunday, 1=Monday, etc.
+          const timeMatches = currentTime === time
+          const dayMatches = todayDayOfWeek === dayOfWeek
+          console.log('[DEBUG] Weekly check - today:', todayDayOfWeek, 'expected:', dayOfWeek, 'dayMatches:', dayMatches, 'timeMatches:', timeMatches)
+          shouldSendNow = dayMatches && timeMatches
+        } else if (type === 'monthly') {
+          // Monthly: Check if today's day of month matches AND current time matches
+          const todayDayOfMonth = nowPST.day
+          const timeMatches = currentTime === time
+          const dayMatches = todayDayOfMonth === dayOfMonth
+          console.log('[DEBUG] Monthly check - today:', todayDayOfMonth, 'expected:', dayOfMonth, 'dayMatches:', dayMatches, 'timeMatches:', timeMatches)
+          shouldSendNow = dayMatches && timeMatches
+        } else if (type === 'quarterly') {
+          // Quarterly: Check if current month is 3 months since start AND day matches AND time matches
+          const startDate = DateTime.fromISO(med.start_date, { zone: 'America/Los_Angeles' })
+          const monthsSinceStart = Math.floor(nowPST.diff(startDate, 'months').months)
+          const isQuarterlyMonth = monthsSinceStart % 3 === 0
+          const todayDayOfMonth = nowPST.day
+          const timeMatches = currentTime === time
+          const dayMatches = todayDayOfMonth === dayOfMonth
+          console.log('[DEBUG] Quarterly check - monthsSinceStart:', monthsSinceStart, 'isQuarterlyMonth:', isQuarterlyMonth, 'dayMatches:', dayMatches, 'timeMatches:', timeMatches)
+          shouldSendNow = isQuarterlyMonth && dayMatches && timeMatches
+        } else if (type === 'as_needed') {
+          // As needed: Never send automatic reminders
+          console.log('[DEBUG] As needed - skipping automatic reminder')
+          shouldSendNow = false
+        }
+      }
 
       console.log('[DEBUG] Should send now for', med.medication_name, '?', shouldSendNow)
 
       if (!shouldSendNow) {
-        console.log('[DEBUG] Skipping', med.medication_name, '- reason: Not time yet (current:', currentTime, 'reminders:', reminderTimes, ')')
+        console.log('[DEBUG] Skipping', med.medication_name, '- reason: Not time yet')
         continue // Not time yet for this medication
       }
 

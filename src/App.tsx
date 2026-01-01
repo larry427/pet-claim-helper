@@ -11,6 +11,7 @@ import OnboardingModal from './components/OnboardingModal'
 // import AddToHomeScreenModal from './components/AddToHomeScreenModal'
 import FinancialSummary from './components/FinancialSummary'
 import MedicationsDashboard from './components/MedicationsDashboard'
+import MedicationsSection from './components/MedicationsSection'
 import FoodTrackingDashboard from './components/FoodTrackingDashboard'
 import TreatsTrackingDashboard from './components/TreatsTrackingDashboard'
 import CategorySection from './components/CategorySection'
@@ -215,7 +216,7 @@ function MainApp() {
   }
   const [createdClaimId, setCreatedClaimId] = useState<string | null>(null)
   const [showAddMedication, setShowAddMedication] = useState(false)
-  // Medications refresh key - increment to force MedicationsDashboard to reload
+  // Medications refresh key - increment to force MedicationsSection to reload
   const [medicationsRefreshKey, setMedicationsRefreshKey] = useState(0)
   // SMS intro modal state
   const [showSmsIntroModal, setShowSmsIntroModal] = useState(false)
@@ -1634,7 +1635,7 @@ function MainApp() {
             </div>
           </section>
         )}
-        {authView === 'app' && (
+        {authView === 'app' && activeView === 'app' && (
         <section className="mx-auto max-w-4xl" ref={petsSectionRef}>
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Your Pets</h2>
@@ -2128,9 +2129,19 @@ function MainApp() {
         </section>
         )}
 
+        {/* Medications Section */}
+        {authView === 'app' && activeView === 'app' && (
+          <MedicationsSection
+            userId={userId}
+            pets={pets}
+            onAddMedication={() => setShowAddMedication(true)}
+            onManage={() => setActiveView('medications')}
+            refreshKey={medicationsRefreshKey}
+          />
+        )}
 
         {/* Upload section */}
-        {authView === 'app' && (
+        {authView === 'app' && activeView === 'app' && (
         <section key="upload-section" className="mx-auto max-w-3xl text-center mt-6 px-2">
           <h2 className="text-2xl font-semibold">Upload Vet Bill</h2>
           <div className="mt-3">
@@ -3542,6 +3553,9 @@ function MainApp() {
           open={showAddMedication}
           onClose={() => setShowAddMedication(false)}
           onSaved={async (newMedicationId) => {
+            // Trigger refresh of MedicationsSection
+            setMedicationsRefreshKey(prev => prev + 1)
+
             try {
               if (userId && selectedPet) {
                 const today = getLocalTodayYYYYMMDD()

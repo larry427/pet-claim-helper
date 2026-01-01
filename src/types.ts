@@ -62,4 +62,40 @@ export type MultiPetExtracted = {
   invoiceNumber?: string
 }
 
+// Medication types
+export type FrequencyDaily = 'Once daily' | 'Twice daily' | 'Three times daily'
+export type FrequencyPeriodic = 'Weekly' | 'Monthly' | 'Every 3 months'
+export type FrequencyAsNeeded = 'As needed'
+export type Frequency = FrequencyDaily | FrequencyPeriodic | FrequencyAsNeeded
+
+export type ReminderTimesDaily = string[]
+export type ReminderTimesWeekly = { type: 'weekly', dayOfWeek: number, time: string }
+export type ReminderTimesMonthly = { type: 'monthly', dayOfMonth: number, time: string }
+export type ReminderTimesQuarterly = { type: 'quarterly', dayOfMonth: number, time: string }
+export type ReminderTimesAsNeeded = { type: 'as_needed' }
+export type ReminderTimes = ReminderTimesDaily | ReminderTimesWeekly | ReminderTimesMonthly | ReminderTimesQuarterly | ReminderTimesAsNeeded
+
+export type MedicationRow = {
+  id: string
+  user_id: string
+  pet_id: string
+  claim_id: string | null
+  medication_name: string
+  dosage: string | null
+  frequency: Frequency
+  reminder_times: ReminderTimes
+  start_date: string
+  end_date: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export type DoseRow = {
+  id: string
+  medication_id: string
+  user_id: string
+  scheduled_time: string
+  given_time: string | null
+  status: 'pending' | 'given'
+}
 

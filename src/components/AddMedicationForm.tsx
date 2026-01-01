@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import type { PetProfile } from '../types'
-
-type Frequency = '1x daily' | '2x daily' | '3x daily'
+import type { PetProfile, Frequency, ReminderTimes } from '../types'
 
 export default function AddMedicationForm({
   open,
@@ -26,9 +24,11 @@ export default function AddMedicationForm({
   const [petId, setPetId] = useState<string>('')
   const [medicationName, setMedicationName] = useState('')
   const [dosage, setDosage] = useState('')
-  const [frequency, setFrequency] = useState<Frequency>('1x daily')
-  const [times, setTimes] = useState<string[]>(['07:00'])
-  const [duration, setDuration] = useState<'7' | '10' | '14' | '30' | 'custom'>('7')
+  const [frequency, setFrequency] = useState<Frequency>('Once daily')
+  const [times, setTimes] = useState<string[]>(['08:00'])
+  const [dayOfWeek, setDayOfWeek] = useState<number>(1) // 0=Sunday, 1=Monday, etc.
+  const [dayOfMonth, setDayOfMonth] = useState<number>(1) // 1-28
+  const [duration, setDuration] = useState<'7' | '14' | '30' | '90' | 'ongoing' | 'custom'>('7')
   const [customDays, setCustomDays] = useState<number>(7)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -53,15 +53,37 @@ export default function AddMedicationForm({
           setPetId(data.pet_id || '')
           setMedicationName(data.medication_name || '')
           setDosage(data.dosage || '')
-          setFrequency(data.frequency || '1x daily')
-          setTimes(Array.isArray(data.reminder_times) && data.reminder_times.length > 0 ? data.reminder_times : ['07:00'])
+          setFrequency(data.frequency || 'Once daily')
+
+          // Handle both old and new reminder_times formats
+          const reminderTimes = data.reminder_times
+          if (Array.isArray(reminderTimes)) {
+            // Old format: array of times
+            setTimes(reminderTimes.length > 0 ? reminderTimes : ['08:00'])
+          } else if (reminderTimes && typeof reminderTimes === 'object') {
+            // New format: object with type
+            const rt = reminderTimes as any
+            if (rt.type === 'weekly') {
+              setDayOfWeek(rt.dayOfWeek ?? 1)
+              setTimes([rt.time ?? '08:00'])
+            } else if (rt.type === 'monthly' || rt.type === 'quarterly') {
+              setDayOfMonth(rt.dayOfMonth ?? 1)
+              setTimes([rt.time ?? '08:00'])
+            } else if (rt.type === 'as_needed') {
+              setTimes([])
+            }
+          } else {
+            setTimes(['08:00'])
+          }
 
           // Calculate duration from start_date and end_date
-          if (data.start_date && data.end_date) {
+          if (data.end_date === null) {
+            setDuration('ongoing')
+          } else if (data.start_date && data.end_date) {
             const start = new Date(data.start_date)
             const end = new Date(data.end_date)
             const days = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
-            if ([7, 10, 14, 30].includes(days)) {
+            if ([7, 14, 30, 90].includes(days)) {
               setDuration(String(days) as any)
             } else {
               setDuration('custom')
@@ -80,8 +102,10 @@ export default function AddMedicationForm({
         setPetId(defaultPetId || (pets[0]?.id ?? ''))
         setMedicationName('')
         setDosage('')
-        setFrequency('1x daily')
-        setTimes(['07:00'])
+        setFrequency('Once daily')
+        setTimes(['08:00'])
+        setDayOfWeek(1) // Monday
+        setDayOfMonth(1)
         setDuration('7')
         setCustomDays(7)
         setLoading(false)
@@ -125,12 +149,23 @@ export default function AddMedicationForm({
   }, [open, onClose])
 
   useEffect(() => {
-    if (frequency === '1x daily') setTimes(['07:00'])
-    if (frequency === '2x daily') setTimes(['07:00', '19:00'])
-    if (frequency === '3x daily') setTimes(['08:00', '14:00', '20:00'])
+    if (frequency === 'Once daily') setTimes(['08:00'])
+    if (frequency === 'Twice daily') setTimes(['08:00', '20:00'])
+    if (frequency === 'Three times daily') setTimes(['08:00', '14:00', '20:00'])
+    if (frequency === 'Weekly') setTimes(['08:00'])
+    if (frequency === 'Monthly') setTimes(['08:00'])
+    if (frequency === 'Every 3 months') setTimes(['08:00'])
+    if (frequency === 'As needed') setTimes([])
   }, [frequency])
 
-  const requiredTimes = useMemo(() => (frequency === '1x daily' ? 1 : frequency === '2x daily' ? 2 : 3), [frequency])
+  const requiredTimes = useMemo(() => {
+    if (frequency === 'Once daily') return 1
+    if (frequency === 'Twice daily') return 2
+    if (frequency === 'Three times daily') return 3
+    if (frequency === 'Weekly' || frequency === 'Monthly' || frequency === 'Every 3 months') return 1
+    if (frequency === 'As needed') return 0
+    return 1
+  }, [frequency])
 
   const handleTimeChange = (idx: number, val: string) => {
     const v = (val || '').slice(0, 5)
@@ -147,6 +182,11 @@ export default function AddMedicationForm({
     const month = String(today.getMonth() + 1).padStart(2, '0')
     const day = String(today.getDate()).padStart(2, '0')
     const start = `${year}-${month}-${day}`
+
+    // If duration is "ongoing", return null for end_date
+    if (duration === 'ongoing') {
+      return { start, end: null }
+    }
 
     let days = duration === 'custom' ? Math.max(1, Number(customDays || 1)) : Number(duration)
     if (!Number.isFinite(days) || days < 1) days = 1
@@ -165,8 +205,10 @@ export default function AddMedicationForm({
     if (!userId) { setError('You must be logged in.'); return }
     if (!petId) { setError('Please select a pet.'); return }
     if (!medicationName.trim()) { setError('Enter medication name.'); return }
-    if (times.some(t => !/^\d{2}:\d{2}$/.test(t))) { setError('Please select valid reminder times.'); return }
-    if (times.length !== requiredTimes) { setError('Reminder times do not match selected frequency.'); return }
+    if (frequency !== 'As needed') {
+      if (times.some(t => !/^\d{2}:\d{2}$/.test(t))) { setError('Please select valid reminder times.'); return }
+      if (times.length !== requiredTimes) { setError('Reminder times do not match selected frequency.'); return }
+    }
     setLoading(true)
     setError(null)
     try {
@@ -176,10 +218,30 @@ export default function AddMedicationForm({
         console.log('[AddMedicationForm] Submitting. Detected timezone:', tz)
         console.log('[AddMedicationForm] Times selected (will store as PST, no UTC conversion):', times)
       } catch {}
-      // Store times as-is in PST format (HH:mm), no UTC conversion
-      const timesPst = times.filter(Boolean)
+
+      // Build reminder_times based on frequency type
+      let reminderTimes: ReminderTimes
+      if (frequency === 'Once daily' || frequency === 'Twice daily' || frequency === 'Three times daily') {
+        // Daily frequencies: store as array
+        reminderTimes = times.filter(Boolean)
+      } else if (frequency === 'Weekly') {
+        // Weekly: store as object with dayOfWeek
+        reminderTimes = { type: 'weekly', dayOfWeek, time: times[0] || '08:00' }
+      } else if (frequency === 'Monthly') {
+        // Monthly: store as object with dayOfMonth
+        reminderTimes = { type: 'monthly', dayOfMonth, time: times[0] || '08:00' }
+      } else if (frequency === 'Every 3 months') {
+        // Quarterly: store as object with dayOfMonth
+        reminderTimes = { type: 'quarterly', dayOfMonth, time: times[0] || '08:00' }
+      } else if (frequency === 'As needed') {
+        // As needed: store as object with type only
+        reminderTimes = { type: 'as_needed' }
+      } else {
+        reminderTimes = times.filter(Boolean)
+      }
+
       try {
-        console.log('[AddMedicationForm] Times to store in PST:', timesPst)
+        console.log('[AddMedicationForm] reminder_times to store:', reminderTimes)
       } catch {}
 
       if (editMode && medicationId) {
@@ -188,7 +250,7 @@ export default function AddMedicationForm({
           medication_name: medicationName.trim(),
           dosage: dosage.trim() || null,
           frequency,
-          reminder_times: timesPst,
+          reminder_times: reminderTimes,
           end_date: end,
         }
         const { error: updateError } = await supabase.from('medications').update(updatePayload).eq('id', medicationId).eq('user_id', userId)
@@ -203,12 +265,12 @@ export default function AddMedicationForm({
           medication_name: medicationName.trim(),
           dosage: dosage.trim() || null,
           frequency,
-          reminder_times: timesPst,
+          reminder_times: reminderTimes,
           start_date: start,
           end_date: end,
         } as const
         try {
-          console.log('[AddMedicationForm] Payload.reminder_times (storing in PST):', payload.reminder_times)
+          console.log('[AddMedicationForm] Payload.reminder_times:', payload.reminder_times)
         } catch {}
 
         const { data: insertData, error: insertError } = await supabase.from('medications').insert(payload).select('id').single()
@@ -278,9 +340,13 @@ export default function AddMedicationForm({
                 onChange={(e) => setFrequency(e.target.value as Frequency)}
                 className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
               >
-                <option>1x daily</option>
-                <option>2x daily</option>
-                <option>3x daily</option>
+                <option>Once daily</option>
+                <option>Twice daily</option>
+                <option>Three times daily</option>
+                <option>Weekly</option>
+                <option>Monthly</option>
+                <option>Every 3 months</option>
+                <option>As needed</option>
               </select>
             </div>
             <div>
@@ -291,9 +357,10 @@ export default function AddMedicationForm({
                 className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
               >
                 <option value="7">7 days</option>
-                <option value="10">10 days</option>
                 <option value="14">14 days</option>
                 <option value="30">30 days</option>
+                <option value="90">90 days</option>
+                <option value="ongoing">Ongoing</option>
                 <option value="custom">Custom</option>
               </select>
             </div>
@@ -310,20 +377,63 @@ export default function AddMedicationForm({
               />
             </div>
           )}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Reminder times</label>
-            <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {Array.from({ length: requiredTimes }).map((_, idx) => (
-                <input
-                  key={idx}
-                  type="time"
-                  value={times[idx] || ''}
-                  onChange={(e) => handleTimeChange(idx, e.target.value)}
-                  className="w-full min-w-[140px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
-                />
-              ))}
+          {frequency === 'Weekly' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Day of week</label>
+              <select
+                value={dayOfWeek}
+                onChange={(e) => setDayOfWeek(Number(e.target.value))}
+                className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+              >
+                <option value={0}>Sunday</option>
+                <option value={1}>Monday</option>
+                <option value={2}>Tuesday</option>
+                <option value={3}>Wednesday</option>
+                <option value={4}>Thursday</option>
+                <option value={5}>Friday</option>
+                <option value={6}>Saturday</option>
+              </select>
             </div>
-          </div>
+          )}
+          {(frequency === 'Monthly' || frequency === 'Every 3 months') && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Day of month</label>
+              <select
+                value={dayOfMonth}
+                onChange={(e) => setDayOfMonth(Number(e.target.value))}
+                className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+              >
+                {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                  <option key={day} value={day}>{day}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {frequency !== 'As needed' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                Reminder time{requiredTimes > 1 ? 's' : ''}
+              </label>
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {Array.from({ length: requiredTimes }).map((_, idx) => (
+                  <input
+                    key={idx}
+                    type="time"
+                    value={times[idx] || ''}
+                    onChange={(e) => handleTimeChange(idx, e.target.value)}
+                    className="w-full min-w-[140px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {frequency === 'As needed' && (
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                No reminders - log doses manually when needed
+              </p>
+            </div>
+          )}
           <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row gap-3 sm:justify-end">
             <button type="button" onClick={onClose} className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4">Cancel</button>
             <button
