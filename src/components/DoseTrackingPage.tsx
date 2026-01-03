@@ -67,7 +67,7 @@ export default function DoseTrackingPage({
   }, [med])
 
   const fetchAll = async () => {
-    console.log('[DoseTrackingPage] fetchAll starting, medicationId:', medicationId)
+    alert('[DEBUG] DoseTrackingPage loading for medication: ' + medicationId)
     setLoading(true)
     setError(null)
     try {
