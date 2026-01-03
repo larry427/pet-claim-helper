@@ -542,9 +542,130 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
     }
   }
 
-  function skipDose() {
-    // Just close the modal without marking
-    onClose()
+  async function skipDose() {
+    // Magic link auth (short code OR token) OR session auth (userId) - one of them must be present
+    if (!shortCode && !magicToken && !userId) {
+      setError('Please log in to skip this dose')
+      return
+    }
+
+    setMarking(true)
+    setError(null)
+
+    try {
+      // BYPASS BACKEND: For short code users, update directly via Supabase
+      if (shortCode) {
+        console.log('[DoseMarkingPage] SHORT CODE: Skipping dose via Supabase directly')
+
+        // Find dose by short code
+        const { data: dose, error: findError } = await supabase
+          .from('medication_doses')
+          .select('*')
+          .eq('short_code', shortCode)
+          .single()
+
+        if (findError || !dose) {
+          console.error('[DoseMarkingPage] Invalid short code:', findError)
+          setError('Invalid link. Please check your recent SMS.')
+          setMarking(false)
+          return
+        }
+
+        console.log('[DoseMarkingPage] Found dose:', dose.id, 'Status:', dose.status)
+
+        // Mark as skipped directly via Supabase
+        console.log('[DoseMarkingPage] Marking dose as skipped via Supabase...')
+        const { error: updateError } = await supabase
+          .from('medication_doses')
+          .update({
+            status: 'skipped',
+            given_time: new Date().toISOString() // Reuse given_time to track when skipped
+          })
+          .eq('id', dose.id)
+
+        if (updateError) {
+          console.error('[DoseMarkingPage] Failed to update dose:', updateError)
+          setError('Failed to skip dose. Please try again.')
+          setMarking(false)
+          return
+        }
+
+        console.log('[DoseMarkingPage] ✅ Dose marked as skipped via Supabase')
+
+        // Redirect to a simple confirmation (we could create a dose-skipped page later)
+        // For now, just redirect to dose-success with a skipped flag
+        const params = new URLSearchParams({
+          pet: pet?.name || 'Your pet',
+          med: medication?.medication_name || 'medication',
+          skipped: 'true'
+        })
+
+        console.log('[DoseMarkingPage] Redirecting to success page with skipped=true')
+        window.location.href = `/dose-success?${params.toString()}`
+        return
+      }
+
+      // FOR LEGACY TOKEN AND SESSION AUTH: Use backend API if available, otherwise Supabase
+      console.log('[DoseMarkingPage] Skipping dose for:', magicToken ? 'magic token' : 'session auth')
+
+      // Try direct Supabase update for all cases (simpler)
+      const medId = actualMedicationId || medicationId
+
+      // Find the pending dose for this medication
+      const { data: doses, error: findError } = await supabase
+        .from('medication_doses')
+        .select('*')
+        .eq('medication_id', medId)
+        .eq('status', 'pending')
+        .order('scheduled_time', { ascending: true })
+        .limit(1)
+
+      if (findError || !doses || doses.length === 0) {
+        console.error('[DoseMarkingPage] No pending dose found:', findError)
+        setError('No pending dose found to skip.')
+        setMarking(false)
+        return
+      }
+
+      const dose = doses[0]
+
+      // Update to skipped
+      const { error: updateError } = await supabase
+        .from('medication_doses')
+        .update({
+          status: 'skipped',
+          given_time: new Date().toISOString()
+        })
+        .eq('id', dose.id)
+
+      if (updateError) {
+        console.error('[DoseMarkingPage] Failed to skip dose:', updateError)
+        setError('Failed to skip dose. Please try again.')
+        setMarking(false)
+        return
+      }
+
+      console.log('[DoseMarkingPage] ✅ Dose skipped successfully')
+
+      // For standalone magic link users (not logged in), redirect to static success page
+      if ((shortCode || magicToken) && !userId) {
+        const params = new URLSearchParams({
+          pet: pet?.name || 'Your pet',
+          med: medication?.medication_name || 'medication',
+          skipped: 'true'
+        })
+
+        window.location.href = `/dose-success?${params.toString()}`
+        return
+      }
+
+      // For logged-in users, just close
+      onClose(true)
+    } catch (err) {
+      console.error('Error skipping dose:', err)
+      setError('Failed to skip dose')
+      setMarking(false)
+    }
   }
 
   if (loading) {
