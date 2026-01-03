@@ -132,7 +132,12 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
       label = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     }
 
-    const time = dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    // Format time in local timezone with explicit 12-hour format
+    const time = dt.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    })
     return `${label} ${time}`
   }
 
