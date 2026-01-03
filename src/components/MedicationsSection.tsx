@@ -63,6 +63,19 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
     fetchMedications()
   }, [userId, refreshKey])
 
+  // Convert 24-hour time to 12-hour format with AM/PM
+  const formatTime12Hour = (time24: string): string => {
+    const [hourStr, minuteStr] = time24.split(':')
+    let hour = parseInt(hourStr)
+    const minute = minuteStr
+    const ampm = hour >= 12 ? 'PM' : 'AM'
+
+    hour = hour % 12
+    if (hour === 0) hour = 12
+
+    return `${hour}:${minute} ${ampm}`
+  }
+
   const calculateStatus = (med: MedicationWithPet): MedicationStatus => {
     const now = new Date()
     const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
@@ -128,7 +141,7 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
 
     if (Array.isArray(reminderTimes)) {
       // Daily frequencies
-      if (reminderTimes.length === 1) return `Daily • ${reminderTimes[0]}`
+      if (reminderTimes.length === 1) return `Daily • ${formatTime12Hour(reminderTimes[0])}`
       if (reminderTimes.length === 2) return `2x daily`
       if (reminderTimes.length === 3) return `3x daily`
       return 'Daily'
