@@ -119,6 +119,7 @@ export default function DoseTrackingPage({
         .limit(1)
         .single()
       if (!lastDoseErr && lastDose?.given_time) {
+        console.log('Raw given_time from database:', lastDose.given_time)
         setLastDoseGiven(lastDose.given_time)
       } else {
         setLastDoseGiven(null)
