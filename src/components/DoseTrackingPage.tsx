@@ -67,7 +67,7 @@ export default function DoseTrackingPage({
   }, [med])
 
   const fetchAll = async () => {
-    alert('[DEBUG] DoseTrackingPage loading for medication: ' + medicationId)
+    console.log('[DoseTrackingPage] fetchAll starting, medicationId:', medicationId)
     setLoading(true)
     setError(null)
     try {
@@ -165,6 +165,7 @@ export default function DoseTrackingPage({
   }
 
   const formatLastDose = (timestamp: string | null) => {
+    alert('[DEBUG] formatLastDose called with: ' + timestamp)
     if (!timestamp) return 'No doses recorded yet'
 
     // Parse UTC timestamp and convert to local timezone
