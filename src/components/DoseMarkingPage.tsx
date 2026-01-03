@@ -20,6 +20,8 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   const [actualMedicationId, setActualMedicationId] = useState<string | null>(null)
   // Store short code if using new format
   const [shortCode, setShortCode] = useState<string | null>(null)
+  // Store the current dose being marked (includes scheduled_time)
+  const [currentDose, setCurrentDose] = useState<any>(null)
   // Progress stats for success modal
   const [progressStats, setProgressStats] = useState<{
     givenCount: number
@@ -60,6 +62,13 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
     // Pass token directly (don't rely on magicToken state which may not be updated yet)
     loadMedicationDetails(token)
   }, [medicationId, userId, success])
+
+  // Calculate progress stats when medication is loaded
+  useEffect(() => {
+    if (medication && actualMedicationId && !success) {
+      calculateProgressStats()
+    }
+  }, [medication, actualMedicationId, success])
 
   async function loadMedicationDetails(tokenFromUrl: string | null = null) {
     console.log('[DoseMarkingPage] loadMedicationDetails called', {
@@ -110,6 +119,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         setPet(doseData.medications?.pets)
         setActualMedicationId(doseData.medication_id)
         setShortCode(medicationId)
+        setCurrentDose(doseData)
         setLoading(false)
         return
       }
@@ -141,6 +151,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
         setMedication(doseData.medications)
         setPet(doseData.medications?.pets)
+        setCurrentDose(doseData)
         setLoading(false)
 
         console.log('[DoseMarkingPage] ✅ Medication name:', doseData.medications?.medication_name || 'MISSING')
@@ -683,6 +694,73 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
     )
   }
 
+  // Calculate progress info for display (only when medication is loaded)
+  let progressInfo: {
+    currentDoseNumber: number
+    totalDoses: number
+    percentage: number
+    daysRemaining: number | null
+    scheduledTime: string | null
+  } | null = null
+
+  if (medication && currentDose) {
+    try {
+      // Calculate total doses from medication schedule
+      let totalDoses = 0
+      if (medication.start_date && medication.end_date && medication.reminder_times) {
+        const [startYear, startMonth, startDay] = medication.start_date.split('-').map(Number)
+        const startDate = new Date(startYear, startMonth - 1, startDay)
+        const [endYear, endMonth, endDay] = medication.end_date.split('-').map(Number)
+        const endDate = new Date(endYear, endMonth - 1, endDay)
+
+        const startDay_dateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+        const endDay_dateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
+        const totalDays = Math.round((endDay_dateOnly.getTime() - startDay_dateOnly.getTime()) / 86400000) + 1
+
+        const dosesPerDay = Array.isArray(medication.reminder_times) ? medication.reminder_times.length : 1
+        totalDoses = totalDays * dosesPerDay
+      }
+
+      // Calculate days remaining
+      let daysRemaining: number | null = null
+      if (medication.end_date) {
+        const today = new Date()
+        const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+        const [endYear, endMonth, endDay] = medication.end_date.split('-').map(Number)
+        const endDate = new Date(endYear, endMonth - 1, endDay)
+        const diffTime = endDate.getTime() - todayDay.getTime()
+        const diffDays = Math.ceil(diffTime / 86400000)
+        daysRemaining = diffDays >= 0 ? diffDays : 0
+      }
+
+      // Format scheduled time
+      let scheduledTime: string | null = null
+      if (currentDose.scheduled_time) {
+        const doseDate = new Date(currentDose.scheduled_time)
+        scheduledTime = doseDate.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        })
+      }
+
+      // Current dose number = givenCount + 1 (this is the dose they're about to mark)
+      // We'll fetch this from progressStats if available, or default to 1
+      const currentDoseNumber = (progressStats?.givenCount || 0) + 1
+      const percentage = totalDoses > 0 ? Math.round((currentDoseNumber / totalDoses) * 100) : 0
+
+      progressInfo = {
+        currentDoseNumber,
+        totalDoses,
+        percentage,
+        daysRemaining,
+        scheduledTime
+      }
+    } catch (err) {
+      console.error('[DoseMarkingPage] Error calculating progress info:', err)
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
       <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl">
@@ -703,6 +781,47 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
               </>
             )}
           </div>
+
+          {progressInfo && (
+            <div className="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 rounded-lg p-4 mb-6 text-left">
+              {/* Progress label */}
+              <div className="text-center mb-3">
+                <p className="text-sm font-semibold text-emerald-800">
+                  Dose {progressInfo.currentDoseNumber} of {progressInfo.totalDoses}
+                </p>
+              </div>
+
+              {/* Progress bar */}
+              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden mb-4">
+                <div
+                  className="h-full bg-gradient-to-r from-emerald-500 to-green-600 rounded-full transition-all duration-300"
+                  style={{ width: `${progressInfo.percentage}%` }}
+                />
+              </div>
+
+              {/* Additional info grid */}
+              <div className="space-y-2 text-sm">
+                {progressInfo.scheduledTime && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Scheduled:</span>
+                    <span className="font-medium text-gray-800">{progressInfo.scheduledTime}</span>
+                  </div>
+                )}
+                {progressInfo.daysRemaining !== null && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Days remaining:</span>
+                    <span className="font-medium text-gray-800">
+                      {progressInfo.daysRemaining === 0
+                        ? 'Last day'
+                        : progressInfo.daysRemaining === 1
+                        ? '1 day'
+                        : `${progressInfo.daysRemaining} days`}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
