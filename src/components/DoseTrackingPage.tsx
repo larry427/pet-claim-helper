@@ -162,11 +162,14 @@ export default function DoseTrackingPage({
 
   const formatLastDose = (timestamp: string | null) => {
     if (!timestamp) return 'No doses recorded yet'
+
+    // Parse UTC timestamp and convert to local timezone
     const date = new Date(timestamp)
     const today = new Date()
     const yesterday = new Date(today)
     yesterday.setDate(yesterday.getDate() - 1)
 
+    // Get date-only representations in local timezone
     const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
     const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
     const yesterdayDay = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate())
@@ -177,10 +180,16 @@ export default function DoseTrackingPage({
     } else if (dateDay.getTime() === yesterdayDay.getTime()) {
       dayLabel = 'Yesterday'
     } else {
+      // Use toLocaleString to ensure local timezone conversion
       dayLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     }
 
-    const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    // Format time in local timezone with explicit options
+    const time = date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    })
     return `${dayLabel} ${time}`
   }
 
