@@ -43,7 +43,10 @@ const [endYear, endMonth, endDay] = medication.end_date.split('-').map(Number)
 const endDate = new Date(endYear, endMonth - 1, endDay)
 
 // Calculate total days in treatment (inclusive)
-const totalDays = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+// CRITICAL FIX: Use date-only comparison to avoid off-by-one errors from timestamps
+const startDay_dateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+const endDay_dateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
+const totalDays = Math.round((endDay_dateOnly.getTime() - startDay_dateOnly.getTime()) / 86400000) + 1
 
 // Get doses per day from reminder_times array
 const dosesPerDay = medication.reminder_times?.length || 1

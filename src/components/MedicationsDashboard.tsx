@@ -144,7 +144,8 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
     const endDay = end ? new Date(end.getFullYear(), end.getMonth(), end.getDate()) : null
     const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
 
-    const totalDays = endDay ? Math.max(1, Math.round((endDay.getTime() - startDay.getTime()) / (1000 * 60 * 60 * 24)) + 1) : 1
+    // CRITICAL FIX: Use date-only comparison to avoid off-by-one errors from timestamps
+    const totalDays = endDay ? Math.max(1, Math.round((endDay.getTime() - startDay.getTime()) / 86400000) + 1) : 1
     const tpd = timesPerDay(m)
     const totalDoses = totalDays * tpd
     const given = dosesGivenByMed[m.id] || 0

@@ -215,7 +215,10 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         const endDate = new Date(endYear, endMonth - 1, endDay)
 
         // Calculate total days in treatment (inclusive)
-        const totalDays = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+        // CRITICAL FIX: Use date-only comparison to avoid off-by-one errors from timestamps
+        const startDay_dateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+        const endDay_dateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
+        const totalDays = Math.round((endDay_dateOnly.getTime() - startDay_dateOnly.getTime()) / 86400000) + 1
 
         // Get doses per day from reminder_times array
         const dosesPerDay = (medication.reminder_times && Array.isArray(medication.reminder_times))
@@ -360,7 +363,10 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         if (medication) {
           const start = new Date(medication.start_date)
           const end = new Date(medication.end_date)
-          const totalDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+          // CRITICAL FIX: Use date-only comparison to avoid off-by-one errors from timestamps
+          const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+          const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate())
+          const totalDays = Math.max(1, Math.round((endDay.getTime() - startDay.getTime()) / 86400000) + 1)
           const totalExpectedDoses = totalDays * (medication.times_per_day || 1)
 
           if ((givenCount || 0) >= totalExpectedDoses) {
