@@ -67,6 +67,7 @@ export default function DoseTrackingPage({
   }, [med])
 
   const fetchAll = async () => {
+    console.log('[DoseTrackingPage] fetchAll starting, medicationId:', medicationId)
     setLoading(true)
     setError(null)
     try {
@@ -118,10 +119,12 @@ export default function DoseTrackingPage({
         .order('given_time', { ascending: false })
         .limit(1)
         .single()
+      console.log('[DoseTrackingPage] lastDose query result:', { data: lastDose, error: lastDoseErr })
       if (!lastDoseErr && lastDose?.given_time) {
-        console.log('Raw given_time from database:', lastDose.given_time)
+        console.log('[DoseTrackingPage] Raw given_time from database:', lastDose.given_time)
         setLastDoseGiven(lastDose.given_time)
       } else {
+        console.log('[DoseTrackingPage] No last dose found or error occurred')
         setLastDoseGiven(null)
       }
     } catch (e: any) {
