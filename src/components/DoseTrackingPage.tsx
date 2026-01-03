@@ -165,11 +165,10 @@ export default function DoseTrackingPage({
   }
 
   const formatLastDose = (timestamp: string | null) => {
-    alert('[DEBUG] formatLastDose called with: ' + timestamp)
     if (!timestamp) return 'No doses recorded yet'
 
-    // Parse UTC timestamp and convert to local timezone
-    const date = new Date(timestamp)
+    // Supabase returns timestamps without timezone indicator, so append 'Z' to parse as UTC
+    const date = new Date(timestamp.endsWith('Z') ? timestamp : timestamp + 'Z')
     const today = new Date()
     const yesterday = new Date(today)
     yesterday.setDate(yesterday.getDate() - 1)
