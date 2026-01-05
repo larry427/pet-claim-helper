@@ -263,7 +263,12 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       let nextDoseTime: string | null = null
 
       if (nextDose && !isComplete) {
-        const doseDate = new Date(nextDose.scheduled_time)
+        // Supabase returns timestamps without 'Z', so append it to parse as UTC
+        const doseDate = new Date(
+          nextDose.scheduled_time.endsWith('Z')
+            ? nextDose.scheduled_time
+            : nextDose.scheduled_time + 'Z'
+        )
         const now = new Date()
         const tomorrow = new Date(now)
         tomorrow.setDate(tomorrow.getDate() + 1)
@@ -291,11 +296,12 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       // Calculate days remaining
       let daysRemaining: number | null = null
       if (medication?.end_date && !isComplete) {
-        const endDate = new Date(medication.end_date)
+        // Parse date string as local date to avoid timezone issues
+        const [endYear, endMonth, endDay] = medication.end_date.split('-').map(Number)
+        const endDate = new Date(endYear, endMonth - 1, endDay)
         const today = new Date()
-        today.setHours(0, 0, 0, 0)
-        endDate.setHours(0, 0, 0, 0)
-        const diffTime = endDate.getTime() - today.getTime()
+        const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+        const diffTime = endDate.getTime() - todayDay.getTime()
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
         daysRemaining = diffDays >= 0 ? diffDays : 0
       }
@@ -372,12 +378,15 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
         // Calculate total expected doses
         if (medication) {
-          const start = new Date(medication.start_date)
-          const end = new Date(medication.end_date)
+          // Parse date strings as local dates to avoid timezone issues
+          const [startYear, startMonth, startDay] = medication.start_date.split('-').map(Number)
+          const start = new Date(startYear, startMonth - 1, startDay)
+          const [endYear, endMonth, endDay] = medication.end_date.split('-').map(Number)
+          const end = new Date(endYear, endMonth - 1, endDay)
           // CRITICAL FIX: Use date-only comparison to avoid off-by-one errors from timestamps
-          const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate())
-          const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate())
-          const totalDays = Math.max(1, Math.round((endDay.getTime() - startDay.getTime()) / 86400000) + 1)
+          const startDay_dateOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+          const endDay_dateOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate())
+          const totalDays = Math.max(1, Math.round((endDay_dateOnly.getTime() - startDay_dateOnly.getTime()) / 86400000) + 1)
           const totalExpectedDoses = totalDays * (medication.times_per_day || 1)
 
           if ((givenCount || 0) >= totalExpectedDoses) {
@@ -857,7 +866,12 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       // Format scheduled time
       let scheduledTime: string | null = null
       if (currentDose.scheduled_time) {
-        const doseDate = new Date(currentDose.scheduled_time)
+        // Supabase returns timestamps without 'Z', so append it to parse as UTC
+        const doseDate = new Date(
+          currentDose.scheduled_time.endsWith('Z')
+            ? currentDose.scheduled_time
+            : currentDose.scheduled_time + 'Z'
+        )
         scheduledTime = doseDate.toLocaleTimeString('en-US', {
           hour: 'numeric',
           minute: '2-digit',
