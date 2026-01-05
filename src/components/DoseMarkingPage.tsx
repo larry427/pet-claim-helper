@@ -273,23 +273,37 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         const tomorrow = new Date(now)
         tomorrow.setDate(tomorrow.getDate() + 1)
 
-        // Format as "Today 2:30 PM" or "Tomorrow 9:00 AM" or "Mon 12:00 PM"
-        const isToday = doseDate.toDateString() === now.toDateString()
-        const isTomorrow = doseDate.toDateString() === tomorrow.toDateString()
-
+        // Format time string
         const timeStr = doseDate.toLocaleTimeString('en-US', {
           hour: 'numeric',
           minute: '2-digit',
           hour12: true
         })
 
-        if (isToday) {
-          nextDoseTime = `Today ${timeStr}`
-        } else if (isTomorrow) {
-          nextDoseTime = `Tomorrow ${timeStr}`
+        // Check if dose is in the past (overdue)
+        const isOverdue = doseDate.getTime() < now.getTime()
+        const isToday = doseDate.toDateString() === now.toDateString()
+        const isTomorrow = doseDate.toDateString() === tomorrow.toDateString()
+
+        if (isOverdue) {
+          // Handle overdue doses
+          if (isToday) {
+            // Overdue from earlier today
+            nextDoseTime = `Overdue - was ${timeStr}`
+          } else {
+            // Overdue from previous day(s)
+            nextDoseTime = `Overdue`
+          }
         } else {
-          const dayStr = doseDate.toLocaleDateString('en-US', { weekday: 'short' })
-          nextDoseTime = `${dayStr} ${timeStr}`
+          // Handle future doses
+          if (isToday) {
+            nextDoseTime = `Today ${timeStr}`
+          } else if (isTomorrow) {
+            nextDoseTime = `Tomorrow ${timeStr}`
+          } else {
+            const dayStr = doseDate.toLocaleDateString('en-US', { weekday: 'short' })
+            nextDoseTime = `${dayStr} ${timeStr}`
+          }
         }
       }
 
