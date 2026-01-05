@@ -867,7 +867,9 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
       // Current dose number = givenCount + 1 (this is the dose they're about to mark)
       // We'll fetch this from progressStats if available, or default to 1
-      const currentDoseNumber = (progressStats?.givenCount || 0) + 1
+      // Cap at totalDoses to prevent showing "Dose 15 of 14" if progressStats is stale
+      const rawCurrentDoseNumber = (progressStats?.givenCount || 0) + 1
+      const currentDoseNumber = totalDoses > 0 ? Math.min(rawCurrentDoseNumber, totalDoses) : rawCurrentDoseNumber
       const percentage = totalDoses > 0 ? Math.round((currentDoseNumber / totalDoses) * 100) : 0
 
       progressInfo = {
