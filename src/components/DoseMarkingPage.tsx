@@ -316,7 +316,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         const today = new Date()
         const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
         const diffTime = endDate.getTime() - todayDay.getTime()
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
         daysRemaining = diffDays >= 0 ? diffDays : 0
       }
 
