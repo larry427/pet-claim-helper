@@ -28,8 +28,7 @@ const DEMO_ACCOUNTS = [
   'demo@petclaimhelper.com',
   'drsarah@petclaimhelper.com',
   'david@mybenefitexperience.com',
-  'larry@uglydogadventures.com',  // TEMPORARY for testing BCC
-  'larrysecrets@gmail.com'
+  'larry@uglydogadventures.com'
 ]
 // ================================================================================================
 
