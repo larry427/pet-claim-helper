@@ -258,8 +258,10 @@ function MainApp() {
       currentVisitTitle: visitTitle
     })
     if (extracted) {
-      // Use extracted diagnosis if available, otherwise default to "Vet visit"
-      const title = extracted.diagnosis?.trim() || 'Vet visit'
+      // Always default to "Vet Visit" - safer than AI extraction which can grab
+      // wrong info (e.g., "Annual Physical" from a reminder section).
+      // Users can edit if they want something more specific.
+      const title = 'Vet Visit'
       console.log('[VISIT TITLE DEBUG] Setting visitTitle to:', title)
       setVisitTitle(title)
     }
