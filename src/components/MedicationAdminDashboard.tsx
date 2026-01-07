@@ -349,6 +349,9 @@ export default function MedicationAdminDashboard() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Pet Name
                 </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   User Email
                 </th>
@@ -373,9 +376,6 @@ export default function MedicationAdminDashboard() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -387,6 +387,26 @@ export default function MedicationAdminDashboard() {
                   >
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {med.petName}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
+                      <div className="flex gap-2 justify-center">
+                        <button
+                          onClick={() => handleResetDoses(med.id)}
+                          disabled={actionLoading === med.id}
+                          className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200 disabled:opacity-50"
+                          title="Delete all dose records"
+                        >
+                          Reset Doses
+                        </button>
+                        <button
+                          onClick={() => handleDeleteMedication(med.id, med.medication_name)}
+                          disabled={actionLoading === med.id}
+                          className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded hover:bg-red-200 disabled:opacity-50"
+                          title="Delete medication and all doses"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                       {med.userEmail}
@@ -415,26 +435,6 @@ export default function MedicationAdminDashboard() {
                       <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(med.status)}`}>
                         {med.status}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
-                      <div className="flex gap-2 justify-center">
-                        <button
-                          onClick={() => handleResetDoses(med.id)}
-                          disabled={actionLoading === med.id}
-                          className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200 disabled:opacity-50"
-                          title="Delete all dose records"
-                        >
-                          Reset Doses
-                        </button>
-                        <button
-                          onClick={() => handleDeleteMedication(med.id, med.medication_name)}
-                          disabled={actionLoading === med.id}
-                          className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded hover:bg-red-200 disabled:opacity-50"
-                          title="Delete medication and all doses"
-                        >
-                          Delete
-                        </button>
-                      </div>
                     </td>
                   </tr>
 
