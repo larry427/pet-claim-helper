@@ -22,6 +22,7 @@ import DoseSuccess from './components/DoseSuccess'
 import ClaimSubmissionModal from './components/ClaimSubmissionModal'
 import { SignatureCapture } from './components/SignatureCapture'
 import AdminDashboard from './components/AdminDashboard'
+import MedicationAdminDashboard from './components/MedicationAdminDashboard'
 import ForgotPassword from './components/ForgotPassword'
 import ResetPassword from './components/ResetPassword'
 import { createClaim, listClaims, updateClaim, deleteClaim as dbDeleteClaim } from './lib/claims'
@@ -161,7 +162,7 @@ function MainApp() {
   const [showClaims, setShowClaims] = useState(false)
   
   const [finPeriod, setFinPeriod] = useState<'all' | '2026' | '2025' | '2024' | 'last12'>('all')
-  const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications' | 'food' | 'admin'>('app')
+  const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications' | 'food' | 'admin' | 'med-admin'>('app')
   const [isAdmin, setIsAdmin] = useState(false)
 
   // Food & Consumables Category Section State
@@ -1488,6 +1489,15 @@ function MainApp() {
                 📊 Admin Dashboard
               </button>
             )}
+            {authView === 'app' && isAdmin && (
+              <button
+                type="button"
+                onClick={() => setActiveView(v => v === 'med-admin' ? 'app' : 'med-admin')}
+                className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow"
+              >
+                💊 Medication Admin
+              </button>
+            )}
             {authView === 'app' && (
               <a
                 href={`mailto:support@petclaimhelper.com?subject=Pet Cost Helper Support Request&body=Hi Pet Cost Helper Team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0A----%0D%0AUser: ${userEmail || 'Not logged in'}%0D%0AUser ID: ${userId || 'N/A'}`}
@@ -1524,6 +1534,26 @@ function MainApp() {
           <>
             {isAdmin ? (
               <AdminDashboard />
+            ) : (
+              <section className="mx-auto max-w-2xl mt-8">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+                  <h2 className="text-red-800 font-semibold text-lg">Access Denied</h2>
+                  <p className="text-red-600 mt-2">You do not have admin privileges to access this page.</p>
+                  <button
+                    onClick={() => setActiveView('app')}
+                    className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                  >
+                    Return to Dashboard
+                  </button>
+                </div>
+              </section>
+            )}
+          </>
+        )}
+        {authView === 'app' && activeView === 'med-admin' && (
+          <>
+            {isAdmin ? (
+              <MedicationAdminDashboard />
             ) : (
               <section className="mx-auto max-w-2xl mt-8">
                 <div className="bg-red-50 border border-red-200 rounded-lg p-6">
