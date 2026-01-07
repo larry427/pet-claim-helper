@@ -880,12 +880,13 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       // Format scheduled time
       let scheduledTime: string | null = null
       if (currentDose.scheduled_time) {
-        // Supabase returns timestamps without 'Z', so append it to parse as UTC
-        const doseDate = new Date(
-          currentDose.scheduled_time.endsWith('Z')
-            ? currentDose.scheduled_time
-            : currentDose.scheduled_time + 'Z'
-        )
+        // scheduled_time is stored in local time format (e.g., "2026-01-06T20:00:00")
+        // Do NOT append 'Z' - that would incorrectly treat it as UTC
+        // If it already has 'Z', remove it to parse as local time
+        const timeStr = currentDose.scheduled_time.endsWith('Z')
+          ? currentDose.scheduled_time.slice(0, -1)
+          : currentDose.scheduled_time
+        const doseDate = new Date(timeStr)
         scheduledTime = doseDate.toLocaleTimeString('en-US', {
           hour: 'numeric',
           minute: '2-digit',
