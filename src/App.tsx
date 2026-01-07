@@ -2297,8 +2297,8 @@ function MainApp() {
                       if (userId) {
                         try {
                           const totalNum = parseFloat(String(subtotal).replace(/[^0-9.\-]/g, '')) || null
-                          // prefer pet's filing_deadline_days, fallback to 90
-                          const filingDaysToUse = Number((matchedPet as any)?.filing_deadline_days) || 90
+                          // Look up deadline from insurance options, fallback to 90
+                          const filingDaysToUse = getDeadlineDays(matchedPet?.insuranceCompany || '') || 90
                           // Parse YYYY-MM-DD as local date to avoid timezone shift
                           const parseDateLocal = (iso?: string | null): Date | null => {
                             if (!iso) return null
@@ -2666,8 +2666,8 @@ function MainApp() {
 
                     try {
                       // Save single-pet claim only (PDF will be generated on-demand when user clicks "View My Claim")
-                      // Compute deadline based on service date and filing window
-                      const filingDaysToUse = Number((selectedPet as any)?.filing_deadline_days) || 90
+                      // Look up deadline from insurance options, fallback to 90
+                      const filingDaysToUse = getDeadlineDays(selectedPet?.insuranceCompany || '') || 90
                       // Parse YYYY-MM-DD as local date to avoid timezone shift
                       const parseDateLocal = (iso?: string | null): Date | null => {
                         if (!iso) return null
