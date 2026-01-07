@@ -214,14 +214,41 @@ export default function DoseTrackingPage({
     try {
       const now = new Date()
       const isoNow = now.toISOString()
-      const { error: insErr } = await supabase.from('medication_doses').insert({
-        medication_id: medicationId,
-        user_id: userId,
-        scheduled_time: isoNow,
-        given_time: isoNow,
-        status: 'given',
-      })
-      if (insErr) throw insErr
+
+      // First, check for existing pending dose for today
+      const todayStart = new Date()
+      todayStart.setHours(0, 0, 0, 0)
+      const todayEnd = new Date()
+      todayEnd.setHours(23, 59, 59, 999)
+
+      const { data: pendingDose } = await supabase
+        .from('medication_doses')
+        .select('id')
+        .eq('medication_id', medicationId)
+        .eq('status', 'pending')
+        .gte('scheduled_time', todayStart.toISOString())
+        .lte('scheduled_time', todayEnd.toISOString())
+        .limit(1)
+        .single()
+
+      if (pendingDose) {
+        // Update existing pending dose
+        const { error: updErr } = await supabase
+          .from('medication_doses')
+          .update({ status: 'given', given_time: isoNow })
+          .eq('id', pendingDose.id)
+        if (updErr) throw updErr
+      } else {
+        // No pending dose - create new one
+        const { error: insErr } = await supabase.from('medication_doses').insert({
+          medication_id: medicationId,
+          user_id: userId,
+          scheduled_time: isoNow,
+          given_time: isoNow,
+          status: 'given',
+        })
+        if (insErr) throw insErr
+      }
       setGivenCount((g) => g + 1)
       setLastDoseGiven(isoNow)
 
