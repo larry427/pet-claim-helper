@@ -7,7 +7,7 @@ const DEMO_ACCOUNTS = [
   'demo@petclaimhelper.com',
   'drsarah@petclaimhelper.com',
   'david@mybenefitexperience.com',
-  'larrysecrets@gmail.com'
+  'larry@uglydogadventures.com'
 ]
 
 const PRODUCTION_INSURERS = [
