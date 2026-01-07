@@ -110,6 +110,14 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
     return `${h}:${mStr} ${ampm}`
   }
 
+  const formatFrequency = (freq: string) => {
+    const normalized = freq.toLowerCase().trim()
+    if (normalized === '1x daily' || normalized === 'once daily') return 'Once daily'
+    if (normalized === '2x daily' || normalized === 'twice daily') return 'Twice daily'
+    if (normalized === '3x daily' || normalized === 'three times daily') return 'Three times daily'
+    return freq
+  }
+
   const formatRelativeNext = (dt: Date, today: Date) => {
     const dDate = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate())
     const tDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
@@ -352,7 +360,7 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
                         </button>
                       </div>
                       {m.dosage && <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">{m.dosage}</div>}
-                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">{m.frequency}</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">{formatFrequency(m.frequency)}</div>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {(Array.isArray(m.reminder_times) ? m.reminder_times : []).map((t: string, idx: number) => (
                           <span key={idx} className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-700 dark:text-slate-300">{formatClock(t)}</span>
