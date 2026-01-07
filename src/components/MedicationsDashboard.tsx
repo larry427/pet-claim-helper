@@ -199,7 +199,11 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
       given,
       pct,
       daysRemaining,
-      nextDoseLabel: next ? formatRelativeNext(next, now) : (endDay && todayDay > endDay ? 'Completed' : '—'),
+      nextDoseLabel: next
+        ? formatRelativeNext(next, now)
+        : (endDay && todayDay > endDay
+            ? (given >= totalDoses ? 'Completed' : 'Ended')
+            : '—'),
       endLabel: endDay ? endDay.toISOString().slice(0, 10) : '—'
     }
   }
