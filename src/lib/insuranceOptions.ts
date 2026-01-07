@@ -78,15 +78,33 @@ export function getInsuranceDisplay(dbValue: string | null | undefined): string 
 
 /**
  * Get filing deadline days for an insurance company
+ * Handles both database values and display values
  *
  * @example
  * getDeadlineDays('Trupanion') // => 90
+ * getDeadlineDays('Trupanion (90 days)') // => 90
  * getDeadlineDays('Nationwide') // => 365
  * getDeadlineDays('Other') // => undefined
  */
 export function getDeadlineDays(value: string): number | undefined {
-  const option = INSURANCE_OPTIONS.find(opt => opt.value === value)
-  return option?.deadlineDays
+  if (!value) return undefined
+
+  // Try by database value first
+  let option = INSURANCE_OPTIONS.find(opt => opt.value === value)
+  if (option?.deadlineDays) return option.deadlineDays
+
+  // Try by display value
+  option = INSURANCE_OPTIONS.find(opt => opt.display === value)
+  if (option?.deadlineDays) return option.deadlineDays
+
+  // Try stripping deadline label and matching again
+  const stripped = value.replace(/\s*\(\d+\s*days?\).*$/i, '').trim()
+  if (stripped && stripped !== value) {
+    option = INSURANCE_OPTIONS.find(opt => opt.value === stripped)
+    if (option?.deadlineDays) return option.deadlineDays
+  }
+
+  return undefined
 }
 
 /**
