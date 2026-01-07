@@ -156,7 +156,7 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
     const given = dosesGivenByMed[m.id] || 0
     const pct = totalDoses > 0 ? Math.min(Math.round((given / totalDoses) * 100), 100) : 0
 
-    const daysRemaining = endDay ? Math.max(0, Math.round((endDay.getTime() - todayDay.getTime()) / (1000 * 60 * 60 * 24)) + 1) : 0
+    const daysRemaining = endDay ? Math.max(0, Math.round((endDay.getTime() - todayDay.getTime()) / (1000 * 60 * 60 * 24))) : 0
 
     // Next dose (compute from schedule rather than doses, in case doses aren't pre-generated)
     // Times are now stored in PST format (HH:mm), no conversion needed
