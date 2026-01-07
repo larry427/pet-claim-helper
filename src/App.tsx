@@ -2537,7 +2537,7 @@ function MainApp() {
 
               {/* Enhanced Filing Deadline Reminder (pre-save) - Only show for insured pets */}
               {selectedPet && selectedPet.insuranceCompany && selectedPet.insuranceCompany.trim() !== '' && selectedPet.insuranceCompany.toLowerCase() !== 'not insured' && expenseCategory !== 'not_insured' && (() => {
-                const filingDays = Number((selectedPet as any)?.filing_deadline_days) || 90
+                const filingDays = getDeadlineDays(selectedPet?.insuranceCompany || '') || 90
                 // Parse YYYY-MM-DD as local date to avoid timezone shift
                 const parseDateLocal = (iso?: string | null): Date | null => {
                   if (!iso) return null
@@ -2592,7 +2592,7 @@ function MainApp() {
                       </div>
                     </div>
                     <div className="mt-3 text-sm">
-                      <div className="text-slate-700">⚠️ Most insurers require filing within 60–180 days of service.</div>
+                      <div className="text-slate-700">⚠️ {selectedPet?.insuranceCompany ? `${selectedPet.insuranceCompany} requires filing within ${filingDays} days of service.` : 'Most insurers require filing within 60–180 days of service.'}</div>
                     </div>
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                       <div>
