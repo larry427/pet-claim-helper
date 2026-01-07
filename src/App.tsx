@@ -1170,8 +1170,12 @@ function MainApp() {
     }
   }
 
-  const getDeadlineDays = (c: any): number => {
+  const getClaimDeadlineDays = (c: any): number => {
     // Claims have a joined 'pets' object with pet data including filing_deadline_days
+    // For claims, look up from insurance options first, then fall back to DB value
+    const insuranceCompany = c.pets?.insurance_company || ''
+    const lookupDays = getDeadlineDays(insuranceCompany)
+    if (lookupDays) return lookupDays
     const petDeadline = c.pets?.filing_deadline_days
     return typeof petDeadline === 'number' && petDeadline > 0 ? petDeadline : 90
   }
@@ -1188,7 +1192,7 @@ function MainApp() {
     const svc = getServiceDate(c)
     if (!svc) return null
     const deadline = new Date(svc.getTime())
-    deadline.setDate(deadline.getDate() + getDeadlineDays(c))
+    deadline.setDate(deadline.getDate() + getClaimDeadlineDays(c))
     const now = new Date()
     const remMs = deadline.getTime() - now.getTime()
     return Math.ceil(remMs / (1000 * 60 * 60 * 24))
@@ -2825,7 +2829,7 @@ function MainApp() {
                   const svc = getServiceDate(c)
                   if (!svc) return null
                   const d = new Date(svc.getTime())
-                  d.setDate(d.getDate() + getDeadlineDays(c))
+                  d.setDate(d.getDate() + getClaimDeadlineDays(c))
                   return d
                 })()
                 const dlBadge = deadlineBadge(c)
