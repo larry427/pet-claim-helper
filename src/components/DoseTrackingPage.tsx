@@ -58,7 +58,7 @@ export default function DoseTrackingPage({
     const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
     const [endYear, endMonth, endDay] = med.end_date.split('-').map(Number)
     const endDate = new Date(endYear, endMonth - 1, endDay)
-    return Math.max(0, Math.round((endDate.getTime() - todayDay.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+    return Math.max(0, Math.round((endDate.getTime() - todayDay.getTime()) / (1000 * 60 * 60 * 24)))
   }, [med])
 
   const endDateLabel = useMemo(() => {
