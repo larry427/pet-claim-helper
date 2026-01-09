@@ -212,7 +212,7 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
         : (endDay && todayDay > endDay
             ? (given >= totalDoses ? 'Completed' : 'Ended')
             : '—'),
-      endLabel: endDay ? endDay.toISOString().slice(0, 10) : '—'
+      endLabel: m.end_date || '—'
     }
   }
 
