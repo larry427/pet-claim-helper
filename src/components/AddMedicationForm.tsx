@@ -30,6 +30,7 @@ export default function AddMedicationForm({
   const [dayOfMonth, setDayOfMonth] = useState<number>(1) // 1-28
   const [duration, setDuration] = useState<'7' | '14' | '30' | '90' | 'ongoing' | 'custom'>('7')
   const [customDays, setCustomDays] = useState<number>(7)
+  const [originalStartDate, setOriginalStartDate] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [userTimezone, setUserTimezone] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone)
@@ -54,6 +55,7 @@ export default function AddMedicationForm({
           setMedicationName(data.medication_name || '')
           setDosage(data.dosage || '')
           setFrequency(data.frequency || 'Once daily')
+          setOriginalStartDate(data.start_date || null)
 
           // Handle both old and new reminder_times formats
           const reminderTimes = data.reminder_times
@@ -108,6 +110,7 @@ export default function AddMedicationForm({
         setDayOfMonth(1)
         setDuration('7')
         setCustomDays(7)
+        setOriginalStartDate(null)
         setLoading(false)
         setError(null)
       }
@@ -175,12 +178,22 @@ export default function AddMedicationForm({
   }
 
   const computeDates = (): { start: string; end: string | null } => {
-    // Use local date, not UTC date, to prevent timezone bugs
-    // When it's 8 PM PST on Nov 14, we want "2025-11-14" not "2025-11-15" (UTC)
-    const today = new Date()
-    const year = today.getFullYear()
-    const month = String(today.getMonth() + 1).padStart(2, '0')
-    const day = String(today.getDate()).padStart(2, '0')
+    // Use original start_date if editing, otherwise use today
+    // This ensures duration changes are calculated from the original start, not from today
+    let startDate: Date
+    if (editMode && originalStartDate) {
+      // Parse YYYY-MM-DD as local date (not UTC)
+      const [y, m, d] = originalStartDate.split('-').map(Number)
+      startDate = new Date(y, m - 1, d)
+    } else {
+      // Use local date, not UTC date, to prevent timezone bugs
+      // When it's 8 PM PST on Nov 14, we want "2025-11-14" not "2025-11-15" (UTC)
+      startDate = new Date()
+    }
+
+    const year = startDate.getFullYear()
+    const month = String(startDate.getMonth() + 1).padStart(2, '0')
+    const day = String(startDate.getDate()).padStart(2, '0')
     const start = `${year}-${month}-${day}`
 
     // If duration is "ongoing", return null for end_date
@@ -190,7 +203,7 @@ export default function AddMedicationForm({
 
     let days = duration === 'custom' ? Math.max(1, Number(customDays || 1)) : Number(duration)
     if (!Number.isFinite(days) || days < 1) days = 1
-    const endDate = new Date(today.getTime())
+    const endDate = new Date(startDate.getTime())
     endDate.setDate(endDate.getDate() + (days - 1))
     const endYear = endDate.getFullYear()
     const endMonth = String(endDate.getMonth() + 1).padStart(2, '0')
