@@ -627,7 +627,7 @@ export default function FoodTrackingDashboard({
                 <div className="bg-white rounded-2xl p-4 shadow-lg">
                   <img
                     src="/pch-logo.png"
-                    alt="Pet Cost Helper"
+                    alt="Pet Claim Helper"
                     className="w-[180px] h-[180px]"
                   />
                 </div>

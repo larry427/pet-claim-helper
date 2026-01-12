@@ -1423,7 +1423,7 @@ function MainApp() {
           <div className="flex flex-col items-center justify-center mb-1 md:mb-6">
             <img
               src="/pch-logo.png"
-              alt="Pet Cost Helper"
+              alt="Pet Claim Helper"
               className="w-[70vw] max-w-[320px] md:w-[90vw] md:max-w-[500px] h-auto object-contain mt-1 mb-0 md:mt-0 md:mb-0"
             />
 
@@ -1500,7 +1500,7 @@ function MainApp() {
             )}
             {authView === 'app' && (
               <a
-                href={`mailto:support@petclaimhelper.com?subject=Pet Cost Helper Support Request&body=Hi Pet Cost Helper Team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0A----%0D%0AUser: ${userEmail || 'Not logged in'}%0D%0AUser ID: ${userId || 'N/A'}`}
+                href={`mailto:support@petclaimhelper.com?subject=Pet Claim Helper Support Request&body=Hi Pet Claim Helper Team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0A----%0D%0AUser: ${userEmail || 'Not logged in'}%0D%0AUser ID: ${userId || 'N/A'}`}
                 className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow"
                 title="Need help? Contact support"
               >
@@ -3235,7 +3235,7 @@ function MainApp() {
 
         {authView === 'app' && (
           <footer className="mx-auto max-w-3xl text-center py-10 text-xs text-slate-500 dark:text-slate-400">
-            © {new Date().getFullYear()} Pet Cost Helper
+            © {new Date().getFullYear()} Pet Claim Helper
             </footer> 
           )}
          
