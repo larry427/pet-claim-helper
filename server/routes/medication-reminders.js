@@ -141,17 +141,19 @@ export async function runMedicationReminders(options = {}) {
       // Check if reminder should fire based on frequency type
       const reminderConfig = med.reminder_times
       let shouldSendNow = false
+      let matchedTime = null // Capture the actual reminder time that matched
 
       if (Array.isArray(reminderConfig)) {
         // OLD FORMAT: Daily - array of times like ["08:00", "20:00"]
         console.log('[DEBUG] Daily format detected - checking times:', reminderConfig)
-        shouldSendNow = reminderConfig.some(time => {
+        matchedTime = reminderConfig.find(time => {
           const [hour, minute] = time.split(':')
           const matches = hour === String(currentHour).padStart(2, '0') &&
                  minute === String(currentMinute).padStart(2, '0')
           console.log('[DEBUG] Time', time, 'matches current', currentTime, '?', matches)
           return matches
         })
+        shouldSendNow = !!matchedTime
       } else if (reminderConfig && typeof reminderConfig === 'object') {
         // NEW FORMAT: Object with type property
         const { type, dayOfWeek, dayOfMonth, time } = reminderConfig
@@ -164,6 +166,7 @@ export async function runMedicationReminders(options = {}) {
           const dayMatches = todayDayOfWeek === dayOfWeek
           console.log('[DEBUG] Weekly check - today:', todayDayOfWeek, 'expected:', dayOfWeek, 'dayMatches:', dayMatches, 'timeMatches:', timeMatches)
           shouldSendNow = dayMatches && timeMatches
+          if (shouldSendNow) matchedTime = time
         } else if (type === 'monthly') {
           // Monthly: Check if today's day of month matches AND current time matches
           const todayDayOfMonth = nowPST.day
@@ -171,6 +174,7 @@ export async function runMedicationReminders(options = {}) {
           const dayMatches = todayDayOfMonth === dayOfMonth
           console.log('[DEBUG] Monthly check - today:', todayDayOfMonth, 'expected:', dayOfMonth, 'dayMatches:', dayMatches, 'timeMatches:', timeMatches)
           shouldSendNow = dayMatches && timeMatches
+          if (shouldSendNow) matchedTime = time
         } else if (type === 'quarterly') {
           // Quarterly: Check if current month is 3 months since start AND day matches AND time matches
           const startDate = DateTime.fromISO(med.start_date, { zone: 'America/Los_Angeles' })
@@ -181,6 +185,7 @@ export async function runMedicationReminders(options = {}) {
           const dayMatches = todayDayOfMonth === dayOfMonth
           console.log('[DEBUG] Quarterly check - monthsSinceStart:', monthsSinceStart, 'isQuarterlyMonth:', isQuarterlyMonth, 'dayMatches:', dayMatches, 'timeMatches:', timeMatches)
           shouldSendNow = isQuarterlyMonth && dayMatches && timeMatches
+          if (shouldSendNow) matchedTime = time
         } else if (type === 'as_needed') {
           // As needed: Never send automatic reminders
           console.log('[DEBUG] As needed - skipping automatic reminder')
@@ -236,7 +241,9 @@ export async function runMedicationReminders(options = {}) {
       console.log(`[Medication Reminders] ✅ Claimed ${med.medication_name} - safe to send`)
 
       // Create a dose record (so we can generate a magic link token)
-      const scheduledTime = nowPST.toISO() // PST timestamp
+      // Build scheduled_time from the matched reminder time (not current time)
+      const [schedHour, schedMinute] = matchedTime.split(':').map(Number)
+      const scheduledTime = nowPST.set({ hour: schedHour, minute: schedMinute, second: 0, millisecond: 0 }).toISO()
 
       // Generate one-time token for magic link authentication
       const crypto = await import('crypto')
