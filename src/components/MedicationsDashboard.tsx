@@ -150,11 +150,17 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
   }
 
   const computeStats = (m: MedicationRow) => {
-    const start = new Date(m.start_date)
-    const end = m.end_date ? new Date(m.end_date) : null
+    // Timezone-safe date parsing: split YYYY-MM-DD strings to avoid UTC interpretation
+    const [startYear, startMonth, startDayNum] = m.start_date.split('-').map(Number)
+    const startDay = new Date(startYear, startMonth - 1, startDayNum)
+
+    let endDay: Date | null = null
+    if (m.end_date) {
+      const [endYear, endMonth, endDayNum] = m.end_date.split('-').map(Number)
+      endDay = new Date(endYear, endMonth - 1, endDayNum)
+    }
+
     const today = new Date()
-    const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate())
-    const endDay = end ? new Date(end.getFullYear(), end.getMonth(), end.getDate()) : null
     const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
 
     // CRITICAL FIX: Use date-only comparison to avoid off-by-one errors from timestamps
