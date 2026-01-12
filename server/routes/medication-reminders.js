@@ -86,6 +86,21 @@ export async function runMedicationReminders(options = {}) {
 
     console.log('[Medication Reminders] Current time (PST):', currentTime, '| Full PST time:', nowPST.toISO())
 
+    // Auto-skip doses that are more than 24 hours old
+    const twentyFourHoursAgo = nowPST.minus({ hours: 24 }).toISO()
+    const { data: skippedDoses, error: skipError } = await supabase
+      .from('medication_doses')
+      .update({ status: 'skipped', updated_at: new Date().toISOString() })
+      .eq('status', 'pending')
+      .lt('scheduled_time', twentyFourHoursAgo)
+      .select()
+
+    if (skipError) {
+      console.error('[Medication Reminders] Error auto-skipping old doses:', skipError.message)
+    } else if (skippedDoses?.length > 0) {
+      console.log(`[Medication Reminders] Auto-skipped ${skippedDoses.length} old pending doses`)
+    }
+
     // Query all active medications with reminder times
     const { data: medications, error: medsError } = await supabase
       .from('medications')
