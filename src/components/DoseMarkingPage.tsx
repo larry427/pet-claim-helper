@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 interface DoseMarkingPageProps {
@@ -12,6 +12,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   const [pet, setPet] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [marking, setMarking] = useState(false)
+  const markingRef = useRef(false) // Synchronous guard against duplicate submissions
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Extract magic link token from URL if present (legacy)
@@ -339,13 +340,22 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   }
 
   async function markAsGiven() {
+    // Prevent duplicate submissions with ref (synchronous check)
+    if (markingRef.current) {
+      console.log('[DoseMarkingPage] Already marking, ignoring duplicate click')
+      return
+    }
+    markingRef.current = true
+    setMarking(true)
+
     // Magic link auth (short code OR token) OR session auth (userId) - one of them must be present
     if (!shortCode && !magicToken && !userId) {
+      markingRef.current = false
+      setMarking(false)
       setError('Please log in to mark medication as given')
       return
     }
 
-    setMarking(true)
     setError(null)
 
     try {
@@ -557,10 +567,12 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       // For logged-in users, show success modal
       await calculateProgressStats()
       setSuccess(true)
+      markingRef.current = false
       setMarking(false)
     } catch (err) {
       console.error('Error marking dose:', err)
       setError('Failed to mark dose as given')
+      markingRef.current = false
       setMarking(false)
     }
   }

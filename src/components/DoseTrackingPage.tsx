@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 type MedicationRow = {
@@ -26,6 +26,7 @@ export default function DoseTrackingPage({
 }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false) // Synchronous guard against duplicate submissions
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [showCompletionModal, setShowCompletionModal] = useState(false)
@@ -198,10 +199,25 @@ export default function DoseTrackingPage({
   }
 
   const handleMarkGiven = async () => {
-    if (!userId) { setError('You must be logged in to record a dose.'); return }
+    // Prevent duplicate submissions with ref (synchronous check)
+    if (savingRef.current) {
+      console.log('[DoseTrackingPage] Already saving, ignoring duplicate click')
+      return
+    }
+    savingRef.current = true
+    setSaving(true)
+
+    if (!userId) {
+      savingRef.current = false
+      setSaving(false)
+      setError('You must be logged in to record a dose.')
+      return
+    }
 
     // VALIDATION: Prevent over-dosing
     if (givenCount >= totalDoses) {
+      savingRef.current = false
+      setSaving(false)
       setError('All doses have been recorded for this medication')
       return
     }
@@ -209,7 +225,6 @@ export default function DoseTrackingPage({
     // Check if this will complete the medication
     const willComplete = (givenCount + 1) >= totalDoses
 
-    setSaving(true)
     setError(null)
     try {
       const now = new Date()
@@ -266,6 +281,7 @@ export default function DoseTrackingPage({
     } catch (e: any) {
       setError(e?.message || 'Failed to record dose')
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }
