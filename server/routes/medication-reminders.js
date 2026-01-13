@@ -90,7 +90,7 @@ export async function runMedicationReminders(options = {}) {
     const twentyFourHoursAgo = nowPST.minus({ hours: 24 }).toISO()
     const { data: skippedDoses, error: skipError } = await supabase
       .from('medication_doses')
-      .update({ status: 'skipped', updated_at: new Date().toISOString() })
+      .update({ status: 'skipped' })
       .eq('status', 'pending')
       .lt('scheduled_time', twentyFourHoursAgo)
       .select()
