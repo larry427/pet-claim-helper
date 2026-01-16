@@ -162,6 +162,7 @@ function MainApp() {
   const [showClaims, setShowClaims] = useState(false)
   
   const [finPeriod, setFinPeriod] = useState<'all' | '2026' | '2025' | '2024' | 'last12'>('all')
+  const [billsSortBy, setBillsSortBy] = useState<'date-desc' | 'amount-desc' | 'amount-asc' | 'pet-asc'>('date-desc')
   const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications' | 'food' | 'admin' | 'med-admin'>('app')
   const [isAdmin, setIsAdmin] = useState(false)
 
@@ -1240,12 +1241,33 @@ function MainApp() {
   const orderedClaims = useMemo(() => {
     const arr = [...claims]
     arr.sort((a, b) => {
-      const da = getServiceDate(a)?.getTime() || 0
-      const db = getServiceDate(b)?.getTime() || 0
-      return db - da
+      switch (billsSortBy) {
+        case 'date-desc': {
+          const da = getServiceDate(a)?.getTime() || 0
+          const db = getServiceDate(b)?.getTime() || 0
+          return db - da
+        }
+        case 'amount-desc': {
+          const aa = Number(a.total_amount) || 0
+          const ab = Number(b.total_amount) || 0
+          return ab - aa
+        }
+        case 'amount-asc': {
+          const aa = Number(a.total_amount) || 0
+          const ab = Number(b.total_amount) || 0
+          return aa - ab
+        }
+        case 'pet-asc': {
+          const na = (a.pets?.name || '').toLowerCase()
+          const nb = (b.pets?.name || '').toLowerCase()
+          return na.localeCompare(nb)
+        }
+        default:
+          return 0
+      }
     })
     return arr
-  }, [claims])
+  }, [claims, billsSortBy])
 
   const claimsSummary = useMemo(() => {
     const total = claims.length
@@ -3223,6 +3245,23 @@ function MainApp() {
                 )
               })}
             </div>
+
+            {/* Sort dropdown */}
+            {claims.length > 1 && (
+              <div className="mt-4 flex items-center gap-2 text-sm">
+                <label className="text-slate-500">Sort by:</label>
+                <select
+                  value={billsSortBy}
+                  onChange={(e) => setBillsSortBy(e.target.value as any)}
+                  className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-sm"
+                >
+                  <option value="date-desc">Date (newest first)</option>
+                  <option value="amount-desc">Amount (high to low)</option>
+                  <option value="amount-asc">Amount (low to high)</option>
+                  <option value="pet-asc">Pet name (A-Z)</option>
+                </select>
+              </div>
+            )}
 
             {orderedClaims.length === 0 && (
               <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-800 p-6 text-center text-sm text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900">
