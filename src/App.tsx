@@ -2870,6 +2870,23 @@ function MainApp() {
               </div>
             </div>
 
+            {/* Sort dropdown */}
+            {claims.length > 1 && (
+              <div className="mt-4 flex items-center gap-2 text-sm">
+                <label className="text-slate-500">Sort by:</label>
+                <select
+                  value={billsSortBy}
+                  onChange={(e) => setBillsSortBy(e.target.value as any)}
+                  className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-sm"
+                >
+                  <option value="date-desc">Date (newest first)</option>
+                  <option value="amount-desc">Amount (high to low)</option>
+                  <option value="amount-asc">Amount (low to high)</option>
+                  <option value="pet-asc">Pet name (A-Z)</option>
+                </select>
+              </div>
+            )}
+
             {/* Claims list */}
             <div ref={claimsSectionRef} className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full overflow-x-hidden" style={{ overscrollBehaviorX: 'none' }}>
               {orderedClaims.map((c) => {
@@ -3245,23 +3262,6 @@ function MainApp() {
                 )
               })}
             </div>
-
-            {/* Sort dropdown */}
-            {claims.length > 1 && (
-              <div className="mt-4 flex items-center gap-2 text-sm">
-                <label className="text-slate-500">Sort by:</label>
-                <select
-                  value={billsSortBy}
-                  onChange={(e) => setBillsSortBy(e.target.value as any)}
-                  className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-sm"
-                >
-                  <option value="date-desc">Date (newest first)</option>
-                  <option value="amount-desc">Amount (high to low)</option>
-                  <option value="amount-asc">Amount (low to high)</option>
-                  <option value="pet-asc">Pet name (A-Z)</option>
-                </select>
-              </div>
-            )}
 
             {orderedClaims.length === 0 && (
               <div className="mt-6 rounded-xl border border-slate-200 dark:border-slate-800 p-6 text-center text-sm text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900">
