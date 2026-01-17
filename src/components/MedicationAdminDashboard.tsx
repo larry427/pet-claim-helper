@@ -258,7 +258,10 @@ export default function MedicationAdminDashboard() {
 
   function formatDateTime(isoString: string | null) {
     if (!isoString) return '-'
-    const date = new Date(isoString.endsWith('Z') ? isoString : isoString + 'Z')
+    // scheduled_time is stored in local time format, NOT UTC
+    // Remove 'Z' suffix if present to parse as local time
+    const timeStr = isoString.endsWith('Z') ? isoString.slice(0, -1) : isoString
+    const date = new Date(timeStr)
     return date.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
