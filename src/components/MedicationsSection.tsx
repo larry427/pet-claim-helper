@@ -13,6 +13,7 @@ type MedicationsSectionProps = {
 type MedicationWithPet = MedicationRow & {
   pet_name: string
   pet_species: string
+  todayDoseGiven: boolean
 }
 
 type MedicationStatus = {
@@ -34,6 +35,8 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
       setLoading(true)
       try {
         const today = new Date().toISOString().split('T')[0]
+        const todayStart = `${today}T00:00:00`
+        const todayEnd = `${today}T23:59:59`
 
         // Fetch active medications (end_date IS NULL OR end_date >= today)
         const { data, error } = await supabase
@@ -46,10 +49,28 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
 
         if (error) throw error
 
+        // Fetch today's doses for these medications
+        const medIds = (data || []).map((m: any) => m.id)
+        let todayDoses: any[] = []
+        if (medIds.length > 0) {
+          const { data: doses } = await supabase
+            .from('medication_doses')
+            .select('medication_id, status')
+            .in('medication_id', medIds)
+            .gte('scheduled_time', todayStart)
+            .lte('scheduled_time', todayEnd)
+            .eq('status', 'given')
+          todayDoses = doses || []
+        }
+
+        // Create a set of medication IDs that have a dose given today
+        const medsWithDoseToday = new Set(todayDoses.map((d: any) => d.medication_id))
+
         const medsWithPets = (data || []).map((med: any) => ({
           ...med,
           pet_name: med.pets?.name || 'Unknown Pet',
-          pet_species: med.pets?.species || 'dog'
+          pet_species: med.pets?.species || 'dog',
+          todayDoseGiven: medsWithDoseToday.has(med.id)
         }))
 
         setMedications(medsWithPets)
@@ -79,12 +100,13 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
   const calculateStatus = (med: MedicationWithPet): MedicationStatus => {
     const now = new Date()
     const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-    const currentDate = now.toISOString().split('T')[0]
 
     const reminderTimes = med.reminder_times
 
-    // Check if already given today (would need to query medication_doses table)
-    // For now, simplified logic without database query
+    // If today's dose was already given, show "Given today" instead of "Due Now"
+    if (med.todayDoseGiven) {
+      return { label: 'Given today ✓', color: 'green' }
+    }
 
     if (Array.isArray(reminderTimes)) {
       // Daily frequencies
