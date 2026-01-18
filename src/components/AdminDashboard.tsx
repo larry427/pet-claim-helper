@@ -496,7 +496,8 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Food Tracking Metrics */}
+      {/* HIDDEN: Food Tracking Metrics - set to true to re-enable */}
+      {false && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         {/* Total Food Entries */}
         <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg shadow p-6 border border-emerald-200">
@@ -521,8 +522,10 @@ export default function AdminDashboard() {
           <p className="text-sm text-emerald-600 mt-2">All users combined</p>
         </div>
       </div>
+      )}
 
-      {/* Food Tracking Users */}
+      {/* HIDDEN: Food Tracking Users - set to true to re-enable */}
+      {false && (
       <div className="bg-white rounded-lg shadow mb-8">
         <div className="px-6 py-4 border-b">
           <h2 className="text-xl font-semibold text-gray-900">Food Tracking Users</h2>
@@ -609,8 +612,10 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+      )}
 
-      {/* Food Tracking Activity */}
+      {/* HIDDEN: Food Tracking Activity - set to true to re-enable */}
+      {false && (
       <div className="bg-white rounded-lg shadow mb-8">
         <div className="px-6 py-4 border-b">
           <h2 className="text-xl font-semibold text-gray-900">Food Tracking Activity</h2>
@@ -700,6 +705,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Insurance Breakdown */}
       <div className="bg-white rounded-lg shadow p-6 mb-8">
