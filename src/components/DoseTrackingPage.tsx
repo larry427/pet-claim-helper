@@ -168,16 +168,37 @@ export default function DoseTrackingPage({
   const formatLastDose = (timestamp: string | null) => {
     if (!timestamp) return 'No doses recorded yet'
 
-    // given_time is stored in local time format, NOT UTC
-    // Remove 'Z' suffix if present to parse as local time
-    const timeStr = timestamp.endsWith('Z') ? timestamp.slice(0, -1) : timestamp
-    const date = new Date(timeStr)
+    // given_time is stored in local time format (e.g., "2026-01-18T13:26:00")
+    // We need to parse it WITHOUT any timezone conversion
+    // Remove 'Z' suffix if present, and strip milliseconds
+    let timeStr = timestamp.endsWith('Z') ? timestamp.slice(0, -1) : timestamp
+    if (timeStr.includes('.')) {
+      timeStr = timeStr.split('.')[0] // Remove milliseconds like .000
+    }
+
+    // Manually parse the ISO string to avoid timezone interpretation issues
+    const match = timeStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):?(\d{2})?$/)
+    if (!match) {
+      // Fallback if format doesn't match
+      return timestamp
+    }
+
+    const [, yearStr, monthStr, dayStr, hourStr, minStr] = match
+    const year = parseInt(yearStr)
+    const month = parseInt(monthStr) - 1 // JS months are 0-indexed
+    const day = parseInt(dayStr)
+    const hour = parseInt(hourStr)
+    const minute = parseInt(minStr)
+
+    // Create date using local components (no timezone conversion)
+    const date = new Date(year, month, day, hour, minute)
+
     const today = new Date()
     const yesterday = new Date(today)
     yesterday.setDate(yesterday.getDate() - 1)
 
-    // Get date-only representations in local timezone
-    const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+    // Get date-only representations
+    const dateDay = new Date(year, month, day)
     const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
     const yesterdayDay = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate())
 
@@ -187,16 +208,14 @@ export default function DoseTrackingPage({
     } else if (dateDay.getTime() === yesterdayDay.getTime()) {
       dayLabel = 'Yesterday'
     } else {
-      // Use toLocaleString to ensure local timezone conversion
       dayLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     }
 
-    // Format time in local timezone with explicit options
-    const time = date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    })
+    // Format time
+    const hour12 = hour % 12 || 12
+    const ampm = hour >= 12 ? 'PM' : 'AM'
+    const time = `${hour12}:${String(minute).padStart(2, '0')} ${ampm}`
+
     return `${dayLabel} ${time}`
   }
 
