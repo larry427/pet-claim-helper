@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
+// Helper to create local ISO timestamp (no 'Z' suffix) to match scheduled_time format
+function getLocalISOString(): string {
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
+}
+
 interface DoseMarkingPageProps {
   medicationId: string // Can be either short_code (8 chars) or UUID
   userId: string | null
@@ -427,7 +434,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           .from('medication_doses')
           .update({
             status: 'given',
-            given_time: new Date().toISOString()
+            given_time: getLocalISOString()
           })
           .eq('id', dose.id)
 
@@ -614,7 +621,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           .from('medication_doses')
           .update({
             status: 'skipped',
-            given_time: new Date().toISOString() // Reuse given_time to track when skipped
+            given_time: getLocalISOString() // Reuse given_time to track when skipped
           })
           .eq('id', dose.id)
 
@@ -669,7 +676,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         .from('medication_doses')
         .update({
           status: 'skipped',
-          given_time: new Date().toISOString()
+          given_time: getLocalISOString()
         })
         .eq('id', dose.id)
 

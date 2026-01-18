@@ -228,7 +228,9 @@ export default function DoseTrackingPage({
     setError(null)
     try {
       const now = new Date()
-      const isoNow = now.toISOString()
+      // Use local ISO format (no 'Z' suffix) to match scheduled_time storage format
+      const pad = (n: number) => String(n).padStart(2, '0')
+      const localIsoNow = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
 
       // First, check for existing pending dose for today
       const todayStart = new Date()
@@ -250,7 +252,7 @@ export default function DoseTrackingPage({
         // Update existing pending dose
         const { error: updErr } = await supabase
           .from('medication_doses')
-          .update({ status: 'given', given_time: isoNow })
+          .update({ status: 'given', given_time: localIsoNow })
           .eq('id', pendingDose.id)
         if (updErr) throw updErr
       } else {
@@ -258,14 +260,14 @@ export default function DoseTrackingPage({
         const { error: insErr } = await supabase.from('medication_doses').insert({
           medication_id: medicationId,
           user_id: userId,
-          scheduled_time: isoNow,
-          given_time: isoNow,
+          scheduled_time: localIsoNow,
+          given_time: localIsoNow,
           status: 'given',
         })
         if (insErr) throw insErr
       }
       setGivenCount((g) => g + 1)
-      setLastDoseGiven(isoNow)
+      setLastDoseGiven(localIsoNow)
 
       if (willComplete) {
         // Show completion celebration modal
