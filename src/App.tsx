@@ -472,11 +472,12 @@ function MainApp() {
   }, [userId])
 
   // Auto-select pet when there is exactly one
+  // Also triggers when a bill is extracted to ensure selection happens at the right time
   useEffect(() => {
-    if (pets && pets.length === 1) {
-      setSelectedPetId((prev) => prev || pets[0].id)
+    if (pets && pets.length === 1 && !selectedPetId) {
+      setSelectedPetId(pets[0].id)
     }
-  }, [pets])
+  }, [pets, extracted, selectedPetId])
 
   // Photo upload tooltip after onboarding completion
   useEffect(() => {
