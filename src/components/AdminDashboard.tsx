@@ -54,6 +54,27 @@ const CUPS_PER_LB = {
   cooked: 2.5
 };
 
+// Helper function for relative time display
+function getRelativeTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return 'unknown';
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return 'unknown';
+
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+  if (diffDays === 1) return 'yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${Math.floor(diffDays / 7) === 1 ? '' : 's'} ago`;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 export default function AdminDashboard() {
   // Parse YYYY-MM-DD safely as a local Date (no timezone shift)
   const parseYmdLocal = (iso: string | null | undefined): Date | null => {
@@ -493,6 +514,57 @@ export default function AdminDashboard() {
             ${metrics.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
           <p className="text-sm text-gray-600 mt-2">All claims combined</p>
+        </div>
+      </div>
+
+      {/* Recent Claim Activity Feed */}
+      <div className="bg-white rounded-lg shadow mb-8">
+        <div className="px-6 py-4 border-b">
+          <h2 className="text-xl font-semibold text-gray-900">Recent Claim Activity</h2>
+          <p className="text-sm text-gray-600 mt-1">Latest claim submissions</p>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {allClaims
+            .filter(c => ['filed', 'submitted', 'paid'].includes((c.filing_status || '').toLowerCase()))
+            .sort((a, b) => {
+              const dateA = new Date(a.filed_date || a.created_at || 0).getTime();
+              const dateB = new Date(b.filed_date || b.created_at || 0).getTime();
+              return dateB - dateA;
+            })
+            .slice(0, 10)
+            .map(claim => {
+              const emailPrefix = (claim.userEmail || '').split('@')[0];
+              const amount = typeof claim.total_amount === 'number'
+                ? `$${claim.total_amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : '$0.00';
+              const activityDate = claim.filed_date || claim.created_at;
+              const relativeTime = getRelativeTime(activityDate);
+              const status = (claim.filing_status || '').toLowerCase();
+              const action = status === 'paid' ? 'received payment for' : 'filed a claim to';
+
+              return (
+                <div key={claim.id} className="px-6 py-3 hover:bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm">
+                      <span className="font-medium text-gray-900">{emailPrefix}@</span>
+                      <span className="text-gray-600"> {action} </span>
+                      <span className="font-medium text-blue-600">{claim.insuranceCompany}</span>
+                      <span className="text-gray-600"> for </span>
+                      <span className="font-medium text-gray-900">{claim.petName}</span>
+                      <span className="text-gray-600"> (</span>
+                      <span className="font-semibold text-emerald-600">{amount}</span>
+                      <span className="text-gray-600">)</span>
+                    </div>
+                    <span className="text-xs text-gray-500 whitespace-nowrap ml-4">{relativeTime}</span>
+                  </div>
+                </div>
+              );
+            })}
+          {allClaims.filter(c => ['filed', 'submitted', 'paid'].includes((c.filing_status || '').toLowerCase())).length === 0 && (
+            <div className="px-6 py-8 text-center text-sm text-gray-500">
+              No claim submissions yet
+            </div>
+          )}
         </div>
       </div>
 
