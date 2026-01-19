@@ -157,10 +157,15 @@ export async function runMedicationReminders(options = {}) {
       const reminderConfig = med.reminder_times
       let shouldSendNow = false
       let matchedTime = null // Capture the actual reminder time that matched
+      let reminderOrdinalPosition = 1 // Which slot this reminder is (1st, 2nd, 3rd, etc.)
 
       if (Array.isArray(reminderConfig)) {
         // OLD FORMAT: Daily - array of times like ["08:00", "20:00"]
         console.log('[DEBUG] Daily format detected - checking times:', reminderConfig)
+
+        // Sort times chronologically to determine ordinal positions
+        const sortedTimes = [...reminderConfig].sort()
+
         matchedTime = reminderConfig.find(time => {
           const [hour, minute] = time.split(':')
           const matches = hour === String(currentHour).padStart(2, '0') &&
@@ -169,6 +174,12 @@ export async function runMedicationReminders(options = {}) {
           return matches
         })
         shouldSendNow = !!matchedTime
+
+        // Get ordinal position (1-based) of this reminder in sorted order
+        if (matchedTime) {
+          reminderOrdinalPosition = sortedTimes.indexOf(matchedTime) + 1
+          console.log('[DEBUG] Reminder ordinal position:', reminderOrdinalPosition, 'of', sortedTimes.length, '(sorted times:', sortedTimes, ')')
+        }
       } else if (reminderConfig && typeof reminderConfig === 'object') {
         // NEW FORMAT: Object with type property
         const { type, dayOfWeek, dayOfMonth, time } = reminderConfig
@@ -215,19 +226,8 @@ export async function runMedicationReminders(options = {}) {
         continue // Not time yet for this medication
       }
 
-      // FIX: Check if all daily doses have already been given
+      // FIX: Check if a dose was already given for this reminder slot
       // This prevents sending reminders when user gave doses early
-      function getDosesPerDay(frequency) {
-        const freq = (frequency || '').toLowerCase()
-        if (freq.includes('once') || freq === '1x daily') return 1
-        if (freq.includes('twice') || freq === '2x daily') return 2
-        if (freq.includes('three') || freq === '3x daily') return 3
-        // Weekly, monthly, quarterly, as_needed = 1 per occurrence
-        return 1
-      }
-
-      const dosesPerDay = getDosesPerDay(med.frequency)
-
       // Count doses already marked 'given' TODAY (in user's timezone - PST)
       const todayStart = nowPST.startOf('day').toISO()
       const todayEnd = nowPST.endOf('day').toISO()
@@ -244,13 +244,16 @@ export async function runMedicationReminders(options = {}) {
         console.error('[Medication Reminders] Error counting doses:', countError.message)
       }
 
-      if (givenToday >= dosesPerDay) {
-        console.log(`[DEBUG] Skipping ${med.medication_name} - all ${dosesPerDay} daily doses already given (${givenToday} given today)`)
-        remindersSkipped.push({ medicationId: med.id, reason: `All ${dosesPerDay} daily doses already given` })
+      // Skip if enough doses have been given to cover this reminder slot
+      // E.g., if this is the 1st reminder and 1+ doses given, skip
+      // If this is the 2nd reminder and 2+ doses given, skip
+      if (givenToday >= reminderOrdinalPosition) {
+        console.log(`[DEBUG] Skipping ${med.medication_name} - this is reminder #${reminderOrdinalPosition} but ${givenToday} dose(s) already given today`)
+        remindersSkipped.push({ medicationId: med.id, reason: `Dose already given for reminder slot #${reminderOrdinalPosition}` })
         continue
       }
 
-      console.log(`[DEBUG] ${med.medication_name}: ${givenToday}/${dosesPerDay} doses given today - proceeding with reminder`)
+      console.log(`[DEBUG] ${med.medication_name}: ${givenToday} dose(s) given, this is reminder #${reminderOrdinalPosition} - proceeding`)
 
       // CRITICAL FIX: Insert log entry FIRST, then send SMS
       // The UNIQUE constraint on (medication_id, reminder_date, reminder_time) acts as an atomic lock
