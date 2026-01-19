@@ -215,6 +215,43 @@ export async function runMedicationReminders(options = {}) {
         continue // Not time yet for this medication
       }
 
+      // FIX: Check if all daily doses have already been given
+      // This prevents sending reminders when user gave doses early
+      function getDosesPerDay(frequency) {
+        const freq = (frequency || '').toLowerCase()
+        if (freq.includes('once') || freq === '1x daily') return 1
+        if (freq.includes('twice') || freq === '2x daily') return 2
+        if (freq.includes('three') || freq === '3x daily') return 3
+        // Weekly, monthly, quarterly, as_needed = 1 per occurrence
+        return 1
+      }
+
+      const dosesPerDay = getDosesPerDay(med.frequency)
+
+      // Count doses already marked 'given' TODAY (in user's timezone - PST)
+      const todayStart = nowPST.startOf('day').toISO()
+      const todayEnd = nowPST.endOf('day').toISO()
+
+      const { count: givenToday, error: countError } = await supabase
+        .from('medication_doses')
+        .select('*', { count: 'exact', head: true })
+        .eq('medication_id', med.id)
+        .eq('status', 'given')
+        .gte('given_time', todayStart)
+        .lte('given_time', todayEnd)
+
+      if (countError) {
+        console.error('[Medication Reminders] Error counting doses:', countError.message)
+      }
+
+      if (givenToday >= dosesPerDay) {
+        console.log(`[DEBUG] Skipping ${med.medication_name} - all ${dosesPerDay} daily doses already given (${givenToday} given today)`)
+        remindersSkipped.push({ medicationId: med.id, reason: `All ${dosesPerDay} daily doses already given` })
+        continue
+      }
+
+      console.log(`[DEBUG] ${med.medication_name}: ${givenToday}/${dosesPerDay} doses given today - proceeding with reminder`)
+
       // CRITICAL FIX: Insert log entry FIRST, then send SMS
       // The UNIQUE constraint on (medication_id, reminder_date, reminder_time) acts as an atomic lock
       // If two instances try to process the same medication, only the first insert succeeds
