@@ -33,6 +33,7 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
   const [error, setError] = useState<string | null>(null)
   const [medications, setMedications] = useState<MedicationRow[]>([])
   const [dosesGivenByMed, setDosesGivenByMed] = useState<Record<string, number>>({})
+  const [dosesGivenTodayByMed, setDosesGivenTodayByMed] = useState<Record<string, number>>({})
   const [showAdd, setShowAdd] = useState(false)
   const [editMedicationId, setEditMedicationId] = useState<string | null>(null)
   const [selectedMedicationId, setSelectedMedicationId] = useState<string | null>(null)
@@ -78,12 +79,30 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
           .eq('status', 'given')
         if (doseErr) throw doseErr
         const byMed: Record<string, number> = {}
+        const todayByMed: Record<string, number> = {}
+
+        // Get today's date boundaries for counting today's doses
+        const todayStart = new Date()
+        todayStart.setHours(0, 0, 0, 0)
+        const todayEnd = new Date()
+        todayEnd.setHours(23, 59, 59, 999)
+
         for (const d of (doseRows || []) as DoseRow[]) {
           byMed[d.medication_id] = (byMed[d.medication_id] || 0) + 1
+
+          // Also count doses given TODAY
+          if (d.given_time) {
+            const givenDate = new Date(d.given_time)
+            if (givenDate >= todayStart && givenDate <= todayEnd) {
+              todayByMed[d.medication_id] = (todayByMed[d.medication_id] || 0) + 1
+            }
+          }
         }
         setDosesGivenByMed(byMed)
+        setDosesGivenTodayByMed(todayByMed)
       } else {
         setDosesGivenByMed({})
+        setDosesGivenTodayByMed({})
       }
     } catch (e: any) {
       setError(e?.message || 'Failed to load medications')
@@ -182,8 +201,16 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
     // Create a fresh reference time for comparison
     const now = new Date()
 
-    // Start searching from today
+    // Check if today's doses are complete
+    const dosesPerDay = tpd
+    const dosesGivenToday = dosesGivenTodayByMed[m.id] || 0
+    const todayComplete = dosesGivenToday >= dosesPerDay
+
+    // Start searching from today, or tomorrow if today's doses are complete
     let searchDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    if (todayComplete) {
+      searchDate.setDate(searchDate.getDate() + 1)
+    }
 
     // Search up to 7 days ahead to find the next scheduled time within the course
     for (let i = 0; i < 7; i++) {
