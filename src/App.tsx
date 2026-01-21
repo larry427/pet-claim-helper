@@ -25,6 +25,8 @@ import AdminDashboard from './components/AdminDashboard'
 import MedicationAdminDashboard from './components/MedicationAdminDashboard'
 import ForgotPassword from './components/ForgotPassword'
 import ResetPassword from './components/ResetPassword'
+import AddExpenseModal from './components/AddExpenseModal'
+import { useExpenses } from './lib/useExpenses'
 import { createClaim, listClaims, updateClaim, deleteClaim as dbDeleteClaim } from './lib/claims'
 import { formatPhoneOnChange, formatPhoneForStorage, formatPhoneForDisplay } from './utils/phoneUtils'
 import { INSURANCE_OPTIONS, getInsuranceValue, getInsuranceDisplay, getDeadlineDays } from './lib/insuranceOptions'
@@ -41,6 +43,13 @@ const AUTOSUB_WHITELIST = [
   'test-automation@petclaimhelper.com',
   'larry@uglydogadventures.com',
   'larry@dogstrainedright.com',
+]
+
+// Expense Tracking Feature Flag (QuickBooks for Dogs)
+// Only these email addresses can see the Add Expense button during beta
+const EXPENSE_TRACKING_WHITELIST = [
+  'larry@uglydogadventures.com',
+  'larrysecrets@gmail.com',
 ]
 
 // Insurers with Auto-Submit enabled (must match backend PRODUCTION_INSURERS)
@@ -231,6 +240,8 @@ function MainApp() {
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null)
   // DISABLED: Using add-to-homescreen library in index.html instead
   // const [showAddToHomeScreen, setShowAddToHomeScreen] = useState(false)
+  // Expense tracking modal (QuickBooks for Dogs)
+  const [showAddExpenseModal, setShowAddExpenseModal] = useState(false)
 
   // DISABLED: Using add-to-homescreen library in index.html instead
   // useEffect(() => {
@@ -1501,6 +1512,15 @@ function MainApp() {
                 className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2 md:px-3 py-1.5 text-xs font-medium shadow-sm hover:shadow"
               >
                 💊 Medications
+              </button>
+            )}
+            {authView === 'app' && userEmail && EXPENSE_TRACKING_WHITELIST.includes(userEmail.toLowerCase()) && (
+              <button
+                type="button"
+                onClick={() => setShowAddExpenseModal(true)}
+                className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-2 md:px-3 py-1.5 text-xs font-medium shadow-sm hover:shadow"
+              >
+                💰 Add Expense
               </button>
             )}
             {authView === 'app' && isAdmin && (
@@ -3739,6 +3759,28 @@ function MainApp() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Add Expense Modal (QuickBooks for Dogs) */}
+      {showAddExpenseModal && (
+        <AddExpenseModal
+          onClose={() => setShowAddExpenseModal(false)}
+          onSubmit={async (expense) => {
+            if (!userId) return { success: false, error: 'Not logged in' }
+            try {
+              const { error: insertError } = await supabase
+                .from('pet_expenses')
+                .insert({
+                  ...expense,
+                  user_id: userId
+                })
+              if (insertError) throw insertError
+              return { success: true }
+            } catch (e: any) {
+              return { success: false, error: e?.message || 'Failed to add expense' }
+            }
+          }}
+        />
       )}
 
       {/* Footer with security message */}
