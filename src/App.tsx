@@ -27,6 +27,7 @@ import ForgotPassword from './components/ForgotPassword'
 import ResetPassword from './components/ResetPassword'
 import AddExpenseModal from './components/AddExpenseModal'
 import ExpensesDashboardWidget from './components/ExpensesDashboardWidget'
+import ExpensesPage from './components/ExpensesPage'
 import { useExpenses } from './lib/useExpenses'
 import { createClaim, listClaims, updateClaim, deleteClaim as dbDeleteClaim } from './lib/claims'
 import { formatPhoneOnChange, formatPhoneForStorage, formatPhoneForDisplay } from './utils/phoneUtils'
@@ -173,7 +174,7 @@ function MainApp() {
   
   const [finPeriod, setFinPeriod] = useState<'all' | '2026' | '2025' | '2024' | 'last12'>('all')
   const [billsSortBy, setBillsSortBy] = useState<'date-desc' | 'amount-desc' | 'amount-asc' | 'pet-asc'>('date-desc')
-  const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications' | 'food' | 'admin' | 'med-admin'>('app')
+  const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications' | 'food' | 'admin' | 'med-admin' | 'expenses'>('app')
   const [isAdmin, setIsAdmin] = useState(false)
 
   // Food & Consumables Category Section State
@@ -1614,6 +1615,12 @@ function MainApp() {
             )}
           </>
         )}
+        {authView === 'app' && activeView === 'expenses' && userEmail && EXPENSE_TRACKING_WHITELIST.includes(userEmail.toLowerCase()) && (
+          <ExpensesPage
+            userId={userId}
+            onClose={() => setActiveView('app')}
+          />
+        )}
         {authView !== 'app' && (
           <section className="mx-auto max-w-md mt-8">
             {/* Tabs - dramatically different styling */}
@@ -2866,9 +2873,9 @@ function MainApp() {
         )}
 
         {/* Pet Expenses Widget (QuickBooks for Dogs) */}
-        {authView === 'app' && userEmail && EXPENSE_TRACKING_WHITELIST.includes(userEmail.toLowerCase()) && (
+        {authView === 'app' && activeView === 'app' && userEmail && EXPENSE_TRACKING_WHITELIST.includes(userEmail.toLowerCase()) && (
           <section className="mx-auto mt-6 max-w-5xl">
-            <ExpensesDashboardWidget userId={userId} />
+            <ExpensesDashboardWidget userId={userId} onViewAll={() => setActiveView('expenses')} />
           </section>
         )}
 

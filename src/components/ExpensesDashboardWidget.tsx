@@ -3,9 +3,10 @@ import { useExpenses } from '../lib/useExpenses'
 
 type Props = {
   userId: string | null
+  onViewAll: () => void
 }
 
-export default function ExpensesDashboardWidget({ userId }: Props) {
+export default function ExpensesDashboardWidget({ userId, onViewAll }: Props) {
   const { summary, loading, error } = useExpenses(userId)
 
   // Format currency
@@ -54,11 +55,11 @@ export default function ExpensesDashboardWidget({ userId }: Props) {
             </span>
           </div>
 
-          {/* View All link (disabled for now) */}
+          {/* View All link */}
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
             <button
-              disabled
-              className="text-sm text-slate-400 dark:text-slate-500 cursor-not-allowed flex items-center gap-1"
+              onClick={onViewAll}
+              className="text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium flex items-center gap-1 transition-colors"
             >
               View All
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
