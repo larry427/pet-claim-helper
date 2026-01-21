@@ -26,6 +26,7 @@ import MedicationAdminDashboard from './components/MedicationAdminDashboard'
 import ForgotPassword from './components/ForgotPassword'
 import ResetPassword from './components/ResetPassword'
 import AddExpenseModal from './components/AddExpenseModal'
+import ExpensesDashboardWidget from './components/ExpensesDashboardWidget'
 import { useExpenses } from './lib/useExpenses'
 import { createClaim, listClaims, updateClaim, deleteClaim as dbDeleteClaim } from './lib/claims'
 import { formatPhoneOnChange, formatPhoneForStorage, formatPhoneForDisplay } from './utils/phoneUtils'
@@ -2861,6 +2862,13 @@ function MainApp() {
               </div>
             </div>
             <FinancialSummary userId={userId} refreshToken={dataRefreshToken} period={finPeriod} />
+          </section>
+        )}
+
+        {/* Pet Expenses Widget (QuickBooks for Dogs) */}
+        {authView === 'app' && userEmail && EXPENSE_TRACKING_WHITELIST.includes(userEmail.toLowerCase()) && (
+          <section className="mx-auto mt-6 max-w-5xl">
+            <ExpensesDashboardWidget userId={userId} />
           </section>
         )}
 
