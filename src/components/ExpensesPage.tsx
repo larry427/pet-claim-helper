@@ -135,10 +135,7 @@ export default function ExpensesPage({ userId, onClose }: Props) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              <div>
-                <h1 className="text-xl font-bold text-slate-900 dark:text-white">Pet Expenses</h1>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium tracking-wide uppercase">QuickBooks for Dogs</p>
-              </div>
+              <h1 className="text-xl font-bold text-slate-900 dark:text-white">Pet Expenses</h1>
             </div>
             <button
               onClick={() => setShowAddModal(true)}
