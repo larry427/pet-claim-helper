@@ -19,6 +19,11 @@ const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
 }
 
 export default function ExpensesPage({ userId, onClose }: Props) {
+  // Disable browser scroll restoration to prevent mobile scroll position issues
+  if (typeof window !== 'undefined') {
+    window.history.scrollRestoration = 'manual'
+  }
+
   const { expenses, summary, loading, error, addExpense, updateExpense, deleteExpense, refreshExpenses } = useExpenses(userId)
 
   const [showAddModal, setShowAddModal] = useState(false)
@@ -30,9 +35,21 @@ export default function ExpensesPage({ userId, onClose }: Props) {
   const [swipedId, setSwipedId] = useState<string | null>(null)
   const touchStartX = useRef<number>(0)
 
-  // Backup scroll to top on mount (main scroll happens before navigation in widget)
+  // Scroll to top on mount - multiple methods for cross-browser/mobile support
   useEffect(() => {
-    window.scrollTo(0, 0)
+    // Immediate scroll attempts
+    document.documentElement.scrollTop = 0
+    document.body.scrollTop = 0 // For Safari
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
+
+    // Delayed attempt for mobile browsers that need render time
+    const timer = setTimeout(() => {
+      document.documentElement.scrollTop = 0
+      document.body.scrollTop = 0
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
+    }, 50)
+
+    return () => clearTimeout(timer)
   }, [])
 
   // Handle close - switch view then scroll to widget
