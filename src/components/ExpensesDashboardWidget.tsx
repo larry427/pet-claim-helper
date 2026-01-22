@@ -58,7 +58,13 @@ export default function ExpensesDashboardWidget({ userId, onViewAll }: Props) {
           {/* View All link */}
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
             <button
-              onClick={onViewAll}
+              onClick={() => {
+                // Scroll to top BEFORE navigation - fixes mobile scroll issue
+                window.scrollTo(0, 0)
+                document.documentElement.scrollTop = 0
+                document.body.scrollTop = 0
+                onViewAll()
+              }}
               className="text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium flex items-center gap-1 transition-colors"
             >
               View All

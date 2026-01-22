@@ -30,28 +30,9 @@ export default function ExpensesPage({ userId, onClose }: Props) {
   const [swipedId, setSwipedId] = useState<string | null>(null)
   const touchStartX = useRef<number>(0)
 
-  // Scroll to top when page opens - mobile-friendly approach with multiple attempts
+  // Backup scroll to top on mount (main scroll happens before navigation in widget)
   useEffect(() => {
-    const scrollToTop = () => {
-      window.scrollTo(0, 0)
-      document.documentElement.scrollTop = 0
-      document.body.scrollTop = 0
-    }
-
-    // Immediate attempt
-    scrollToTop()
-
-    // After first paint
-    requestAnimationFrame(() => {
-      scrollToTop()
-      // After second paint (needed for some mobile browsers)
-      requestAnimationFrame(scrollToTop)
-    })
-
-    // Delayed attempts for mobile browsers that need more render time
-    setTimeout(scrollToTop, 50)
-    setTimeout(scrollToTop, 100)
-    setTimeout(scrollToTop, 150)
+    window.scrollTo(0, 0)
   }, [])
 
   // Handle close - switch view then scroll to widget
