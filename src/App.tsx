@@ -52,6 +52,7 @@ const AUTOSUB_WHITELIST = [
 const EXPENSE_TRACKING_WHITELIST = [
   'larry@uglydogadventures.com',
   'larrysecrets@gmail.com',
+  'larry@vrexistence.com',
 ]
 
 // Insurers with Auto-Submit enabled (must match backend PRODUCTION_INSURERS)
