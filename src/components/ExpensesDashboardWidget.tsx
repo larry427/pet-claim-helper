@@ -59,11 +59,13 @@ export default function ExpensesDashboardWidget({ userId, onViewAll }: Props) {
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
             <button
               onClick={() => {
-                // Scroll to top BEFORE navigation - fixes mobile scroll issue
-                window.scrollTo(0, 0)
-                document.documentElement.scrollTop = 0
-                document.body.scrollTop = 0
                 onViewAll()
+                setTimeout(() => {
+                  const expensesTop = document.getElementById('expenses-page-top')
+                  if (expensesTop) {
+                    expensesTop.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }
+                }, 100)
               }}
               className="text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium flex items-center gap-1 transition-colors"
             >

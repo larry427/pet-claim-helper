@@ -35,22 +35,6 @@ export default function ExpensesPage({ userId, onClose }: Props) {
   const [swipedId, setSwipedId] = useState<string | null>(null)
   const touchStartX = useRef<number>(0)
 
-  // Scroll to top on mount - multiple methods for cross-browser/mobile support
-  useEffect(() => {
-    // Immediate scroll attempts
-    document.documentElement.scrollTop = 0
-    document.body.scrollTop = 0 // For Safari
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
-
-    // Delayed attempt for mobile browsers that need render time
-    const timer = setTimeout(() => {
-      document.documentElement.scrollTop = 0
-      document.body.scrollTop = 0
-      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
-    }, 50)
-
-    return () => clearTimeout(timer)
-  }, [])
 
   // Handle close - switch view then scroll to widget
   const handleClose = () => {
@@ -129,7 +113,7 @@ export default function ExpensesPage({ userId, onClose }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
+    <div id="expenses-page-top" className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
       {/* Premium Header */}
       <header className="sticky top-0 z-40 backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border-b border-slate-200/50 dark:border-slate-800/50">
         <div className="max-w-5xl mx-auto px-4 py-4">
