@@ -2874,7 +2874,7 @@ function MainApp() {
 
         {/* Pet Expenses Widget (QuickBooks for Dogs) */}
         {authView === 'app' && activeView === 'app' && userEmail && EXPENSE_TRACKING_WHITELIST.includes(userEmail.toLowerCase()) && (
-          <section className="mx-auto mt-6 max-w-5xl">
+          <section id="pet-expenses-widget" className="mx-auto mt-6 max-w-5xl">
             <ExpensesDashboardWidget userId={userId} onViewAll={() => setActiveView('expenses')} />
           </section>
         )}

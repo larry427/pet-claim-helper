@@ -30,18 +30,21 @@ export default function ExpensesPage({ userId, onClose }: Props) {
   const [swipedId, setSwipedId] = useState<string | null>(null)
   const touchStartX = useRef<number>(0)
 
-  // Scroll to top when page opens
+  // Scroll to top instantly when page opens
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.scrollTo(0, 0)
   }, [])
 
-  // Handle close - scroll to top then close
+  // Handle close - switch view then scroll to widget
   const handleClose = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-    // Small delay to let scroll start before view changes
+    onClose()
+    // Scroll to the widget after DOM updates
     setTimeout(() => {
-      onClose()
-    }, 50)
+      const widget = document.getElementById('pet-expenses-widget')
+      if (widget) {
+        widget.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }, 100)
   }
 
   // Format currency
