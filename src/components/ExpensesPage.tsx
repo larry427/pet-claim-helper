@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import { useExpenses, Expense, ExpenseCategory, CATEGORY_LABELS, CATEGORY_ICONS, NewExpense } from '../lib/useExpenses'
 import AddExpenseModal from './AddExpenseModal'
@@ -29,6 +29,20 @@ export default function ExpensesPage({ userId, onClose }: Props) {
   // Swipe state for mobile
   const [swipedId, setSwipedId] = useState<string | null>(null)
   const touchStartX = useRef<number>(0)
+
+  // Scroll to top when page opens
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
+
+  // Handle close - scroll to top then close
+  const handleClose = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    // Small delay to let scroll start before view changes
+    setTimeout(() => {
+      onClose()
+    }, 50)
+  }
 
   // Format currency
   const fmtMoney = (n: number) => `$${n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
@@ -102,7 +116,7 @@ export default function ExpensesPage({ userId, onClose }: Props) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="p-2.5 -ml-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
                 aria-label="Back to dashboard"
               >
