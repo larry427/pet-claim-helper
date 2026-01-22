@@ -30,9 +30,17 @@ export default function ExpensesPage({ userId, onClose }: Props) {
   const [swipedId, setSwipedId] = useState<string | null>(null)
   const touchStartX = useRef<number>(0)
 
-  // Scroll to top instantly when page opens
+  // Scroll to top instantly when page opens - aggressive approach
   useEffect(() => {
-    window.scrollTo(0, 0)
+    const scrollToTop = () => {
+      document.documentElement.scrollTop = 0
+      document.body.scrollTop = 0
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
+    }
+    scrollToTop()
+    // Backup attempts in case first doesn't work
+    requestAnimationFrame(scrollToTop)
+    setTimeout(scrollToTop, 50)
   }, [])
 
   // Handle close - switch view then scroll to widget

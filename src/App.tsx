@@ -2181,6 +2181,13 @@ function MainApp() {
         </section>
         )}
 
+        {/* Pet Expenses Widget (QuickBooks for Dogs) */}
+        {authView === 'app' && activeView === 'app' && userEmail && EXPENSE_TRACKING_WHITELIST.includes(userEmail.toLowerCase()) && (
+          <section id="pet-expenses-widget" className="mx-auto mt-6 max-w-4xl">
+            <ExpensesDashboardWidget userId={userId} onViewAll={() => setActiveView('expenses')} />
+          </section>
+        )}
+
         {/* Medications Section */}
         {authView === 'app' && activeView === 'app' && (
           <MedicationsSection
@@ -2869,13 +2876,6 @@ function MainApp() {
               </div>
             </div>
             <FinancialSummary userId={userId} refreshToken={dataRefreshToken} period={finPeriod} />
-          </section>
-        )}
-
-        {/* Pet Expenses Widget (QuickBooks for Dogs) */}
-        {authView === 'app' && activeView === 'app' && userEmail && EXPENSE_TRACKING_WHITELIST.includes(userEmail.toLowerCase()) && (
-          <section id="pet-expenses-widget" className="mx-auto mt-6 max-w-5xl">
-            <ExpensesDashboardWidget userId={userId} onViewAll={() => setActiveView('expenses')} />
           </section>
         )}
 
