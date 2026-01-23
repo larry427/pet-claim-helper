@@ -2939,18 +2939,34 @@ function MainApp() {
                 })()
                 const dlBadge = deadlineBadge(c)
                 const stBadge = statusBadge(c.filing_status)
-                const isNotInsured = String(c.expense_category || 'insured') === 'not_insured'
-                const catBadge = (() => {
-                  const v = (c.expense_category || 'insured') as 'insured' | 'not_insured' | 'maybe_insured'
-                  // Database returns insurance_company (snake_case), not insuranceCompany
-                  const insuranceCompany = (pet as any)?.insurance_company || ''
+                // Database returns insurance_company (snake_case), not insuranceCompany
+                const insuranceCompany = (pet as any)?.insurance_company || ''
+                const petHasInsurance = (pet as any)?.has_insurance
 
-                  if (v === 'insured') {
+                // Determine effective expense category:
+                // 1. If explicitly set on the claim, use that
+                // 2. If not set, check pet's actual insurance status
+                const effectiveCategory = (() => {
+                  const explicit = c.expense_category
+                  if (explicit && ['insured', 'not_insured', 'maybe_insured'].includes(explicit)) {
+                    return explicit as 'insured' | 'not_insured' | 'maybe_insured'
+                  }
+                  // Not explicitly set - check pet's current insurance status
+                  const petIsNotInsured = !insuranceCompany ||
+                    insuranceCompany.toLowerCase() === 'not insured' ||
+                    insuranceCompany.toLowerCase() === 'none' ||
+                    petHasInsurance === false
+                  return petIsNotInsured ? 'not_insured' : 'insured'
+                })()
+
+                const isNotInsured = effectiveCategory === 'not_insured'
+                const catBadge = (() => {
+                  if (effectiveCategory === 'insured') {
                     // Show "Insured • [Company Name]" if insurance company exists
                     const text = insuranceCompany ? `Insured • ${insuranceCompany}` : 'Insured'
                     return { text, cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' }
                   }
-                  if (v === 'not_insured') return { text: 'Not Insured', cls: 'bg-amber-50 text-amber-700 border border-amber-200' }
+                  if (effectiveCategory === 'not_insured') return { text: 'Not Insured', cls: 'bg-amber-50 text-amber-700 border border-amber-200' }
 
                   // Maybe insured - also show company if available
                   const text = insuranceCompany ? `Maybe Insured • ${insuranceCompany}` : 'Maybe Insured'
