@@ -2941,22 +2941,33 @@ function MainApp() {
                 const stBadge = statusBadge(c.filing_status)
                 // Database returns insurance_company (snake_case), not insuranceCompany
                 const insuranceCompany = (pet as any)?.insurance_company || ''
-                const petHasInsurance = (pet as any)?.has_insurance
 
-                // Determine effective expense category:
-                // 1. If explicitly set on the claim, use that
-                // 2. If not set, check pet's actual insurance status
+                // Check if pet currently has no insurance
+                const petCurrentlyNotInsured = !insuranceCompany ||
+                  insuranceCompany.toLowerCase() === 'not insured' ||
+                  insuranceCompany.toLowerCase() === 'none'
+
+                // Determine effective expense category (hybrid approach):
+                // - If 'not_insured' or 'maybe_insured' → use that (explicitly set)
+                // - If 'insured' BUT pet has no insurance → override to 'not_insured'
+                // - If 'insured' AND pet has insurance → show 'insured'
+                // - If null/empty → fall back to pet's current insurance status
                 const effectiveCategory = (() => {
                   const explicit = c.expense_category
-                  if (explicit && ['insured', 'not_insured', 'maybe_insured'].includes(explicit)) {
-                    return explicit as 'insured' | 'not_insured' | 'maybe_insured'
+
+                  // Explicitly set to not_insured or maybe_insured - use that
+                  if (explicit === 'not_insured' || explicit === 'maybe_insured') {
+                    return explicit as 'not_insured' | 'maybe_insured'
                   }
-                  // Not explicitly set - check pet's current insurance status
-                  const petIsNotInsured = !insuranceCompany ||
-                    insuranceCompany.toLowerCase() === 'not insured' ||
-                    insuranceCompany.toLowerCase() === 'none' ||
-                    petHasInsurance === false
-                  return petIsNotInsured ? 'not_insured' : 'insured'
+
+                  // Explicitly set to 'insured' - but check if pet actually has insurance
+                  if (explicit === 'insured') {
+                    // If pet has no insurance, override to not_insured
+                    return petCurrentlyNotInsured ? 'not_insured' : 'insured'
+                  }
+
+                  // Not explicitly set - fall back to pet's current insurance status
+                  return petCurrentlyNotInsured ? 'not_insured' : 'insured'
                 })()
 
                 const isNotInsured = effectiveCategory === 'not_insured'
