@@ -21,6 +21,7 @@ const CATEGORIES: ExpenseCategory[] = [
   'supplies_gear',
   'grooming',
   'training_boarding',
+  'vet_medical',
   'other'
 ]
 
@@ -50,6 +51,9 @@ export default function ManualExpenseForm({ onSubmit, onCancel, onSuccess, initi
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('[ManualExpenseForm] handleSubmit called')
+    console.log('[ManualExpenseForm] Form state:', { amount, category, expenseDate, vendor, description, isFromOcr })
+    console.log('[ManualExpenseForm] isValid:', isValid, '| isValidAmount:', isValidAmount, '| needsDescription:', needsDescription)
 
     if (!isValid) {
       if (!isValidAmount) {
@@ -65,14 +69,20 @@ export default function ManualExpenseForm({ onSubmit, onCancel, onSuccess, initi
     setError(null)
     setSaving(true)
 
-    const result = await onSubmit({
+    const expenseData = {
       amount: amountNum,
       category: category as ExpenseCategory,
       expense_date: expenseDate,
       vendor: vendor.trim() || null,
       description: description.trim() || null,
       ocr_extracted: isFromOcr
-    })
+    }
+
+    console.log('[ManualExpenseForm] Submitting expense:', expenseData)
+
+    const result = await onSubmit(expenseData)
+
+    console.log('[ManualExpenseForm] Submit result:', result)
 
     if (result.success) {
       setShowSuccess(true)

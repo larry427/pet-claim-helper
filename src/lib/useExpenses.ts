@@ -151,25 +151,39 @@ export function useExpenses(userId: string | null) {
 
   // Add expense
   const addExpense = useCallback(async (expense: NewExpense): Promise<{ success: boolean; error?: string }> => {
-    if (!userId) return { success: false, error: 'Not logged in' }
+    console.log('[useExpenses] addExpense called with:', expense)
+    console.log('[useExpenses] userId:', userId)
+
+    if (!userId) {
+      console.log('[useExpenses] No userId, returning error')
+      return { success: false, error: 'Not logged in' }
+    }
 
     try {
+      const insertData = {
+        ...expense,
+        user_id: userId
+      }
+      console.log('[useExpenses] Inserting into pet_expenses:', insertData)
+
       const { data, error: insertError } = await supabase
         .from('pet_expenses')
-        .insert({
-          ...expense,
-          user_id: userId
-        })
+        .insert(insertData)
         .select()
         .single()
+
+      console.log('[useExpenses] Insert result - data:', data, 'error:', insertError)
 
       if (insertError) throw insertError
 
       // Refresh expenses
+      console.log('[useExpenses] Refreshing expenses...')
       await fetchExpenses()
+      console.log('[useExpenses] Expenses refreshed, returning success')
 
       return { success: true }
     } catch (e: any) {
+      console.error('[useExpenses] addExpense error:', e)
       return { success: false, error: e?.message || 'Failed to add expense' }
     }
   }, [userId, fetchExpenses])
