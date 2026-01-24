@@ -1,10 +1,19 @@
 import React, { useState } from 'react'
 import { ExpenseCategory, CATEGORY_LABELS, CATEGORY_ICONS, NewExpense } from '../lib/useExpenses'
 
+type InitialData = {
+  amount?: number
+  vendor?: string
+  category?: ExpenseCategory
+  expenseDate?: string
+  description?: string
+}
+
 type Props = {
   onSubmit: (expense: NewExpense) => Promise<{ success: boolean; error?: string }>
   onCancel: () => void
   onSuccess: () => void
+  initialData?: InitialData
 }
 
 const CATEGORIES: ExpenseCategory[] = [
@@ -15,16 +24,22 @@ const CATEGORIES: ExpenseCategory[] = [
   'other'
 ]
 
-export default function ManualExpenseForm({ onSubmit, onCancel, onSuccess }: Props) {
-  const [amount, setAmount] = useState('')
-  const [category, setCategory] = useState<ExpenseCategory | ''>('')
-  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0])
-  const [vendor, setVendor] = useState('')
-  const [description, setDescription] = useState('')
+export default function ManualExpenseForm({ onSubmit, onCancel, onSuccess, initialData }: Props) {
+  // Initialize state with initialData if provided
+  const [amount, setAmount] = useState(initialData?.amount?.toString() ?? '')
+  const [category, setCategory] = useState<ExpenseCategory | ''>(initialData?.category ?? '')
+  const [expenseDate, setExpenseDate] = useState(
+    initialData?.expenseDate ?? new Date().toISOString().split('T')[0]
+  )
+  const [vendor, setVendor] = useState(initialData?.vendor ?? '')
+  const [description, setDescription] = useState(initialData?.description ?? '')
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showSuccess, setShowSuccess] = useState(false)
+
+  // Track if this form was pre-filled from OCR
+  const isFromOcr = Boolean(initialData)
 
   // Validation
   const amountNum = parseFloat(amount)
@@ -56,7 +71,7 @@ export default function ManualExpenseForm({ onSubmit, onCancel, onSuccess }: Pro
       expense_date: expenseDate,
       vendor: vendor.trim() || null,
       description: description.trim() || null,
-      ocr_extracted: false
+      ocr_extracted: isFromOcr
     })
 
     if (result.success) {
@@ -89,6 +104,16 @@ export default function ManualExpenseForm({ onSubmit, onCancel, onSuccess }: Pro
 
   return (
     <form onSubmit={handleSubmit} className="p-6">
+      {/* OCR indicator */}
+      {isFromOcr && (
+        <div className="mb-5 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-4 py-3 text-sm text-blue-700 dark:text-blue-400 flex items-start gap-3">
+          <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>Pre-filled from receipt scan. Please review and adjust if needed.</span>
+        </div>
+      )}
+
       {error && (
         <div className="mb-5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-400 flex items-start gap-3">
           <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -115,7 +140,7 @@ export default function ManualExpenseForm({ onSubmit, onCancel, onSuccess }: Pro
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               className="w-full rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 pl-12 pr-4 py-4 text-2xl font-semibold text-slate-900 dark:text-white placeholder-slate-300 dark:placeholder-slate-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
-              autoFocus
+              autoFocus={!isFromOcr}
             />
           </div>
         </div>

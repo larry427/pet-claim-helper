@@ -232,6 +232,93 @@ const startServer = async () => {
     }
   })
 
+  // Receipt extraction via OpenAI Vision (for Pet Expenses feature)
+  app.post('/api/extract-receipt', upload.single('file'), async (req, res) => {
+    try {
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(500).json({ ok: false, error: 'OPENAI_API_KEY not configured' })
+      }
+      const file = req.file
+      if (!file) {
+        return res.status(400).json({ ok: false, error: 'No file provided. Use multipart/form-data with field name "file".' })
+      }
+      console.log('[extract-receipt] upload info', { mimetype: file.mimetype, size: file.buffer?.length })
+
+      const mime = file.mimetype || 'application/octet-stream'
+      if (!mime.startsWith('image/')) {
+        return res.status(400).json({ ok: false, error: 'Only image files are supported for receipt scanning.' })
+      }
+
+      const base64 = file.buffer.toString('base64')
+      const dataUrl = `data:${mime};base64,${base64}`
+
+      const prompt = `Extract information from this receipt and return as JSON:
+{
+  "vendor": "Store/merchant name",
+  "total_amount": numeric total (the final amount paid),
+  "date": "YYYY-MM-DD format if visible",
+  "category_hint": "one of: food_treats, supplies_gear, grooming, training_boarding, other",
+  "description": "Brief description of main items purchased"
+}
+
+For category_hint, use your best guess based on the items:
+- food_treats: Pet food, treats, chews, dental sticks
+- supplies_gear: Toys, beds, collars, leashes, crates, bowls, carriers
+- grooming: Shampoo, brushes, nail clippers, grooming services
+- training_boarding: Training classes, boarding, daycare, dog walking
+- other: Anything else or mixed items
+
+IMPORTANT:
+- For total_amount, extract the FINAL total paid (after tax, discounts)
+- If a field is not visible or cannot be determined, use null
+- Return ONLY valid JSON with no additional text or explanations.`
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+        temperature: 0,
+        max_tokens: 1000,
+      })
+
+      const content = completion.choices?.[0]?.message?.content ?? ''
+      let parsed = null
+      try {
+        let cleaned = content.trim()
+        if (cleaned.startsWith('```')) {
+          cleaned = cleaned.replace(/^```json\s*/i, '')
+          cleaned = cleaned.replace(/^```\s*/i, '')
+          cleaned = cleaned.replace(/\s*```\s*$/, '')
+        }
+        parsed = JSON.parse(cleaned)
+      } catch {
+        const match = content.match(/\{[\s\S]*\}/)
+        if (match) {
+          try { parsed = JSON.parse(match[0]) } catch {}
+        }
+      }
+
+      if (!parsed) {
+        console.error('[extract-receipt] could not parse JSON from model response:', content)
+        return res.status(422).json({ ok: false, error: 'Could not parse JSON from AI response', raw: content })
+      }
+
+      console.log('[extract-receipt] ✅ EXTRACTION RESULT:', JSON.stringify(parsed, null, 2))
+
+      return res.json({ ok: true, data: parsed })
+    } catch (err) {
+      console.error('[extract-receipt] error', err)
+      return res.status(500).json({ ok: false, error: String(err?.message || err) })
+    }
+  })
+
 
   // Send reminder emails for expiring claims
   app.post('/api/send-reminders', async (req, res) => {

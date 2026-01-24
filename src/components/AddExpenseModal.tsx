@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import ManualExpenseForm from './ManualExpenseForm'
-import { NewExpense } from '../lib/useExpenses'
+import { NewExpense, ExpenseCategory } from '../lib/useExpenses'
 
 type Props = {
   onClose: () => void
@@ -9,10 +9,28 @@ type Props = {
 
 type ModalView = 'choose' | 'manual' | 'scan'
 
+type ExtractedReceipt = {
+  vendor: string | null
+  total_amount: number | null
+  date: string | null
+  category_hint: ExpenseCategory | null
+  description: string | null
+}
+
 export default function AddExpenseModal({ onClose, onSubmit }: Props) {
   const [view, setView] = useState<ModalView>('choose')
   const [isClosing, setIsClosing] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
+
+  // Scan state
+  const [selectedFile, setSelectedFile] = useState<{ file: File; objectUrl: string } | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [scanError, setScanError] = useState<string | null>(null)
+  const [extractedData, setExtractedData] = useState<ExtractedReceipt | null>(null)
+
+  // File input refs
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
 
   // Animate in on mount
   useEffect(() => {
@@ -20,6 +38,15 @@ export default function AddExpenseModal({ onClose, onSubmit }: Props) {
       setIsVisible(true)
     })
   }, [])
+
+  // Cleanup object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (selectedFile?.objectUrl) {
+        URL.revokeObjectURL(selectedFile.objectUrl)
+      }
+    }
+  }, [selectedFile])
 
   // Animate out before closing
   const handleClose = () => {
@@ -39,6 +66,105 @@ export default function AddExpenseModal({ onClose, onSubmit }: Props) {
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       handleClose()
+    }
+  }
+
+  const handleFileSelect = (file: File | null) => {
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setScanError('Please select an image file')
+      return
+    }
+
+    // Cleanup previous object URL
+    if (selectedFile?.objectUrl) {
+      URL.revokeObjectURL(selectedFile.objectUrl)
+    }
+
+    const objectUrl = URL.createObjectURL(file)
+    setSelectedFile({ file, objectUrl })
+    setScanError(null)
+  }
+
+  const handleProcessReceipt = async () => {
+    if (!selectedFile) return
+
+    setIsProcessing(true)
+    setScanError(null)
+
+    try {
+      const apiBase = import.meta.env.DEV ? 'http://localhost:8787' : 'https://pet-claim-helper.onrender.com'
+      const formData = new FormData()
+      formData.append('file', selectedFile.file)
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 60000) // 60s timeout
+
+      const response = await fetch(`${apiBase}/api/extract-receipt`, {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => '')
+        throw new Error(text || `Server error (${response.status})`)
+      }
+
+      const json = await response.json()
+
+      if (!json.ok || !json.data) {
+        throw new Error(json.error || 'Failed to extract receipt data')
+      }
+
+      console.log('[extract-receipt] Success:', json.data)
+      setExtractedData(json.data)
+
+      // Switch to manual form with pre-filled data
+      setView('manual')
+    } catch (err: any) {
+      console.error('[extract-receipt] Error:', err)
+      const message = err?.name === 'AbortError'
+        ? 'Request timed out. Please try again.'
+        : err?.message || 'Failed to process receipt'
+      setScanError(message)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const resetScanState = () => {
+    if (selectedFile?.objectUrl) {
+      URL.revokeObjectURL(selectedFile.objectUrl)
+    }
+    setSelectedFile(null)
+    setScanError(null)
+    setExtractedData(null)
+  }
+
+  const handleBack = () => {
+    if (view === 'scan') {
+      resetScanState()
+    }
+    if (view === 'manual') {
+      setExtractedData(null)
+    }
+    setView('choose')
+  }
+
+  // Convert extracted data to initialData format for ManualExpenseForm
+  const getInitialData = () => {
+    if (!extractedData) return undefined
+    return {
+      amount: extractedData.total_amount ?? undefined,
+      vendor: extractedData.vendor ?? undefined,
+      category: extractedData.category_hint ?? undefined,
+      expenseDate: extractedData.date ?? undefined,
+      description: extractedData.description ?? undefined,
     }
   }
 
@@ -91,7 +217,7 @@ export default function AddExpenseModal({ onClose, onSubmit }: Props) {
           {/* Back button when in sub-view */}
           {view !== 'choose' && (
             <button
-              onClick={() => setView('choose')}
+              onClick={handleBack}
               className="flex items-center gap-1 mt-3 text-sm text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -109,20 +235,17 @@ export default function AddExpenseModal({ onClose, onSubmit }: Props) {
               <div className="grid grid-cols-2 gap-4">
                 {/* Scan Receipt Option */}
                 <button
-                  onClick={() => {}}
-                  disabled
-                  className="relative flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 opacity-60 cursor-not-allowed"
+                  onClick={() => setView('scan')}
+                  className="relative flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/20 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-700 transition-all group"
                 >
-                  <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center mb-3">
-                    <svg className="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-14 h-14 rounded-2xl bg-blue-100 dark:bg-blue-800/50 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                    <svg className="w-7 h-7 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                   </div>
-                  <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-1">Scan Receipt</span>
-                  <span className="text-xs text-slate-400 dark:text-slate-500 bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded-full">
-                    Coming Soon
-                  </span>
+                  <span className="text-sm font-semibold text-blue-700 dark:text-blue-400">Scan Receipt</span>
+                  <span className="text-xs text-blue-600/70 dark:text-blue-500 mt-0.5">Auto-extract</span>
                 </button>
 
                 {/* Manual Entry Option */}
@@ -158,14 +281,151 @@ export default function AddExpenseModal({ onClose, onSubmit }: Props) {
           {view === 'manual' && (
             <ManualExpenseForm
               onSubmit={onSubmit}
-              onCancel={() => setView('choose')}
+              onCancel={handleBack}
               onSuccess={handleSuccess}
+              initialData={getInitialData()}
             />
           )}
 
           {view === 'scan' && (
-            <div className="p-6 text-center">
-              <p className="text-slate-500 dark:text-slate-400">Receipt scanning coming soon!</p>
+            <div className="p-6">
+              {/* Hidden file inputs */}
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => {
+                  handleFileSelect(e.target.files?.[0] || null)
+                  e.target.value = ''
+                }}
+                className="sr-only"
+              />
+              <input
+                ref={galleryInputRef}
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  handleFileSelect(e.target.files?.[0] || null)
+                  e.target.value = ''
+                }}
+                className="sr-only"
+              />
+
+              {/* Error message */}
+              {scanError && (
+                <div className="mb-5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-400 flex items-start gap-3">
+                  <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>{scanError}</span>
+                </div>
+              )}
+
+              {!selectedFile ? (
+                <>
+                  {/* Upload options */}
+                  <div className="space-y-4">
+                    <button
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="w-full flex items-center justify-center gap-3 p-4 rounded-xl border-2 border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/20 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 transition-all"
+                    >
+                      <span className="text-2xl">📷</span>
+                      <span className="text-sm font-semibold text-blue-700 dark:text-blue-400">Take Photo</span>
+                    </button>
+
+                    <button
+                      onClick={() => galleryInputRef.current?.click()}
+                      className="w-full flex items-center justify-center gap-3 p-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-400 dark:hover:border-slate-600 transition-all"
+                    >
+                      <span className="text-2xl">🖼️</span>
+                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-400">Choose from Library</span>
+                    </button>
+                  </div>
+
+                  {/* Tips */}
+                  <div className="mt-6 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-2">Tips for best results:</p>
+                    <ul className="text-xs text-amber-700 dark:text-amber-400 space-y-1">
+                      <li>• Make sure the receipt is well-lit</li>
+                      <li>• Capture the entire receipt in frame</li>
+                      <li>• Avoid shadows and glare</li>
+                    </ul>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Image preview */}
+                  <div className="relative">
+                    <img
+                      src={selectedFile.objectUrl}
+                      alt="Receipt preview"
+                      className="w-full max-h-64 object-contain rounded-xl border border-slate-200 dark:border-slate-700"
+                    />
+                    <button
+                      onClick={resetScanState}
+                      className="absolute top-2 right-2 p-1.5 rounded-full bg-slate-900/70 hover:bg-slate-900/90 text-white transition-colors"
+                      aria-label="Remove image"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  <p className="mt-3 text-sm text-slate-500 dark:text-slate-400 text-center">
+                    {selectedFile.file.name}
+                  </p>
+
+                  {/* Process button */}
+                  <button
+                    onClick={handleProcessReceipt}
+                    disabled={isProcessing}
+                    className="mt-5 w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-600/20 hover:shadow-blue-600/30"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        <span>Processing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        <span>Process Receipt</span>
+                      </>
+                    )}
+                  </button>
+
+                  {isProcessing && (
+                    <p className="mt-3 text-xs text-slate-500 dark:text-slate-400 text-center">
+                      Extracting receipt data with AI...
+                    </p>
+                  )}
+
+                  {/* Retake option */}
+                  <div className="mt-4 flex justify-center gap-4">
+                    <button
+                      onClick={() => cameraInputRef.current?.click()}
+                      disabled={isProcessing}
+                      className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium disabled:opacity-50"
+                    >
+                      📷 Retake
+                    </button>
+                    <button
+                      onClick={() => galleryInputRef.current?.click()}
+                      disabled={isProcessing}
+                      className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 font-medium disabled:opacity-50"
+                    >
+                      🖼️ Choose Different
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
