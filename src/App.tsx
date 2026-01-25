@@ -256,7 +256,7 @@ function MainApp() {
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false)
 
   // Expenses data for Home tab
-  const { summary: expensesSummary } = useExpenses(userId)
+  const { summary: expensesSummary, addExpense } = useExpenses(userId)
 
   // Food & Consumables Category Section State
   const [foodMonth, setFoodMonth] = useState(() => {
@@ -4212,21 +4212,7 @@ function MainApp() {
       {showAddExpenseModal && (
         <AddExpenseModal
           onClose={() => setShowAddExpenseModal(false)}
-          onSubmit={async (expense) => {
-            if (!userId) return { success: false, error: 'Not logged in' }
-            try {
-              const { error: insertError } = await supabase
-                .from('pet_expenses')
-                .insert({
-                  ...expense,
-                  user_id: userId
-                })
-              if (insertError) throw insertError
-              return { success: true }
-            } catch (e: any) {
-              return { success: false, error: e?.message || 'Failed to add expense' }
-            }
-          }}
+          onSubmit={addExpense}
         />
       )}
 
