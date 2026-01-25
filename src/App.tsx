@@ -105,6 +105,45 @@ export default function App() {
 }
 
 
+// Helper to create/update vet expense when claim is paid or marked not insured
+async function createOrUpdateVetExpense(claim: any, netCost: number) {
+  const { data: user } = await supabase.auth.getUser()
+  if (!user?.user?.id) return
+
+  // Check if expense already exists for this claim
+  const { data: existingExpense } = await supabase
+    .from('pet_expenses')
+    .select('id')
+    .eq('claim_id', claim.id)
+    .single()
+
+  const expenseData = {
+    user_id: user.user.id,
+    amount: netCost,
+    category: 'vet_medical',
+    expense_date: claim.service_date || new Date().toISOString().split('T')[0],
+    vendor: claim.clinic_name || 'Vet Visit',
+    description: claim.diagnosis || claim.visit_title || 'Vet visit',
+    claim_id: claim.id,
+    ocr_extracted: false,
+  }
+
+  if (existingExpense) {
+    // Update existing expense
+    await supabase
+      .from('pet_expenses')
+      .update({ amount: netCost })
+      .eq('id', existingExpense.id)
+  } else {
+    // Create new expense
+    await supabase
+      .from('pet_expenses')
+      .insert(expenseData)
+  }
+
+  console.log('[createOrUpdateVetExpense] Created/updated expense for claim', claim.id, 'netCost:', netCost)
+}
+
 // Main app component with all the hooks
 function MainApp() {
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -3538,6 +3577,11 @@ function MainApp() {
                           deductible_applied,
                           user_coinsurance_payment,
                         } as any)
+
+                        // Create/update vet expense with net cost (bill - reimbursement)
+                        const netCost = claimed - amountNum
+                        await createOrUpdateVetExpense(paidModalClaim, netCost)
+
                     if (userId) {
                       const updated = await listClaims(userId)
                       setClaims(updated)
