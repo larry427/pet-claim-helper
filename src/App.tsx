@@ -325,10 +325,12 @@ function MainApp() {
   // const [showAddToHomeScreen, setShowAddToHomeScreen] = useState(false)
   // Expense tracking modal (QuickBooks for Dogs)
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false)
+  // Track when ExpensesPage has a modal open
+  const [expensesPageModalOpen, setExpensesPageModalOpen] = useState(false)
 
   // Check if any modal is open (used to hide BottomTabBar on mobile)
   // This prevents the tab bar from blocking Save buttons in modals
-  const isAnyModalOpen = showAddExpenseModal || showAddMedication || showAddFood || showAddTreat ||
+  const isAnyModalOpen = showAddExpenseModal || expensesPageModalOpen || showAddMedication || showAddFood || showAddTreat ||
     editingClaim !== null || paidModalClaim !== null || successModal !== null ||
     medSelectOpen || submittingClaim !== null || showOnboarding || showSmsIntroModal ||
     petSelectError || showSettingsDropdown
@@ -1810,6 +1812,7 @@ function MainApp() {
           <ExpensesPage
             userId={userId}
             onClose={() => setActiveView('app')}
+            onModalStateChange={setExpensesPageModalOpen}
           />
         )}
         {authView !== 'app' && (
@@ -2551,7 +2554,7 @@ function MainApp() {
                 + Add Expense
               </button>
             </div>
-            <ExpensesPage userId={userId} onClose={() => setActiveTab('home')} />
+            <ExpensesPage userId={userId} onClose={() => setActiveTab('home')} onModalStateChange={setExpensesPageModalOpen} />
           </section>
         )}
 

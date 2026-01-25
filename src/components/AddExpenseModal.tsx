@@ -170,13 +170,13 @@ export default function AddExpenseModal({ onClose, onSubmit }: Props) {
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center transition-all duration-200 ${
+      className={`fixed inset-0 z-[60] flex items-end sm:items-center justify-center transition-all duration-200 ${
         isVisible && !isClosing ? 'bg-black/50' : 'bg-black/0'
       }`}
       onClick={handleBackdropClick}
     >
       <div
-        className={`relative w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90vh] overflow-hidden transition-all duration-200 ${
+        className={`relative w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[95vh] overflow-hidden transition-all duration-200 ${
           isVisible && !isClosing
             ? 'translate-y-0 opacity-100'
             : 'translate-y-8 opacity-0'
@@ -228,8 +228,8 @@ export default function AddExpenseModal({ onClose, onSubmit }: Props) {
           )}
         </div>
 
-        {/* Content */}
-        <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
+        {/* Content - with bottom padding to ensure Save button is reachable */}
+        <div className="overflow-y-auto max-h-[calc(95vh-100px)] pb-8">
           {view === 'choose' && (
             <div className="p-6">
               <div className="grid grid-cols-2 gap-4">

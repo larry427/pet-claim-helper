@@ -6,6 +6,7 @@ import AddExpenseModal from './AddExpenseModal'
 type Props = {
   userId: string | null
   onClose: () => void
+  onModalStateChange?: (isOpen: boolean) => void
 }
 
 // Category colors for the pie chart - distinct harmonious palette
@@ -18,7 +19,7 @@ const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
   other: '#64748b'             // slate-500
 }
 
-export default function ExpensesPage({ userId, onClose }: Props) {
+export default function ExpensesPage({ userId, onClose, onModalStateChange }: Props) {
   // Disable browser scroll restoration to prevent mobile scroll position issues
   if (typeof window !== 'undefined') {
     window.history.scrollRestoration = 'manual'
@@ -30,6 +31,12 @@ export default function ExpensesPage({ userId, onClose }: Props) {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
+
+  // Notify parent when any modal opens/closes (used to hide BottomTabBar)
+  useEffect(() => {
+    const isAnyModalOpen = showAddModal || editingExpense !== null || showDeleteConfirm !== null
+    onModalStateChange?.(isAnyModalOpen)
+  }, [showAddModal, editingExpense, showDeleteConfirm, onModalStateChange])
 
   // Swipe state for mobile
   const [swipedId, setSwipedId] = useState<string | null>(null)
