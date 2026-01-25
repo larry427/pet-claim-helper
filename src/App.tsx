@@ -28,6 +28,7 @@ import ResetPassword from './components/ResetPassword'
 import AddExpenseModal from './components/AddExpenseModal'
 import ExpensesDashboardWidget from './components/ExpensesDashboardWidget'
 import ExpensesPage from './components/ExpensesPage'
+import BottomTabBar, { TabId } from './components/BottomTabBar'
 import { useExpenses } from './lib/useExpenses'
 import { createClaim, listClaims, updateClaim, deleteClaim as dbDeleteClaim } from './lib/claims'
 import { formatPhoneOnChange, formatPhoneForStorage, formatPhoneForDisplay } from './utils/phoneUtils'
@@ -243,6 +244,7 @@ function MainApp() {
   const [finPeriod, setFinPeriod] = useState<'all' | '2026' | '2025' | '2024' | 'last12'>('all')
   const [billsSortBy, setBillsSortBy] = useState<'date-desc' | 'amount-desc' | 'amount-asc' | 'pet-asc'>('date-desc')
   const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications' | 'food' | 'admin' | 'med-admin' | 'expenses'>('app')
+  const [activeTab, setActiveTab] = useState<TabId>('home')
   const [isAdmin, setIsAdmin] = useState(false)
 
   // Food & Consumables Category Section State
@@ -1628,7 +1630,7 @@ function MainApp() {
         </div>
       </header>
 
-      <main className="px-6">
+      <main className="px-6 pb-24">
         {authView === 'app' && activeView === 'settings' && (
           <SettingsPage
             userId={userId}
@@ -3936,6 +3938,11 @@ function MainApp() {
           🔒 Your data is encrypted and never shared
         </p>
       </footer>
+
+      {/* Bottom Tab Navigation (only when logged in) */}
+      {authView === 'app' && (
+        <BottomTabBar activeTab={activeTab} onTabChange={setActiveTab} />
+      )}
     </div>
   )
 }
