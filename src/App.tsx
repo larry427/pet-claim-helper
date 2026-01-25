@@ -107,15 +107,22 @@ export default function App() {
 
 // Helper to create/update vet expense when claim is paid or marked not insured
 async function createOrUpdateVetExpense(claim: any, netCost: number) {
+  console.log('[createOrUpdateVetExpense] START - claim:', claim, 'netCost:', netCost)
+
   const { data: user } = await supabase.auth.getUser()
-  if (!user?.user?.id) return
+  if (!user?.user?.id) {
+    console.log('[createOrUpdateVetExpense] No user found, aborting')
+    return
+  }
 
   // Check if expense already exists for this claim
-  const { data: existingExpense } = await supabase
+  const { data: existingExpense, error: fetchError } = await supabase
     .from('pet_expenses')
     .select('id')
     .eq('claim_id', claim.id)
     .single()
+
+  console.log('[createOrUpdateVetExpense] Existing expense check:', existingExpense, 'error:', fetchError)
 
   const expenseData = {
     user_id: user.user.id,
@@ -130,18 +137,22 @@ async function createOrUpdateVetExpense(claim: any, netCost: number) {
 
   if (existingExpense) {
     // Update existing expense
-    await supabase
+    const { data: updateResult, error: updateError } = await supabase
       .from('pet_expenses')
       .update({ amount: netCost })
       .eq('id', existingExpense.id)
+      .select()
+    console.log('[createOrUpdateVetExpense] UPDATE result:', updateResult, 'error:', updateError)
   } else {
     // Create new expense
-    await supabase
+    const { data: insertResult, error: insertError } = await supabase
       .from('pet_expenses')
       .insert(expenseData)
+      .select()
+    console.log('[createOrUpdateVetExpense] INSERT result:', insertResult, 'error:', insertError)
   }
 
-  console.log('[createOrUpdateVetExpense] Created/updated expense for claim', claim.id, 'netCost:', netCost)
+  console.log('[createOrUpdateVetExpense] DONE - claim:', claim.id, 'netCost:', netCost)
 }
 
 // Main app component with all the hooks
@@ -3494,11 +3505,17 @@ function MainApp() {
                   } as any)
 
                   // Handle expense for not_insured claims
+                  console.log('[Edit Claim] editExpenseCat:', editExpenseCat)
+                  console.log('[Edit Claim] editingClaim.expense_category:', editingClaim?.expense_category)
+                  console.log('[Edit Claim] editingClaim.total_amount:', editingClaim?.total_amount)
+
                   if (editExpenseCat === 'not_insured') {
                     // Create expense for full amount (no insurance reimbursement expected)
+                    console.log('[Edit Claim] Creating vet expense for not_insured, amount:', editingClaim.total_amount)
                     await createOrUpdateVetExpense(editingClaim, editingClaim.total_amount || 0)
                   } else if (editingClaim.expense_category === 'not_insured' && editExpenseCat !== 'not_insured') {
                     // Changed FROM not_insured - delete the auto-created expense
+                    console.log('[Edit Claim] Deleting vet expense - changed from not_insured to:', editExpenseCat)
                     await supabase
                       .from('pet_expenses')
                       .delete()
