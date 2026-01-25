@@ -249,13 +249,13 @@ function MainApp() {
   const [activeTab, setActiveTab] = useState<TabId>('home')
   const [isAdmin, setIsAdmin] = useState(false)
 
-  // Feature flag: Tab-based navigation only for whitelisted users
-  const showTabNav = userEmail && EXPENSE_TRACKING_WHITELIST.includes(userEmail.toLowerCase())
+  // Tab-based navigation for all logged-in users
+  const showTabNav = !!userId
 
-  // Settings dropdown state (for whitelisted users with tab nav)
+  // Settings dropdown state
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false)
 
-  // Expenses data for Home tab (only used for whitelisted users)
+  // Expenses data for Home tab
   const { summary: expensesSummary } = useExpenses(userId)
 
   // Food & Consumables Category Section State
@@ -1806,7 +1806,7 @@ function MainApp() {
             )}
           </>
         )}
-        {authView === 'app' && activeView === 'expenses' && userEmail && EXPENSE_TRACKING_WHITELIST.includes(userEmail.toLowerCase()) && (
+        {authView === 'app' && activeView === 'expenses' && userId && (
           <ExpensesPage
             userId={userId}
             onClose={() => setActiveView('app')}
