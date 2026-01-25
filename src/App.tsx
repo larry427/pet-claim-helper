@@ -3479,6 +3479,19 @@ function MainApp() {
                     line_items: editItems,
                     expense_category: editExpenseCat,
                   } as any)
+
+                  // Handle expense for not_insured claims
+                  if (editExpenseCat === 'not_insured') {
+                    // Create expense for full amount (no insurance reimbursement expected)
+                    await createOrUpdateVetExpense(editingClaim, editingClaim.total_amount || 0)
+                  } else if (editingClaim.expense_category === 'not_insured' && editExpenseCat !== 'not_insured') {
+                    // Changed FROM not_insured - delete the auto-created expense
+                    await supabase
+                      .from('pet_expenses')
+                      .delete()
+                      .eq('claim_id', editingClaim.id)
+                  }
+
                   if (userId) {
                     const refreshed = await listClaims(userId)
                     setClaims(refreshed)
