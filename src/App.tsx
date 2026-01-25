@@ -2852,6 +2852,19 @@ function MainApp() {
                         } else {
                           console.warn('[createClaim single] ⚠️  No vet bill PDF to upload - selectedFile or file is missing')
                         }
+
+                        // If claim is not_insured, create expense for full amount
+                        if (expenseCategory === 'not_insured' && row?.id) {
+                          await createOrUpdateVetExpense({
+                            id: row.id,
+                            total_amount: totalNum,
+                            service_date: extracted.dateOfService,
+                            clinic_name: extracted.clinicName,
+                            diagnosis: extracted.diagnosis,
+                            visit_title: visitTitle,
+                          }, totalNum || 0)
+                        }
+
                         } catch (e) { console.error('[createClaim single] error', e) }
                       }
                       // Show success modal directly
