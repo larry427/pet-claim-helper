@@ -325,6 +325,13 @@ function MainApp() {
   // Expense tracking modal (QuickBooks for Dogs)
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false)
 
+  // Check if any modal is open (used to hide BottomTabBar on mobile)
+  // This prevents the tab bar from blocking Save buttons in modals
+  const isAnyModalOpen = showAddExpenseModal || showAddMedication || showAddFood || showAddTreat ||
+    editingClaim !== null || paidModalClaim !== null || successModal !== null ||
+    medSelectOpen || submittingClaim !== null || showOnboarding || showSmsIntroModal ||
+    petSelectError || showSettingsDropdown
+
   // DISABLED: Using add-to-homescreen library in index.html instead
   // useEffect(() => {
   //   const urlParams = new URLSearchParams(window.location.search)
@@ -4199,8 +4206,8 @@ function MainApp() {
         </p>
       </footer>
 
-      {/* Bottom Tab Navigation (only for whitelisted users) */}
-      {authView === 'app' && showTabNav && (
+      {/* Bottom Tab Navigation (only for whitelisted users, hidden when modals are open) */}
+      {authView === 'app' && showTabNav && !isAnyModalOpen && (
         <BottomTabBar activeTab={activeTab} onTabChange={(tab) => {
           setActiveTab(tab)
           window.scrollTo({ top: 0, behavior: 'smooth' })
