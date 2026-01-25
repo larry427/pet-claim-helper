@@ -34,6 +34,7 @@ import { createClaim, listClaims, updateClaim, deleteClaim as dbDeleteClaim } fr
 import { formatPhoneOnChange, formatPhoneForStorage, formatPhoneForDisplay } from './utils/phoneUtils'
 import { INSURANCE_OPTIONS, getInsuranceValue, getInsuranceDisplay, getDeadlineDays } from './lib/insuranceOptions'
 import React from 'react'
+import { AlertTriangle, Clock, CheckCircle2, Wallet, Pill, FileText, Upload, PlusCircle } from 'lucide-react'
 
 type SelectedFile = {
   file: File
@@ -249,6 +250,9 @@ function MainApp() {
 
   // Feature flag: Tab-based navigation only for whitelisted users
   const showTabNav = userEmail && EXPENSE_TRACKING_WHITELIST.includes(userEmail.toLowerCase())
+
+  // Expenses data for Home tab (only used for whitelisted users)
+  const { summary: expensesSummary } = useExpenses(userId)
 
   // Food & Consumables Category Section State
   const [foodMonth, setFoodMonth] = useState(() => {
@@ -1366,7 +1370,11 @@ function MainApp() {
       const rem = getDaysRemaining(c)
       return rem !== null && rem >= 1 && rem <= 14
     }).length
-    return { total, notFiledCount: notSubmitted.length, notFiledSum, filedPending, expiringSoon }
+    const overdue = notSubmitted.filter(c => {
+      const rem = getDaysRemaining(c)
+      return rem !== null && rem < 0
+    }).length
+    return { total, notFiledCount: notSubmitted.length, notFiledSum, filedPending, expiringSoon, overdue }
   }, [claims])
 
   // Financial aggregates
@@ -1787,13 +1795,158 @@ function MainApp() {
             </div>
           </section>
         )}
-        {/* HOME TAB - Placeholder for now (whitelisted users only) */}
+        {/* HOME TAB - Dashboard overview (whitelisted users only) */}
         {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'home' && (
-          <section className="mx-auto max-w-4xl">
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-8 text-center">
-              <div className="text-4xl mb-4">🏠</div>
-              <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-200">Home</h2>
-              <p className="mt-2 text-slate-500 dark:text-slate-400">Coming Soon - Your pet care dashboard at a glance</p>
+          <section className="mx-auto max-w-4xl space-y-6">
+            {/* ALERTS SECTION */}
+            {(claimsSummary.overdue > 0 || claimsSummary.expiringSoon > 0) ? (
+              <div className="space-y-3">
+                <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Needs Attention</h2>
+
+                {/* Overdue Claims Alert */}
+                {claimsSummary.overdue > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('vetbills')}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-left"
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-800 flex items-center justify-center">
+                      <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-red-800 dark:text-red-200">
+                        {claimsSummary.overdue} Overdue Claim{claimsSummary.overdue > 1 ? 's' : ''}
+                      </div>
+                      <div className="text-sm text-red-600 dark:text-red-400">
+                        Past filing deadline - submit ASAP
+                      </div>
+                    </div>
+                    <div className="text-red-400">→</div>
+                  </button>
+                )}
+
+                {/* Expiring Soon Alert */}
+                {claimsSummary.expiringSoon > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('vetbills')}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors text-left"
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-800 flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-amber-800 dark:text-amber-200">
+                        {claimsSummary.expiringSoon} Claim{claimsSummary.expiringSoon > 1 ? 's' : ''} Expiring Soon
+                      </div>
+                      <div className="text-sm text-amber-600 dark:text-amber-400">
+                        Due within 14 days - don't miss out
+                      </div>
+                    </div>
+                    <div className="text-amber-400">→</div>
+                  </button>
+                )}
+              </div>
+            ) : (
+              /* All Caught Up Message */
+              <div className="flex items-center gap-4 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-800 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div>
+                  <div className="font-semibold text-emerald-800 dark:text-emerald-200">All caught up!</div>
+                  <div className="text-sm text-emerald-600 dark:text-emerald-400">No urgent claims or reminders</div>
+                </div>
+              </div>
+            )}
+
+            {/* QUICK STATS CARDS */}
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">At a Glance</h2>
+              <div className="grid grid-cols-2 gap-3">
+                {/* This Month Spending */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('expenses')}
+                  className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm transition-all text-left"
+                >
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm mb-1">
+                    <Wallet className="w-4 h-4" />
+                    This Month
+                  </div>
+                  <div className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                    ${expensesSummary.thisMonth.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </div>
+                </button>
+
+                {/* Pending Claims */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('vetbills')}
+                  className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm transition-all text-left"
+                >
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm mb-1">
+                    <FileText className="w-4 h-4" />
+                    Pending Claims
+                  </div>
+                  <div className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                    {claimsSummary.notFiledCount}
+                  </div>
+                </button>
+
+                {/* Year to Date Spending */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('expenses')}
+                  className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm transition-all text-left"
+                >
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm mb-1">
+                    <Wallet className="w-4 h-4" />
+                    Year to Date
+                  </div>
+                  <div className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                    ${expensesSummary.yearToDate.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </div>
+                </button>
+
+                {/* Total Pets */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('vetbills')}
+                  className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm transition-all text-left"
+                >
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm mb-1">
+                    <Pill className="w-4 h-4" />
+                    Your Pets
+                  </div>
+                  <div className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                    {pets.length}
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* QUICK ACTIONS */}
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Quick Actions</h2>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('vetbills')}
+                  className="flex items-center justify-center gap-2 p-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm hover:shadow transition-all"
+                >
+                  <Upload className="w-5 h-5" />
+                  Upload Vet Bill
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddExpenseModal(true)}
+                  className="flex items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-medium shadow-sm hover:shadow transition-all"
+                >
+                  <PlusCircle className="w-5 h-5" />
+                  Add Expense
+                </button>
+              </div>
             </div>
           </section>
         )}
