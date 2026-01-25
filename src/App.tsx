@@ -247,6 +247,9 @@ function MainApp() {
   const [activeTab, setActiveTab] = useState<TabId>('home')
   const [isAdmin, setIsAdmin] = useState(false)
 
+  // Feature flag: Tab-based navigation only for whitelisted users
+  const showTabNav = userEmail && EXPENSE_TRACKING_WHITELIST.includes(userEmail.toLowerCase())
+
   // Food & Consumables Category Section State
   const [foodMonth, setFoodMonth] = useState(() => {
     const now = new Date()
@@ -1784,7 +1787,19 @@ function MainApp() {
             </div>
           </section>
         )}
-        {authView === 'app' && activeView === 'app' && (
+        {/* HOME TAB - Placeholder for now (whitelisted users only) */}
+        {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'home' && (
+          <section className="mx-auto max-w-4xl">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-8 text-center">
+              <div className="text-4xl mb-4">🏠</div>
+              <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-200">Home</h2>
+              <p className="mt-2 text-slate-500 dark:text-slate-400">Coming Soon - Your pet care dashboard at a glance</p>
+            </div>
+          </section>
+        )}
+
+        {/* Your Pets section - VET BILLS TAB for whitelisted users, always visible for non-whitelisted */}
+        {authView === 'app' && activeView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && (
         <section className="mx-auto max-w-4xl" ref={petsSectionRef}>
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Your Pets</h2>
@@ -2278,15 +2293,26 @@ function MainApp() {
         </section>
         )}
 
-        {/* Pet Expenses Widget (QuickBooks for Dogs) */}
-        {authView === 'app' && activeView === 'app' && userEmail && EXPENSE_TRACKING_WHITELIST.includes(userEmail.toLowerCase()) && (
-          <section id="pet-expenses-widget" className="mx-auto mt-6 max-w-4xl">
-            <ExpensesDashboardWidget userId={userId} onViewAll={() => setActiveView('expenses')} />
+        {/* EXPENSES TAB - Full expenses view (whitelisted users only) */}
+        {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'expenses' && (
+          <section className="mx-auto max-w-4xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Pet Expenses</h2>
+              <button
+                type="button"
+                onClick={() => setShowAddExpenseModal(true)}
+                className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-3 py-2 text-sm font-medium shadow-sm hover:shadow"
+              >
+                + Add Expense
+              </button>
+            </div>
+            <ExpensesPage userId={userId} onClose={() => setActiveTab('home')} />
           </section>
         )}
 
-        {/* Medications Section */}
-        {authView === 'app' && activeView === 'app' && (
+
+        {/* Medications Section - MEDS TAB for whitelisted users, always visible for non-whitelisted */}
+        {authView === 'app' && activeView === 'app' && ((showTabNav && activeTab === 'meds') || !showTabNav) && (
           <MedicationsSection
             userId={userId}
             pets={pets}
@@ -2296,8 +2322,8 @@ function MainApp() {
           />
         )}
 
-        {/* Upload section */}
-        {authView === 'app' && activeView === 'app' && (
+        {/* Upload section - VET BILLS TAB for whitelisted users, always visible for non-whitelisted */}
+        {authView === 'app' && activeView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && (
         <section key="upload-section" className="mx-auto max-w-3xl text-center mt-6 px-2">
           <h2 className="text-2xl font-semibold">Upload Vet Bill</h2>
           <div className="mt-3">
@@ -2965,8 +2991,8 @@ function MainApp() {
           </section>
         )}
 
-        {/* Financial Summary */}
-        {authView === 'app' && (
+        {/* Financial Summary - VET BILLS TAB for whitelisted users, always visible for non-whitelisted */}
+        {authView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && (
           <section className="mx-auto mt-10 max-w-5xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">Financial Summary</h2>
@@ -2989,9 +3015,9 @@ function MainApp() {
           </section>
         )}
 
-        {/* Claims History Dashboard */}
-        {authView === 'app' && claims.length > 0 && (
-          <section className="mx-auto mt-10 max-w-5xl">
+        {/* Claims History - VET BILLS TAB for whitelisted users, always visible for non-whitelisted */}
+        {authView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && claims.length > 0 && (
+          <section className="mx-auto mt-10 max-w-5xl" ref={claimsSectionRef}>
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">Vet Bills</h2>
             </div>
@@ -3966,9 +3992,12 @@ function MainApp() {
         </p>
       </footer>
 
-      {/* Bottom Tab Navigation (only when logged in) */}
-      {authView === 'app' && (
-        <BottomTabBar activeTab={activeTab} onTabChange={setActiveTab} />
+      {/* Bottom Tab Navigation (only for whitelisted users) */}
+      {authView === 'app' && showTabNav && (
+        <BottomTabBar activeTab={activeTab} onTabChange={(tab) => {
+          setActiveTab(tab)
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }} />
       )}
     </div>
   )
