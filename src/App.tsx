@@ -34,7 +34,7 @@ import { createClaim, listClaims, updateClaim, deleteClaim as dbDeleteClaim } fr
 import { formatPhoneOnChange, formatPhoneForStorage, formatPhoneForDisplay } from './utils/phoneUtils'
 import { INSURANCE_OPTIONS, getInsuranceValue, getInsuranceDisplay, getDeadlineDays } from './lib/insuranceOptions'
 import React from 'react'
-import { AlertTriangle, Clock, CheckCircle2, Wallet, Pill, FileText, Upload, PlusCircle } from 'lucide-react'
+import { AlertTriangle, Clock, CheckCircle2, Wallet, Pill, FileText, Upload, PlusCircle, Settings, LogOut, Mail, ChevronDown, X } from 'lucide-react'
 
 type SelectedFile = {
   file: File
@@ -250,6 +250,9 @@ function MainApp() {
 
   // Feature flag: Tab-based navigation only for whitelisted users
   const showTabNav = userEmail && EXPENSE_TRACKING_WHITELIST.includes(userEmail.toLowerCase())
+
+  // Settings dropdown state (for whitelisted users with tab nav)
+  const [showSettingsDropdown, setShowSettingsDropdown] = useState(false)
 
   // Expenses data for Home tab (only used for whitelisted users)
   const { summary: expensesSummary } = useExpenses(userId)
@@ -1536,40 +1539,101 @@ function MainApp() {
       )}
       <header className="px-4 pt-2 pb-3 md:py-8 bg-gradient-to-b from-white/50 to-transparent dark:from-slate-900/50">
         <div className="mx-auto max-w-6xl">
-          {/* Logo - centered and prominent */}
-          <div className="flex flex-col items-center justify-center mb-1 md:mb-6">
-            <img
-              src="/pch-logo.png"
-              alt="Pet Claim Helper"
-              className="w-[70vw] max-w-[320px] md:w-[90vw] md:max-w-[500px] h-auto object-contain mt-1 mb-0 md:mt-0 md:mb-0"
-            />
+          {/* Header with logo and settings gear for whitelisted users */}
+          <div className="relative">
+            {/* Settings gear icon (top right) - only for whitelisted users */}
+            {authView === 'app' && showTabNav && (
+              <div className="absolute right-0 top-0 z-20">
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowSettingsDropdown(!showSettingsDropdown)}
+                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    title="Settings"
+                  >
+                    <Settings className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showSettingsDropdown ? 'rotate-180' : ''}`} />
+                  </button>
 
-            <div className="text-base md:text-lg font-bold text-gray-500 dark:text-gray-400 text-center max-w-xl px-4 leading-snug mt-1 mb-3 md:mt-0 md:mb-0">
-              <div>Never miss a claim. Track every dollar.</div>
+                  {/* Settings dropdown menu */}
+                  {showSettingsDropdown && (
+                    <>
+                      {/* Backdrop to close dropdown */}
+                      <div
+                        className="fixed inset-0 z-10"
+                        onClick={() => setShowSettingsDropdown(false)}
+                      />
+                      <div className="absolute right-0 top-full mt-1 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg z-20 overflow-hidden">
+                        {/* User email */}
+                        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700">
+                          <div className="text-xs text-slate-500 dark:text-slate-400">Signed in as</div>
+                          <div className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{userEmail}</div>
+                        </div>
+
+                        {/* Menu items */}
+                        <div className="py-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowSettingsDropdown(false)
+                              setActiveView('settings')
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                          >
+                            <Settings className="w-4 h-4 text-slate-400" />
+                            Settings
+                          </button>
+                          <a
+                            href={`mailto:support@petclaimhelper.com?subject=Pet Claim Helper Support Request&body=Hi Pet Claim Helper Team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0A----%0D%0AUser: ${userEmail || 'Not logged in'}%0D%0AUser ID: ${userId || 'N/A'}`}
+                            onClick={() => setShowSettingsDropdown(false)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                          >
+                            <Mail className="w-4 h-4 text-slate-400" />
+                            Contact Support
+                          </a>
+                        </div>
+
+                        {/* Logout */}
+                        <div className="border-t border-slate-100 dark:border-slate-700 py-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowSettingsDropdown(false)
+                              handleLogout()
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            Logout
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Logo - centered and prominent */}
+            <div className="flex flex-col items-center justify-center mb-1 md:mb-6">
+              <img
+                src="/pch-logo.png"
+                alt="Pet Claim Helper"
+                className="w-[70vw] max-w-[320px] md:w-[90vw] md:max-w-[500px] h-auto object-contain mt-1 mb-0 md:mt-0 md:mb-0"
+              />
+
+              {/* Tagline - hide for whitelisted users on mobile for cleaner look */}
+              {!showTabNav && (
+                <div className="text-base md:text-lg font-bold text-gray-500 dark:text-gray-400 text-center max-w-xl px-4 leading-snug mt-1 mb-3 md:mt-0 md:mb-0">
+                  <div>Never miss a claim. Track every dollar.</div>
+                </div>
+              )}
             </div>
           </div>
-          {/* Navigation row - unified for mobile and desktop
-
-              BUTTON BAR CLEANUP PLAN (Phase 3+):
-
-              ADMIN ONLY (keep in header for admin users):
-              - Admin Dashboard - admin-only analytics
-              - Medication Admin - admin-only medication management
-
-              USER ACTIONS (will move to bottom tabs):
-              - Bills (N) - scrolls to vet bills → Vet Bills tab
-              - Medications - opens meds view → Meds tab
-              - Add Expense - opens expense modal → accessible from Expenses tab
-
-              ACCOUNT FUNCTIONS (will move to Settings gear icon in header):
-              - Settings - user settings page
-              - Contact Support - mailto link
-              - Logout - sign out action
-              - "Logged in as: email" - user info display
-          */}
+          {/* Navigation row - for non-whitelisted users (old UI) and admin buttons */}
           <div className="flex items-center justify-center gap-2 md:gap-3 flex-wrap mt-2 md:mt-0">
-            {/* USER ACTION: Scroll to vet bills section → will be replaced by Vet Bills tab */}
-            {authView === 'app' && (
+            {/* Bills button - only for non-whitelisted users */}
+            {authView === 'app' && !showTabNav && (
               <button
                 type="button"
                 onClick={() => claimsSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
@@ -1581,8 +1645,8 @@ function MainApp() {
                 )}
               </button>
             )}
-            {/* ACCOUNT FUNCTION: Settings → will move to header gear icon */}
-            {authView === 'app' && (
+            {/* Settings button - only for non-whitelisted users */}
+            {authView === 'app' && !showTabNav && (
               <button
                 type="button"
                 onClick={() => setActiveView(v => v === 'app' ? 'settings' : 'app')}
@@ -1591,8 +1655,8 @@ function MainApp() {
                 ⚙️ Settings
               </button>
             )}
-            {/* USER ACTION: Medications view → will be replaced by Meds tab */}
-            {authView === 'app' && (
+            {/* Medications button - only for non-whitelisted users */}
+            {authView === 'app' && !showTabNav && (
               <button
                 type="button"
                 onClick={async () => {
@@ -1618,17 +1682,7 @@ function MainApp() {
                 💊 Medications
               </button>
             )}
-            {/* USER ACTION: Add Expense → will be accessible from Expenses tab */}
-            {authView === 'app' && userEmail && EXPENSE_TRACKING_WHITELIST.includes(userEmail.toLowerCase()) && (
-              <button
-                type="button"
-                onClick={() => setShowAddExpenseModal(true)}
-                className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-2 md:px-3 py-1.5 text-xs font-medium shadow-sm hover:shadow"
-              >
-                💰 Add Expense
-              </button>
-            )}
-            {/* ADMIN ONLY: Admin Dashboard - keep in header */}
+            {/* ADMIN ONLY: Admin Dashboard - always visible for admins */}
             {authView === 'app' && isAdmin && (
               <button
                 type="button"
@@ -1638,7 +1692,7 @@ function MainApp() {
                 📊 Admin Dashboard
               </button>
             )}
-            {/* ADMIN ONLY: Medication Admin - keep in header */}
+            {/* ADMIN ONLY: Medication Admin - always visible for admins */}
             {authView === 'app' && isAdmin && (
               <button
                 type="button"
@@ -1648,8 +1702,8 @@ function MainApp() {
                 💊 Medication Admin
               </button>
             )}
-            {/* ACCOUNT FUNCTION: Contact Support → will move to Settings menu */}
-            {authView === 'app' && (
+            {/* Contact Support - only for non-whitelisted users */}
+            {authView === 'app' && !showTabNav && (
               <a
                 href={`mailto:support@petclaimhelper.com?subject=Pet Claim Helper Support Request&body=Hi Pet Claim Helper Team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0A----%0D%0AUser: ${userEmail || 'Not logged in'}%0D%0AUser ID: ${userId || 'N/A'}`}
                 className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow"
@@ -1658,10 +1712,10 @@ function MainApp() {
                 💬 Contact Support
               </a>
             )}
-            {/* ACCOUNT FUNCTION: User info → will move to Settings gear icon */}
-            {userEmail && <span className="hidden sm:inline text-xs text-slate-600 dark:text-slate-300">Logged in as: {userEmail}</span>}
-            {/* ACCOUNT FUNCTION: Logout → will move to Settings menu */}
-            {userEmail && (
+            {/* User info - only for non-whitelisted users */}
+            {userEmail && !showTabNav && <span className="hidden sm:inline text-xs text-slate-600 dark:text-slate-300">Logged in as: {userEmail}</span>}
+            {/* Logout - only for non-whitelisted users */}
+            {userEmail && !showTabNav && (
               <button onClick={handleLogout} className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow">Logout</button>
             )}
           </div>
