@@ -1537,8 +1537,27 @@ function MainApp() {
               <div>Never miss a claim. Track every dollar.</div>
             </div>
           </div>
-          {/* Navigation row - unified for mobile and desktop */}
+          {/* Navigation row - unified for mobile and desktop
+
+              BUTTON BAR CLEANUP PLAN (Phase 3+):
+
+              ADMIN ONLY (keep in header for admin users):
+              - Admin Dashboard - admin-only analytics
+              - Medication Admin - admin-only medication management
+
+              USER ACTIONS (will move to bottom tabs):
+              - Bills (N) - scrolls to vet bills → Vet Bills tab
+              - Medications - opens meds view → Meds tab
+              - Add Expense - opens expense modal → accessible from Expenses tab
+
+              ACCOUNT FUNCTIONS (will move to Settings gear icon in header):
+              - Settings - user settings page
+              - Contact Support - mailto link
+              - Logout - sign out action
+              - "Logged in as: email" - user info display
+          */}
           <div className="flex items-center justify-center gap-2 md:gap-3 flex-wrap mt-2 md:mt-0">
+            {/* USER ACTION: Scroll to vet bills section → will be replaced by Vet Bills tab */}
             {authView === 'app' && (
               <button
                 type="button"
@@ -1551,6 +1570,7 @@ function MainApp() {
                 )}
               </button>
             )}
+            {/* ACCOUNT FUNCTION: Settings → will move to header gear icon */}
             {authView === 'app' && (
               <button
                 type="button"
@@ -1560,6 +1580,7 @@ function MainApp() {
                 ⚙️ Settings
               </button>
             )}
+            {/* USER ACTION: Medications view → will be replaced by Meds tab */}
             {authView === 'app' && (
               <button
                 type="button"
@@ -1586,6 +1607,7 @@ function MainApp() {
                 💊 Medications
               </button>
             )}
+            {/* USER ACTION: Add Expense → will be accessible from Expenses tab */}
             {authView === 'app' && userEmail && EXPENSE_TRACKING_WHITELIST.includes(userEmail.toLowerCase()) && (
               <button
                 type="button"
@@ -1595,6 +1617,7 @@ function MainApp() {
                 💰 Add Expense
               </button>
             )}
+            {/* ADMIN ONLY: Admin Dashboard - keep in header */}
             {authView === 'app' && isAdmin && (
               <button
                 type="button"
@@ -1604,6 +1627,7 @@ function MainApp() {
                 📊 Admin Dashboard
               </button>
             )}
+            {/* ADMIN ONLY: Medication Admin - keep in header */}
             {authView === 'app' && isAdmin && (
               <button
                 type="button"
@@ -1613,6 +1637,7 @@ function MainApp() {
                 💊 Medication Admin
               </button>
             )}
+            {/* ACCOUNT FUNCTION: Contact Support → will move to Settings menu */}
             {authView === 'app' && (
               <a
                 href={`mailto:support@petclaimhelper.com?subject=Pet Claim Helper Support Request&body=Hi Pet Claim Helper Team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0A----%0D%0AUser: ${userEmail || 'Not logged in'}%0D%0AUser ID: ${userId || 'N/A'}`}
@@ -1622,7 +1647,9 @@ function MainApp() {
                 💬 Contact Support
               </a>
             )}
+            {/* ACCOUNT FUNCTION: User info → will move to Settings gear icon */}
             {userEmail && <span className="hidden sm:inline text-xs text-slate-600 dark:text-slate-300">Logged in as: {userEmail}</span>}
+            {/* ACCOUNT FUNCTION: Logout → will move to Settings menu */}
             {userEmail && (
               <button onClick={handleLogout} className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/5 px-2 md:px-3 py-1.5 text-xs hover:shadow">Logout</button>
             )}
