@@ -21,7 +21,6 @@ const CATEGORIES: ExpenseCategory[] = [
   'supplies_gear',
   'grooming',
   'training_boarding',
-  'vet_medical',
   'other'
 ]
 
