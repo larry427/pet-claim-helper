@@ -124,11 +124,28 @@ async function createOrUpdateVetExpense(claim: any, netCost: number) {
 
   console.log('[createOrUpdateVetExpense] Existing expense check:', existingExpense, 'error:', fetchError)
 
+  // If service date is more than 30 days old, use today's date
+  const serviceDate = claim.service_date
+  const today = new Date().toISOString().split('T')[0]
+  let expenseDate = today
+
+  if (serviceDate) {
+    const serviceDateObj = new Date(serviceDate + 'T00:00:00')
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+    if (serviceDateObj >= thirtyDaysAgo) {
+      expenseDate = serviceDate
+    } else {
+      console.log('[createOrUpdateVetExpense] Service date too old, using today:', serviceDate, '->', today)
+    }
+  }
+
   const expenseData = {
     user_id: user.user.id,
     amount: netCost,
     category: 'vet_medical',
-    expense_date: claim.service_date || new Date().toISOString().split('T')[0],
+    expense_date: expenseDate,
     vendor: claim.clinic_name || 'Vet Visit',
     description: claim.diagnosis || claim.visit_title || 'Vet visit',
     claim_id: claim.id,
