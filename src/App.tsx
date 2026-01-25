@@ -230,6 +230,7 @@ function MainApp() {
   const [customDeadlineEdit, setCustomDeadlineEdit] = useState<string>('')
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
+  const [userFirstName, setUserFirstName] = useState<string | null>(null)
   const [authView, setAuthView] = useState<'login' | 'signup' | 'app'>('login')
   // Multi-pet extraction state
   const [multiExtracted, setMultiExtracted] = useState<MultiPetExtracted | null>(null)
@@ -548,27 +549,39 @@ function MainApp() {
     return () => { sub.subscription.unsubscribe() }
   }, [])
 
-  // Load admin status from profile
+  // Load admin status and user name from profile
   useEffect(() => {
     if (!userId) {
       setIsAdmin(false)
+      setUserFirstName(null)
       return
     }
 
     supabase
       .from('profiles')
-      .select('is_admin')
+      .select('is_admin, full_name')
       .eq('id', userId)
       .single()
       .then(({ data, error }) => {
         if (error) {
-          console.error('[admin] Failed to load admin status:', error)
+          console.error('[profile] Failed to load profile:', error)
           setIsAdmin(false)
+          setUserFirstName(null)
           return
         }
         setIsAdmin(data?.is_admin === true)
+        // Extract first name from full_name
+        if (data?.full_name) {
+          const firstName = data.full_name.split(' ')[0]
+          setUserFirstName(firstName)
+        } else {
+          setUserFirstName(null)
+        }
       })
-      .catch(() => setIsAdmin(false))
+      .catch(() => {
+        setIsAdmin(false)
+        setUserFirstName(null)
+      })
   }, [userId])
 
   // Auto-select pet when there is exactly one
@@ -1299,6 +1312,15 @@ function MainApp() {
     const remMs = deadline.getTime() - now.getTime()
     return Math.ceil(remMs / (1000 * 60 * 60 * 24))
   }
+
+  // Time-aware greeting for Home tab
+  const getTimeGreeting = (): string => {
+    const hour = new Date().getHours()
+    if (hour < 12) return 'Good morning'
+    if (hour < 17) return 'Good afternoon'
+    return 'Good evening'
+  }
+
   const statusBadge = (status: string): { text: string; cls: string } => {
     const s = (status || 'not_submitted').toLowerCase()
     switch (s) {
@@ -1859,6 +1881,15 @@ function MainApp() {
         {/* HOME TAB - Dashboard overview (whitelisted users only) */}
         {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'home' && (
           <section className="mx-auto max-w-4xl space-y-6">
+            {/* PERSONALIZED GREETING */}
+            <div className="text-2xl font-semibold text-slate-800 dark:text-slate-100">
+              {userFirstName ? (
+                <span>{getTimeGreeting()}, {userFirstName}! 👋</span>
+              ) : (
+                <span>{getTimeGreeting()}! 👋</span>
+              )}
+            </div>
+
             {/* ALERTS SECTION */}
             {(claimsSummary.overdue > 0 || claimsSummary.expiringSoon > 0) ? (
               <div className="space-y-3">
@@ -1931,9 +1962,9 @@ function MainApp() {
                   onClick={() => setActiveTab('expenses')}
                   className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm transition-all text-left"
                 >
-                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm mb-1">
-                    <Wallet className="w-4 h-4" />
-                    This Month
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs mb-1">
+                    <Wallet className="w-4 h-4 flex-shrink-0" />
+                    <span>Pet spending this month</span>
                   </div>
                   <div className="text-xl font-bold text-slate-800 dark:text-slate-100">
                     ${expensesSummary.thisMonth.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
@@ -1961,9 +1992,9 @@ function MainApp() {
                   onClick={() => setActiveTab('expenses')}
                   className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm transition-all text-left"
                 >
-                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm mb-1">
-                    <Wallet className="w-4 h-4" />
-                    Year to Date
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs mb-1">
+                    <Wallet className="w-4 h-4 flex-shrink-0" />
+                    <span>Pet spending YTD</span>
                   </div>
                   <div className="text-xl font-bold text-slate-800 dark:text-slate-100">
                     ${expensesSummary.yearToDate.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
