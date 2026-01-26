@@ -349,9 +349,17 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange }: Pr
                               VET
                             </span>
                           )}
-                          <p className="text-sm font-semibold text-slate-900 dark:text-white leading-snug line-clamp-2">
-                            {expense.vendor || expense.description || CATEGORY_LABELS[expense.category]}
-                          </p>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-900 dark:text-white leading-snug line-clamp-2">
+                              {expense.vendor || expense.description || CATEGORY_LABELS[expense.category]}
+                            </p>
+                            {/* Show description below vendor if both exist */}
+                            {expense.vendor && expense.description && (
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">
+                                {expense.description}
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           <span
