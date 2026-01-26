@@ -272,7 +272,7 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange }: Pr
                           style={{ backgroundColor: item.color }}
                         />
                         <span className="text-lg flex-shrink-0">{CATEGORY_ICONS[item.category]}</span>
-                        <p className="text-sm font-medium text-slate-900 dark:text-white flex-1 min-w-0 truncate">
+                        <p className="text-xs font-medium text-slate-900 dark:text-white flex-1 min-w-0">
                           {item.name}
                         </p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0 w-12 text-right">
@@ -343,26 +343,26 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange }: Pr
 
                       {/* Details */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-start gap-2">
                           {expense.category === 'vet_medical' && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5">
                               VET
                             </span>
                           )}
-                          <p className="text-base font-semibold text-slate-900 dark:text-white truncate">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white leading-snug line-clamp-2">
                             {expense.vendor || expense.description || CATEGORY_LABELS[expense.category]}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           <span
                             className="w-2 h-2 rounded-full flex-shrink-0"
                             style={{ backgroundColor: CATEGORY_COLORS[expense.category] }}
                           />
-                          <p className="text-sm text-slate-500 dark:text-slate-400 truncate">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
                             {CATEGORY_LABELS[expense.category]}
                           </p>
                           <span className="text-slate-300 dark:text-slate-600">•</span>
-                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
                             {fmtDate(expense.expense_date)}
                           </p>
                         </div>
