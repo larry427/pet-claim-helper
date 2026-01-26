@@ -76,7 +76,15 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 90_000 })
 
 const app = express()
-app.use(cors())
+app.use(cors({
+  origin: [
+    'https://pet-claim-helper.vercel.app',
+    'https://www.petclaimhelper.com',
+    'http://localhost:5173',  // local development
+    'http://localhost:5174'   // local development alternate port
+  ],
+  credentials: true
+}))
 app.use(express.json({ limit: '1mb' }))
 
 // Routes (medication reminders router not ready yet)
