@@ -1063,19 +1063,35 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         return res.json({ ok: true, message: 'Medication marked as given' })
       }
 
-      // METHOD 2: Traditional Session Authentication (requires userId)
-      if (!userId) {
-        return res.status(400).json({ ok: false, error: 'User ID or token required' })
+      // METHOD 3: Traditional Session Authentication (requires Bearer token)
+      // Require Bearer token and validate that authenticated user matches claimed userId
+      const authHeader = req.headers.authorization
+      if (!authHeader?.startsWith('Bearer ')) {
+        console.error('[Mark Given] Session auth - no authorization header')
+        return res.status(401).json({ ok: false, error: 'Authorization token required' })
       }
+      const authToken = authHeader.replace('Bearer ', '')
+      const { data: { user }, error: authError } = await supabase.auth.getUser(authToken)
+      if (authError || !user) {
+        console.error('[Mark Given] Session auth - invalid token:', authError?.message)
+        return res.status(401).json({ ok: false, error: 'Invalid or expired token' })
+      }
+      // Verify the authenticated user matches the claimed userId (if provided)
+      if (userId && user.id !== userId) {
+        console.error('[Mark Given] Session auth - user mismatch:', { authenticated: user.id, claimed: userId })
+        return res.status(403).json({ ok: false, error: 'Forbidden - user mismatch' })
+      }
+      // Use the authenticated user's ID
+      const authenticatedUserId = user.id
 
-      console.log('[Mark Given] Session auth attempt:', { medicationId, userId })
+      console.log('[Mark Given] Session auth attempt:', { medicationId, userId: authenticatedUserId })
 
       // Get the medication to verify ownership
       const { data: medication, error: medError } = await supabase
         .from('medications')
         .select('*')
         .eq('id', medicationId)
-        .eq('user_id', userId)
+        .eq('user_id', authenticatedUserId)
         .single()
 
       if (medError || !medication) {
@@ -1087,7 +1103,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
 
       console.log('[Mark Given] Finding dose:', {
         medicationId,
-        userId,
+        userId: authenticatedUserId,
         todayPST
       })
 
@@ -1095,7 +1111,7 @@ app.post('/api/webhook/ghl-signup', async (req, res) => {
         .from('medication_doses')
         .select('*')
         .eq('medication_id', medicationId)
-        .eq('user_id', userId)
+        .eq('user_id', authenticatedUserId)
         .eq('status', 'pending')
         .gte('scheduled_time', `${todayPST}T00:00:00`)
         .lt('scheduled_time', `${todayPST}T23:59:59`)

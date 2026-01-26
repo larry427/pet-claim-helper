@@ -498,6 +498,15 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
       console.log('[DoseMarkingPage] Calling API:', apiUrl)
 
+      // For session auth (non-magic-token), get Bearer token
+      let authHeader: Record<string, string> = {}
+      if (!magicToken) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.access_token) {
+          authHeader = { 'Authorization': `Bearer ${session.access_token}` }
+        }
+      }
+
       // Create fetch with 10-second timeout
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000)
@@ -506,7 +515,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       try {
         response = await fetch(apiUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeader },
           body: JSON.stringify(body),
           signal: controller.signal
         })
