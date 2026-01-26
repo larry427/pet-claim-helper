@@ -1196,11 +1196,21 @@ function MainApp() {
       const apiBase = import.meta.env.DEV ? 'http://localhost:8787' : 'https://pet-claim-helper.onrender.com'
       const form = new FormData()
       form.append('file', selectedFile.file)
+
+      // Get auth token for API request
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        throw new Error('Not authenticated. Please log in and try again.')
+      }
+
       const controller = new AbortController()
       const timeoutMs = 90_000
       const timeoutId = setTimeout(() => { try { controller.abort() } catch {} }, timeoutMs)
       const resp = await fetch(`${apiBase}/api/extract-pdf`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        },
         body: form,
         signal: controller.signal,
       })

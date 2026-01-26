@@ -100,6 +100,20 @@ const startServer = async () => {
   // PDF/Image extraction via OpenAI Vision (server-side)
   app.post('/api/extract-pdf', upload.single('file'), async (req, res) => {
     try {
+      // AUTHENTICATION: Require valid user session to prevent API credit abuse
+      const authHeader = req.headers.authorization
+      if (!authHeader?.startsWith('Bearer ')) {
+        console.error('[extract-pdf] No authorization header')
+        return res.status(401).json({ ok: false, error: 'Unauthorized - token required' })
+      }
+      const token = authHeader.replace('Bearer ', '')
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+      if (authError || !user) {
+        console.error('[extract-pdf] Invalid token:', authError?.message)
+        return res.status(401).json({ ok: false, error: 'Invalid or expired token' })
+      }
+      console.log('[extract-pdf] Authenticated user:', user.id)
+
       if (!process.env.OPENAI_API_KEY) {
         return res.status(500).json({ ok: false, error: 'OPENAI_API_KEY not configured' })
       }
@@ -235,6 +249,20 @@ const startServer = async () => {
   // Receipt extraction via OpenAI Vision (for Pet Expenses feature)
   app.post('/api/extract-receipt', upload.single('file'), async (req, res) => {
     try {
+      // AUTHENTICATION: Require valid user session to prevent API credit abuse
+      const authHeader = req.headers.authorization
+      if (!authHeader?.startsWith('Bearer ')) {
+        console.error('[extract-receipt] No authorization header')
+        return res.status(401).json({ ok: false, error: 'Unauthorized - token required' })
+      }
+      const token = authHeader.replace('Bearer ', '')
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+      if (authError || !user) {
+        console.error('[extract-receipt] Invalid token:', authError?.message)
+        return res.status(401).json({ ok: false, error: 'Invalid or expired token' })
+      }
+      console.log('[extract-receipt] Authenticated user:', user.id)
+
       if (!process.env.OPENAI_API_KEY) {
         return res.status(500).json({ ok: false, error: 'OPENAI_API_KEY not configured' })
       }

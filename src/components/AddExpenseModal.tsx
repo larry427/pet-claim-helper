@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import ManualExpenseForm from './ManualExpenseForm'
 import { NewExpense, ExpenseCategory } from '../lib/useExpenses'
+import { supabase } from '../lib/supabase'
 
 type Props = {
   onClose: () => void
@@ -99,11 +100,20 @@ export default function AddExpenseModal({ onClose, onSubmit }: Props) {
       const formData = new FormData()
       formData.append('file', selectedFile.file)
 
+      // Get auth token for API request
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        throw new Error('Not authenticated. Please log in and try again.')
+      }
+
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 60000) // 60s timeout
 
       const response = await fetch(`${apiBase}/api/extract-receipt`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        },
         body: formData,
         signal: controller.signal,
       })
