@@ -4230,6 +4230,7 @@ function MainApp() {
       {authView === 'app' && showTabNav && !isAnyModalOpen && (
         <BottomTabBar activeTab={activeTab} onTabChange={(tab) => {
           setActiveTab(tab)
+          setActiveView('app') // Reset view to app when switching tabs
           window.scrollTo({ top: 0, behavior: 'smooth' })
         }} />
       )}
