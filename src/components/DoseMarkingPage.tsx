@@ -386,14 +386,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
         console.log('[DoseMarkingPage] Found dose:', dose.id, 'Status:', dose.status)
 
-        // If already given, treat as success (idempotent)
-        if (dose.status === 'given') {
-          console.log('[DoseMarkingPage] Dose already marked as given - redirecting to success')
-          window.location.href = `/dose-success?pet=${encodeURIComponent(pet?.name || 'Your pet')}&med=${encodeURIComponent(medication?.medication_name || 'medication')}&count=1&total=1`
-          return
-        }
-
-        // VALIDATION: Check if all doses are already complete
+        // VALIDATION: Check current dose count
         const { count: givenCount, error: countError } = await supabase
           .from('medication_doses')
           .select('*', { count: 'exact', head: true })
@@ -407,8 +400,9 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           return
         }
 
-        // Calculate total expected doses
-        if (medication) {
+        // Calculate total expected doses (used for validation and fallback)
+        let totalExpectedDoses = 1 // Default fallback
+        if (medication?.start_date && medication?.end_date) {
           // Parse date strings as local dates to avoid timezone issues
           const [startYear, startMonth, startDay] = medication.start_date.split('-').map(Number)
           const start = new Date(startYear, startMonth - 1, startDay)
@@ -418,14 +412,28 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           const startDay_dateOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate())
           const endDay_dateOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate())
           const totalDays = Math.max(1, Math.round((endDay_dateOnly.getTime() - startDay_dateOnly.getTime()) / 86400000) + 1)
-          const totalExpectedDoses = totalDays * (medication.times_per_day || 1)
+          totalExpectedDoses = totalDays * (medication.times_per_day || 1)
+        }
 
-          if ((givenCount || 0) >= totalExpectedDoses) {
-            console.log('[DoseMarkingPage] All doses already complete:', { givenCount, totalExpectedDoses })
-            setError('All doses have been recorded for this medication')
-            setMarking(false)
-            return
-          }
+        // If already given, treat as success (idempotent) - use actual counts
+        if (dose.status === 'given') {
+          console.log('[DoseMarkingPage] Dose already marked as given - redirecting to success')
+          const params = new URLSearchParams({
+            pet: pet?.name || 'Your pet',
+            med: medication?.medication_name || 'medication',
+            count: String(givenCount || 1),
+            total: String(totalExpectedDoses)
+          })
+          window.location.href = `/dose-success?${params.toString()}`
+          return
+        }
+
+        // Check if all doses are already complete
+        if ((givenCount || 0) >= totalExpectedDoses) {
+          console.log('[DoseMarkingPage] All doses already complete:', { givenCount, totalExpectedDoses })
+          setError('All doses have been recorded for this medication')
+          setMarking(false)
+          return
         }
 
         // Mark as given directly via Supabase
@@ -447,7 +455,10 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
         console.log('[DoseMarkingPage] ✅ Dose marked as given via Supabase')
 
-        // Calculate progress stats with timeout
+        // The new count after marking this dose
+        const newGivenCount = (givenCount || 0) + 1
+
+        // Calculate progress stats with timeout (for next dose time)
         console.log('[DoseMarkingPage] Calculating progress stats...')
         let stats = null
         try {
@@ -461,12 +472,12 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           console.error('[DoseMarkingPage] Stats calculation failed/timeout:', statsError)
         }
 
-        // Build success URL with stats
+        // Build success URL - use stats if available, otherwise use our calculated values
         const params = new URLSearchParams({
           pet: pet?.name || 'Your pet',
           med: medication?.medication_name || 'medication',
-          count: String(stats?.givenCount || 1),
-          total: String(stats?.totalCount || 1)
+          count: String(stats?.givenCount ?? newGivenCount),
+          total: String(stats?.totalCount ?? totalExpectedDoses)
         })
 
         if (stats?.nextDoseTime) {
@@ -538,6 +549,19 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       if ((shortCode || magicToken) && !userId) {
         console.log('[DoseMarkingPage] Redirecting to static success page')
 
+        // Calculate fallback total expected doses from medication data
+        let fallbackTotal = 1
+        if (medication?.start_date && medication?.end_date) {
+          const [startYear, startMonth, startDay] = medication.start_date.split('-').map(Number)
+          const start = new Date(startYear, startMonth - 1, startDay)
+          const [endYear, endMonth, endDay] = medication.end_date.split('-').map(Number)
+          const end = new Date(endYear, endMonth - 1, endDay)
+          const startDay_dateOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+          const endDay_dateOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate())
+          const totalDays = Math.max(1, Math.round((endDay_dateOnly.getTime() - startDay_dateOnly.getTime()) / 86400000) + 1)
+          fallbackTotal = totalDays * (medication.times_per_day || 1)
+        }
+
         // Calculate progress for display with timeout fallback
         console.log('[DoseMarkingPage] Calculating progress stats...')
         let stats = null
@@ -553,12 +577,12 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           // Continue anyway with fallback values
         }
 
-        // Build success URL with display params
+        // Build success URL with display params - use stats if available, otherwise fallbacks
         const params = new URLSearchParams({
           pet: pet?.name || 'Your pet',
           med: medication?.medication_name || 'medication',
-          count: String(stats?.givenCount || 1),
-          total: String(stats?.totalCount || 1)
+          count: String(stats?.givenCount ?? 1),
+          total: String(stats?.totalCount ?? fallbackTotal)
         })
 
         if (stats?.nextDoseTime) {
