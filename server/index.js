@@ -22,6 +22,7 @@ import { sendClaimEmail } from './lib/sendClaimEmail.js'
 import { getMissingRequiredFields, getRequiredFieldsForInsurer } from './lib/claimFormMappings.js'
 import { formatPhoneToE164 } from './utils/phoneUtils.js'
 import { Jimp } from 'jimp'
+import rateLimit from 'express-rate-limit'
 
 // Test Jimp availability at startup
 try {
@@ -86,6 +87,15 @@ app.use(cors({
   credentials: true
 }))
 app.use(express.json({ limit: '1mb' }))
+
+// Rate limiter for public signup endpoint (prevents spam attacks)
+const signupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 signups per IP per 15 minutes
+  message: { ok: false, error: 'Too many signup attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false
+})
 
 // Routes (medication reminders router not ready yet)
 // app.use('/api/medication-reminders', medicationRemindersRouter)
@@ -739,7 +749,7 @@ if (error) {
 // This relay endpoint receives form submissions and forwards them to GHL
 // Solves CORS issues by doing the request server-to-server instead of browser-to-GHL
 
-app.post('/api/webhook/ghl-signup', async (req, res) => {
+app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
   try {
       const { email } = req.body;
 
