@@ -45,7 +45,6 @@ export default function MissingFieldsModal({
   suggestedValues = {},
   onComplete
 }: Props) {
-  console.log('[MissingFieldsModal] Component rendered with petName:', petName)
   const [formData, setFormData] = useState<Record<string, any>>({})
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -65,10 +64,8 @@ export default function MissingFieldsModal({
   }, [missingFields, existingData, suggestedValues])
 
   const setFieldValue = (fieldName: string, value: any) => {
-    console.log(`[MissingFieldsModal] setFieldValue called:`, { fieldName, value, type: typeof value })
     setFormData(prev => {
       const updated = { ...prev, [fieldName]: value }
-      console.log(`[MissingFieldsModal] Updated formData:`, updated)
       return updated
     })
     setError(null)
@@ -85,21 +82,14 @@ export default function MissingFieldsModal({
 
   // Memoize visible fields so they update reactively when formData changes
   const visibleFields = useMemo(() => {
-    console.log('[MissingFieldsModal] Filtering fields, formData:', formData)
     return missingFields.filter(field => {
-      const visible = shouldShowField(field)
-      console.log(`[MissingFieldsModal] Field ${field.field}: ${visible ? 'VISIBLE' : 'HIDDEN'}`,
-        field.conditional ? `(conditional: ${field.conditional.field} === "${field.conditional.value}")` : '')
-      return visible
+      return shouldShowField(field)
     })
   }, [missingFields, formData])
 
   // Replace placeholders in prompts and descriptions with actual values
   const replacePlaceholders = (text: string): string => {
-    console.log('[MissingFieldsModal] replacePlaceholders called with:', text, 'petName:', petName)
-    const result = text.replace(/{petName}/g, petName || 'your pet')
-    console.log('[MissingFieldsModal] replacePlaceholders result:', result)
-    return result
+    return text.replace(/{petName}/g, petName || 'your pet')
   }
 
   const renderField = (field: FieldDefinition) => {
@@ -298,10 +288,6 @@ export default function MissingFieldsModal({
     e.preventDefault()
     setError(null)
 
-    console.log('[MissingFieldsModal] handleSubmit called')
-    console.log('[MissingFieldsModal] Current formData:', formData)
-    console.log('[MissingFieldsModal] Visible fields:', visibleFields.map(f => f.field))
-
     // Validate all required fields that are currently shown
     const validationResults: Record<string, boolean> = {}
     const allFilled = visibleFields.every(field => {
@@ -313,25 +299,11 @@ export default function MissingFieldsModal({
       const isFilled = !(!value || (typeof value === 'string' && value.trim() === ''))
       validationResults[field.field] = isFilled
 
-      console.log(`[MissingFieldsModal] Field ${field.field}:`, {
-        value,
-        type: typeof value,
-        isFilled,
-        required: field.required
-      })
-
       if (!isFilled) return false
       return true
     })
 
-    console.log('[MissingFieldsModal] Validation results:', validationResults)
-    console.log('[MissingFieldsModal] All filled?', allFilled)
-
     if (!allFilled) {
-      const missingFieldNames = Object.entries(validationResults)
-        .filter(([_, filled]) => !filled)
-        .map(([fieldName]) => fieldName)
-      console.log('[MissingFieldsModal] Missing fields:', missingFieldNames)
       setError('Please fill out all required fields')
       return
     }

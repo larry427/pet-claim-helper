@@ -26,10 +26,9 @@ import rateLimit from 'express-rate-limit'
 
 // Test Jimp availability at startup
 try {
-  console.log('[Startup] ✅ Jimp loaded successfully')
-  console.log('[Startup]    Jimp.read method available:', typeof Jimp.read === 'function')
+  console.log('[Startup] Jimp loaded:', typeof Jimp.read === 'function')
 } catch (err) {
-  console.error('[Startup] ❌ Jimp failed to load:', err)
+  console.error('[Startup] Jimp failed to load:', err)
 }
 
 // Helper function to detect image type from buffer magic bytes
@@ -239,22 +238,7 @@ const startServer = async () => {
         return res.status(422).json({ ok: false, error: 'Could not parse JSON from AI response', raw: content })
       }
 
-      // 🔥 CRITICAL DEBUG LOGGING - CHECK WHAT OPENAI ACTUALLY RETURNED
-      console.log('='.repeat(80))
-      console.log('[extract-pdf] ✅ OPENAI VISION EXTRACTION RESULT')
-      console.log('='.repeat(80))
-      console.log('Raw OpenAI response:', content)
-      console.log('-'.repeat(80))
-      console.log('Parsed JSON:', JSON.stringify(parsed, null, 2))
-      console.log('-'.repeat(80))
-      console.log('🔍 CRITICAL FIELD CHECK:')
-      console.log('  clinic_name:', parsed.clinic_name || '(NULL)')
-      console.log('  clinic_address:', parsed.clinic_address || '(NULL)')
-      console.log('  clinic_phone:', parsed.clinic_phone || '❌ NULL/MISSING')
-      console.log('  pet_name:', parsed.pet_name || '(NULL)')
-      console.log('  service_date:', parsed.service_date || '(NULL)')
-      console.log('  total_amount:', parsed.total_amount || '(NULL)')
-      console.log('='.repeat(80))
+      console.log('[extract-pdf] ✅ Extraction complete')
 
       return res.json({ ok: true, data: parsed })
     } catch (err) {
@@ -356,7 +340,7 @@ IMPORTANT:
         return res.status(422).json({ ok: false, error: 'Could not parse JSON from AI response', raw: content })
       }
 
-      console.log('[extract-receipt] ✅ EXTRACTION RESULT:', JSON.stringify(parsed, null, 2))
+      console.log('[extract-receipt] ✅ Extraction complete')
 
       return res.json({ ok: true, data: parsed })
     } catch (err) {
@@ -521,13 +505,8 @@ if (error) {
       const subject = 'Pet Claim Helper - Test Email'
       const text = "If you're seeing this, Resend is working on Vercel!"
 
-      const key = process.env.RESEND_API_KEY || ''
-      const keyPreview = key ? `${key.slice(0, 10)}...${key.slice(-10)}` : 'MISSING'
-      console.log('[test-email] Key present:', key ? keyPreview : 'NO KEY')
-      console.log('[test-email] Sending to:', to.join(','), 'subject:', subject, 'from:', from)
-
       const result = await resend.emails.send({ from, to, subject, text })
-      console.log('[test-email] Resend response:', result)
+      console.log('[test-email] ✅ Email sent:', result?.id)
       return res.json({ ok: true, messageId: result?.id })
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -545,7 +524,7 @@ if (error) {
   })
   app.post('/api/send-deadline-reminders', async (req, res) => {
     // eslint-disable-next-line no-console
-    console.log('[DEBUG] send-deadline-reminders endpoint hit')
+    console.log('[Deadline Reminders] Endpoint called')
 
     // PRIORITY 3: Protect manual endpoint with authentication
     const authHeader = req.headers.authorization
@@ -573,105 +552,6 @@ if (error) {
   })
   // eslint-disable-next-line no-console
   console.log('Deadline reminders route registered')
-  
-  // OLD FUNCTION - DEPRECATED (used UTC time instead of PST)
-  // This has been replaced by runMedicationReminders() from ./routes/medication-reminders.js
-  // which correctly uses PST timezone via Luxon
-  /*
-  const sendMedicationReminders = async () => {
-    console.log('[Medication Reminders] start at', new Date().toISOString())
-    const { data: meds, error: medsError } = await supabase
-      .from('medications')
-      .select('id, user_id, pet_id, medication_name, dosage, frequency, reminder_times, start_date, end_date, next_reminder_time, pets(name)')
-    if (medsError) {
-      console.error('[Medication Reminders] query error:', medsError)
-      throw new Error(medsError.message)
-    }
-    const now = new Date()
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const nowHour = now.getHours()
-    const nowMinute = now.getMinutes()
-    const parseTimes = (val) => {
-      if (!val) return []
-      try {
-        if (Array.isArray(val)) return val
-        if (typeof val === 'string') return JSON.parse(val)
-      } catch {}
-      return []
-    }
-    const dueMeds = (meds || []).filter((m) => {
-      if (m?.end_date) {
-        const end = new Date(m.end_date)
-        if (!Number.isNaN(end.getTime()) && end < startOfToday) return false
-      }
-      const times = parseTimes(m?.reminder_times)
-      if (!times.length) return false
-      const matches = times.find((t) => {
-        const [hh, mm] = String(t).split(':').map((x) => Number(x))
-        if (!Number.isFinite(hh)) return false
-        if (Number.isFinite(mm)) return hh === nowHour && mm === nowMinute
-        return hh === nowHour
-      })
-      if (!matches) return false
-      if (m?.next_reminder_time) {
-        const nxt = new Date(m.next_reminder_time)
-        if (!Number.isNaN(nxt.getTime()) && nxt > now) return false
-      }
-      return true
-    })
-    let remindersSent = 0
-    const results = []
-    const computeNextReminderSameTimeTomorrow = (matchedTimeString) => {
-      const [hh, mm] = String(matchedTimeString || `${nowHour}:${nowMinute.toString().padStart(2, '0')}`).split(':').map((x) => Number(x))
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, Number.isFinite(hh) ? hh : nowHour, Number.isFinite(mm) ? mm : 0, 0, 0)
-      return d
-    }
-    for (const med of dueMeds) {
-      try {
-        const { data: prof } = await supabase
-          .from('profiles')
-          .select('phone')
-          .eq('id', med.user_id)
-          .single()
-        const phone = prof?.phone || null
-        if (!phone) {
-          console.log('[Medication Reminders] No phone on file; skipping', { medId: med.id, userId: med.user_id })
-          results.push({ medId: med.id, sent: false, reason: 'no_phone' })
-          continue
-        }
-        const petName = med?.pets?.name || 'your pet'
-        const medName = med?.medication_name || 'medication'
-        const dosage = med?.dosage ? ` - ${med.dosage}` : ''
-        const message = `🐾 Medication reminder for ${petName}: ${medName}${dosage}. Time to give medication!`
-        const smsRes = await sendSMS(phone, message)
-        console.log('[Medication Reminders] SMS result:', { medId: med.id, phone, success: smsRes.success, messageId: smsRes.messageId })
-        if (smsRes.success) {
-          remindersSent += 1
-          const times = parseTimes(med?.reminder_times)
-          const matched = times.find((t) => {
-            const [hh, mm] = String(t).split(':').map((x) => Number(x))
-            if (!Number.isFinite(hh)) return false
-            if (Number.isFinite(mm)) return hh === nowHour && mm === nowMinute
-            return hh === nowHour
-          }) || `${nowHour}:${nowMinute.toString().padStart(2, '0')}`
-          const nextAt = computeNextReminderSameTimeTomorrow(matched)
-          await supabase
-            .from('medications')
-            .update({ next_reminder_time: nextAt.toISOString() })
-            .eq('id', med.id)
-          results.push({ medId: med.id, sent: true, messageId: smsRes.messageId, nextReminder: nextAt.toISOString() })
-        } else {
-          results.push({ medId: med.id, sent: false, reason: 'sms_failed', error: smsRes.error })
-        }
-      } catch (perErr) {
-        console.error('[Medication Reminders] error for med', med?.id, perErr)
-        results.push({ medId: med?.id, sent: false, reason: 'exception', error: perErr?.message || String(perErr) })
-      }
-    }
-    return { success: true, remindersSent, totalEligible: dueMeds.length, results }
-  }
-  */
-
   // SMS medication reminders endpoint
   app.options('/api/send-medication-reminders', (req, res) => {
     res.set('Access-Control-Allow-Origin', '*')
@@ -979,11 +859,7 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
           return res.status(500).json({ ok: false, error: 'Error marking dose as given' })
         }
 
-        console.log('[Mark Given] ✅ Dose marked via short code:', {
-          doseId: dose.id,
-          shortCode,
-          givenTime: nowPST.toISO()
-        })
+        console.log('[Mark Given] ✅ Dose marked via short code:', dose.id)
 
         return res.json({ ok: true, message: 'Medication marked as given' })
       }
@@ -1064,11 +940,7 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
           return res.status(500).json({ ok: false, error: 'Error marking dose as given' })
         }
 
-        console.log('[Mark Given] ✅ Dose marked via magic link:', {
-          doseId: dose.id,
-          medicationId,
-          givenTime: nowPST.toISO()
-        })
+        console.log('[Mark Given] ✅ Dose marked via magic link:', dose.id)
 
         return res.json({ ok: true, message: 'Medication marked as given' })
       }
@@ -1176,13 +1048,7 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         return res.status(500).json({ ok: false, error: 'Error marking dose as given' })
       }
 
-      console.log('[Mark Given] ✅ Dose marked via session:', {
-        doseId: dose.id,
-        medicationId,
-        givenTime: nowPST.toISO()
-      })
-
-      console.log('[Mark Given] Dose marked as given:', dose.id)
+      console.log('[Mark Given] ✅ Dose marked via session:', dose.id)
       return res.json({ ok: true, doseId: dose.id })
     } catch (error) {
       console.error('[Mark Given] Error:', error)
@@ -1253,29 +1119,6 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
 
       console.log('[Validate Fields] Found pet:', { id: pet.id, name: pet.name, insurance_company: pet.insurance_company })
 
-      // DEBUG: Show Spot account number if Spot insurer
-      if (insurer.toLowerCase().includes('spot')) {
-        console.log('🔍 [SPOT DEBUG] Pet data for Spot claim:')
-        console.log('  - pet.spot_account_number:', pet.spot_account_number)
-        console.log('  - pet.breed:', pet.breed)
-        console.log('  - pet.gender:', pet.gender)
-        console.log('  - pet.date_of_birth:', pet.date_of_birth)
-        console.log('  - Full pet object keys:', Object.keys(pet))
-      }
-
-      // DEBUG: Show ASPCA data if ASPCA insurer
-      if (insurer.toLowerCase().includes('aspca')) {
-        console.log('🐾 [ASPCA DEBUG] Pet data for ASPCA claim:')
-        console.log('  - pet.breed:', pet.breed)
-        console.log('  - pet.gender:', pet.gender)
-        console.log('  - pet.policy_number:', pet.policy_number)
-        console.log('  - Full pet object keys:', Object.keys(pet))
-        console.log('🐾 [ASPCA DEBUG] Claim data:')
-        console.log('  - claim.diagnosis:', claim.diagnosis)
-        console.log('  - claim.total_amount:', claim.total_amount)
-        console.log('  - claim.age:', claim.age)
-      }
-
       // 3. Get profile data
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -1297,44 +1140,6 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         pet,
         claim
       )
-
-      // DEBUG: Show missing fields for Spot
-      if (insurer.toLowerCase().includes('spot')) {
-        console.log('🔍 [SPOT DEBUG] Missing fields check:')
-        console.log('  - Total missing fields:', missingFields.length)
-        console.log('  - Missing field names:', missingFields.map(f => f.field))
-        const spotAccountField = missingFields.find(f => f.field === 'spotAccountNumber')
-        if (spotAccountField) {
-          console.log('  - ❌ spotAccountNumber IS MISSING (this is the bug!)')
-        } else {
-          console.log('  - ✅ spotAccountNumber is NOT missing')
-        }
-      }
-
-      // DEBUG: Show missing fields for ASPCA
-      if (insurer.toLowerCase().includes('aspca')) {
-        console.log('🐾 [ASPCA DEBUG] Missing fields check:')
-        console.log('  - Total missing fields:', missingFields.length)
-        console.log('  - Missing field names:', missingFields.map(f => f.field))
-        console.log('  - Missing field types:', missingFields.map(f => `${f.field}:${f.type}`))
-
-        const genderField = missingFields.find(f => f.field === 'gender')
-        if (genderField) {
-          console.log('  - ✅ gender IS in missing fields array')
-          console.log('  - gender field definition:', JSON.stringify(genderField, null, 2))
-        } else {
-          console.log('  - ❌ gender is NOT in missing fields (WHY?)')
-          console.log('  - Checking all required fields for ASPCA:')
-          const allFields = getRequiredFieldsForInsurer(insurer)
-          console.log('  - Total required fields:', allFields.length)
-          console.log('  - All required field names:', allFields.map(f => f.field))
-          const genderReq = allFields.find(f => f.field === 'gender')
-          if (genderReq) {
-            console.log('  - gender IS in required fields')
-            console.log('  - gender definition:', JSON.stringify(genderReq, null, 2))
-          }
-        }
-      }
 
       // 5. Build existingData object with ALL field values (not just missing ones)
       // This allows the MissingFieldsModal to pre-fill existing values
@@ -1385,7 +1190,6 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         const value = fieldValueMap[fieldDef.field]
         if (value !== null && value !== undefined && value !== '') {
           existingData[fieldDef.field] = value
-          console.log(`[Validate Fields] existingData[${fieldDef.field}] = ${value}`)
         }
       }
 
@@ -1404,7 +1208,6 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
               // Add the extracted value to the suggested values
               suggestedValues[fieldDef.field] = extractedValue
               fieldDef.suggestedValue = extractedValue
-              console.log(`[Validate Fields] suggestedValues[${fieldDef.field}] = ${extractedValue}`)
             }
           } catch (err) {
             console.error('[Validate Fields] AI extraction failed:', err)
@@ -1412,12 +1215,6 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
           }
         }
       }
-
-      console.log('[Validate Fields] Response summary:', {
-        missingFieldsCount: missingFields.length,
-        existingDataKeys: Object.keys(existingData),
-        suggestedValuesKeys: Object.keys(suggestedValues)
-      })
 
       return res.json({
         ok: true,
@@ -1499,7 +1296,7 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
       const { claimId } = req.params
       const { collectedData } = req.body
 
-      console.log('[Save Collected Fields] claimId:', claimId, 'data:', collectedData)
+      console.log('[Save Collected Fields] Processing:', claimId)
 
       // Get claim to find user_id and pet_id
       const { data: claim, error: claimError } = await supabase
@@ -1945,8 +1742,6 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         return res.status(404).json({ ok: false, error: 'User profile not found' })
       }
 
-      console.log('[Submit Claim] 📧 Profile email:', profile.email)
-      console.log('[Submit Claim] 🎭 Is demo account:', profile.is_demo_account || false)
 
       // 3. Calculate pet age
       const petAge = claim.pets.date_of_birth
@@ -2001,16 +1796,6 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
       const diagnosis = claim.diagnosis || claim.ai_diagnosis || 'See attached invoice'
       const bodyPart = extractBodyPart(diagnosis)
 
-      console.log('\n' + '='.repeat(80))
-      console.log('🔍 DEBUG: CLAIM DATA EXTRACTION')
-      console.log('='.repeat(80))
-      console.log('claim.pets:', JSON.stringify(claim.pets, null, 2))
-      console.log('claim.pets.policy_number:', claim.pets.policy_number)
-      console.log('diagnosis:', diagnosis)
-      console.log('bodyPart extracted:', bodyPart)
-      console.log('profile.signature (first 50 chars):', profile.signature?.substring(0, 50))
-      console.log('='.repeat(80) + '\n')
-
       // 4. Build claim data object for PDF/email
       const claimData = {
         policyholderName: profile.full_name || profile.email,
@@ -2060,24 +1845,6 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         age: claim.age || null
       }
 
-      console.log('\n' + '='.repeat(80))
-      console.log('📦 DEBUG: CLAIM DATA OBJECT FOR PDF')
-      console.log('='.repeat(80))
-      console.log('policyNumber:', claimData.policyNumber)
-      console.log('bodyPartAffected:', claimData.bodyPartAffected)
-      console.log('diagnosis:', claimData.diagnosis)
-      console.log('🔍 TRUPANION DATE FIELDS:')
-      console.log('petDateOfBirth:', claimData.petDateOfBirth, '(from claim.pets.date_of_birth:', claim.pets.date_of_birth + ')')
-      console.log('petAdoptionDate:', claimData.petAdoptionDate, '(from claim.pets.adoption_date:', claim.pets.adoption_date + ')')
-      console.log('petSpayNeuterDate:', claimData.petSpayNeuterDate, '(from claim.pets.spay_neuter_date:', claim.pets.spay_neuter_date + ')')
-      console.log('🔍 PUMPKIN DATA FIELDS:')
-      console.log('city:', claimData.city, '(from profile.city:', profile.city + ')')
-      console.log('state:', claimData.state, '(from profile.state:', profile.state + ')')
-      console.log('zip:', claimData.zip, '(from profile.zip:', profile.zip + ')')
-      console.log('breed:', claimData.breed, '(from claim.pets.breed:', claim.pets.breed + ')')
-      console.log('pumpkinAccountNumber:', claimData.pumpkinAccountNumber, '(from claim.pets.pumpkin_account_number:', claim.pets.pumpkin_account_number + ')')
-      console.log('='.repeat(80) + '\n')
-
       // 5. Validate claim data
       try {
         validateClaimData(claimData)
@@ -2088,26 +1855,15 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
 
       // 6. Get insurer from pet's insurance company
       const rawInsurer = claim.pets?.insurance_company
-      console.log('🏢 INSURER DETECTION - RAW VALUE')
-      console.log('   claim.pets.insurance_company:', rawInsurer)
-      console.log('   Type:', typeof rawInsurer)
-      console.log('   Is null:', rawInsurer === null)
-      console.log('   Is undefined:', rawInsurer === undefined)
-      console.log('   Is empty string:', rawInsurer === '')
-
       const insurer = rawInsurer?.toLowerCase()
       if (!insurer) {
         const petName = claim.pets?.name || 'Unknown'
-        console.error(`❌ Pet ${petName} has no insurance company set`)
+        console.error('[Submit Claim] Pet has no insurance company:', petName)
         return res.status(400).json({
           ok: false,
           error: `Pet ${petName} has no insurance company set. Please update the pet's insurance company before submitting.`
         })
       }
-
-      console.log('🏢 INSURER DETECTION - NORMALIZED')
-      console.log('   insurer (normalized):', insurer)
-      console.log('   Will generate PDF for:', insurer)
 
       // 7. Generate PDF
       // Format date as MM/DD/YYYY for all PDF forms
@@ -2124,13 +1880,10 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         dateSigned
       )
 
-      console.log('[Submit Claim] PDF generated:', { size: pdfBuffer.length })
-
       // 7.5. Fetch invoice PDF from storage if it exists
       let invoiceBuffer = null
       if (claim.pdf_path) {
         try {
-          console.log('[Submit Claim] Fetching invoice PDF from storage:', claim.pdf_path)
           const { data: invoiceData, error: storageError } = await supabase.storage
             .from('claim-pdfs')
             .download(claim.pdf_path)
@@ -2140,14 +1893,11 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
             // Continue without invoice - don't fail submission
           } else if (invoiceData) {
             invoiceBuffer = Buffer.from(await invoiceData.arrayBuffer())
-            console.log('[Submit Claim] Invoice PDF fetched:', { size: invoiceBuffer.length })
           }
         } catch (err) {
           console.error('[Submit Claim] Error fetching invoice:', err)
           // Continue without invoice - don't fail submission
         }
-      } else {
-        console.log('[Submit Claim] No invoice PDF path in claim record')
       }
 
       // 8. Send email to insurer (with both claim form and invoice)
@@ -2159,8 +1909,6 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         console.error('[Submit Claim] Email failed:', emailResult.error)
         return res.status(500).json({ ok: false, error: `Failed to send email: ${emailResult.error}` })
       }
-
-      console.log('[Submit Claim] Email sent:', { messageId: emailResult.messageId })
 
       // 9. Update claim status in database
       const { error: updateError } = await supabase
@@ -2175,15 +1923,9 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
       if (updateError) {
         console.error('[Submit Claim] Failed to update claim status:', updateError)
         // Don't fail the request - email was sent successfully
-      } else {
-        console.log('[Submit Claim] ✅ Claim status updated to "submitted"')
       }
 
-      console.log('[Submit Claim] ✅ Claim submitted successfully:', {
-        claimId,
-        insurer,
-        messageId: emailResult.messageId
-      })
+      console.log('[Submit Claim] ✅ Claim submitted successfully:', claimId)
 
       return res.json({
         ok: true,
@@ -2320,24 +2062,17 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
 
       // Get insurer from pet's insurance company
       const rawInsurer = claim.pets?.insurance_company
-      console.log('[Preview PDF] 🏢 INSURER DETECTION')
-      console.log('   claim.pets.insurance_company:', rawInsurer)
-
       const insurer = rawInsurer?.toLowerCase()
       if (!insurer) {
         const petName = claim.pets?.name || 'Unknown'
-        console.error(`❌ Pet ${petName} has no insurance company set`)
+        console.error('[Preview PDF] Pet has no insurance company:', petName)
         return res.status(400).json({
           ok: false,
           error: `Pet ${petName} has no insurance company set. Please update the pet's insurance company.`
         })
       }
 
-      console.log('   insurer (normalized):', insurer)
-      console.log('   Will generate PDF for:', insurer)
-
       // Generate PDF
-      console.log('[Preview PDF] Generating PDF for claim:', claimId)
       // Format date as MM/DD/YYYY for all PDF forms
       const today = new Date()
       const mm = String(today.getMonth() + 1).padStart(2, '0')
@@ -2352,28 +2087,18 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         dateSigned
       )
 
-      console.log('[Preview PDF] PDF generated successfully:', pdfBuffer.length, 'bytes')
-
       // Check if we should merge with vet invoice
       const merged = req.query.merged === 'true'
 
-      console.log('[Preview PDF] Merge check:', { merged, hasPdfPath: !!claim.pdf_path, pdfPath: claim.pdf_path })
-
       if (merged && claim.pdf_path) {
-        console.log('[Preview PDF] ⚙️  Starting PDF merge process...')
-        console.log('[Preview PDF]    Vet invoice path:', claim.pdf_path)
-        console.log('[Preview PDF]    Claim form size:', pdfBuffer.length, 'bytes')
-
         try {
           // Download vet invoice from storage
-          console.log('[Preview PDF] 📥 Downloading vet invoice from storage...')
           const { data: invoiceData, error: storageError } = await supabase.storage
             .from('claim-pdfs')
             .download(claim.pdf_path)
 
           if (storageError) {
-            console.error('[Preview PDF] ❌ STORAGE ERROR - Could not fetch vet invoice:', storageError)
-            console.error('[Preview PDF]    Error details:', JSON.stringify(storageError, null, 2))
+            console.error('[Preview PDF] Storage error fetching invoice:', storageError.message)
             // Return error to frontend so user knows merge failed
             return res.status(500).json({
               ok: false,
@@ -2384,7 +2109,7 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
           }
 
           if (!invoiceData) {
-            console.error('[Preview PDF] ❌ No invoice data returned from storage')
+            console.error('[Preview PDF] No invoice data returned from storage')
             return res.status(500).json({
               ok: false,
               error: 'Vet invoice file not found in storage',
@@ -2392,62 +2117,38 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
             })
           }
 
-          console.log('[Preview PDF] ✅ Invoice downloaded successfully')
-
-          // Merge PDFs using pdf-lib (imported at top of file)
-          console.log('[Preview PDF] 📄 Loading PDFs for merge...')
-
-          // Load both PDFs
+          // Load both PDFs for merge
           const claimFormPdf = await PDFDocument.load(pdfBuffer)
-          console.log('[Preview PDF] ✅ Claim form loaded:', claimFormPdf.getPageCount(), 'pages')
-
           const invoiceBuffer = Buffer.from(await invoiceData.arrayBuffer())
-          console.log('[Preview PDF] 📄 Invoice buffer size:', invoiceBuffer.length, 'bytes')
 
           // Detect file type by checking magic bytes
           let invoicePdf
           const isImage = detectImageType(invoiceBuffer)
-          console.log('[Preview PDF] 📄 Invoice file type detected:', isImage || 'PDF')
 
           if (isImage) {
             // Invoice is an image (mobile camera upload) - convert to PDF first
-            console.log('[Preview PDF] 🖼️  Invoice is an image - converting to PDF...')
-
-            // Process image with sharp: auto-rotate based on EXIF and resize to fit letter page
             // Letter page: 8.5 x 11 inches = 612 x 792 points (at 72 DPI)
             const PAGE_WIDTH = 612
             const PAGE_HEIGHT = 792
             const MARGIN = 36 // 0.5 inch margins
 
             try {
-              console.log('[Preview PDF] 📐 Processing image with Jimp...')
-
               // Load image with Jimp (automatically handles EXIF orientation)
               const image = await Jimp.read(invoiceBuffer)
-
-              console.log('[Preview PDF]    Original dimensions:', image.bitmap.width, 'x', image.bitmap.height)
-              console.log('[Preview PDF]    Jimp automatically rotates based on EXIF orientation')
 
               // Calculate target dimensions to fit within page with margins
               const maxWidth = PAGE_WIDTH - (MARGIN * 2)  // 540 points
               const maxHeight = PAGE_HEIGHT - (MARGIN * 2) // 720 points
 
               // Resize to fit within bounds while maintaining aspect ratio
-              // Jimp v1.x scaleToFit takes object: { w, h }
               image.scaleToFit({ w: maxWidth, h: maxHeight })
 
-              console.log('[Preview PDF]    Resized to fit page:', image.bitmap.width, 'x', image.bitmap.height)
-
               // Convert to JPEG buffer with quality 85
-              // Jimp v1.x getBuffer syntax: getBuffer(mimeType, options)
               const processedImageBuffer = await image.getBuffer('image/jpeg', { quality: 85 })
-
-              console.log('[Preview PDF] ✅ Image processed - auto-rotated and resized')
 
               // Get final dimensions
               const processedWidth = image.bitmap.width
               const processedHeight = image.bitmap.height
-              console.log('[Preview PDF]    Final dimensions:', processedWidth, 'x', processedHeight)
 
               // Create PDF and embed processed image
               invoicePdf = await PDFDocument.create()
@@ -2460,8 +2161,6 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
               const xPos = (PAGE_WIDTH - processedWidth) / 2
               const yPos = (PAGE_HEIGHT - processedHeight) / 2
 
-              console.log('[Preview PDF]    Drawing image at position:', xPos, ',', yPos)
-
               // Draw image centered on page
               page.drawImage(embeddedImage, {
                 x: xPos,
@@ -2469,16 +2168,9 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
                 width: processedWidth,
                 height: processedHeight,
               })
-
-              console.log('[Preview PDF] ✅ Image converted to PDF (1 page, letter size, centered)')
             } catch (imageError) {
-              console.error('[Preview PDF] ❌ Error processing image with sharp:', imageError)
-              console.error('[Preview PDF]    Error name:', imageError.name)
-              console.error('[Preview PDF]    Error message:', imageError.message)
-              console.error('[Preview PDF]    Error stack:', imageError.stack)
+              console.error('[Preview PDF] Error processing image:', imageError.message)
               // Fallback: use original image without processing
-              console.log('[Preview PDF] ⚠️  Falling back to unprocessed image')
-              console.log('[Preview PDF] ⚠️  WARNING: Image may be sideways and improperly scaled!')
               invoicePdf = await PDFDocument.create()
 
               let embeddedImage
@@ -2509,31 +2201,23 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
           } else {
             // Invoice is already a PDF
             invoicePdf = await PDFDocument.load(invoiceBuffer)
-            console.log('[Preview PDF] ✅ Original vet invoice loaded:', invoicePdf.getPageCount(), 'pages')
           }
 
           // Create new merged PDF
-          console.log('[Preview PDF] 🔧 Creating merged PDF document...')
           const mergedPdf = await PDFDocument.create()
 
           // Copy all pages from claim form FIRST
           const claimPages = await mergedPdf.copyPages(claimFormPdf, claimFormPdf.getPageIndices())
           claimPages.forEach((page) => mergedPdf.addPage(page))
-          console.log('[Preview PDF] ✅ Added', claimPages.length, 'pages from claim form')
 
           // Copy all pages from original vet invoice SECOND
           const invoicePages = await mergedPdf.copyPages(invoicePdf, invoicePdf.getPageIndices())
           invoicePages.forEach((page) => mergedPdf.addPage(page))
-          console.log('[Preview PDF] ✅ Added', invoicePages.length, 'pages from original vet invoice')
 
           // Save merged PDF
-          console.log('[Preview PDF] 💾 Saving merged PDF...')
           const mergedPdfBytes = await mergedPdf.save()
 
-          console.log('[Preview PDF] ✅✅✅ MERGED PDF CREATED SUCCESSFULLY!')
-          console.log('[Preview PDF]    Total size:', mergedPdfBytes.length, 'bytes')
-          console.log('[Preview PDF]    Total pages:', mergedPdf.getPageCount())
-          console.log('[Preview PDF]    Structure: Claim form (pages 1-' + claimPages.length + ') + Original vet invoice (pages ' + (claimPages.length + 1) + '-' + mergedPdf.getPageCount() + ')')
+          console.log('[Preview PDF] ✅ Merged PDF created:', mergedPdf.getPageCount(), 'pages')
 
           // Return merged PDF
           res.setHeader('Content-Type', 'application/pdf')
@@ -2541,10 +2225,7 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
           return res.send(Buffer.from(mergedPdfBytes))
 
         } catch (mergeError) {
-          console.error('[Preview PDF] ❌❌❌ MERGE ERROR - Could not merge PDFs:', mergeError)
-          console.error('[Preview PDF]    Error name:', mergeError.name)
-          console.error('[Preview PDF]    Error message:', mergeError.message)
-          console.error('[Preview PDF]    Error stack:', mergeError.stack)
+          console.error('[Preview PDF] Merge error:', mergeError.message)
           // Return error to frontend instead of silently falling back
           return res.status(500).json({
             ok: false,
@@ -2553,9 +2234,6 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
             fallback: 'merge-failed'
           })
         }
-      } else if (merged && !claim.pdf_path) {
-        console.log('[Preview PDF] ⚠️  Merge requested but no pdf_path - returning claim form only')
-        console.log('[Preview PDF]    claim.pdf_path:', claim.pdf_path)
       }
 
       // Return PDF for preview (inline, not download)

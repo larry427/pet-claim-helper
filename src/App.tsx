@@ -49,14 +49,6 @@ const AUTOSUB_WHITELIST = [
   'larry@dogstrainedright.com',
 ]
 
-// Expense Tracking Feature Flag (QuickBooks for Dogs)
-// Only these email addresses can see the Add Expense button during beta
-const EXPENSE_TRACKING_WHITELIST = [
-  'larry@uglydogadventures.com',
-  'larrysecrets@gmail.com',
-  'larry@vrexistence.com',
-]
-
 // Insurers with Auto-Submit enabled (must match backend PRODUCTION_INSURERS)
 const PRODUCTION_INSURERS = ['pumpkin', 'spot', 'healthy paws', 'nationwide', 'trupanion', 'pets best', 'figo', 'aspca']
 
@@ -74,46 +66,35 @@ export default function App() {
   const path = window.location.pathname
   const doseMatch = path.match(/^\/dose\/([a-zA-Z0-9-]+)$/i)
 
-  console.log('[App Router] Path:', path, 'DoseMatch:', doseMatch)
-
   // Static success page - zero database calls
   if (path === '/dose-success') {
-    console.log('[App Router] Rendering static success page')
     return <DoseSuccess />
   }
 
   // Reset password page
   if (path === '/reset-password') {
-    console.log('[App Router] Rendering reset password page')
     return <ResetPassword />
   }
 
   if (doseMatch) {
     const code = doseMatch[1]
-    console.log('[App Router] Rendering standalone dose page for code:', code)
     return (
       <DoseMarkingPage
         medicationId={code}
         userId={null}
-        onClose={() => {
-          console.log('[App Router] Dose marking closed')
-        }}
+        onClose={() => {}}
       />
     )
   }
 
-  console.log('[App Router] Rendering full app')
   return <MainApp />
 }
 
 
 // Helper to create/update vet expense when claim is paid or marked not insured
 async function createOrUpdateVetExpense(claim: any, netCost: number) {
-  console.log('[createOrUpdateVetExpense] START - claim:', claim, 'netCost:', netCost)
-
   const { data: user } = await supabase.auth.getUser()
   if (!user?.user?.id) {
-    console.log('[createOrUpdateVetExpense] No user found, aborting')
     return
   }
 
@@ -123,8 +104,6 @@ async function createOrUpdateVetExpense(claim: any, netCost: number) {
     .select('id')
     .eq('claim_id', claim.id)
     .single()
-
-  console.log('[createOrUpdateVetExpense] Existing expense check:', existingExpense, 'error:', fetchError)
 
   // If service date is more than 30 days old, use today's date
   const serviceDate = claim.service_date
@@ -138,8 +117,6 @@ async function createOrUpdateVetExpense(claim: any, netCost: number) {
 
     if (serviceDateObj >= thirtyDaysAgo) {
       expenseDate = serviceDate
-    } else {
-      console.log('[createOrUpdateVetExpense] Service date too old, using today:', serviceDate, '->', today)
     }
   }
 
@@ -156,22 +133,18 @@ async function createOrUpdateVetExpense(claim: any, netCost: number) {
 
   if (existingExpense) {
     // Update existing expense
-    const { data: updateResult, error: updateError } = await supabase
+    await supabase
       .from('pet_expenses')
       .update({ amount: netCost })
       .eq('id', existingExpense.id)
       .select()
-    console.log('[createOrUpdateVetExpense] UPDATE result:', updateResult, 'error:', updateError)
   } else {
     // Create new expense
-    const { data: insertResult, error: insertError } = await supabase
+    await supabase
       .from('pet_expenses')
       .insert(expenseData)
       .select()
-    console.log('[createOrUpdateVetExpense] INSERT result:', insertResult, 'error:', insertError)
   }
-
-  console.log('[createOrUpdateVetExpense] DONE - claim:', claim.id, 'netCost:', netCost)
 }
 
 // Main app component with all the hooks
@@ -356,17 +329,11 @@ function MainApp() {
 
   // Auto-populate Visit Title when extracted data arrives
   useEffect(() => {
-    console.log('[VISIT TITLE DEBUG] useEffect triggered', {
-      extracted,
-      diagnosis: extracted?.diagnosis,
-      currentVisitTitle: visitTitle
-    })
     if (extracted) {
       // Always default to "Vet Visit" - safer than AI extraction which can grab
       // wrong info (e.g., "Annual Physical" from a reminder section).
       // Users can edit if they want something more specific.
       const title = 'Vet Visit'
-      console.log('[VISIT TITLE DEBUG] Setting visitTitle to:', title)
       setVisitTitle(title)
     }
   }, [extracted])
@@ -424,10 +391,7 @@ function MainApp() {
   }
 
   useEffect(() => {
-    // Debug: initial auth getSession check
-    try { console.log('[auth] calling getSession()') } catch {}
     supabase.auth.getSession().then(async ({ data }) => {
-      try { console.log('[auth] getSession() result:', { hasSession: Boolean(data?.session), userId: data?.session?.user?.id || null }) } catch {}
       const s = data.session
       if (s?.user) {
         setUserEmail(s.user.email ?? null)
@@ -438,7 +402,6 @@ function MainApp() {
           const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
           updateUserTimezone(userTimezone).catch(() => {})
         } catch {}
-        try { console.log('[auth] calling dbLoadPets for user:', s.user.id) } catch {}
         // Load pets and profile to check onboarding status
         Promise.all([
           dbLoadPets(s.user.id),
@@ -457,15 +420,12 @@ function MainApp() {
         })
         listClaims(s.user.id).then(setClaims).catch((err) => { console.error('[auth] listClaims failed:', err); setClaims([]) })
       } else {
-        try { console.log('[auth] getSession() no session found - showing login') } catch {}
         setAuthView('login')
       }
     }).catch((error) => {
-      try { console.error('[auth] getSession() error:', error) } catch {}
       setAuthView('login')
     })
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
-      try { console.log('[auth] onAuthStateChange:', { event, hasSession: Boolean(session), userId: session?.user?.id || null }) } catch {}
       if (session?.user) {
         setUserEmail(session.user.email ?? null)
         setUserId(session.user.id)
@@ -476,7 +436,6 @@ function MainApp() {
         try {
           const pendingConsent = localStorage.getItem('pending_sms_consent')
           if (pendingConsent) {
-            console.log('[auth] Found pending SMS consent, saving to database...')
             const consentData = JSON.parse(pendingConsent)
 
             // Fetch IP address
@@ -485,9 +444,8 @@ function MainApp() {
               const ipResponse = await fetch('https://api.ipify.org?format=json')
               const ipData = await ipResponse.json()
               ipAddress = ipData.ip
-              console.log('[auth] IP address fetched:', ipAddress)
             } catch (ipErr) {
-              console.log('[auth] Could not fetch IP address:', ipErr)
+              // Could not fetch IP address - continue without it
             }
 
             const insertData = {
@@ -497,32 +455,25 @@ function MainApp() {
               consent_text: consentData.consent_text,
               ip_address: ipAddress
             }
-            console.log('[auth] Inserting SMS consent data:', insertData)
 
             const { data: insertResult, error: consentError } = await supabase
               .from('sms_consent')
               .insert(insertData)
               .select()
 
-            if (consentError) {
-              console.error('[auth] Failed to save SMS consent:', consentError)
-              console.error('[auth] Consent error details:', JSON.stringify(consentError, null, 2))
-            } else {
-              console.log('[auth] SMS consent saved successfully!', insertResult)
+            if (!consentError) {
               // Clear pending consent from localStorage
               localStorage.removeItem('pending_sms_consent')
-              console.log('[auth] Cleared pending SMS consent from localStorage')
             }
           }
         } catch (err) {
-          console.error('[auth] Error processing pending SMS consent:', err)
+          // Error processing pending SMS consent - silently ignore
         }
 
         try {
           const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
           updateUserTimezone(userTimezone).catch(() => {})
         } catch {}
-        try { console.log('[auth] calling dbLoadPets for user:', session.user.id) } catch {}
         // Load pets and profile to check onboarding status
         Promise.all([
           dbLoadPets(session.user.id),
@@ -536,15 +487,13 @@ function MainApp() {
             setShowOnboarding(true)
           }
         }).catch((err) => {
-          console.error('[auth] dbLoadPets failed:', err)
           setPets([])
         })
-        listClaims(session.user.id).then(setClaims).catch((err) => { console.error('[auth] listClaims failed:', err); setClaims([]) })
+        listClaims(session.user.id).then(setClaims).catch((err) => { setClaims([]) })
       } else {
         setUserEmail(null)
         setUserId(null)
         setPets([])
-        try { console.log('[auth] onAuthStateChange - signed out, clearing state') } catch {}
         setAuthView('login')
       }
     })
@@ -645,10 +594,7 @@ function MainApp() {
 
   // Bump a refresh token when core datasets change so child summaries can refetch
   useEffect(() => {
-    setDataRefreshToken((t) => {
-      console.log('[App] 🔄 Incrementing dataRefreshToken:', t, '→', t + 1, '| pets count:', pets.length)
-      return t + 1
-    })
+    setDataRefreshToken((t) => t + 1)
   }, [claims, pets, finPeriod])
 
   useEffect(() => {
@@ -682,11 +628,6 @@ function MainApp() {
       newPet.insuranceCompany = getInsuranceValue(newPetInsurer) as any
       newPet.filing_deadline_days = getDeadlineDays(getInsuranceValue(newPetInsurer)) || 90
     }
-    // DEBUG: Log the form values BEFORE creating the pet object
-    console.log('🔍 [addPet] STEP 1 - Form values from newPet:')
-    console.log('  - newPet.spot_account_number:', newPet.spot_account_number)
-    console.log('  - After trim:', (newPet.spot_account_number || '').trim())
-    console.log('  - Final value:', (newPet.spot_account_number || '').trim() || null)
 
     const id = (globalThis.crypto?.randomUUID?.() ?? String(Date.now()))
     const created: PetProfile = {
@@ -708,23 +649,10 @@ function MainApp() {
       figo_policy_number: (newPet.figo_policy_number || '').trim() || null,
     }
 
-    // DEBUG: Log the created pet object AFTER creation
-    console.log('🔍 [addPet] STEP 2 - Created PetProfile object:')
-    console.log('  - created.spot_account_number:', created.spot_account_number)
-    console.log('  - Full created object:', created)
     const updated = [...pets, created]
     setPets(updated)
     if (userId) {
-      console.log('🔍 [addPet] STEP 3 - Calling dbUpsertPet with userId:', userId)
-      dbUpsertPet(userId, created)
-        .then(() => {
-          console.log('🔍 [addPet] STEP 4 - dbUpsertPet SUCCESS')
-        })
-        .catch((e) => {
-          console.error('🔍 [addPet] STEP 4 - dbUpsertPet ERROR:', e)
-        })
-    } else {
-      console.log('🔍 [addPet] STEP 3 - SKIPPED dbUpsertPet (no userId)')
+      dbUpsertPet(userId, created).catch(() => {})
     }
     // If we were adding a pet for a pending match, set it
     if (pendingMatchIndex !== null) {
@@ -768,7 +696,6 @@ function MainApp() {
   }
 
   const saveEdit = async () => {
-    console.log('[saveEdit] 🚀 Save started', { editingPetId, editPet })
     if (!editingPetId || !editPet) return
     // Treat empty string or "Not Insured" as no insurance (insurance is optional)
     let finalCompany = ''
@@ -812,36 +739,22 @@ function MainApp() {
         : p,
     )
 
-    const petToSave = updated.find(p => p.id === editingPetId)
-    console.log('[saveEdit] 📝 Pet data to save:', petToSave)
-
     if (userId) {
       const toSave = updated.find(p => p.id === editingPetId)
       if (toSave) {
         try {
-          console.log('[saveEdit] 💾 Starting dbUpsertPet...')
           await dbUpsertPet(userId, toSave)
-          console.log('[saveEdit] ✅ dbUpsertPet complete')
 
           // Refresh pets list so Financial Summary updates immediately
-          console.log('[saveEdit] 🔄 Starting dbLoadPets...')
           const refreshedPets = await dbLoadPets(userId)
-          console.log('[saveEdit] 📦 dbLoadPets complete, got', refreshedPets.length, 'pets')
-          console.log('[saveEdit] 📊 Refreshed pet data:', refreshedPets.find(p => p.id === editingPetId))
 
           setPets(refreshedPets)
-          console.log('[saveEdit] ✅ State updated with fresh DB data')
 
           // CRITICAL FIX: Directly increment dataRefreshToken to force FinancialSummary refresh
           // Don't rely on the useEffect([pets]) to trigger, because React might not detect
           // the pets array change if the data is structurally identical
-          setDataRefreshToken((t) => {
-            console.log('[saveEdit] 🔄 Forcing dataRefreshToken increment:', t, '→', t + 1)
-            return t + 1
-          })
-          console.log('[saveEdit] ✅ Financial Summary refresh triggered')
+          setDataRefreshToken((t) => t + 1)
         } catch (e) {
-          console.error('[saveEdit] ❌ Error:', e)
           // On error, update with optimistic local data as fallback
           setPets(updated)
         }
@@ -852,60 +765,32 @@ function MainApp() {
     }
     setEditingPetId(null)
     setEditPet(null)
-    console.log('[saveEdit] 🏁 Save complete')
   }
 
   const handlePick = () => inputRef.current?.click()
 
   const handleLogout = async () => {
-    try { console.log('[auth] signOut() called') } catch {}
-    const { error } = await supabase.auth.signOut()
-    try { console.log('[auth] signOut() result:', error || null) } catch {}
-    try {
-      const { data } = await supabase.auth.getSession()
-      console.log('[auth] post-signOut getSession():', { hasSession: Boolean(data?.session) })
-    } catch {}
+    await supabase.auth.signOut()
   }
 
   const processFile = (file: File | undefined | null) => {
-    // eslint-disable-next-line no-console
-    console.log('[MOBILE DEBUG] ========== processFile CALLED ==========')
-    // eslint-disable-next-line no-console
-    console.log('[MOBILE DEBUG] file:', file)
-    // eslint-disable-next-line no-console
-    console.log('[MOBILE DEBUG] file type:', file?.type)
-    // eslint-disable-next-line no-console
-    console.log('[MOBILE DEBUG] file size:', file?.size)
-
     if (!file) {
-      // eslint-disable-next-line no-console
-      console.log('[MOBILE DEBUG] No file provided, setting selectedFile to null')
       setSelectedFile(null)
       return
     }
     const isAllowed = file.type.startsWith('image/') || file.type === 'application/pdf'
     if (!isAllowed) {
-      // eslint-disable-next-line no-console
-      console.log('[MOBILE DEBUG] File type not allowed:', file.type)
       setSelectedFile(null)
       return
     }
     const isImage = file.type.startsWith('image/')
     const objectUrl = isImage ? URL.createObjectURL(file) : undefined
-    // eslint-disable-next-line no-console
-    console.log('[MOBILE DEBUG] Setting selectedFile:', { fileName: file.name, fileType: file.type, isImage, objectUrl })
     setSelectedFile({ file, objectUrl })
     setExtracted(null)
     setErrorMessage(null)
   }
 
   const handleChange = useCallback<React.ChangeEventHandler<HTMLInputElement>>((e) => {
-    // eslint-disable-next-line no-console
-    console.log('[MOBILE DEBUG] ========== handleChange CALLED ==========')
-    // eslint-disable-next-line no-console
-    console.log('[MOBILE DEBUG] e.target.files:', e.target.files)
-    // eslint-disable-next-line no-console
-    console.log('[MOBILE DEBUG] e.target.files?.[0]:', e.target.files?.[0])
     processFile(e.target.files?.[0])
     // Reset input value to allow selecting the same file again
     e.target.value = ''
@@ -1015,23 +900,13 @@ function MainApp() {
 
   const uploadClaimPdf = async (uid: string, claimId: string, blob: Blob): Promise<string | null> => {
     try {
-      console.log('[uploadClaimPdf] Starting upload...', {
-        uid,
-        claimId,
-        blobSize: blob.size,
-        blobType: blob.type,
-        isMobile: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-      })
-
       // Convert blob to File if needed for better mobile compatibility
       let fileToUpload: File | Blob = blob
       if (!(blob instanceof File)) {
-        console.log('[uploadClaimPdf] Converting Blob to File for better mobile compatibility')
         fileToUpload = new File([blob], `${claimId}.pdf`, { type: 'application/pdf' })
       }
 
       const path = `${uid}/${claimId}.pdf`
-      console.log('[uploadClaimPdf] Uploading to path:', path)
 
       const { error } = await supabase.storage.from('claim-pdfs').upload(path, fileToUpload, {
         upsert: true,
@@ -1039,14 +914,10 @@ function MainApp() {
       })
 
       if (error) {
-        console.error('[uploadClaimPdf] ❌ Supabase storage error:', error)
         throw new Error(`Storage upload failed: ${error.message}`)
       }
 
-      console.log('[uploadClaimPdf] ✅ Storage upload successful, updating claim record...')
-
-      const updateResult = await updateClaim(claimId, { pdf_path: path })
-      console.log('[uploadClaimPdf] ✅ Claim record updated with pdf_path:', path, 'Result:', updateResult)
+      await updateClaim(claimId, { pdf_path: path })
 
       // Verify the update worked
       const { data: verifyData, error: verifyError } = await supabase
@@ -1055,19 +926,12 @@ function MainApp() {
         .eq('id', claimId)
         .single()
 
-      if (verifyError) {
-        console.error('[uploadClaimPdf] ⚠️  Could not verify pdf_path update:', verifyError)
-      } else if (verifyData?.pdf_path !== path) {
-        console.error('[uploadClaimPdf] ❌ pdf_path verification FAILED - expected:', path, 'got:', verifyData?.pdf_path)
+      if (verifyError || verifyData?.pdf_path !== path) {
         throw new Error('Failed to update claim record with pdf_path')
-      } else {
-        console.log('[uploadClaimPdf] ✅ Verified pdf_path was saved correctly:', verifyData.pdf_path)
       }
 
       return path
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error('[uploadClaimPdf] ❌ CRITICAL ERROR - Invoice will NOT be attached:', e)
       // Re-throw so caller knows upload failed
       throw e
     }
@@ -1169,30 +1033,13 @@ function MainApp() {
   }
 
   const handleProcess = async () => {
-    // eslint-disable-next-line no-console
-    console.log('[MOBILE DEBUG] ========== handleProcess CALLED ==========')
-    // eslint-disable-next-line no-console
-    console.log('[MOBILE DEBUG] selectedFile:', selectedFile)
-    // eslint-disable-next-line no-console
-    console.log('[MOBILE DEBUG] typeof selectedFile:', typeof selectedFile)
-    // eslint-disable-next-line no-console
-    console.log('[MOBILE DEBUG] selectedFile?.file:', selectedFile?.file)
-
     if (!selectedFile) {
-      // eslint-disable-next-line no-console
-      console.log('[MOBILE DEBUG] ❌ EARLY RETURN - No selectedFile!')
       return
     }
 
     setIsProcessing(true)
     setErrorMessage(null)
     try {
-      // eslint-disable-next-line no-console
-      console.log('[extract] starting server-side extraction, file type:', selectedFile.file.type)
-      // eslint-disable-next-line no-console
-      console.log('[extract] file size:', selectedFile.file.size)
-      // eslint-disable-next-line no-console
-      console.log('[extract] file name:', selectedFile.file.name)
       const apiBase = import.meta.env.DEV ? 'http://localhost:8787' : 'https://pet-claim-helper.onrender.com'
       const form = new FormData()
       form.append('file', selectedFile.file)
@@ -1220,27 +1067,17 @@ function MainApp() {
         throw new Error(text || `Server error (${resp.status})`)
       }
       const json = await resp.json()
-      // eslint-disable-next-line no-console
-      console.log('[MOBILE DEBUG] Full JSON response:', JSON.stringify(json, null, 2))
       if (!json || json.ok !== true || !json.data) {
-        // eslint-disable-next-line no-console
-        console.error('[extract] bad response shape', json)
         throw new Error('Invalid extraction response')
       }
       const parsed: any = json.data
-      // eslint-disable-next-line no-console
-      console.log('[MOBILE DEBUG] Parsed data from server:', JSON.stringify(parsed, null, 2))
       if (!parsed) {
-        // eslint-disable-next-line no-console
-        console.error('[extract] empty parsed data from server response')
         throw new Error('Could not parse JSON from server response.')
       }
 
       // Try multi-pet first
       const maybeMulti = normalizeMultiExtracted(parsed)
       if (maybeMulti && maybeMulti.pets.length > 1) {
-        // eslint-disable-next-line no-console
-        console.log('[MOBILE DEBUG] Multi-pet extraction detected:', maybeMulti)
         setMultiExtracted(maybeMulti)
         setExtracted(null)
         // Auto-suggest matches by name similarity
@@ -1251,15 +1088,9 @@ function MainApp() {
 
       // Fallback to single pet
       const normalized = normalizeExtracted(parsed)
-      // eslint-disable-next-line no-console
-      console.log('[MOBILE DEBUG] Normalized extraction result:', JSON.stringify(normalized, null, 2))
-      console.log('[VISIT TITLE DEBUG] Extracted diagnosis value:', normalized.diagnosis)
       if (selectedPet) {
         normalized.petName = selectedPet.name
       }
-      // eslint-disable-next-line no-console
-      console.log('[MOBILE DEBUG] Final extraction being set to state:', JSON.stringify(normalized, null, 2))
-      console.log('[VISIT TITLE DEBUG] About to call setExtracted with diagnosis:', normalized.diagnosis)
       setExtracted(normalized)
       setMultiExtracted(null)
     } catch (err: any) {
@@ -1277,8 +1108,6 @@ function MainApp() {
       } else {
         setErrorMessage(apiMsg || 'AI extraction failed. Please try again.')
       }
-      // eslint-disable-next-line no-console
-      console.error('[extract] error:', { name: err?.name, message: err?.message, cause: err?.cause })
       // Fallback: open a blank editable claim form so the user can enter manually
       const blank: ExtractedBill = {
         clinicName: '',
@@ -2646,15 +2475,7 @@ function MainApp() {
                     <div className="mt-5">
                       <button
                         type="button"
-                        onClick={(e) => {
-                          // eslint-disable-next-line no-console
-                          console.log('[MOBILE DEBUG] ========== PROCESS BILL BUTTON CLICKED ==========')
-                          // eslint-disable-next-line no-console
-                          console.log('[MOBILE DEBUG] Event:', e)
-                          // eslint-disable-next-line no-console
-                          console.log('[MOBILE DEBUG] isProcessing:', isProcessing)
-                          handleProcess()
-                        }}
+                        onClick={() => handleProcess()}
                         disabled={isProcessing}
                         className="inline-flex items-center justify-center w-full h-14 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 text-base sm:text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
                       >
@@ -3174,24 +2995,13 @@ function MainApp() {
                           expense_category: expenseCategory,
                         })
                         // Upload the vet bill PDF to storage and save path to claim
-                        console.log('[createClaim single] Checking for vet bill upload...', {
-                          hasClaimId: !!row?.id,
-                          hasSelectedFile: !!selectedFile,
-                          hasFile: !!selectedFile?.file,
-                          selectedFileType: selectedFile?.file?.type
-                        })
                         if (row?.id && selectedFile?.file) {
                           try {
-                            console.log('[createClaim single] Uploading vet bill PDF to storage...')
                             await uploadClaimPdf(userId, row.id, selectedFile.file)
-                            console.log('[createClaim single] ✅ Uploaded vet bill PDF for claim:', row.id)
                           } catch (uploadError) {
-                            console.error('[createClaim single] ❌ Failed to upload vet bill:', uploadError)
                             // Show error to user but still create the claim
-                            alert(`⚠️ Warning: Failed to attach vet invoice.\n\nThe claim was created but the invoice file could not be uploaded. You may need to attach it manually when submitting.\n\nError: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`)
+                            alert(`Warning: Failed to attach vet invoice.\n\nThe claim was created but the invoice file could not be uploaded. You may need to attach it manually when submitting.\n\nError: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`)
                           }
-                        } else {
-                          console.warn('[createClaim single] ⚠️  No vet bill PDF to upload - selectedFile or file is missing')
                         }
 
                         // If claim is not_insured, create expense for full amount
@@ -3221,8 +3031,6 @@ function MainApp() {
                       } as typeof successModal
                       setSuccessModal(success)
                       setCreatedClaimId(row?.id || null)
-                      // eslint-disable-next-line no-console
-                      console.log('[LOOKS GOOD CLICKED] Showing success modal', { claimId: row?.id })
                       // Clear the bill review form
                       setExtracted(null)
                     } finally {
@@ -3835,17 +3643,11 @@ function MainApp() {
                   } as any)
 
                   // Handle expense for not_insured claims
-                  console.log('[Edit Claim] editExpenseCat:', editExpenseCat)
-                  console.log('[Edit Claim] editingClaim.expense_category:', editingClaim?.expense_category)
-                  console.log('[Edit Claim] editingClaim.total_amount:', editingClaim?.total_amount)
-
                   if (editExpenseCat === 'not_insured') {
                     // Create expense for full amount (no insurance reimbursement expected)
-                    console.log('[Edit Claim] Creating vet expense for not_insured, amount:', editingClaim.total_amount)
                     await createOrUpdateVetExpense(editingClaim, editingClaim.total_amount || 0)
                   } else if (editingClaim.expense_category === 'not_insured' && editExpenseCat !== 'not_insured') {
                     // Changed FROM not_insured - delete the auto-created expense
-                    console.log('[Edit Claim] Deleting vet expense - changed from not_insured to:', editExpenseCat)
                     await supabase
                       .from('pet_expenses')
                       .delete()
@@ -4077,7 +3879,6 @@ function MainApp() {
           userId={userId}
           onClose={() => setSubmittingClaim(null)}
           onSuccess={async (messageId) => {
-            console.log('[Auto-Submit] Success! Message ID:', messageId)
             setSubmittingClaim(null)
             // Refresh claims list to show updated status
             if (userId) {
@@ -4262,24 +4063,15 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
     setLoading(true)
     setError(null)
     try {
-      try { console.log('[auth] handleSubmit start:', { mode, emailPreview: email.replace(/(.).+(@.+)/, '$1***$2') }) } catch {}
       if (mode === 'signup') {
         const { data, error } = await supabase.auth.signUp({ email, password })
-        try { console.log('[auth] signUp result:', { hasUser: Boolean(data?.user), hasSession: Boolean(data?.session), error: error || null }) } catch {}
         if (error) throw error
 
         // Show verification notice; most setups require email confirmation before login
         setSignupNoticeEmail(email)
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-        try { console.log('[auth] signInWithPassword result:', { hasUser: Boolean(data?.user), hasSession: Boolean(data?.session), error: error || null }) } catch {}
         if (error) throw error
-        try {
-          const { data: sess } = await supabase.auth.getSession()
-          console.log('[auth] post-login getSession():', { hasSession: Boolean(sess?.session), userId: sess?.session?.user?.id || null })
-          const raw = (typeof window !== 'undefined') ? window.localStorage?.getItem('pch.auth') : null
-          console.log('[auth] localStorage pch.auth present:', Boolean(raw))
-        } catch {}
       }
     } catch (err: any) {
       setError(err?.message || 'Authentication failed')

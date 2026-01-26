@@ -82,9 +82,6 @@ export default function ManualExpenseForm({ onSubmit, onCancel, onSuccess, initi
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('[ManualExpenseForm] handleSubmit called')
-    console.log('[ManualExpenseForm] Form state:', { amount, category, expenseDate, vendor, description, isFromOcr })
-    console.log('[ManualExpenseForm] isValid:', isValid, '| isValidAmount:', isValidAmount, '| needsDescription:', needsDescription)
 
     if (!isValid) {
       if (!isValidAmount) {
@@ -111,11 +108,7 @@ export default function ManualExpenseForm({ onSubmit, onCancel, onSuccess, initi
       ocr_extracted: isFromOcr
     }
 
-    console.log('[ManualExpenseForm] Submitting expense:', expenseData)
-
     const result = await onSubmit(expenseData)
-
-    console.log('[ManualExpenseForm] Submit result:', result)
 
     if (result.success) {
       setShowSuccess(true)

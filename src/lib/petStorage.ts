@@ -4,15 +4,12 @@ import { supabase } from './supabase'
 // Supabase-backed helpers
 export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
   try {
-    console.log('[dbLoadPets] START - userId=', userId)
     const { data, error} = await supabase
       .from('pets')
       .select('id, name, species, color, photo_url, insurance_company, policy_number, owner_name, owner_phone, filing_deadline_days, monthly_premium, deductible_per_claim, coverage_start_date, insurance_pays_percentage, annual_coverage_limit, healthy_paws_pet_id, pumpkin_account_number, spot_account_number, figo_policy_number, breed, gender, date_of_birth')
       .eq('user_id', userId)
       .order('created_at', { ascending: true })
-    console.log('[dbLoadPets] QUERY RESULT - data:', data, 'error:', error)
     if (error) {
-      console.error('[dbLoadPets] ERROR:', error)
       throw error
     }
     const mapped = (data || []).map((p: any) => ({
@@ -39,10 +36,8 @@ export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
       gender: p.gender || null,
       date_of_birth: p.date_of_birth || null,
     }))
-    console.log('[dbLoadPets] SUCCESS - count=', mapped.length, 'pets:', mapped)
     return mapped
   } catch (e) {
-    console.error('[dbLoadPets] EXCEPTION:', e)
     throw e
   }
 }
@@ -74,27 +69,13 @@ export async function dbUpsertPet(userId: string, pet: PetProfile): Promise<void
     gender: pet.gender || null,
     date_of_birth: pet.date_of_birth || null,
   }
-  // Debug
-  // eslint-disable-next-line no-console
-  console.log('🔍 [dbUpsertPet] BEFORE Supabase call:')
-  console.log('  - userId:', userId)
-  console.log('  - payload.spot_account_number:', payload.spot_account_number)
-  console.log('  - Full payload:', payload)
 
   const { data, error } = await supabase.from('pets').upsert(payload, { onConflict: 'id' }).select()
-
-  // eslint-disable-next-line no-console
-  console.log('🔍 [dbUpsertPet] AFTER Supabase call:')
-  console.log('  - data:', data)
-  console.log('  - error:', error)
 
   if (error) throw error
 }
 
 export async function dbDeletePet(userId: string, petId: string): Promise<void> {
-  // Debug
-  // eslint-disable-next-line no-console
-  console.log('[dbDeletePet] userId=', userId, 'petId=', petId)
   const { error } = await supabase.from('pets').delete().eq('user_id', userId).eq('id', petId)
   if (error) throw error
 }
@@ -102,8 +83,6 @@ export async function dbDeletePet(userId: string, petId: string): Promise<void> 
 export async function dbEnsureProfile(userId: string, email: string | null): Promise<void> {
   // Upsert profile row so FK on pets succeeds
   const payload = { id: userId, email: email ?? null }
-  // eslint-disable-next-line no-console
-  console.log('[dbEnsureProfile] upserting profile', payload)
   const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' }).select()
   if (error) throw error
 }
@@ -111,9 +90,6 @@ export async function dbEnsureProfile(userId: string, email: string | null): Pro
 
 // Create pet (used by onboarding)
 export async function createPet(pet: any): Promise<any> {
-  // Debug
-  // eslint-disable-next-line no-console
-  console.log('[createPet] received payload:', pet)
   const { data, error } = await supabase
     .from('pets')
     .insert([
@@ -140,9 +116,6 @@ export async function createPet(pet: any): Promise<any> {
     ])
     .select('*')
     .single()
-  // Debug
-  // eslint-disable-next-line no-console
-  console.log('[createPet] insert result:', { data, error })
   if (error) throw error
   return data
 }

@@ -9,18 +9,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Supabase client not configured: set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY')
 }
 
-// eslint-disable-next-line no-console
-try {
-  console.log('[supabase] initializing client', {
-    urlPresent: Boolean(supabaseUrl),
-    keyPresent: Boolean(supabaseAnonKey),
-    urlPreview: supabaseUrl ? `${supabaseUrl.slice(0, 20)}...` : null,
-    keyLength: supabaseAnonKey?.length || 0,
-    keyFirst50: supabaseAnonKey ? `${supabaseAnonKey.slice(0, 50)}...` : null,
-    keyLast20: supabaseAnonKey ? `...${supabaseAnonKey.slice(-20)}` : null,
-  })
-} catch {}
-
 const storage = typeof window !== 'undefined' ? window.localStorage : undefined
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

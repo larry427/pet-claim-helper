@@ -131,7 +131,6 @@ export default function AddExpenseModal({ onClose, onSubmit }: Props) {
         throw new Error(json.error || 'Failed to extract receipt data')
       }
 
-      console.log('[extract-receipt] Success:', json.data)
       setExtractedData(json.data)
 
       // Switch to manual form with pre-filled data

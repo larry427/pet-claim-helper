@@ -42,17 +42,8 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   } | null>(null)
 
   useEffect(() => {
-    console.log('[DoseMarkingPage] useEffect triggered', {
-      medicationId,
-      userId,
-      success,
-      loading,
-      error
-    })
-
     // Don't reload if already successful - prevents re-querying after marking as given
     if (success) {
-      console.log('[DoseMarkingPage] Already successful, skipping reload')
       return
     }
 
@@ -63,10 +54,8 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
     if (token) {
       setMagicToken(token)
-      console.log('[DoseMarkingPage] Magic link token detected:', token.slice(0, 8) + '...')
     }
 
-    console.log('[DoseMarkingPage] Calling loadMedicationDetails with token:', token ? token.slice(0, 8) + '...' : 'null')
     // Pass token directly (don't rely on magicToken state which may not be updated yet)
     loadMedicationDetails(token)
   }, [medicationId, userId, success])
@@ -79,14 +68,6 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   }, [medication, actualMedicationId, success])
 
   async function loadMedicationDetails(tokenFromUrl: string | null = null) {
-    console.log('[DoseMarkingPage] loadMedicationDetails called', {
-      tokenFromUrl,
-      magicToken,
-      medicationId,
-      success,
-      loading
-    })
-
     try {
       // Use tokenFromUrl (passed directly) OR magicToken (from state)
       const effectiveToken = tokenFromUrl || magicToken
@@ -99,15 +80,8 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       const isShortCode = medicationId.length === 8 && !medicationId.includes('-')
       const isUUID = medicationId.includes('-')
 
-      console.log('[DoseMarkingPage] Detecting format', {
-        isShortCode,
-        isUUID,
-        effectiveToken: effectiveToken ? effectiveToken.slice(0, 8) + '...' : 'null'
-      })
-
       // Try short code lookup first (new format)
       if (isShortCode) {
-        console.log('[DoseMarkingPage] Loading via short code:', medicationId)
 
         const { data: doseData, error: doseError } = await supabase
           .from('medication_doses')
@@ -116,13 +90,11 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           .single()
 
         if (doseError || !doseData) {
-          console.error('[DoseMarkingPage] Short code lookup failed:', doseError?.message, doseError?.code)
           setError('This link is invalid or has expired. Please check for a newer SMS.')
           setLoading(false)
           return
         }
 
-        console.log('[DoseMarkingPage] ✅ Dose found via short code:', doseData.id)
         setMedication(doseData.medications)
         setPet(doseData.medications?.pets)
         setActualMedicationId(doseData.medication_id)
@@ -134,8 +106,6 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
       // Legacy: Token-based auth (for backwards compatibility)
       if (effectiveToken) {
-        console.log('[DoseMarkingPage] Loading via legacy token:', effectiveToken.slice(0, 8) + '...')
-
         // Get dose by token, which includes medication details
         const { data: doseData, error: doseError } = await supabase
           .from('medication_doses')
@@ -144,26 +114,16 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           .single()
 
         if (doseError || !doseData) {
-          console.error('[DoseMarkingPage] Token validation failed:', doseError?.message, doseError?.code)
-          console.error('[DoseMarkingPage] Full error:', JSON.stringify(doseError))
           setError('This link is invalid or has expired. Please check for a newer SMS.')
           setLoading(false)
           return
         }
 
         // Token is valid - load medication details from the joined data
-        console.log('[DoseMarkingPage] ✅ Dose found via token:', doseData.id)
-        console.log('[DoseMarkingPage] Full dose data:', JSON.stringify(doseData, null, 2))
-        console.log('[DoseMarkingPage] Medications object:', doseData.medications)
-        console.log('[DoseMarkingPage] Pets object:', doseData.medications?.pets)
-
         setMedication(doseData.medications)
         setPet(doseData.medications?.pets)
         setCurrentDose(doseData)
         setLoading(false)
-
-        console.log('[DoseMarkingPage] ✅ Medication name:', doseData.medications?.medication_name || 'MISSING')
-        console.log('[DoseMarkingPage] ✅ Pet name:', doseData.medications?.pets?.name || 'MISSING')
         return
       }
 
@@ -219,7 +179,6 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         .order('scheduled_time', { ascending: true })
 
       if (dosesError || !doses) {
-        console.error('[DoseMarkingPage] Failed to fetch doses for stats:', dosesError)
         return null
       }
 
@@ -246,19 +205,9 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
         // Total doses = days * doses per day
         totalExpectedDoses = totalDays * dosesPerDay
-
-        console.log('[DoseMarkingPage] Progress calculation:', {
-          startDate: medication.start_date,
-          endDate: medication.end_date,
-          totalDays,
-          dosesPerDay,
-          totalExpectedDoses,
-          dosesInDB: doses.length
-        })
       } else {
         // Fallback to database count if medication dates are missing
         totalExpectedDoses = doses.length
-        console.warn('[DoseMarkingPage] Missing medication dates, falling back to DB count')
       }
 
       const givenCount = doses.filter(d => d.status === 'given').length
@@ -341,7 +290,6 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       setProgressStats(stats)
       return stats
     } catch (err) {
-      console.error('[DoseMarkingPage] Error calculating progress stats:', err)
       return null
     }
   }
@@ -349,7 +297,6 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
   async function markAsGiven() {
     // Prevent duplicate submissions with ref (synchronous check)
     if (markingRef.current) {
-      console.log('[DoseMarkingPage] Already marking, ignoring duplicate click')
       return
     }
     markingRef.current = true
@@ -368,8 +315,6 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
     try {
       // BYPASS BACKEND: For short code users, update directly via Supabase
       if (shortCode) {
-        console.log('[DoseMarkingPage] SHORT CODE: Bypassing backend, using Supabase directly')
-
         // Find dose by short code
         const { data: dose, error: findError } = await supabase
           .from('medication_doses')
@@ -378,13 +323,10 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           .single()
 
         if (findError || !dose) {
-          console.error('[DoseMarkingPage] Invalid short code:', findError)
           setError('Invalid link. Please check your recent SMS.')
           setMarking(false)
           return
         }
-
-        console.log('[DoseMarkingPage] Found dose:', dose.id, 'Status:', dose.status)
 
         // VALIDATION: Check current dose count
         const { count: givenCount, error: countError } = await supabase
@@ -394,7 +336,6 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           .eq('status', 'given')
 
         if (countError) {
-          console.error('[DoseMarkingPage] Error counting doses:', countError)
           setError('Error checking medication status')
           setMarking(false)
           return
@@ -417,7 +358,6 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
         // If already given, treat as success (idempotent) - use actual counts
         if (dose.status === 'given') {
-          console.log('[DoseMarkingPage] Dose already marked as given - redirecting to success')
           const params = new URLSearchParams({
             pet: pet?.name || 'Your pet',
             med: medication?.medication_name || 'medication',
@@ -430,14 +370,12 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
         // Check if all doses are already complete
         if ((givenCount || 0) >= totalExpectedDoses) {
-          console.log('[DoseMarkingPage] All doses already complete:', { givenCount, totalExpectedDoses })
           setError('All doses have been recorded for this medication')
           setMarking(false)
           return
         }
 
         // Mark as given directly via Supabase
-        console.log('[DoseMarkingPage] Marking dose as given via Supabase...')
         const { error: updateError } = await supabase
           .from('medication_doses')
           .update({
@@ -447,19 +385,15 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           .eq('id', dose.id)
 
         if (updateError) {
-          console.error('[DoseMarkingPage] Failed to update dose:', updateError)
           setError('Failed to mark dose as given. Please try again.')
           setMarking(false)
           return
         }
 
-        console.log('[DoseMarkingPage] ✅ Dose marked as given via Supabase')
-
         // The new count after marking this dose
         const newGivenCount = (givenCount || 0) + 1
 
         // Calculate progress stats with timeout (for next dose time)
-        console.log('[DoseMarkingPage] Calculating progress stats...')
         let stats = null
         try {
           const statsPromise = calculateProgressStats()
@@ -467,9 +401,8 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
             setTimeout(() => reject(new Error('Stats timeout')), 3000)
           )
           stats = await Promise.race([statsPromise, timeoutPromise])
-          console.log('[DoseMarkingPage] Stats calculated:', stats)
         } catch (statsError) {
-          console.error('[DoseMarkingPage] Stats calculation failed/timeout:', statsError)
+          // Stats calculation failed/timeout - continue anyway
         }
 
         // Build success URL - use stats if available, otherwise use our calculated values
@@ -484,19 +417,15 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           params.set('next', stats.nextDoseTime)
         }
 
-        console.log('[DoseMarkingPage] Redirecting to success page')
         window.location.href = `/dose-success?${params.toString()}`
         return
       }
 
       // FOR LEGACY TOKEN AND SESSION AUTH: Still use backend API
-      console.log('[DoseMarkingPage] Using backend API for:', magicToken ? 'magic token' : 'session auth')
 
       const body = magicToken ? { token: magicToken } : { userId }
       const medId = actualMedicationId || medicationId
       const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8787'}/api/medications/${medId}/mark-given`
-
-      console.log('[DoseMarkingPage] Calling API:', apiUrl)
 
       // For session auth (non-magic-token), get Bearer token
       let authHeader: Record<string, string> = {}
@@ -522,7 +451,6 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         clearTimeout(timeoutId)
       } catch (fetchError: any) {
         clearTimeout(timeoutId)
-        console.error('[DoseMarkingPage] API call failed or timeout:', fetchError)
         if (fetchError.name === 'AbortError') {
           setError('Request timeout. Please try again or close this tab.')
         } else {
@@ -532,32 +460,23 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         return
       }
 
-      console.log('[DoseMarkingPage] API response status:', response.status)
-
       let result
       try {
         result = await response.json()
-        console.log('[DoseMarkingPage] API response body:', result)
       } catch (jsonError) {
-        console.error('[DoseMarkingPage] Failed to parse response:', jsonError)
         setError('Something went wrong. Please try again or close this tab.')
         setMarking(false)
         return
       }
 
       if (!response.ok || !result.ok) {
-        console.error('[DoseMarkingPage] API call failed:', { status: response.status, result })
         setError(result.error || 'Failed to mark dose as given')
         setMarking(false)
         return
       }
 
-      console.log('[DoseMarkingPage] ✅ Successfully marked as given')
-
       // For standalone magic link users (not logged in), redirect to static success page
       if ((shortCode || magicToken) && !userId) {
-        console.log('[DoseMarkingPage] Redirecting to static success page')
-
         // Calculate fallback total expected doses from medication data
         let fallbackTotal = 1
         if (medication?.start_date && medication?.end_date) {
@@ -572,7 +491,6 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         }
 
         // Calculate progress for display with timeout fallback
-        console.log('[DoseMarkingPage] Calculating progress stats...')
         let stats = null
         try {
           const statsPromise = calculateProgressStats()
@@ -580,9 +498,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
             setTimeout(() => reject(new Error('Stats calculation timeout')), 3000)
           )
           stats = await Promise.race([statsPromise, timeoutPromise])
-          console.log('[DoseMarkingPage] Stats calculated:', stats)
         } catch (statsError) {
-          console.error('[DoseMarkingPage] Stats calculation failed/timeout:', statsError)
           // Continue anyway with fallback values
         }
 
@@ -598,7 +514,6 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           params.set('next', stats.nextDoseTime)
         }
 
-        console.log('[DoseMarkingPage] Redirecting to:', `/dose-success?${params.toString()}`)
         // Redirect to static success page - zero database calls from here on
         window.location.href = `/dose-success?${params.toString()}`
         return
@@ -630,8 +545,6 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
     try {
       // BYPASS BACKEND: For short code users, update directly via Supabase
       if (shortCode) {
-        console.log('[DoseMarkingPage] SHORT CODE: Skipping dose via Supabase directly')
-
         // Find dose by short code
         const { data: dose, error: findError } = await supabase
           .from('medication_doses')
@@ -640,16 +553,12 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           .single()
 
         if (findError || !dose) {
-          console.error('[DoseMarkingPage] Invalid short code:', findError)
           setError('Invalid link. Please check your recent SMS.')
           setMarking(false)
           return
         }
 
-        console.log('[DoseMarkingPage] Found dose:', dose.id, 'Status:', dose.status)
-
         // Mark as skipped directly via Supabase
-        console.log('[DoseMarkingPage] Marking dose as skipped via Supabase...')
         const { error: updateError } = await supabase
           .from('medication_doses')
           .update({
@@ -659,13 +568,10 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           .eq('id', dose.id)
 
         if (updateError) {
-          console.error('[DoseMarkingPage] Failed to update dose:', updateError)
           setError('Failed to skip dose. Please try again.')
           setMarking(false)
           return
         }
-
-        console.log('[DoseMarkingPage] ✅ Dose marked as skipped via Supabase')
 
         // Redirect to a simple confirmation (we could create a dose-skipped page later)
         // For now, just redirect to dose-success with a skipped flag
@@ -675,14 +581,11 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           skipped: 'true'
         })
 
-        console.log('[DoseMarkingPage] Redirecting to success page with skipped=true')
         window.location.href = `/dose-success?${params.toString()}`
         return
       }
 
       // FOR LEGACY TOKEN AND SESSION AUTH: Use backend API if available, otherwise Supabase
-      console.log('[DoseMarkingPage] Skipping dose for:', magicToken ? 'magic token' : 'session auth')
-
       // Try direct Supabase update for all cases (simpler)
       const medId = actualMedicationId || medicationId
 
@@ -696,7 +599,6 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         .limit(1)
 
       if (findError || !doses || doses.length === 0) {
-        console.error('[DoseMarkingPage] No pending dose found:', findError)
         setError('No pending dose found to skip.')
         setMarking(false)
         return
@@ -714,13 +616,10 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         .eq('id', dose.id)
 
       if (updateError) {
-        console.error('[DoseMarkingPage] Failed to skip dose:', updateError)
         setError('Failed to skip dose. Please try again.')
         setMarking(false)
         return
       }
-
-      console.log('[DoseMarkingPage] ✅ Dose skipped successfully')
 
       // For standalone magic link users (not logged in), redirect to static success page
       if ((shortCode || magicToken) && !userId) {
@@ -961,7 +860,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
         scheduledTime
       }
     } catch (err) {
-      console.error('[DoseMarkingPage] Error calculating progress info:', err)
+      // Error calculating progress info - ignore
     }
   }
 

@@ -115,17 +115,10 @@ export default function AddMedicationForm({
         setError(null)
       }
 
-      // Debug: log initial detected timezone when form opens
-      try {
-        console.log('[AddMedicationForm] Form opened. Initial timezone (from Intl):', userTimezone)
-      } catch {}
       // Fetch user's timezone from profile
       if (userId) {
         supabase.from('profiles').select('timezone').eq('id', userId).single().then(({ data }) => {
           const tz = (data && (data as any).timezone) ? String((data as any).timezone) : ''
-          try {
-            console.log('[AddMedicationForm] Profile timezone loaded:', tz || '(empty)')
-          } catch {}
           if (tz) setUserTimezone(tz)
         }).catch(() => {})
       }
@@ -227,10 +220,6 @@ export default function AddMedicationForm({
     try {
       const { start, end } = computeDates()
       const tz = userTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone
-      try {
-        console.log('[AddMedicationForm] Submitting. Detected timezone:', tz)
-        console.log('[AddMedicationForm] Times selected (will store as PST, no UTC conversion):', times)
-      } catch {}
 
       // Build reminder_times based on frequency type
       let reminderTimes: ReminderTimes
@@ -252,10 +241,6 @@ export default function AddMedicationForm({
       } else {
         reminderTimes = times.filter(Boolean)
       }
-
-      try {
-        console.log('[AddMedicationForm] reminder_times to store:', reminderTimes)
-      } catch {}
 
       if (editMode && medicationId) {
         // Update existing medication
@@ -282,14 +267,8 @@ export default function AddMedicationForm({
           start_date: start,
           end_date: end,
         } as const
-        try {
-          console.log('[AddMedicationForm] Payload.reminder_times:', payload.reminder_times)
-        } catch {}
 
         const { data: insertData, error: insertError } = await supabase.from('medications').insert(payload).select('id').single()
-        try {
-          console.log('[AddMedicationForm] Supabase insert completed. Error:', insertError || null)
-        } catch {}
         if (insertError) throw insertError
         const newMedicationId = insertData?.id
         if (onSaved) onSaved(newMedicationId)

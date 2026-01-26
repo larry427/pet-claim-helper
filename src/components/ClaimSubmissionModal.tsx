@@ -67,11 +67,6 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
       try {
         setStep('validating')
 
-        console.log('[ClaimSubmissionModal] Starting validation...')
-        console.log('[ClaimSubmissionModal] claim:', claim)
-        console.log('[ClaimSubmissionModal] pet:', pet)
-        console.log('[ClaimSubmissionModal] pet.insurance_company:', pet?.insurance_company)
-
         // Fetch user profile for reference
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
@@ -85,10 +80,7 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
         // Determine insurer name from pet's insurance_company
         const insurerName = pet?.insurance_company?.toLowerCase() || ''
 
-        console.log('[ClaimSubmissionModal] insurerName:', insurerName)
-
         if (!insurerName || insurerName === 'not insured' || insurerName === 'none') {
-          console.log('[ClaimSubmissionModal] No insurance company found')
           setError('Pet does not have an insurance company set. Please update pet information in Settings.')
           setStep('missing-data')
           return
@@ -104,12 +96,6 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
 
         // Call validation API to check what fields are missing for this insurer
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787'
-        console.log('[ClaimSubmissionModal] Calling validation API:', `${apiUrl}/api/claims/validate-fields`)
-        console.log('[ClaimSubmissionModal] Request body:', {
-          claimId: claim.id,
-          userId: userId,
-          insurer: insurerName
-        })
 
         const response = await fetch(`${apiUrl}/api/claims/validate-fields`, {
           method: 'POST',
@@ -124,38 +110,23 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
           })
         })
 
-        console.log('[ClaimSubmissionModal] Response status:', response.status)
-        console.log('[ClaimSubmissionModal] Response ok:', response.ok)
-        console.log('[ClaimSubmissionModal] Response headers:', {
-          'content-type': response.headers.get('content-type'),
-          'content-length': response.headers.get('content-length')
-        })
-
         const responseText = await response.text()
-        console.log('[ClaimSubmissionModal] Response text (first 500 chars):', responseText.substring(0, 500))
 
         let validation
         try {
           validation = JSON.parse(responseText)
-          console.log('[ClaimSubmissionModal] Validation response:', validation)
         } catch (parseError) {
-          console.error('[ClaimSubmissionModal] Failed to parse JSON response:', parseError)
-          console.error('[ClaimSubmissionModal] Full response text:', responseText)
           throw new Error(`API returned non-JSON response (status ${response.status}): ${responseText.substring(0, 200)}`)
         }
 
         if (!validation.ok) {
-          console.error('[ClaimSubmissionModal] Validation failed:', validation.error)
           setError(`Error validating claim requirements: ${validation.error}`)
           setStep('error')
           return
         }
 
-        console.log('[Validation] Result:', validation)
-
         // If there are missing fields, show collection modal
         if (validation.missingFields && validation.missingFields.length > 0) {
-          console.log('[ClaimSubmissionModal] Missing fields detected:', validation.missingFields)
           setMissingFieldsData({
             insurerName: pet.insurance_company,
             missingFields: validation.missingFields,
@@ -167,11 +138,9 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
         }
 
         // No missing fields, proceed to confirm
-        console.log('[ClaimSubmissionModal] All fields present, proceeding to confirm')
         setStep('confirm')
 
       } catch (err) {
-        console.error('[Validation] Error:', err)
         setError(`Failed to validate claim: ${err.message}`)
         setStep('error')
       }
@@ -185,10 +154,6 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
   const missingData: string[] = []
 
   async function handlePreviewPDF() {
-    console.log('[Preview] ========== PREVIEW PDF CLICKED ==========')
-    console.log('[Preview] User Agent:', navigator.userAgent)
-    console.log('[Preview] Window width:', window.innerWidth)
-
     try {
       setIsLoadingPreview(true)
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787'
@@ -202,7 +167,6 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
       // 1. Fetch merged PDF (claim form + vet invoice) from backend
       // Use ?merged=true to request both PDFs merged into one
       const mergedParam = claim.pdf_path ? '?merged=true' : ''
-      console.log('[Preview] Fetching PDF from:', `${apiUrl}/api/claims/${claim.id}/preview-pdf${mergedParam}`)
 
       const response = await fetch(`${apiUrl}/api/claims/${claim.id}/preview-pdf${mergedParam}`, {
         headers: {
@@ -210,15 +174,11 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
         }
       })
 
-      console.log('[Preview] Response status:', response.status)
-      console.log('[Preview] Response content-type:', response.headers.get('content-type'))
-
       if (!response.ok) {
         // Check if response is JSON (error) or PDF
         const contentType = response.headers.get('content-type')
         if (contentType?.includes('application/json')) {
           const result = await response.json()
-          console.error('[Preview] Server returned error:', result)
 
           // Show detailed error to user
           let errorMsg = result.error || 'Failed to generate preview'
@@ -237,60 +197,36 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
       }
 
       const pdfBlob = await response.blob()
-      console.log('[Preview] PDF blob size:', pdfBlob.size)
-      console.log('[Preview] PDF blob type:', pdfBlob.type)
 
       const pdfUrl = URL.createObjectURL(pdfBlob)
-      console.log('[Preview] Blob URL created:', pdfUrl)
-
-      // TEMPORARY: Confirm PDF was fetched
-      console.log('[Preview] ✅ PDF fetched successfully, size:', pdfBlob.size, 'bytes')
 
       // 2. Detect mobile device
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768
-      console.log('[Preview] Mobile detected:', isMobile)
 
       if (isMobile) {
-        console.log('[Preview] Using mobile-specific PDF handling')
-
         // iOS Safari doesn't support programmatic downloads well
         // Try multiple approaches
         const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
-        console.log('[Preview] Is iOS:', isIOS)
 
         if (isIOS) {
           // For iOS: Open in same window (will open PDF viewer)
-          console.log('[Preview] Opening PDF in same window (iOS)')
           window.location.href = pdfUrl
         } else {
           // For Android: Try download
-          console.log('[Preview] Attempting download (Android)')
           const link = document.createElement('a')
           link.href = pdfUrl
           link.download = `claim-${pet.name}-${new Date().toISOString().split('T')[0]}.pdf`
           document.body.appendChild(link)
           link.click()
           document.body.removeChild(link)
-          console.log('[Preview] Download triggered')
         }
       } else {
         // On desktop: open in new tab
-        console.log('[Preview] Opening PDF in new tab (desktop)')
-        const newWindow = window.open(pdfUrl, '_blank', 'noopener,noreferrer')
-        console.log('[Preview] New window opened:', !!newWindow)
-
-        if (claim.pdf_path) {
-          console.log('[Preview] Opened merged PDF (claim form + vet invoice)')
-        } else {
-          console.log('[Preview] Opened claim form PDF (no vet invoice attached)')
-        }
+        window.open(pdfUrl, '_blank', 'noopener,noreferrer')
       }
     } catch (err: any) {
-      console.error('[Preview PDF] ERROR:', err)
-      console.error('[Preview PDF] Error stack:', err.stack)
       alert(`Could not generate preview: ${err.message}`)
     } finally {
-      console.log('[Preview] Cleaning up, setting loading to false')
       setIsLoadingPreview(false)
     }
   }
@@ -327,7 +263,6 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
         throw new Error(result.error || 'Failed to submit claim')
       }
 
-      console.log('[ClaimSubmission] Success:', result)
       setMessageId(result.messageId)
       setStep('success')
 
@@ -335,7 +270,6 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
       // onSuccess will be called when user clicks Done
 
     } catch (err: any) {
-      console.error('[ClaimSubmission] Error:', err)
       setError(err.message || 'Failed to submit claim')
       setStep('error')
     }
@@ -372,13 +306,10 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
         return
       }
 
-      console.log('[Save Fields] Success:', saveResult)
-
       // Data saved successfully, proceed to confirm step
       setStep('confirm')
 
     } catch (error) {
-      console.error('[Save Fields] Error:', error)
       setError('Failed to save claim information')
       setStep('error')
     }

@@ -128,8 +128,6 @@ export async function sendDeadlineReminders() {
         .eq('id', claim.id)
       if (updErr) throw updErr
 
-      // eslint-disable-next-line no-console
-      console.log(`[deadline-reminders] Sent ${keyInfo.label} reminder for claim ${claim.id} to ${toEmail}`)
       sentCount += 1
     } catch (e) {
       // eslint-disable-next-line no-console

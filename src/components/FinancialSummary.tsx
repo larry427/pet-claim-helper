@@ -33,11 +33,9 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
   const [pets, setPets] = useState<PetRow[]>([])
 
   useEffect(() => {
-    console.log('[FinancialSummary] 🔄 useEffect triggered | userId:', userId, '| refreshToken:', refreshToken)
     if (!userId) return
     setLoading(true)
     setError(null)
-    console.log('[FinancialSummary] 📡 Fetching claims and pets from database...')
     Promise.all([
       supabase
         .from('claims')
@@ -51,10 +49,6 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
       .then(([cl, pe]) => {
         if (cl.error) throw cl.error
         if (pe.error) throw pe.error
-        // eslint-disable-next-line no-console
-        console.log('[FinancialSummary] claims fetched:', cl.data)
-        // eslint-disable-next-line no-console
-        console.log('[FinancialSummary] pets fetched:', pe.data)
         setClaims((cl.data || []) as any)
         setPets((pe.data || []) as any)
       })
@@ -337,8 +331,6 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
         byPet[pid].reimbursed += reimb
       }
     }
-    // eslint-disable-next-line no-console
-    console.log('[FinancialSummary] perPet calc (premiums + bills - reimbursed)', byPet)
     return byPet
   }, [claims, pets, petById, period])
 
