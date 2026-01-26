@@ -28,7 +28,7 @@ export const INSURANCE_OPTIONS: InsuranceOption[] = [
   { display: 'Figo (180 days)', value: 'Figo', deadlineDays: 180 },
   { display: 'Pets Best (90 days)', value: 'Pets Best', deadlineDays: 90 },
   { display: 'ASPCA (90 days)', value: 'ASPCA', deadlineDays: 90 },
-  { display: 'Other - Insurance not listed (90 days)', value: 'Other', deadlineDays: 90 }
+  { display: 'Other - Insurance not listed', value: 'Other' }
 ]
 
 /**
@@ -61,7 +61,7 @@ export function getInsuranceValue(displayValue: string): string {
  * @example
  * getInsuranceDisplay('Trupanion') // => 'Trupanion (90 days)'
  * getInsuranceDisplay('') // => 'Not Insured'
- * getInsuranceDisplay('Other') // => 'Other - Insurance not listed (90 days)'
+ * getInsuranceDisplay('Other') // => 'Other - Insurance not listed'
  * getInsuranceDisplay('Fetch') // => 'Fetch' (unsupported, shows as-is)
  */
 export function getInsuranceDisplay(dbValue: string | null | undefined): string {
