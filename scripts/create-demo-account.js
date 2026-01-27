@@ -59,7 +59,7 @@ async function createDemoAccount(prospectEmail, prospectName, petName = 'Max') {
       user_id: userId,
       name: petName,
       species: 'dog',
-      breed: 'Golden Retriever',
+      breed: 'Beagle',
       insurance_company: 'Pumpkin',
       pumpkin_account_number: 'DEMO-12345'
     }).select().single()
