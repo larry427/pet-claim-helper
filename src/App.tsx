@@ -284,6 +284,15 @@ function MainApp() {
   const [showAddMedication, setShowAddMedication] = useState(false)
   // Medications refresh key - increment to force MedicationsSection to reload
   const [medicationsRefreshKey, setMedicationsRefreshKey] = useState(0)
+  // Medication alerts for Home tab
+  type MedicationAlert = {
+    id: string
+    medicationName: string
+    petName: string
+    scheduledTime: string
+    isOverdue: boolean
+  }
+  const [medicationAlerts, setMedicationAlerts] = useState<MedicationAlert[]>([])
   // SMS intro modal state
   const [showSmsIntroModal, setShowSmsIntroModal] = useState(false)
   const [hasPhone, setHasPhone] = useState<boolean | null>(null) // null = not checked yet
@@ -534,6 +543,67 @@ function MainApp() {
         setUserFirstName(null)
       })
   }, [userId])
+
+  // Fetch today's medication alerts for Home tab
+  useEffect(() => {
+    if (!userId) {
+      setMedicationAlerts([])
+      return
+    }
+
+    const fetchMedicationAlerts = async () => {
+      try {
+        // Get today's date range in local time
+        const now = new Date()
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
+        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString()
+
+        // Fetch today's pending doses with medication and pet info
+        const { data: doses, error } = await supabase
+          .from('medication_doses')
+          .select(`
+            id,
+            scheduled_time,
+            status,
+            medications!inner(
+              id,
+              medication_name,
+              pet_id,
+              pets!inner(name)
+            )
+          `)
+          .eq('user_id', userId)
+          .gte('scheduled_time', todayStart)
+          .lte('scheduled_time', todayEnd)
+          .neq('status', 'given')
+          .order('scheduled_time', { ascending: true })
+          .limit(5)
+
+        if (error) {
+          console.error('Error fetching medication alerts:', error)
+          return
+        }
+
+        const alerts: MedicationAlert[] = (doses || []).map((dose: any) => {
+          const scheduledDate = new Date(dose.scheduled_time)
+          const isOverdue = scheduledDate < now
+          return {
+            id: dose.id,
+            medicationName: dose.medications?.medication_name || 'Medication',
+            petName: dose.medications?.pets?.name || 'Pet',
+            scheduledTime: scheduledDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+            isOverdue
+          }
+        })
+
+        setMedicationAlerts(alerts)
+      } catch (err) {
+        console.error('Error in fetchMedicationAlerts:', err)
+      }
+    }
+
+    fetchMedicationAlerts()
+  }, [userId, medicationsRefreshKey])
 
   // Auto-select pet when there is exactly one
   // Also triggers when a bill is extracted to ensure selection happens at the right time
@@ -1733,66 +1803,118 @@ function MainApp() {
             </div>
 
             {/* ALERTS SECTION */}
-            {(claimsSummary.overdue > 0 || claimsSummary.expiringSoon > 0) ? (
-              <div className="space-y-3">
-                <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Needs Attention</h2>
+            {(() => {
+              const overdueMeds = medicationAlerts.filter(a => a.isOverdue)
+              const upcomingMeds = medicationAlerts.filter(a => !a.isOverdue)
+              const hasAlerts = claimsSummary.overdue > 0 || claimsSummary.expiringSoon > 0 || medicationAlerts.length > 0
 
-                {/* Overdue Claims Alert */}
-                {claimsSummary.overdue > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('vetbills')}
-                    className="w-full flex items-center gap-4 p-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-left"
-                  >
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-800 flex items-center justify-center">
-                      <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-red-800 dark:text-red-200">
-                        {claimsSummary.overdue} Overdue Claim{claimsSummary.overdue > 1 ? 's' : ''}
-                      </div>
-                      <div className="text-sm text-red-600 dark:text-red-400">
-                        Past filing deadline - submit ASAP
-                      </div>
-                    </div>
-                    <div className="text-red-400">→</div>
-                  </button>
-                )}
+              return hasAlerts ? (
+                <div className="space-y-3">
+                  <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Needs Attention</h2>
 
-                {/* Expiring Soon Alert */}
-                {claimsSummary.expiringSoon > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('vetbills')}
-                    className="w-full flex items-center gap-4 p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors text-left"
-                  >
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-800 flex items-center justify-center">
-                      <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-amber-800 dark:text-amber-200">
-                        {claimsSummary.expiringSoon} Claim{claimsSummary.expiringSoon > 1 ? 's' : ''} Expiring Soon
+                  {/* Overdue Claims Alert */}
+                  {claimsSummary.overdue > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('vetbills')}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-left"
+                    >
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-800 flex items-center justify-center">
+                        <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
                       </div>
-                      <div className="text-sm text-amber-600 dark:text-amber-400">
-                        Due within 14 days - don't miss out
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-red-800 dark:text-red-200">
+                          {claimsSummary.overdue} Overdue Claim{claimsSummary.overdue > 1 ? 's' : ''}
+                        </div>
+                        <div className="text-sm text-red-600 dark:text-red-400">
+                          Past filing deadline - submit ASAP
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-amber-400">→</div>
-                  </button>
-                )}
-              </div>
-            ) : (
-              /* All Caught Up Message */
-              <div className="flex items-center gap-4 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20">
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-800 flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                      <div className="text-red-400">→</div>
+                    </button>
+                  )}
+
+                  {/* Overdue Medication Alerts */}
+                  {overdueMeds.map((alert) => (
+                    <button
+                      key={alert.id}
+                      type="button"
+                      onClick={() => setActiveView('medications')}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-left"
+                    >
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-800 flex items-center justify-center">
+                        <Pill className="w-5 h-5 text-red-600 dark:text-red-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-red-800 dark:text-red-200">
+                          {alert.petName}'s {alert.medicationName}
+                        </div>
+                        <div className="text-sm text-red-600 dark:text-red-400">
+                          Was due at {alert.scheduledTime} - mark as given
+                        </div>
+                      </div>
+                      <div className="text-red-400">→</div>
+                    </button>
+                  ))}
+
+                  {/* Expiring Soon Alert */}
+                  {claimsSummary.expiringSoon > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('vetbills')}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors text-left"
+                    >
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-800 flex items-center justify-center">
+                        <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-amber-800 dark:text-amber-200">
+                          {claimsSummary.expiringSoon} Claim{claimsSummary.expiringSoon > 1 ? 's' : ''} Expiring Soon
+                        </div>
+                        <div className="text-sm text-amber-600 dark:text-amber-400">
+                          Due within 14 days - don't miss out
+                        </div>
+                      </div>
+                      <div className="text-amber-400">→</div>
+                    </button>
+                  )}
+
+                  {/* Upcoming Medication Alerts */}
+                  {upcomingMeds.map((alert) => (
+                    <button
+                      key={alert.id}
+                      type="button"
+                      onClick={() => setActiveView('medications')}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors text-left"
+                    >
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-800 flex items-center justify-center">
+                        <Pill className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-amber-800 dark:text-amber-200">
+                          {alert.petName}'s {alert.medicationName}
+                        </div>
+                        <div className="text-sm text-amber-600 dark:text-amber-400">
+                          Due at {alert.scheduledTime}
+                        </div>
+                      </div>
+                      <div className="text-amber-400">→</div>
+                    </button>
+                  ))}
                 </div>
-                <div>
-                  <div className="font-semibold text-emerald-800 dark:text-emerald-200">All caught up!</div>
-                  <div className="text-sm text-emerald-600 dark:text-emerald-400">No urgent claims or reminders</div>
+              ) : (
+                /* All Caught Up Message */
+                <div className="flex items-center gap-4 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-800 flex items-center justify-center">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-emerald-800 dark:text-emerald-200">All caught up!</div>
+                    <div className="text-sm text-emerald-600 dark:text-emerald-400">No urgent claims or reminders</div>
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
             {/* QUICK STATS CARDS */}
             <div className="space-y-3">
