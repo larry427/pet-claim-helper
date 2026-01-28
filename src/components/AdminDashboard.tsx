@@ -264,10 +264,12 @@ export default function AdminDashboard() {
         };
       });
 
-      // Load recent logins
+      // Load recent logins (exclude admin accounts)
+      const ADMIN_EMAILS = ['larry@uglydogadventures.com', 'larrysecrets@gmail.com'];
       const { data: logins, error: loginsError } = await supabase
         .from('user_logins')
         .select('*')
+        .not('email', 'in', `(${ADMIN_EMAILS.join(',')})`)
         .order('logged_in_at', { ascending: false })
         .limit(50);
 
