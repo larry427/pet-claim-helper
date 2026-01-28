@@ -218,6 +218,11 @@ function MainApp() {
   
   const [finPeriod, setFinPeriod] = useState<'all' | '2026' | '2025' | '2024' | 'last12'>('all')
   const [billsSortBy, setBillsSortBy] = useState<'date-desc' | 'amount-desc' | 'amount-asc' | 'pet-asc'>('date-desc')
+
+  // Collapsible sections state for Vet Bills page
+  const [financialSummaryCollapsed, setFinancialSummaryCollapsed] = useState(true)
+  const [outOfPocketCollapsed, setOutOfPocketCollapsed] = useState(true)
+  const [perPetCollapsed, setPerPetCollapsed] = useState(true)
   const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications' | 'food' | 'admin' | 'med-admin' | 'expenses'>('app')
   const [activeTab, setActiveTab] = useState<TabId>('home')
   const [isAdmin, setIsAdmin] = useState(false)
@@ -2046,501 +2051,6 @@ function MainApp() {
           </section>
         )}
 
-        {/* Your Pets section - VET BILLS TAB for whitelisted users, always visible for non-whitelisted */}
-        {authView === 'app' && activeView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && (
-        <section className="mx-auto max-w-4xl" ref={petsSectionRef}>
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Your Pets</h2>
-            <button
-              type="button"
-              onClick={() => setAddingPet(v => !v)}
-              className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-sm font-medium shadow-sm hover:shadow"
-            >
-              + Add Pet
-            </button>
-          </div>
-
-          {photoUploadError && (
-            <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-800 dark:text-red-200 flex items-start justify-between">
-              <span>{photoUploadError}</span>
-              <button onClick={() => setPhotoUploadError(null)} className="ml-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200">×</button>
-            </div>
-          )}
-
-          {addingPet && (
-            <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 max-w-2xl mx-auto">
-              <div className="space-y-3">
-                <div>
-                  <label htmlFor="pet-name" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Pet Name <span className="text-red-500">*</span></label>
-                  <input id="pet-name" value={newPet.name} onChange={(e) => setNewPet({ ...newPet, name: e.target.value })} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
-                </div>
-                <div>
-                  <label htmlFor="pet-species" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Species <span className="text-red-500">*</span></label>
-                  <select id="pet-species" value={newPet.species} onChange={(e) => setNewPet({ ...newPet, species: e.target.value as PetSpecies })} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3">
-                    <option value="dog">Dog</option>
-                    <option value="cat">Cat</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-
-                {/* Insurance Section - OPTIONAL */}
-                <div className="mt-5 pt-4 border-t border-slate-200 dark:border-slate-700">
-                  <div className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Insurance Information (Optional)</div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Skip this section if your pet doesn't have insurance</p>
-
-                  <div className="space-y-3">
-                    <div>
-                      <label htmlFor="pet-insurance" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Insurance Company</label>
-                      <select id="pet-insurance" value={newPetInsurer} onChange={(e) => {
-                        const displayValue = e.target.value
-                        setNewPetInsurer(displayValue)
-
-                        const dbValue = getInsuranceValue(displayValue)
-                        const deadlineDays = getDeadlineDays(dbValue)
-
-                        if (displayValue === 'Not Insured' || displayValue === '— Select —') {
-                          setNewPet({ ...newPet, insuranceCompany: '' as any, filing_deadline_days: '', policyNumber: '' })
-                        } else if (displayValue === 'Custom Insurance') {
-                          setNewPet({ ...newPet, insuranceCompany: '' as any, filing_deadline_days: '' })
-                        } else if (dbValue) {
-                          setNewPet({ ...newPet, insuranceCompany: dbValue as any, filing_deadline_days: deadlineDays || 90 })
-                        }
-                      }} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3">
-                        {INSURANCE_OPTIONS.map(opt => (
-                          <option key={opt.display} value={opt.display}>{opt.display}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {newPetInsurer === 'Healthy Paws (90 days)' && (
-                      <div>
-                        <label htmlFor="pet-healthy-paws-id" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Healthy Paws Pet ID</label>
-                        <input
-                          id="pet-healthy-paws-id"
-                          value={newPet.healthy_paws_pet_id || ''}
-                          onChange={(e) => setNewPet({ ...newPet, healthy_paws_pet_id: e.target.value })}
-                          placeholder="e.g., 1400806-1"
-                          className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
-                        />
-                        <p className="mt-1 text-xs text-slate-500">Find this on your Healthy Paws policy card or portal</p>
-                      </div>
-                    )}
-
-                    {newPetInsurer === 'Spot (270 days)' && (
-                      <div>
-                        <label htmlFor="pet-spot-account-number" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Account Number</label>
-                        <input
-                          id="pet-spot-account-number"
-                          value={newPet.spot_account_number || ''}
-                          onChange={(e) => setNewPet({ ...newPet, spot_account_number: e.target.value })}
-                          placeholder="e.g., 12345678"
-                          className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
-                        />
-                      </div>
-                    )}
-
-                    {newPetInsurer === 'Figo (180 days)' && (
-                      <div>
-                        <label htmlFor="pet-figo-policy-number" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Policy Number</label>
-                        <input
-                          id="pet-figo-policy-number"
-                          value={newPet.figo_policy_number || ''}
-                          onChange={(e) => setNewPet({ ...newPet, figo_policy_number: e.target.value })}
-                          placeholder="e.g., FG123456"
-                          className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
-                        />
-                      </div>
-                    )}
-
-                    {/* Policy Number - hide for Spot and Figo (they have dedicated fields) */}
-                    {newPetInsurer && newPetInsurer !== 'Not Insured' && newPetInsurer !== '— Select —' && newPetInsurer !== 'Spot (270 days)' && newPetInsurer !== 'Figo (180 days)' && (
-                      <div>
-                        <label htmlFor="pet-policy-number" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Policy Number</label>
-                        <input
-                          id="pet-policy-number"
-                          value={newPet.policyNumber || ''}
-                          onChange={(e) => setNewPet({ ...newPet, policyNumber: e.target.value })}
-                          placeholder="e.g., NW12345 or TP123456"
-                          className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
-                        />
-                      </div>
-                    )}
-
-                    {/* These 4 fields show for ALL insurers including Spot */}
-                    {newPetInsurer && newPetInsurer !== 'Not Insured' && newPetInsurer !== '— Select —' && (
-                      <>
-                        <div>
-                          <label htmlFor="pet-premium" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Monthly Premium (USD)</label>
-                          <input id="pet-premium" type="number" min={0} value={String(newPet.monthly_premium ?? '')} onChange={(e) => setNewPet({ ...newPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="50" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
-                        </div>
-                        <div>
-                          <label htmlFor="pet-deductible" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Deductible (Annual) (USD)</label>
-                          <input id="pet-deductible" type="number" min={0} value={String(newPet.deductible_per_claim ?? '')} onChange={(e) => setNewPet({ ...newPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="250" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
-                        </div>
-                        <div>
-                          <label htmlFor="pet-insurance-pays" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Insurance Pays (%)</label>
-                          <input
-                            id="pet-insurance-pays"
-                            type="number"
-                            min={50}
-                            max={100}
-                            value={String(newPet.insurance_pays_percentage ?? '')}
-                            onChange={(e) => setNewPet({ ...newPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })}
-                            placeholder="80"
-                            className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
-                          />
-                        </div>
-                        <div>
-                          <label htmlFor="pet-coverage-start" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Coverage Start Date</label>
-                          <input
-                            id="pet-coverage-start"
-                            type="date"
-                            value={newPet.coverage_start_date || ''}
-                            onChange={(e) => setNewPet({ ...newPet, coverage_start_date: e.target.value })}
-                            onClick={(e) => (e.currentTarget as any).showPicker?.()}
-                            className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
-                          />
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="mt-6 flex items-center gap-3">
-                <button type="button" onClick={addPet} className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4">Save Pet</button>
-                <button type="button" onClick={() => setAddingPet(false)} className="text-sm text-slate-600 dark:text-slate-300">Cancel</button>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {pets.length === 0 && (
-              <div className="col-span-full text-sm text-slate-500 dark:text-slate-400">No pets saved yet. Click "+ Add Pet" to create one.</div>
-            )}
-            {pets.map(pet => (
-              <div key={pet.id} className={[ 'rounded-xl border p-4 text-left shadow-sm relative transition-all', selectedPetId === pet.id ? 'bg-emerald-50/50 dark:bg-emerald-900/10 ring-2 ring-emerald-500 shadow-md' : 'bg-white dark:bg-slate-900/60' ].join(' ')} style={{ border: `${selectedPetId === pet.id ? '3px' : '2px'} solid ${selectedPetId === pet.id ? '#10b981' : (pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280'))}` }}>
-                {/* Camera button for photo upload - top right */}
-                <div className="absolute top-3 right-3 z-10">
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/jpg"
-                    onChange={(e) => handlePetPhotoSelect(pet.id, e)}
-                    className="sr-only"
-                    id={`photo-upload-${pet.id}`}
-                    disabled={uploadingPhotoForPetId === pet.id}
-                  />
-                  <label
-                    htmlFor={`photo-upload-${pet.id}`}
-                    className={[
-                      'inline-flex items-center justify-center w-8 h-8 rounded-full cursor-pointer transition-all',
-                      pet.species === 'dog' ? 'bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50' : 'bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 dark:hover:bg-orange-900/50',
-                      uploadingPhotoForPetId === pet.id ? 'opacity-50 cursor-not-allowed' : ''
-                    ].join(' ')}
-                    title={pet.photo_url ? 'Change Photo' : 'Add Photo'}
-                  >
-                    {uploadingPhotoForPetId === pet.id ? (
-                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                    )}
-                  </label>
-
-                  {/* Onboarding tooltip - show only for first pet without photo */}
-                  {showPhotoTooltip && !pet.photo_url && pets.indexOf(pet) === 0 && (
-                    <div className="absolute -top-16 -right-2 pointer-events-none animate-bounce">
-                      <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-lg shadow-xl whitespace-nowrap text-sm font-medium">
-                        Upload the cutest picture of {pet.name}! 📸
-                      </div>
-                      {/* Arrow pointing down at camera icon */}
-                      <div className="absolute top-full right-6 w-0 h-0 border-l-[8px] border-r-[8px] border-t-[8px] border-l-transparent border-r-transparent border-t-pink-500"></div>
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  {/* Pet photo or fallback icon */}
-                  <div className="flex justify-center mb-3">
-                    {pet.photo_url ? (
-                      <img
-                        src={pet.photo_url}
-                        alt={`${pet.name}'s photo`}
-                        className="w-24 h-24 rounded-full object-cover border-4 shadow-lg transition-transform hover:scale-105"
-                        style={{ borderColor: pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280') }}
-                      />
-                    ) : (
-                      <div
-                        className="w-24 h-24 rounded-full flex items-center justify-center text-5xl border-4 shadow-lg"
-                        style={{ borderColor: pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280'), backgroundColor: pet.species === 'dog' ? '#EFF6FF' : pet.species === 'cat' ? '#FFF7ED' : '#F3F4F6' }}
-                      >
-                        {pet.species === 'dog' ? '🐕' : pet.species === 'cat' ? '🐱' : '🐾'}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <div className="flex-1 text-center">
-                      <div className="text-base font-semibold flex items-center justify-center gap-2">
-                        <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280') }} />
-                        {pet.name}
-                      </div>
-                      <div className="text-sm text-slate-500 dark:text-slate-400 capitalize">{pet.species}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPetId(pet.id)}
-                      className={[
-                        'inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium hover:shadow transition-all flex-1',
-                        selectedPetId === pet.id
-                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                          : 'border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-emerald-400'
-                      ].join(' ')}
-                    >
-                      {selectedPetId === pet.id && <span className="mr-1">✓</span>}
-                      {selectedPetId === pet.id ? 'Selected' : 'Select'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => startEditPet(pet)}
-                      className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
-                      title="Edit pet"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                <div className="mt-3 text-sm text-slate-700 dark:text-slate-300 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-500">Insurance:</span>
-                    {(() => {
-                      const company = pet.insuranceCompany || 'Not Insured'
-                      const isNationwide = company.toLowerCase().includes('nationwide')
-                      const isHealthyPaws = company.toLowerCase().includes('healthy paws')
-                      const isTrupanion = company.toLowerCase().includes('trupanion')
-                      const isPumpkin = company.toLowerCase().includes('pumpkin')
-                      const isSpot = company.toLowerCase().includes('spot')
-                      const isFigo = company.toLowerCase().includes('figo')
-                      const isPetsBest = company.toLowerCase().includes('pets best')
-                      const isNotInsured = company.toLowerCase().includes('not insured') || company.toLowerCase().includes('none')
-
-                      let bgColor = 'bg-slate-100 dark:bg-slate-800'
-                      let textColor = 'text-slate-700 dark:text-slate-300'
-                      let borderColor = 'border-slate-200 dark:border-slate-700'
-
-                      if (isNationwide) {
-                        bgColor = 'bg-blue-50 dark:bg-blue-950'
-                        textColor = 'text-blue-700 dark:text-blue-300'
-                        borderColor = 'border-blue-200 dark:border-blue-800'
-                      } else if (isHealthyPaws) {
-                        bgColor = 'bg-green-50 dark:bg-green-950'
-                        textColor = 'text-green-700 dark:text-green-300'
-                        borderColor = 'border-green-200 dark:border-green-800'
-                      } else if (isTrupanion) {
-                        bgColor = 'bg-purple-50 dark:bg-purple-950'
-                        textColor = 'text-purple-700 dark:text-purple-300'
-                        borderColor = 'border-purple-200 dark:border-purple-800'
-                      } else if (isPumpkin) {
-                        bgColor = 'bg-orange-50 dark:bg-orange-950'
-                        textColor = 'text-orange-600 dark:text-orange-300'
-                        borderColor = 'border-orange-200 dark:border-orange-800'
-                      } else if (isSpot) {
-                        bgColor = 'bg-orange-50 dark:bg-orange-950'
-                        textColor = 'text-orange-600 dark:text-orange-400'
-                        borderColor = 'border-orange-200 dark:border-orange-800'
-                      } else if (isFigo) {
-                        bgColor = 'bg-teal-50 dark:bg-teal-950'
-                        textColor = 'text-teal-600 dark:text-teal-300'
-                        borderColor = 'border-teal-200 dark:border-teal-800'
-                      } else if (isPetsBest) {
-                        bgColor = 'bg-cyan-50 dark:bg-cyan-950'
-                        textColor = 'text-cyan-700 dark:text-cyan-300'
-                        borderColor = 'border-cyan-200 dark:border-cyan-800'
-                      } else if (isNotInsured) {
-                        bgColor = 'bg-slate-100 dark:bg-slate-800'
-                        textColor = 'text-slate-600 dark:text-slate-400'
-                        borderColor = 'border-slate-300 dark:border-slate-700'
-                      }
-
-                      return (
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${bgColor} ${textColor} ${borderColor}`}>
-                          {isNationwide && '🏛️'}
-                          {isHealthyPaws && '🍀'}
-                          {isTrupanion && '💜'}
-                          {isPumpkin && '🎃'}
-                          {isSpot && '🐾'}
-                          {isFigo && '🐕'}
-                          {isPetsBest && '🐶'}
-                          {isNotInsured && '—'}
-                          {company}
-                        </span>
-                      )
-                    })()}
-                  </div>
-                </div>
-                {editingPetId === pet.id && editPet && (
-                  <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-800 p-3 max-w-3xl mx-auto overflow-x-hidden">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label htmlFor="edit-pet-name" className="block text-xs">Pet Name</label>
-                        <input id="edit-pet-name" value={editPet.name} onChange={(e) => setEditPet({ ...editPet, name: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                      </div>
-                      <div>
-                        <label htmlFor="edit-pet-species" className="block text-xs">Species</label>
-                        <select id="edit-pet-species" value={editPet.species} onChange={(e) => setEditPet({ ...editPet, species: e.target.value as PetSpecies })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm">
-                          <option value="dog">Dog</option>
-                          <option value="cat">Cat</option>
-                        </select>
-                      </div>
-                      <div className="sm:col-span-2">
-                        <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
-                          <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Insurance Information</div>
-                          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                              <label htmlFor="edit-pet-insurance" className="block text-xs text-slate-500">Insurance Company</label>
-                              <select id="edit-pet-insurance" value={editPetInsurer} onChange={(e) => {
-                                const displayValue = e.target.value
-                                setEditPetInsurer(displayValue)
-
-                                // Convert display value to database value
-                                const dbValue = getInsuranceValue(displayValue)
-                                const deadlineDays = getDeadlineDays(dbValue)
-
-                                if (displayValue === 'Not Insured' || displayValue === '— Select —') {
-                                  setEditPet({ ...editPet, insuranceCompany: '' as any, filing_deadline_days: '', policyNumber: '' })
-                                } else if (dbValue) {
-                                  setEditPet({ ...editPet, insuranceCompany: dbValue as any, filing_deadline_days: deadlineDays || 90 })
-                                }
-                              }} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm">
-                                {INSURANCE_OPTIONS.map(opt => (
-                                  <option key={opt.display} value={opt.display}>{opt.display}</option>
-                                ))}
-                              </select>
-                            </div>
-                            {editPetInsurer === 'Not Insured' && (
-                              <div className="sm:col-span-1 flex items-center text-xs text-slate-500 bg-blue-50/50 dark:bg-blue-900/10 px-3 py-2 rounded-md border border-blue-200 dark:border-blue-800">
-                                <span>✓ No insurance selected. You can still track vet bills and file claims manually.</span>
-                              </div>
-                            )}
-                            {editPetInsurer === 'Healthy Paws (90 days)' && (
-                              <div className="sm:col-span-2">
-                                <label htmlFor="edit-pet-healthy-paws-id" className="block text-xs text-slate-500">Healthy Paws Pet ID</label>
-                                <input
-                                  id="edit-pet-healthy-paws-id"
-                                  value={editPet.healthy_paws_pet_id || ''}
-                                  onChange={(e) => setEditPet({ ...editPet, healthy_paws_pet_id: e.target.value })}
-                                  placeholder="e.g., 1400806-1"
-                                  className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
-                                />
-                                <div className="mt-1 text-[11px] text-slate-500">Find this on your Healthy Paws policy card or portal</div>
-                              </div>
-                            )}
-                            {editPetInsurer === 'Spot (270 days)' && (
-                              <div className="sm:col-span-2">
-                                <label htmlFor="edit-pet-spot-account-number" className="block text-xs text-slate-500">Account Number</label>
-                                <input
-                                  id="edit-pet-spot-account-number"
-                                  value={editPet.spot_account_number || ''}
-                                  onChange={(e) => setEditPet({ ...editPet, spot_account_number: e.target.value })}
-                                  placeholder="e.g., 12345678"
-                                  className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
-                                />
-                              </div>
-                            )}
-                            {editPetInsurer === 'Pumpkin (270 days)' && (
-                              <div className="sm:col-span-2">
-                                <label htmlFor="edit-pet-pumpkin-account-number" className="block text-xs text-slate-500">Pumpkin Account Number</label>
-                                <input
-                                  id="edit-pet-pumpkin-account-number"
-                                  value={editPet.pumpkin_account_number || ''}
-                                  onChange={(e) => setEditPet({ ...editPet, pumpkin_account_number: e.target.value })}
-                                  placeholder="e.g., 12345678"
-                                  className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
-                                />
-                              </div>
-                            )}
-                            {editPetInsurer === 'Figo (180 days)' && (
-                              <div className="sm:col-span-2">
-                                <label htmlFor="edit-pet-figo-policy-number" className="block text-xs text-slate-500">Figo Policy Number</label>
-                                <input
-                                  id="edit-pet-figo-policy-number"
-                                  value={editPet.figo_policy_number || ''}
-                                  onChange={(e) => setEditPet({ ...editPet, figo_policy_number: e.target.value })}
-                                  placeholder="e.g., FG123456"
-                                  className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
-                                />
-                              </div>
-                            )}
-                            {editPetInsurer && editPetInsurer !== 'Not Insured' && editPetInsurer !== '— Select —' && editPetInsurer !== 'Spot (270 days)' && editPetInsurer !== 'Pumpkin (270 days)' && editPetInsurer !== 'Figo (180 days)' && (
-                              <div className="sm:col-span-2">
-                                <label htmlFor="edit-pet-policy-number" className="block text-xs text-slate-500">Policy Number <span className="text-slate-400">(optional)</span></label>
-                                <input
-                                  id="edit-pet-policy-number"
-                                  value={editPet.policyNumber || ''}
-                                  onChange={(e) => setEditPet({ ...editPet, policyNumber: e.target.value })}
-                                  placeholder="e.g., NW12345 or TP123456"
-                                  className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      {editPetInsurer !== 'Not Insured' && editPetInsurer !== '— Select —' && editPetInsurer && (
-                        <>
-                          <div>
-                            <label htmlFor="edit-pet-premium" className="block text-xs">Monthly Premium (USD)</label>
-                            <input id="edit-pet-premium" type="number" step="0.01" placeholder="e.g., 38.00" value={String(editPet.monthly_premium ?? '')} onChange={(e) => setEditPet({ ...editPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                            <div className="mt-1 text-[11px] text-slate-500">Monthly insurance premium cost</div>
-                          </div>
-                          <div>
-                            <label htmlFor="edit-pet-deductible" className="block text-xs">Deductible (Annual) (USD)</label>
-                            <input id="edit-pet-deductible" type="number" step="0.01" placeholder="e.g., 250.00" value={String(editPet.deductible_per_claim ?? '')} onChange={(e) => setEditPet({ ...editPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                            <div className="mt-1 text-[11px] text-slate-500">Amount you pay before insurance kicks in (resets yearly)</div>
-                          </div>
-                          <div>
-                            <label htmlFor="edit-pet-insurance-pays" className="block text-xs">Insurance Pays (%)</label>
-                            <input id="edit-pet-insurance-pays" type="number" min={0} max={100} placeholder="80" value={String(editPet.insurance_pays_percentage ?? '')} onChange={(e) => setEditPet({ ...editPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                            <div className="mt-1 text-[11px] text-slate-500">What percentage your insurance covers (e.g., 80% means you pay 20%)</div>
-                          </div>
-                          <div>
-                            <label htmlFor="edit-pet-coverage-start" className="block text-xs">Coverage Start Date</label>
-                            <input id="edit-pet-coverage-start" type="date" value={editPet.coverage_start_date || ''} onChange={(e) => setEditPet({ ...editPet, coverage_start_date: e.target.value })} className="mt-1 w-full min-w-[220px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                            <div className="mt-1 text-[11px] text-slate-500">When did your coverage start?</div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    <div className="mt-3 flex items-center gap-3">
-                      <button type="button" onClick={saveEdit} className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-sm">Save</button>
-                      <button type="button" onClick={() => {
-  if (!editingPetId) return
-  const petToDelete = pets.find(p => p.id === editingPetId)
-  const petName = petToDelete?.name || 'this pet'
-
-  if (!confirm(`⚠️ Delete ${petName}?\n\nThis will NOT delete bills for this pet, but you won't be able to file new bills.\n\nThis cannot be undone!`)) return
-  
-  const remaining = pets.filter(p => p.id !== editingPetId)
-  setPets(remaining)
-  if (userId) dbDeletePet(userId, editingPetId).catch((e) => { console.error('[deletePet] error', e) })
-  setEditingPetId(null)
-  setEditPet(null)
-}} className="inline-flex items-center rounded-lg bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 text-sm">Delete</button>
-                      <button type="button" onClick={() => { setEditingPetId(null); setEditPet(null) }} className="text-sm text-slate-600 dark:text-slate-300">Cancel</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-        )}
-
         {/* EXPENSES TAB - Full expenses view (whitelisted users only) */}
         {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'expenses' && (
           <ExpensesPage userId={userId} onClose={() => setActiveTab('home')} onModalStateChange={setExpensesPageModalOpen} refreshKey={expensesRefreshKey} />
@@ -3206,30 +2716,6 @@ function MainApp() {
           </section>
         )}
 
-        {/* Financial Summary - VET BILLS TAB for whitelisted users, always visible for non-whitelisted */}
-        {authView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && (
-          <section className="mx-auto mt-10 max-w-5xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Financial Summary</h2>
-              <div className="text-sm">
-                <label className="mr-2 text-slate-600">Show expenses for:</label>
-                <select
-                  value={finPeriod}
-                  onChange={(e) => setFinPeriod(e.target.value as any)}
-                  className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-sm"
-                >
-                  <option value="all">All Time</option>
-                  <option value="2026">2026</option>
-                  <option value="2025">2025</option>
-                  <option value="2024">2024</option>
-                  <option value="last12">Last 12 Months</option>
-                </select>
-              </div>
-            </div>
-            <FinancialSummary userId={userId} refreshToken={dataRefreshToken} period={finPeriod} />
-          </section>
-        )}
-
         {/* Claims History - VET BILLS TAB for whitelisted users, always visible for non-whitelisted */}
         {authView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && claims.length > 0 && (
           <section className="mx-auto mt-10 max-w-5xl" ref={claimsSectionRef}>
@@ -3683,6 +3169,535 @@ function MainApp() {
               </div>
             )}
 
+          </section>
+        )}
+
+        {/* Your Pets section - VET BILLS TAB for whitelisted users, always visible for non-whitelisted */}
+        {authView === 'app' && activeView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && (
+        <section className="mx-auto max-w-4xl" ref={petsSectionRef}>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Your Pets</h2>
+            <button
+              type="button"
+              onClick={() => setAddingPet(v => !v)}
+              className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-sm font-medium shadow-sm hover:shadow"
+            >
+              + Add Pet
+            </button>
+          </div>
+
+          {photoUploadError && (
+            <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-800 dark:text-red-200 flex items-start justify-between">
+              <span>{photoUploadError}</span>
+              <button onClick={() => setPhotoUploadError(null)} className="ml-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200">×</button>
+            </div>
+          )}
+
+          {addingPet && (
+            <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 max-w-2xl mx-auto">
+              <div className="space-y-3">
+                <div>
+                  <label htmlFor="pet-name" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Pet Name <span className="text-red-500">*</span></label>
+                  <input id="pet-name" value={newPet.name} onChange={(e) => setNewPet({ ...newPet, name: e.target.value })} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
+                </div>
+                <div>
+                  <label htmlFor="pet-species" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Species <span className="text-red-500">*</span></label>
+                  <select id="pet-species" value={newPet.species} onChange={(e) => setNewPet({ ...newPet, species: e.target.value as PetSpecies })} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3">
+                    <option value="dog">Dog</option>
+                    <option value="cat">Cat</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                {/* Insurance Section - OPTIONAL */}
+                <div className="mt-5 pt-4 border-t border-slate-200 dark:border-slate-700">
+                  <div className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Insurance Information (Optional)</div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Skip this section if your pet doesn't have insurance</p>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label htmlFor="pet-insurance" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Insurance Company</label>
+                      <select id="pet-insurance" value={newPetInsurer} onChange={(e) => {
+                        const displayValue = e.target.value
+                        setNewPetInsurer(displayValue)
+
+                        const dbValue = getInsuranceValue(displayValue)
+                        const deadlineDays = getDeadlineDays(dbValue)
+
+                        if (displayValue === 'Not Insured' || displayValue === '— Select —') {
+                          setNewPet({ ...newPet, insuranceCompany: '' as any, filing_deadline_days: '', policyNumber: '' })
+                        } else if (displayValue === 'Custom Insurance') {
+                          setNewPet({ ...newPet, insuranceCompany: '' as any, filing_deadline_days: '' })
+                        } else if (dbValue) {
+                          setNewPet({ ...newPet, insuranceCompany: dbValue as any, filing_deadline_days: deadlineDays || 90 })
+                        }
+                      }} className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3">
+                        {INSURANCE_OPTIONS.map(opt => (
+                          <option key={opt.display} value={opt.display}>{opt.display}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {newPetInsurer === 'Healthy Paws (90 days)' && (
+                      <div>
+                        <label htmlFor="pet-healthy-paws-id" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Healthy Paws Pet ID</label>
+                        <input
+                          id="pet-healthy-paws-id"
+                          value={newPet.healthy_paws_pet_id || ''}
+                          onChange={(e) => setNewPet({ ...newPet, healthy_paws_pet_id: e.target.value })}
+                          placeholder="e.g., 1400806-1"
+                          className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                        />
+                        <p className="mt-1 text-xs text-slate-500">Find this on your Healthy Paws policy card or portal</p>
+                      </div>
+                    )}
+
+                    {newPetInsurer === 'Spot (270 days)' && (
+                      <div>
+                        <label htmlFor="pet-spot-account-number" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Account Number</label>
+                        <input
+                          id="pet-spot-account-number"
+                          value={newPet.spot_account_number || ''}
+                          onChange={(e) => setNewPet({ ...newPet, spot_account_number: e.target.value })}
+                          placeholder="e.g., 12345678"
+                          className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                        />
+                      </div>
+                    )}
+
+                    {newPetInsurer === 'Figo (180 days)' && (
+                      <div>
+                        <label htmlFor="pet-figo-policy-number" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Policy Number</label>
+                        <input
+                          id="pet-figo-policy-number"
+                          value={newPet.figo_policy_number || ''}
+                          onChange={(e) => setNewPet({ ...newPet, figo_policy_number: e.target.value })}
+                          placeholder="e.g., FG123456"
+                          className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                        />
+                      </div>
+                    )}
+
+                    {/* Policy Number - hide for Spot and Figo (they have dedicated fields) */}
+                    {newPetInsurer && newPetInsurer !== 'Not Insured' && newPetInsurer !== '— Select —' && newPetInsurer !== 'Spot (270 days)' && newPetInsurer !== 'Figo (180 days)' && (
+                      <div>
+                        <label htmlFor="pet-policy-number" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Policy Number</label>
+                        <input
+                          id="pet-policy-number"
+                          value={newPet.policyNumber || ''}
+                          onChange={(e) => setNewPet({ ...newPet, policyNumber: e.target.value })}
+                          placeholder="e.g., NW12345 or TP123456"
+                          className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                        />
+                      </div>
+                    )}
+
+                    {/* These 4 fields show for ALL insurers including Spot */}
+                    {newPetInsurer && newPetInsurer !== 'Not Insured' && newPetInsurer !== '— Select —' && (
+                      <>
+                        <div>
+                          <label htmlFor="pet-premium" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Monthly Premium (USD)</label>
+                          <input id="pet-premium" type="number" min={0} value={String(newPet.monthly_premium ?? '')} onChange={(e) => setNewPet({ ...newPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="50" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
+                        </div>
+                        <div>
+                          <label htmlFor="pet-deductible" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Deductible (Annual) (USD)</label>
+                          <input id="pet-deductible" type="number" min={0} value={String(newPet.deductible_per_claim ?? '')} onChange={(e) => setNewPet({ ...newPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} placeholder="250" className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3" />
+                        </div>
+                        <div>
+                          <label htmlFor="pet-insurance-pays" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Insurance Pays (%)</label>
+                          <input
+                            id="pet-insurance-pays"
+                            type="number"
+                            min={50}
+                            max={100}
+                            value={String(newPet.insurance_pays_percentage ?? '')}
+                            onChange={(e) => setNewPet({ ...newPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })}
+                            placeholder="80"
+                            className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="pet-coverage-start" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Coverage Start Date</label>
+                          <input
+                            id="pet-coverage-start"
+                            type="date"
+                            value={newPet.coverage_start_date || ''}
+                            onChange={(e) => setNewPet({ ...newPet, coverage_start_date: e.target.value })}
+                            onClick={(e) => (e.currentTarget as any).showPicker?.()}
+                            className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-6 flex items-center gap-3">
+                <button type="button" onClick={addPet} className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4">Save Pet</button>
+                <button type="button" onClick={() => setAddingPet(false)} className="text-sm text-slate-600 dark:text-slate-300">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pets.length === 0 && (
+              <div className="col-span-full text-sm text-slate-500 dark:text-slate-400">No pets saved yet. Click "+ Add Pet" to create one.</div>
+            )}
+            {pets.map(pet => (
+              <div key={pet.id} className={[ 'rounded-xl border p-4 text-left shadow-sm relative transition-all', selectedPetId === pet.id ? 'bg-emerald-50/50 dark:bg-emerald-900/10 ring-2 ring-emerald-500 shadow-md' : 'bg-white dark:bg-slate-900/60' ].join(' ')} style={{ border: `${selectedPetId === pet.id ? '3px' : '2px'} solid ${selectedPetId === pet.id ? '#10b981' : (pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280'))}` }}>
+                {/* Camera button for photo upload - top right */}
+                <div className="absolute top-3 right-3 z-10">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg"
+                    onChange={(e) => handlePetPhotoSelect(pet.id, e)}
+                    className="sr-only"
+                    id={`photo-upload-${pet.id}`}
+                    disabled={uploadingPhotoForPetId === pet.id}
+                  />
+                  <label
+                    htmlFor={`photo-upload-${pet.id}`}
+                    className={[
+                      'inline-flex items-center justify-center w-8 h-8 rounded-full cursor-pointer transition-all',
+                      pet.species === 'dog' ? 'bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50' : 'bg-orange-100 dark:bg-orange-900/30 hover:bg-orange-200 dark:hover:bg-orange-900/50',
+                      uploadingPhotoForPetId === pet.id ? 'opacity-50 cursor-not-allowed' : ''
+                    ].join(' ')}
+                    title={pet.photo_url ? 'Change Photo' : 'Add Photo'}
+                  >
+                    {uploadingPhotoForPetId === pet.id ? (
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    )}
+                  </label>
+
+                  {/* Onboarding tooltip - show only for first pet without photo */}
+                  {showPhotoTooltip && !pet.photo_url && pets.indexOf(pet) === 0 && (
+                    <div className="absolute -top-16 -right-2 pointer-events-none animate-bounce">
+                      <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-lg shadow-xl whitespace-nowrap text-sm font-medium">
+                        Upload the cutest picture of {pet.name}! 📸
+                      </div>
+                      {/* Arrow pointing down at camera icon */}
+                      <div className="absolute top-full right-6 w-0 h-0 border-l-[8px] border-r-[8px] border-t-[8px] border-l-transparent border-r-transparent border-t-pink-500"></div>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  {/* Pet photo or fallback icon */}
+                  <div className="flex justify-center mb-3">
+                    {pet.photo_url ? (
+                      <img
+                        src={pet.photo_url}
+                        alt={`${pet.name}'s photo`}
+                        className="w-24 h-24 rounded-full object-cover border-4 shadow-lg transition-transform hover:scale-105"
+                        style={{ borderColor: pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280') }}
+                      />
+                    ) : (
+                      <div
+                        className="w-24 h-24 rounded-full flex items-center justify-center text-5xl border-4 shadow-lg"
+                        style={{ borderColor: pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280'), backgroundColor: pet.species === 'dog' ? '#EFF6FF' : pet.species === 'cat' ? '#FFF7ED' : '#F3F4F6' }}
+                      >
+                        {pet.species === 'dog' ? '🐕' : pet.species === 'cat' ? '🐱' : '🐾'}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex-1 text-center">
+                      <div className="text-base font-semibold flex items-center justify-center gap-2">
+                        <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280') }} />
+                        {pet.name}
+                      </div>
+                      <div className="text-sm text-slate-500 dark:text-slate-400 capitalize">{pet.species}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPetId(pet.id)}
+                      className={[
+                        'inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium hover:shadow transition-all flex-1',
+                        selectedPetId === pet.id
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                          : 'border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-emerald-400'
+                      ].join(' ')}
+                    >
+                      {selectedPetId === pet.id && <span className="mr-1">✓</span>}
+                      {selectedPetId === pet.id ? 'Selected' : 'Select'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => startEditPet(pet)}
+                      className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                      title="Edit pet"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-3 text-sm text-slate-700 dark:text-slate-300 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-500">Insurance:</span>
+                    {(() => {
+                      const company = pet.insuranceCompany || 'Not Insured'
+                      const isNationwide = company.toLowerCase().includes('nationwide')
+                      const isHealthyPaws = company.toLowerCase().includes('healthy paws')
+                      const isTrupanion = company.toLowerCase().includes('trupanion')
+                      const isPumpkin = company.toLowerCase().includes('pumpkin')
+                      const isSpot = company.toLowerCase().includes('spot')
+                      const isFigo = company.toLowerCase().includes('figo')
+                      const isPetsBest = company.toLowerCase().includes('pets best')
+                      const isNotInsured = company.toLowerCase().includes('not insured') || company.toLowerCase().includes('none')
+
+                      let bgColor = 'bg-slate-100 dark:bg-slate-800'
+                      let textColor = 'text-slate-700 dark:text-slate-300'
+                      let borderColor = 'border-slate-200 dark:border-slate-700'
+
+                      if (isNationwide) {
+                        bgColor = 'bg-blue-50 dark:bg-blue-950'
+                        textColor = 'text-blue-700 dark:text-blue-300'
+                        borderColor = 'border-blue-200 dark:border-blue-800'
+                      } else if (isHealthyPaws) {
+                        bgColor = 'bg-green-50 dark:bg-green-950'
+                        textColor = 'text-green-700 dark:text-green-300'
+                        borderColor = 'border-green-200 dark:border-green-800'
+                      } else if (isTrupanion) {
+                        bgColor = 'bg-purple-50 dark:bg-purple-950'
+                        textColor = 'text-purple-700 dark:text-purple-300'
+                        borderColor = 'border-purple-200 dark:border-purple-800'
+                      } else if (isPumpkin) {
+                        bgColor = 'bg-orange-50 dark:bg-orange-950'
+                        textColor = 'text-orange-600 dark:text-orange-300'
+                        borderColor = 'border-orange-200 dark:border-orange-800'
+                      } else if (isSpot) {
+                        bgColor = 'bg-orange-50 dark:bg-orange-950'
+                        textColor = 'text-orange-600 dark:text-orange-400'
+                        borderColor = 'border-orange-200 dark:border-orange-800'
+                      } else if (isFigo) {
+                        bgColor = 'bg-teal-50 dark:bg-teal-950'
+                        textColor = 'text-teal-600 dark:text-teal-300'
+                        borderColor = 'border-teal-200 dark:border-teal-800'
+                      } else if (isPetsBest) {
+                        bgColor = 'bg-cyan-50 dark:bg-cyan-950'
+                        textColor = 'text-cyan-700 dark:text-cyan-300'
+                        borderColor = 'border-cyan-200 dark:border-cyan-800'
+                      } else if (isNotInsured) {
+                        bgColor = 'bg-slate-100 dark:bg-slate-800'
+                        textColor = 'text-slate-600 dark:text-slate-400'
+                        borderColor = 'border-slate-300 dark:border-slate-700'
+                      }
+
+                      return (
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${bgColor} ${textColor} ${borderColor}`}>
+                          {isNationwide && '🏛️'}
+                          {isHealthyPaws && '🍀'}
+                          {isTrupanion && '💜'}
+                          {isPumpkin && '🎃'}
+                          {isSpot && '🐾'}
+                          {isFigo && '🐕'}
+                          {isPetsBest && '🐶'}
+                          {isNotInsured && '—'}
+                          {company}
+                        </span>
+                      )
+                    })()}
+                  </div>
+                </div>
+                {editingPetId === pet.id && editPet && (
+                  <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-800 p-3 max-w-3xl mx-auto overflow-x-hidden">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label htmlFor="edit-pet-name" className="block text-xs">Pet Name</label>
+                        <input id="edit-pet-name" value={editPet.name} onChange={(e) => setEditPet({ ...editPet, name: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label htmlFor="edit-pet-species" className="block text-xs">Species</label>
+                        <select id="edit-pet-species" value={editPet.species} onChange={(e) => setEditPet({ ...editPet, species: e.target.value as PetSpecies })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm">
+                          <option value="dog">Dog</option>
+                          <option value="cat">Cat</option>
+                        </select>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
+                          <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Insurance Information</div>
+                          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label htmlFor="edit-pet-insurance" className="block text-xs text-slate-500">Insurance Company</label>
+                              <select id="edit-pet-insurance" value={editPetInsurer} onChange={(e) => {
+                                const displayValue = e.target.value
+                                setEditPetInsurer(displayValue)
+
+                                // Convert display value to database value
+                                const dbValue = getInsuranceValue(displayValue)
+                                const deadlineDays = getDeadlineDays(dbValue)
+
+                                if (displayValue === 'Not Insured' || displayValue === '— Select —') {
+                                  setEditPet({ ...editPet, insuranceCompany: '' as any, filing_deadline_days: '', policyNumber: '' })
+                                } else if (dbValue) {
+                                  setEditPet({ ...editPet, insuranceCompany: dbValue as any, filing_deadline_days: deadlineDays || 90 })
+                                }
+                              }} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm">
+                                {INSURANCE_OPTIONS.map(opt => (
+                                  <option key={opt.display} value={opt.display}>{opt.display}</option>
+                                ))}
+                              </select>
+                            </div>
+                            {editPetInsurer === 'Not Insured' && (
+                              <div className="sm:col-span-1 flex items-center text-xs text-slate-500 bg-blue-50/50 dark:bg-blue-900/10 px-3 py-2 rounded-md border border-blue-200 dark:border-blue-800">
+                                <span>✓ No insurance selected. You can still track vet bills and file claims manually.</span>
+                              </div>
+                            )}
+                            {editPetInsurer === 'Healthy Paws (90 days)' && (
+                              <div className="sm:col-span-2">
+                                <label htmlFor="edit-pet-healthy-paws-id" className="block text-xs text-slate-500">Healthy Paws Pet ID</label>
+                                <input
+                                  id="edit-pet-healthy-paws-id"
+                                  value={editPet.healthy_paws_pet_id || ''}
+                                  onChange={(e) => setEditPet({ ...editPet, healthy_paws_pet_id: e.target.value })}
+                                  placeholder="e.g., 1400806-1"
+                                  className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
+                                />
+                                <div className="mt-1 text-[11px] text-slate-500">Find this on your Healthy Paws policy card or portal</div>
+                              </div>
+                            )}
+                            {editPetInsurer === 'Spot (270 days)' && (
+                              <div className="sm:col-span-2">
+                                <label htmlFor="edit-pet-spot-account-number" className="block text-xs text-slate-500">Account Number</label>
+                                <input
+                                  id="edit-pet-spot-account-number"
+                                  value={editPet.spot_account_number || ''}
+                                  onChange={(e) => setEditPet({ ...editPet, spot_account_number: e.target.value })}
+                                  placeholder="e.g., 12345678"
+                                  className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
+                                />
+                              </div>
+                            )}
+                            {editPetInsurer === 'Pumpkin (270 days)' && (
+                              <div className="sm:col-span-2">
+                                <label htmlFor="edit-pet-pumpkin-account-number" className="block text-xs text-slate-500">Pumpkin Account Number</label>
+                                <input
+                                  id="edit-pet-pumpkin-account-number"
+                                  value={editPet.pumpkin_account_number || ''}
+                                  onChange={(e) => setEditPet({ ...editPet, pumpkin_account_number: e.target.value })}
+                                  placeholder="e.g., 12345678"
+                                  className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
+                                />
+                              </div>
+                            )}
+                            {editPetInsurer === 'Figo (180 days)' && (
+                              <div className="sm:col-span-2">
+                                <label htmlFor="edit-pet-figo-policy-number" className="block text-xs text-slate-500">Figo Policy Number</label>
+                                <input
+                                  id="edit-pet-figo-policy-number"
+                                  value={editPet.figo_policy_number || ''}
+                                  onChange={(e) => setEditPet({ ...editPet, figo_policy_number: e.target.value })}
+                                  placeholder="e.g., FG123456"
+                                  className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
+                                />
+                              </div>
+                            )}
+                            {editPetInsurer && editPetInsurer !== 'Not Insured' && editPetInsurer !== '— Select —' && editPetInsurer !== 'Spot (270 days)' && editPetInsurer !== 'Pumpkin (270 days)' && editPetInsurer !== 'Figo (180 days)' && (
+                              <div className="sm:col-span-2">
+                                <label htmlFor="edit-pet-policy-number" className="block text-xs text-slate-500">Policy Number <span className="text-slate-400">(optional)</span></label>
+                                <input
+                                  id="edit-pet-policy-number"
+                                  value={editPet.policyNumber || ''}
+                                  onChange={(e) => setEditPet({ ...editPet, policyNumber: e.target.value })}
+                                  placeholder="e.g., NW12345 or TP123456"
+                                  className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {editPetInsurer !== 'Not Insured' && editPetInsurer !== '— Select —' && editPetInsurer && (
+                        <>
+                          <div>
+                            <label htmlFor="edit-pet-premium" className="block text-xs">Monthly Premium (USD)</label>
+                            <input id="edit-pet-premium" type="number" step="0.01" placeholder="e.g., 38.00" value={String(editPet.monthly_premium ?? '')} onChange={(e) => setEditPet({ ...editPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                            <div className="mt-1 text-[11px] text-slate-500">Monthly insurance premium cost</div>
+                          </div>
+                          <div>
+                            <label htmlFor="edit-pet-deductible" className="block text-xs">Deductible (Annual) (USD)</label>
+                            <input id="edit-pet-deductible" type="number" step="0.01" placeholder="e.g., 250.00" value={String(editPet.deductible_per_claim ?? '')} onChange={(e) => setEditPet({ ...editPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                            <div className="mt-1 text-[11px] text-slate-500">Amount you pay before insurance kicks in (resets yearly)</div>
+                          </div>
+                          <div>
+                            <label htmlFor="edit-pet-insurance-pays" className="block text-xs">Insurance Pays (%)</label>
+                            <input id="edit-pet-insurance-pays" type="number" min={0} max={100} placeholder="80" value={String(editPet.insurance_pays_percentage ?? '')} onChange={(e) => setEditPet({ ...editPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                            <div className="mt-1 text-[11px] text-slate-500">What percentage your insurance covers (e.g., 80% means you pay 20%)</div>
+                          </div>
+                          <div>
+                            <label htmlFor="edit-pet-coverage-start" className="block text-xs">Coverage Start Date</label>
+                            <input id="edit-pet-coverage-start" type="date" value={editPet.coverage_start_date || ''} onChange={(e) => setEditPet({ ...editPet, coverage_start_date: e.target.value })} className="mt-1 w-full min-w-[220px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
+                            <div className="mt-1 text-[11px] text-slate-500">When did your coverage start?</div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <div className="mt-3 flex items-center gap-3">
+                      <button type="button" onClick={saveEdit} className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-sm">Save</button>
+                      <button type="button" onClick={() => {
+  if (!editingPetId) return
+  const petToDelete = pets.find(p => p.id === editingPetId)
+  const petName = petToDelete?.name || 'this pet'
+
+  if (!confirm(`⚠️ Delete ${petName}?\n\nThis will NOT delete bills for this pet, but you won't be able to file new bills.\n\nThis cannot be undone!`)) return
+
+  const remaining = pets.filter(p => p.id !== editingPetId)
+  setPets(remaining)
+  if (userId) dbDeletePet(userId, editingPetId).catch((e) => { console.error('[deletePet] error', e) })
+  setEditingPetId(null)
+  setEditPet(null)
+}} className="inline-flex items-center rounded-lg bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 text-sm">Delete</button>
+                      <button type="button" onClick={() => { setEditingPetId(null); setEditPet(null) }} className="text-sm text-slate-600 dark:text-slate-300">Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+        )}
+
+        {/* Financial Summary - VET BILLS TAB for whitelisted users, always visible for non-whitelisted */}
+        {authView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && (
+          <section className="mx-auto mt-10 max-w-5xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Financial Summary</h2>
+              <div className="text-sm">
+                <label className="mr-2 text-slate-600">Show expenses for:</label>
+                <select
+                  value={finPeriod}
+                  onChange={(e) => setFinPeriod(e.target.value as any)}
+                  className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-sm"
+                >
+                  <option value="all">All Time</option>
+                  <option value="2026">2026</option>
+                  <option value="2025">2025</option>
+                  <option value="2024">2024</option>
+                  <option value="last12">Last 12 Months</option>
+                </select>
+              </div>
+            </div>
+            <FinancialSummary
+              userId={userId}
+              refreshToken={dataRefreshToken}
+              period={finPeriod}
+              summaryCollapsed={financialSummaryCollapsed}
+              onSummaryToggle={() => setFinancialSummaryCollapsed(!financialSummaryCollapsed)}
+              outOfPocketCollapsed={outOfPocketCollapsed}
+              onOutOfPocketToggle={() => setOutOfPocketCollapsed(!outOfPocketCollapsed)}
+              perPetCollapsed={perPetCollapsed}
+              onPerPetToggle={() => setPerPetCollapsed(!perPetCollapsed)}
+            />
           </section>
         )}
 

@@ -26,7 +26,30 @@ type PetRow = {
   annual_coverage_limit?: number | null
 }
 
-export default function FinancialSummary({ userId, refreshToken, period }: { userId: string | null; refreshToken?: number; period?: string }) {
+type FinancialSummaryProps = {
+  userId: string | null
+  refreshToken?: number
+  period?: string
+  // Collapsible section controls
+  summaryCollapsed?: boolean
+  onSummaryToggle?: () => void
+  outOfPocketCollapsed?: boolean
+  onOutOfPocketToggle?: () => void
+  perPetCollapsed?: boolean
+  onPerPetToggle?: () => void
+}
+
+export default function FinancialSummary({
+  userId,
+  refreshToken,
+  period,
+  summaryCollapsed = false,
+  onSummaryToggle,
+  outOfPocketCollapsed = false,
+  onOutOfPocketToggle,
+  perPetCollapsed = false,
+  onPerPetToggle
+}: FinancialSummaryProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [claims, setClaims] = useState<ClaimRow[]>([])
@@ -336,114 +359,189 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
 
   if (!userId) return null
 
+  // Collapsible section header component
+  const CollapsibleHeader = ({
+    title,
+    subtitle,
+    collapsed,
+    onToggle,
+    icon
+  }: {
+    title: string
+    subtitle?: string
+    collapsed: boolean
+    onToggle?: () => void
+    icon?: string
+  }) => (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="w-full flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors rounded-xl"
+    >
+      <div className="flex items-center gap-3">
+        {icon && <span className="text-xl">{icon}</span>}
+        <div className="text-left">
+          <div className="font-bold text-slate-800 dark:text-slate-100">{title}</div>
+          {subtitle && <div className="text-sm text-slate-500 dark:text-slate-400">{subtitle}</div>}
+        </div>
+      </div>
+      <svg
+        className={`w-5 h-5 text-slate-400 transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`}
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    </button>
+  )
+
   return (
-    <section className="mt-6">
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-        <div className="text-lg font-semibold">Financial Summary</div>
-        {loading && <div className="mt-2 text-sm text-slate-500">Loading…</div>}
-        {error && <div className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-800 text-sm">{error}</div>}
-        {!loading && !error && (
-          <>
-            {/* Year Total (calculation view) */}
-            <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-              <div className="text-sm font-semibold">{`📊 ${String(period || '').toLowerCase() === 'all' ? 'ALL TIME' : (String(period || new Date().getFullYear()))} TOTAL`}</div>
-              <div className="mt-3 text-sm space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-slate-600">Spent on all pets (including premiums)</div>
-                  <div className="text-xl font-bold">${(overall.premiumsYTD + overall.nonInsuredTotal + overall.insuredBillsTotal).toFixed(2)}</div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="text-slate-600">- Insurance Reimbursed</div>
-                  <div className="text-xl font-bold">${overall.insurancePaidBack.toFixed(2)}</div>
-                </div>
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                  <div className="text-slate-800 font-semibold">= Your Net Cost</div>
-                  <div className="text-2xl font-bold">${overall.definiteTotal.toFixed(2)}</div>
+    <section className="space-y-4">
+      {/* Financial Summary Section - Collapsible */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] overflow-hidden">
+        <CollapsibleHeader
+          title="Financial Summary"
+          subtitle={!loading && !error ? `Net Cost: $${overall.definiteTotal.toFixed(2)}` : undefined}
+          collapsed={summaryCollapsed}
+          onToggle={onSummaryToggle}
+          icon="📊"
+        />
+        <div
+          className={`transition-all duration-300 ease-in-out overflow-hidden ${
+            summaryCollapsed ? 'max-h-0 opacity-0' : 'max-h-[500px] opacity-100'
+          }`}
+        >
+          <div className="px-5 pb-5">
+            {loading && <div className="text-sm text-slate-500">Loading…</div>}
+            {error && <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-800 text-sm">{error}</div>}
+            {!loading && !error && (
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-4">
+                <div className="text-sm font-semibold text-slate-600 dark:text-slate-400">{`${String(period || '').toLowerCase() === 'all' ? 'ALL TIME' : (String(period || new Date().getFullYear()))} TOTAL`}</div>
+                <div className="mt-3 text-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-slate-600 dark:text-slate-400">Spent on all pets (including premiums)</div>
+                    <div className="text-lg font-bold text-slate-800 dark:text-slate-100">${(overall.premiumsYTD + overall.nonInsuredTotal + overall.insuredBillsTotal).toFixed(2)}</div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-slate-600 dark:text-slate-400">- Insurance Reimbursed</div>
+                    <div className="text-lg font-bold text-emerald-600">${overall.insurancePaidBack.toFixed(2)}</div>
+                  </div>
+                  <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <div className="text-slate-800 dark:text-slate-100 font-semibold">= Your Net Cost</div>
+                    <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">${overall.definiteTotal.toFixed(2)}</div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5">
-        <div className="text-sm sm:text-base font-semibold">YOUR OUT-OF-POCKET BREAKDOWN</div>
-        <div className="mt-3 text-sm space-y-2">
-          <div>
-            <div className="flex items-center justify-between">
-              <div className="text-slate-600">Insurance Premiums <span className="text-xs text-slate-500">(Monthly insurance cost)</span></div>
-              <div className="font-mono font-semibold">${overall.premiumsYTD.toFixed(2)}</div>
-            </div>
-            {/* Per-pet premium breakdown */}
-            {(() => {
-              const nowYear = new Date().getFullYear()
-              const viewYear = (() => {
-                const p = String(period || '').toLowerCase()
-                if (p === '2024' || p === '2025' || p === '2026') return Number(p)
-                if (p === 'all') return null
-                return nowYear
-              })()
-
-              // Calculate premiums for each pet
-              const petPremiums = pets.map(p => {
-                const calc = calculatePremiumsForPet(p, viewYear)
-                return { pet: p, ...calc }
-              }).filter(p => p.total > 0 || Number(p.pet.monthly_premium) > 0) // Show all pets with insurance
-
-              if (petPremiums.length === 0) return null
-
-              return (
-                <div className="ml-4 mt-2 space-y-1 text-xs text-slate-500">
-                  {petPremiums.map(({ pet, total, monthsCount, context }) => {
-                    const monthly = Number(pet.monthly_premium) || 0
-                    if (monthly === 0) {
-                      return (
-                        <div key={pet.id} className="flex items-center justify-between">
-                          <div>• {pet.name}: No insurance</div>
-                          <div></div>
-                        </div>
-                      )
-                    }
-                    if (total === 0) {
-                      return (
-                        <div key={pet.id} className="flex items-center justify-between">
-                          <div>• {pet.name}: $0 ({context})</div>
-                          <div></div>
-                        </div>
-                      )
-                    }
-                    return (
-                      <div key={pet.id} className="flex items-center justify-between">
-                        <div>• {pet.name}: ${monthly.toFixed(2)}/mo × {monthsCount} = ${total.toFixed(2)} ({context})</div>
-                        <div></div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })()}
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="text-slate-600">Non-Insured Vet Visits <span className="text-xs text-slate-500">(Not covered by insurance)</span></div>
-            <div className="font-mono font-semibold">${overall.nonInsuredTotal.toFixed(2)}</div>
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="text-slate-600">Amount You Paid (for covered claims)</div>
-            <div className="font-mono font-semibold">${overall.userShareCoveredClaims.toFixed(2)}</div>
-          </div>
-          <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-            <div className="text-slate-800 font-semibold">Total You Paid</div>
-            <div className="text-xl sm:text-2xl font-bold font-mono">${overall.definiteTotal.toFixed(2)}</div>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5">
-        <div className="text-sm sm:text-base font-semibold">{`🐕 PER-PET BREAKDOWN (${String(period || '').toLowerCase() === 'all' ? 'All Time' : String(period || new Date().getFullYear())})`}</div>
-        {pets.length === 0 && (
-          <div className="mt-3 text-sm text-slate-600">No pets yet. Add a pet to see per-pet costs.</div>
-        )}
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Out-of-Pocket Breakdown - Collapsible */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] overflow-hidden">
+        <CollapsibleHeader
+          title="Out-of-Pocket Breakdown"
+          subtitle={!loading && !error ? `Total: $${overall.definiteTotal.toFixed(2)}` : undefined}
+          collapsed={outOfPocketCollapsed}
+          onToggle={onOutOfPocketToggle}
+          icon="💰"
+        />
+        <div
+          className={`transition-all duration-300 ease-in-out overflow-hidden ${
+            outOfPocketCollapsed ? 'max-h-0 opacity-0' : 'max-h-[800px] opacity-100'
+          }`}
+        >
+          <div className="px-5 pb-5 text-sm space-y-2">
+            <div>
+              <div className="flex items-center justify-between">
+                <div className="text-slate-600 dark:text-slate-400">Insurance Premiums <span className="text-xs text-slate-500">(Monthly insurance cost)</span></div>
+                <div className="font-mono font-semibold">${overall.premiumsYTD.toFixed(2)}</div>
+              </div>
+              {/* Per-pet premium breakdown */}
+              {(() => {
+                const nowYear = new Date().getFullYear()
+                const viewYear = (() => {
+                  const p = String(period || '').toLowerCase()
+                  if (p === '2024' || p === '2025' || p === '2026') return Number(p)
+                  if (p === 'all') return null
+                  return nowYear
+                })()
+
+                // Calculate premiums for each pet
+                const petPremiums = pets.map(p => {
+                  const calc = calculatePremiumsForPet(p, viewYear)
+                  return { pet: p, ...calc }
+                }).filter(p => p.total > 0 || Number(p.pet.monthly_premium) > 0)
+
+                if (petPremiums.length === 0) return null
+
+                return (
+                  <div className="ml-4 mt-2 space-y-1 text-xs text-slate-500">
+                    {petPremiums.map(({ pet, total, monthsCount, context }) => {
+                      const monthly = Number(pet.monthly_premium) || 0
+                      if (monthly === 0) {
+                        return (
+                          <div key={pet.id} className="flex items-center justify-between">
+                            <div>• {pet.name}: No insurance</div>
+                            <div></div>
+                          </div>
+                        )
+                      }
+                      if (total === 0) {
+                        return (
+                          <div key={pet.id} className="flex items-center justify-between">
+                            <div>• {pet.name}: $0 ({context})</div>
+                            <div></div>
+                          </div>
+                        )
+                      }
+                      return (
+                        <div key={pet.id} className="flex items-center justify-between">
+                          <div>• {pet.name}: ${monthly.toFixed(2)}/mo × {monthsCount} = ${total.toFixed(2)} ({context})</div>
+                          <div></div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="text-slate-600 dark:text-slate-400">Non-Insured Vet Visits <span className="text-xs text-slate-500">(Not covered by insurance)</span></div>
+              <div className="font-mono font-semibold">${overall.nonInsuredTotal.toFixed(2)}</div>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="text-slate-600 dark:text-slate-400">Amount You Paid (for covered claims)</div>
+              <div className="font-mono font-semibold">${overall.userShareCoveredClaims.toFixed(2)}</div>
+            </div>
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <div className="text-slate-800 dark:text-slate-100 font-semibold">Total You Paid</div>
+              <div className="text-xl sm:text-2xl font-bold font-mono">${overall.definiteTotal.toFixed(2)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Per-Pet Breakdown - Collapsible */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] overflow-hidden">
+        <CollapsibleHeader
+          title="Per-Pet Breakdown"
+          subtitle={`${pets.length} pet${pets.length !== 1 ? 's' : ''} • ${String(period || '').toLowerCase() === 'all' ? 'All Time' : String(period || new Date().getFullYear())}`}
+          collapsed={perPetCollapsed}
+          onToggle={onPerPetToggle}
+          icon="🐕"
+        />
+        <div
+          className={`transition-all duration-300 ease-in-out overflow-hidden ${
+            perPetCollapsed ? 'max-h-0 opacity-0' : 'max-h-[2000px] opacity-100'
+          }`}
+        >
+          <div className="px-5 pb-5">
+            {pets.length === 0 && (
+              <div className="text-sm text-slate-600 dark:text-slate-400">No pets yet. Add a pet to see per-pet costs.</div>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {pets.map((p) => {
             const s = perPet[p.id] || { claimed: 0, reimbursed: 0, premiums: 0, nonInsured: 0, pendingBills: 0, filedClaims: 0 }
             const color = p.species === 'cat' ? '#F97316' : p.species === 'dog' ? '#3B82F6' : '#6B7280'
@@ -487,6 +585,8 @@ export default function FinancialSummary({ userId, refreshToken, period }: { use
               </div>
             )
           })}
+            </div>
+          </div>
         </div>
       </div>
     </section>
