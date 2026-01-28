@@ -1823,7 +1823,7 @@ function MainApp() {
         )}
         {/* HOME TAB - Dashboard overview (whitelisted users only) */}
         {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'home' && (
-          <section className="mx-auto max-w-4xl space-y-6">
+          <section className="mx-auto max-w-4xl space-y-8">
             {/* PERSONALIZED GREETING */}
             <div className="text-2xl font-semibold text-slate-800 dark:text-slate-100">
               {userFirstName ? (
@@ -1840,28 +1840,28 @@ function MainApp() {
               const hasAlerts = claimsSummary.overdue > 0 || claimsSummary.expiringSoon > 0 || medicationAlerts.length > 0
 
               return hasAlerts ? (
-                <div className="space-y-3">
-                  <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Needs Attention</h2>
+                <div className="space-y-4">
+                  <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Needs Attention</h2>
 
                   {/* Overdue Claims Alert */}
                   {claimsSummary.overdue > 0 && (
                     <button
                       type="button"
                       onClick={() => setActiveTab('vetbills')}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-left"
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-red-200/60 dark:border-red-800 bg-red-50/80 dark:bg-red-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
                     >
-                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-800 flex items-center justify-center">
-                        <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-red-100 to-red-200 dark:from-red-800 dark:to-red-900 flex items-center justify-center shadow-sm">
+                        <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-red-800 dark:text-red-200">
+                        <div className="font-bold text-red-800 dark:text-red-200">
                           {claimsSummary.overdue} Overdue Claim{claimsSummary.overdue > 1 ? 's' : ''}
                         </div>
                         <div className="text-sm text-red-600 dark:text-red-400">
                           Past filing deadline - submit ASAP
                         </div>
                       </div>
-                      <div className="text-red-400">→</div>
+                      <div className="text-red-400 text-lg">→</div>
                     </button>
                   )}
 
@@ -1871,20 +1871,20 @@ function MainApp() {
                       key={alert.id}
                       type="button"
                       onClick={() => setActiveView('medications')}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-left"
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-red-200/60 dark:border-red-800 bg-red-50/80 dark:bg-red-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
                     >
-                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-800 flex items-center justify-center">
-                        <Pill className="w-5 h-5 text-red-600 dark:text-red-400" />
+                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-red-100 to-red-200 dark:from-red-800 dark:to-red-900 flex items-center justify-center shadow-sm">
+                        <Pill className="w-6 h-6 text-red-600 dark:text-red-400" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-red-800 dark:text-red-200">
+                        <div className="font-bold text-red-800 dark:text-red-200">
                           {alert.petName}'s {alert.medicationName}
                         </div>
                         <div className="text-sm text-red-600 dark:text-red-400">
                           Was due at {alert.scheduledTime} - mark as given
                         </div>
                       </div>
-                      <div className="text-red-400">→</div>
+                      <div className="text-red-400 text-lg">→</div>
                     </button>
                   ))}
 
@@ -1893,20 +1893,20 @@ function MainApp() {
                     <button
                       type="button"
                       onClick={() => setActiveTab('vetbills')}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors text-left"
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-amber-200/60 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
                     >
-                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-800 flex items-center justify-center">
-                        <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-800 dark:to-amber-900 flex items-center justify-center shadow-sm">
+                        <Clock className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-amber-800 dark:text-amber-200">
+                        <div className="font-bold text-amber-800 dark:text-amber-200">
                           {claimsSummary.expiringSoon} Claim{claimsSummary.expiringSoon > 1 ? 's' : ''} Expiring Soon
                         </div>
                         <div className="text-sm text-amber-600 dark:text-amber-400">
                           Due within 14 days - don't miss out
                         </div>
                       </div>
-                      <div className="text-amber-400">→</div>
+                      <div className="text-amber-400 text-lg">→</div>
                     </button>
                   )}
 
@@ -1916,31 +1916,31 @@ function MainApp() {
                       key={alert.id}
                       type="button"
                       onClick={() => setActiveView('medications')}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors text-left"
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-amber-200/60 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
                     >
-                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-800 flex items-center justify-center">
-                        <Pill className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-800 dark:to-amber-900 flex items-center justify-center shadow-sm">
+                        <Pill className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-amber-800 dark:text-amber-200">
+                        <div className="font-bold text-amber-800 dark:text-amber-200">
                           {alert.petName}'s {alert.medicationName}
                         </div>
                         <div className="text-sm text-amber-600 dark:text-amber-400">
                           Due at {alert.scheduledTime}
                         </div>
                       </div>
-                      <div className="text-amber-400">→</div>
+                      <div className="text-amber-400 text-lg">→</div>
                     </button>
                   ))}
                 </div>
               ) : (
                 /* All Caught Up Message */
-                <div className="flex items-center gap-4 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-800 flex items-center justify-center">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                <div className="flex items-center gap-4 p-5 rounded-xl border border-emerald-200/60 dark:border-emerald-800 bg-gradient-to-r from-emerald-50/90 to-teal-50/90 dark:from-emerald-900/20 dark:to-teal-900/20 backdrop-blur-sm shadow-md">
+                  <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg">
+                    <CheckCircle2 className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <div className="font-semibold text-emerald-800 dark:text-emerald-200">All caught up!</div>
+                    <div className="font-bold text-emerald-800 dark:text-emerald-200 text-lg">All caught up!</div>
                     <div className="text-sm text-emerald-600 dark:text-emerald-400">No urgent claims or reminders</div>
                   </div>
                 </div>
@@ -1948,20 +1948,22 @@ function MainApp() {
             })()}
 
             {/* QUICK STATS CARDS */}
-            <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">At a Glance</h2>
-              <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-4">
+              <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">At a Glance</h2>
+              <div className="grid grid-cols-2 gap-4">
                 {/* This Month Spending */}
                 <button
                   type="button"
                   onClick={() => setActiveTab('expenses')}
-                  className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm transition-all text-left"
+                  className="p-5 rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 text-left group"
                 >
-                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs mb-1">
-                    <Wallet className="w-4 h-4 flex-shrink-0" />
-                    <span>Pet spending this month</span>
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-medium mb-2">
+                    <div className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 group-hover:bg-emerald-200 dark:group-hover:bg-emerald-800/50 transition-colors">
+                      <Wallet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <span>This Month</span>
                   </div>
-                  <div className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                  <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">
                     ${expensesSummary.thisMonth.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </div>
                 </button>
@@ -1970,13 +1972,15 @@ function MainApp() {
                 <button
                   type="button"
                   onClick={() => setActiveTab('vetbills')}
-                  className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm transition-all text-left"
+                  className="p-5 rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 text-left group"
                 >
-                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm mb-1">
-                    <FileText className="w-4 h-4" />
-                    Pending Claims
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-medium mb-2">
+                    <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/50 group-hover:bg-blue-200 dark:group-hover:bg-blue-800/50 transition-colors">
+                      <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <span>Pending Claims</span>
                   </div>
-                  <div className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                  <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">
                     {claimsSummary.notFiledCount}
                   </div>
                 </button>
@@ -1985,13 +1989,15 @@ function MainApp() {
                 <button
                   type="button"
                   onClick={() => setActiveTab('expenses')}
-                  className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm transition-all text-left"
+                  className="p-5 rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 text-left group"
                 >
-                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs mb-1">
-                    <Wallet className="w-4 h-4 flex-shrink-0" />
-                    <span>Pet spending YTD</span>
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-medium mb-2">
+                    <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-900/50 group-hover:bg-purple-200 dark:group-hover:bg-purple-800/50 transition-colors">
+                      <Wallet className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <span>Year to Date</span>
                   </div>
-                  <div className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                  <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">
                     ${expensesSummary.yearToDate.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </div>
                 </button>
@@ -2000,13 +2006,15 @@ function MainApp() {
                 <button
                   type="button"
                   onClick={() => setActiveTab('vetbills')}
-                  className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-sm transition-all text-left"
+                  className="p-5 rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 text-left group"
                 >
-                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm mb-1">
-                    <Pill className="w-4 h-4" />
-                    Your Pets
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-medium mb-2">
+                    <div className="p-1.5 rounded-lg bg-teal-100 dark:bg-teal-900/50 group-hover:bg-teal-200 dark:group-hover:bg-teal-800/50 transition-colors">
+                      <Pill className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                    </div>
+                    <span>Your Pets</span>
                   </div>
-                  <div className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                  <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">
                     {pets.length}
                   </div>
                 </button>
@@ -2014,13 +2022,13 @@ function MainApp() {
             </div>
 
             {/* QUICK ACTIONS */}
-            <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Quick Actions</h2>
-              <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-4">
+              <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Quick Actions</h2>
+              <div className="grid grid-cols-2 gap-4">
                 <button
                   type="button"
                   onClick={() => setActiveTab('vetbills')}
-                  className="flex items-center justify-center gap-2 p-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm hover:shadow transition-all"
+                  className="flex items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold shadow-lg shadow-emerald-500/25 hover:shadow-xl hover:shadow-emerald-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
                 >
                   <Upload className="w-5 h-5" />
                   Upload Vet Bill
@@ -2028,7 +2036,7 @@ function MainApp() {
                 <button
                   type="button"
                   onClick={() => setShowAddExpenseModal(true)}
-                  className="flex items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-medium shadow-sm hover:shadow transition-all"
+                  className="flex items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white font-semibold shadow-lg shadow-teal-500/25 hover:shadow-xl hover:shadow-teal-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
                 >
                   <PlusCircle className="w-5 h-5" />
                   Add Expense
@@ -2552,15 +2560,15 @@ function MainApp() {
 
         {/* Upload section - VET BILLS TAB for whitelisted users, always visible for non-whitelisted */}
         {authView === 'app' && activeView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && (
-        <section key="upload-section" className="mx-auto max-w-3xl text-center mt-6 px-2">
-          <h2 className="text-2xl font-semibold">Upload Vet Bill</h2>
-          <div className="mt-3">
+        <section key="upload-section" className="mx-auto max-w-3xl text-center mt-8 px-4">
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Upload Vet Bill</h2>
+          <div className="mt-4">
             <div
               className={[
-                'rounded-2xl border bg-white dark:bg-slate-900/60 shadow-sm p-5 sm:p-6 transition-colors',
+                'rounded-3xl border bg-white/80 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] p-6 sm:p-8 transition-all duration-200',
                 isDragging
-                  ? 'border-emerald-400 ring-2 ring-emerald-400/60 dark:ring-emerald-400/50 bg-emerald-50/40 dark:bg-emerald-900/10'
-                  : 'border-slate-200 dark:border-slate-800'
+                  ? 'border-emerald-400 ring-2 ring-emerald-400/60 dark:ring-emerald-400/50 bg-emerald-50/40 dark:bg-emerald-900/10 scale-[1.01]'
+                  : 'border-white/60 dark:border-slate-800'
               ].join(' ')}
               onDragEnter={onDragEnter}
               onDragOver={onDragOver}
@@ -2571,7 +2579,7 @@ function MainApp() {
                 <button
                   type="button"
                   onClick={handlePick}
-                  className="w-full sm:w-auto rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02]"
+                  className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-10 py-5 text-lg font-bold shadow-xl shadow-emerald-500/25 hover:shadow-2xl hover:shadow-emerald-500/30 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <div className="flex items-center justify-center gap-3">
                     <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

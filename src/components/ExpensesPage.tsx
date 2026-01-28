@@ -225,7 +225,7 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
             </div>
 
             {/* Category Breakdown with Pie Chart */}
-            <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-xl shadow-slate-200/50 dark:shadow-none">
+            <div className="rounded-3xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-white/60 dark:border-slate-800 p-6 shadow-xl shadow-slate-200/50 dark:shadow-none">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-6">Spending by Category</h2>
 
               {pieData.length > 0 ? (
@@ -262,7 +262,7 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
                     {pieData.map((item) => (
                       <div
                         key={item.category}
-                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
                       >
                         <div
                           className="w-3 h-3 rounded-full flex-shrink-0"
@@ -288,7 +288,7 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
             </div>
 
             {/* Recent Expenses */}
-            <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xl shadow-slate-200/50 dark:shadow-none">
+            <div className="rounded-3xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-white/60 dark:border-slate-800 overflow-hidden shadow-xl shadow-slate-200/50 dark:shadow-none">
               <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">Recent Expenses</h2>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Tap to edit, swipe to delete</p>

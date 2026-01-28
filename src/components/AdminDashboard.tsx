@@ -491,61 +491,81 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="max-w-7xl mx-auto px-4 py-8 min-h-screen bg-gradient-to-b from-slate-50 to-white">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="text-gray-600 mt-2">System overview and user management</p>
+      <div className="mb-10">
+        <h1 className="text-4xl font-bold text-gray-900 tracking-tight">Admin Dashboard</h1>
+        <p className="text-gray-500 mt-2 text-lg">System overview and user management</p>
       </div>
 
       {/* Top Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         {/* Users */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-sm font-medium text-gray-500 uppercase">Total Users</h3>
-          <p className="text-3xl font-bold text-gray-900 mt-2">{metrics.totalUsers}</p>
-          <div className="mt-2 text-sm">
-            <span className="text-green-600">Active: {metrics.activeUsers}</span>
-            <span className="text-gray-400 mx-2">•</span>
-            <span className="text-red-600">Inactive: {metrics.inactiveUsers}</span>
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-white/60 p-6 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
+              <span className="text-xl">👥</span>
+            </div>
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Total Users</h3>
+          </div>
+          <p className="text-4xl font-bold text-gray-900">{metrics.totalUsers}</p>
+          <div className="mt-3 text-sm font-medium">
+            <span className="text-emerald-600">Active: {metrics.activeUsers}</span>
+            <span className="text-gray-300 mx-2">•</span>
+            <span className="text-red-500">Inactive: {metrics.inactiveUsers}</span>
           </div>
         </div>
 
         {/* Pets */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-sm font-medium text-gray-500 uppercase">Total Pets</h3>
-          <p className="text-3xl font-bold text-gray-900 mt-2">{metrics.totalPets}</p>
-          <p className="text-sm text-gray-600 mt-2">Across all users</p>
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-white/60 p-6 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center">
+              <span className="text-xl">🐾</span>
+            </div>
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Total Pets</h3>
+          </div>
+          <p className="text-4xl font-bold text-gray-900">{metrics.totalPets}</p>
+          <p className="text-sm text-gray-500 mt-3 font-medium">Across all users</p>
         </div>
 
         {/* Claims */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-sm font-medium text-gray-500 uppercase">Total Claims</h3>
-          <p className="text-3xl font-bold text-gray-900 mt-2">{metrics.totalClaims}</p>
-          <div className="mt-2 text-sm">
-            <span className="text-gray-600">Draft: {metrics.draftClaims}</span>
-            <span className="text-gray-400 mx-2">•</span>
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-white/60 p-6 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center">
+              <span className="text-xl">📋</span>
+            </div>
+            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Total Claims</h3>
+          </div>
+          <p className="text-4xl font-bold text-gray-900">{metrics.totalClaims}</p>
+          <div className="mt-3 text-sm font-medium">
+            <span className="text-gray-500">Draft: {metrics.draftClaims}</span>
+            <span className="text-gray-300 mx-2">•</span>
             <span className="text-blue-600">Submitted: {metrics.submittedClaims}</span>
-            <span className="text-gray-400 mx-2">•</span>
-            <span className="text-green-600">Paid: {metrics.paidClaims}</span>
+            <span className="text-gray-300 mx-2">•</span>
+            <span className="text-emerald-600">Paid: {metrics.paidClaims}</span>
           </div>
         </div>
 
         {/* Total Amount */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-sm font-medium text-gray-500 uppercase">Total Amount</h3>
-          <p className="text-3xl font-bold text-gray-900 mt-2">
+        <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl shadow-xl shadow-emerald-500/25 p-6 hover:shadow-2xl hover:-translate-y-0.5 transition-all duration-200">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              <span className="text-xl">💰</span>
+            </div>
+            <h3 className="text-sm font-bold text-emerald-100 uppercase tracking-wider">Total Amount</h3>
+          </div>
+          <p className="text-4xl font-bold text-white">
             ${metrics.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
-          <p className="text-sm text-gray-600 mt-2">All claims combined</p>
+          <p className="text-sm text-emerald-100 mt-3 font-medium">All claims combined</p>
         </div>
       </div>
 
       {/* Recent Claim Activity Feed */}
-      <div className="bg-white rounded-lg shadow mb-8">
-        <div className="px-6 py-4 border-b">
-          <h2 className="text-xl font-semibold text-gray-900">Recent Claim Activity</h2>
-          <p className="text-sm text-gray-600 mt-1">Latest claim submissions</p>
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-white/60 mb-10 overflow-hidden">
+        <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-gray-50/50 to-white">
+          <h2 className="text-xl font-bold text-gray-900">Recent Claim Activity</h2>
+          <p className="text-sm text-gray-500 mt-1">Latest claim submissions</p>
         </div>
         <div className="divide-y divide-gray-100">
           {allClaims
@@ -593,10 +613,10 @@ export default function AdminDashboard() {
       </div>
 
       {/* Recent Logins */}
-      <div className="bg-white rounded-lg shadow mb-8">
-        <div className="px-6 py-4 border-b">
-          <h2 className="text-xl font-semibold text-gray-900">Recent Logins</h2>
-          <p className="text-sm text-gray-600 mt-1">Last 50 user logins</p>
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-white/60 mb-10 overflow-hidden">
+        <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-gray-50/50 to-white">
+          <h2 className="text-xl font-bold text-gray-900">Recent Logins</h2>
+          <p className="text-sm text-gray-500 mt-1">Last 50 user logins</p>
         </div>
         <div className="divide-y divide-gray-100">
           {recentLogins.length > 0 ? (
@@ -859,22 +879,22 @@ export default function AdminDashboard() {
       )}
 
       {/* Insurance Breakdown */}
-      <div className="bg-white rounded-lg shadow p-6 mb-8">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Claims by Insurance Company</h3>
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-white/60 p-6 mb-10">
+        <h3 className="text-xl font-bold text-gray-900 mb-5">Claims by Insurance Company</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Object.entries(metrics.insuranceBreakdown).map(([company, count]) => (
-            <div key={company} className="border rounded-lg p-4">
-              <p className="text-sm text-gray-600">{company}</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{count}</p>
+            <div key={company} className="bg-gradient-to-br from-gray-50 to-white border border-gray-100 rounded-xl p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+              <p className="text-sm font-medium text-gray-500">{company}</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1">{count}</p>
             </div>
           ))}
         </div>
       </div>
 
       {/* Users Table */}
-      <div className="bg-white rounded-lg shadow mb-8">
-        <div className="px-6 py-4 border-b">
-          <h2 className="text-xl font-semibold text-gray-900">Users</h2>
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-white/60 mb-10 overflow-hidden">
+        <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-gray-50/50 to-white">
+          <h2 className="text-xl font-bold text-gray-900">Users</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -1018,16 +1038,16 @@ export default function AdminDashboard() {
       </div>
 
       {/* Claims Table */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b">
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-white/60 overflow-hidden">
+        <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-gray-50/50 to-white">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold text-gray-900">All Claims</h2>
-            <div className="flex gap-4">
+            <h2 className="text-xl font-bold text-gray-900">All Claims</h2>
+            <div className="flex gap-3">
               {/* Status Filter */}
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium bg-white shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
               >
                 <option value="all">All Status</option>
                 <option value="draft">Draft</option>
@@ -1039,7 +1059,7 @@ export default function AdminDashboard() {
               <select
                 value={insuranceFilter}
                 onChange={(e) => setInsuranceFilter(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium bg-white shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
               >
                 <option value="all">All Insurance</option>
                 {Object.keys(metrics.insuranceBreakdown).map(company => (

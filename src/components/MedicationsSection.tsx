@@ -197,15 +197,21 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
   if (medications.length === 0) {
     // Empty state
     return (
-      <section className="mx-auto max-w-4xl px-4 mt-6">
-        <div className="rounded-2xl p-5 bg-gradient-to-br from-emerald-600 to-emerald-700 relative overflow-hidden">
+      <section className="mx-auto max-w-4xl px-4 mt-8">
+        <div className="rounded-3xl p-6 bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 relative overflow-hidden shadow-2xl shadow-emerald-600/30">
+          {/* Decorative elements */}
+          <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+
           <div className="relative z-10 text-center py-8">
-            <div className="text-5xl mb-4">💊</div>
-            <h3 className="text-xl font-bold text-white mb-2">Track Your Pet's Medications</h3>
-            <p className="text-emerald-50 text-sm mb-6">Get SMS reminders so you never miss a dose.</p>
+            <div className="w-20 h-20 mx-auto rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center mb-4">
+              <span className="text-5xl">💊</span>
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-2">Track Your Pet's Medications</h3>
+            <p className="text-emerald-100 text-sm mb-6 max-w-sm mx-auto">Get SMS reminders so you never miss a dose.</p>
             <button
               onClick={onAddMedication}
-              className="bg-white text-emerald-600 px-6 py-3 rounded-xl font-semibold hover:bg-emerald-50 transition-colors shadow-lg"
+              className="bg-white text-emerald-600 px-8 py-4 rounded-xl font-bold hover:bg-emerald-50 transition-all shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98]"
             >
               + Add First Medication
             </button>
@@ -216,22 +222,26 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
   }
 
   return (
-    <section className="mx-auto max-w-4xl px-4 mt-6">
-      <div className="rounded-2xl p-5 bg-gradient-to-br from-emerald-600 to-emerald-700 relative overflow-hidden">
+    <section className="mx-auto max-w-4xl px-4 mt-8">
+      <div className="rounded-3xl p-6 bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 relative overflow-hidden shadow-2xl shadow-emerald-600/30">
+        {/* Decorative elements */}
+        <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+
         {/* Header */}
-        <div className="relative z-10 flex items-center justify-between mb-4">
+        <div className="relative z-10 flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-2xl">
+            <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center text-2xl shadow-lg">
               💊
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white">Medications</h3>
-              <p className="text-emerald-50 text-xs">Never miss a dose</p>
+              <h3 className="text-xl font-bold text-white">Medications</h3>
+              <p className="text-emerald-100 text-xs">Never miss a dose</p>
             </div>
           </div>
           <button
             onClick={onManage}
-            className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-[1.02] shadow-lg"
           >
             Manage →
           </button>
@@ -245,20 +255,20 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
             const petEmoji = med.pet_species === 'dog' ? '🐕' : '🐈'
 
             return (
-              <div key={med.id} className="bg-white rounded-xl p-3 shadow-sm">
+              <div key={med.id} className="bg-white/95 backdrop-blur-sm rounded-xl p-4 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center text-xl flex-shrink-0">
+                  <div className="w-11 h-11 bg-gradient-to-br from-emerald-100 to-teal-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0 shadow-sm">
                     💊
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-gray-800 truncate">{med.medication_name}</div>
+                    <div className="font-bold text-gray-800 truncate">{med.medication_name}</div>
                     <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
                       <span>{petEmoji} {med.pet_name}</span>
-                      <span className="text-gray-400">•</span>
+                      <span className="text-gray-300">•</span>
                       <span>{frequencyDisplay}</span>
                     </div>
                   </div>
-                  <div className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusColors[status.color]}`}>
+                  <div className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap shadow-sm ${statusColors[status.color]}`}>
                     {status.label}
                   </div>
                 </div>
@@ -270,7 +280,7 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
         {/* Add medication button */}
         <button
           onClick={onAddMedication}
-          className="relative z-10 w-full mt-3 bg-white/15 hover:bg-white/25 border-2 border-dashed border-white/40 rounded-xl py-3 text-white font-medium transition-colors"
+          className="relative z-10 w-full mt-4 bg-white/15 hover:bg-white/25 backdrop-blur-sm border-2 border-dashed border-white/40 rounded-xl py-4 text-white font-semibold transition-all hover:scale-[1.01] active:scale-[0.99]"
         >
           + Add Medication
         </button>
