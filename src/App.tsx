@@ -1557,11 +1557,11 @@ function MainApp() {
             )}
 
             {/* Logo - centered and prominent */}
-            <div className="flex flex-col items-center justify-center mb-1 md:mb-6">
+            <div className="flex flex-col items-center justify-center mb-1 md:mb-4">
               <img
                 src="/pch-logo.png"
                 alt="Pet Claim Helper"
-                className="w-[70vw] max-w-[320px] md:w-[90vw] md:max-w-[500px] h-auto object-contain mt-1 mb-0 md:mt-0 md:mb-0"
+                className="w-[50vw] max-w-[200px] md:w-[60vw] md:max-w-[320px] h-auto object-contain mt-1 mb-0 md:mt-0 md:mb-0"
               />
 
               {/* Tagline - hide for whitelisted users on mobile for cleaner look */}
@@ -2507,19 +2507,7 @@ function MainApp() {
 
         {/* EXPENSES TAB - Full expenses view (whitelisted users only) */}
         {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'expenses' && (
-          <section className="mx-auto max-w-4xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Pet Expenses</h2>
-              <button
-                type="button"
-                onClick={() => setShowAddExpenseModal(true)}
-                className="inline-flex items-center rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-3 py-2 text-sm font-medium shadow-sm hover:shadow"
-              >
-                + Add Expense
-              </button>
-            </div>
-            <ExpensesPage userId={userId} onClose={() => setActiveTab('home')} onModalStateChange={setExpensesPageModalOpen} refreshKey={expensesRefreshKey} />
-          </section>
+          <ExpensesPage userId={userId} onClose={() => setActiveTab('home')} onModalStateChange={setExpensesPageModalOpen} refreshKey={expensesRefreshKey} />
         )}
 
 

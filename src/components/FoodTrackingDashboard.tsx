@@ -624,11 +624,11 @@ export default function FoodTrackingDashboard({
 
               {/* Right Side: PCH Logo */}
               <div className="flex-shrink-0 flex items-center">
-                <div className="bg-white rounded-2xl p-4 shadow-lg">
+                <div className="bg-white rounded-2xl p-3 shadow-lg">
                   <img
                     src="/pch-logo.png"
                     alt="Pet Claim Helper"
-                    className="w-[180px] h-[180px]"
+                    className="w-[120px] h-[120px]"
                   />
                 </div>
               </div>
