@@ -68,6 +68,22 @@ export function generateClaimPdf(extracted: ExtractedBill, pet: PetProfile | nul
   addSectionTitle('Insurance Information')
   addLabelValue('Company', pet?.insuranceCompany || 'N/A')
   addLabelValue('Policy Number', pet?.policyNumber || 'N/A')
+
+  // Insurance-specific IDs
+  const insuranceLower = (pet?.insuranceCompany || '').toLowerCase()
+  if (insuranceLower.includes('healthy paws') && pet?.healthy_paws_pet_id) {
+    addLabelValue('Healthy Paws Pet ID', pet.healthy_paws_pet_id)
+  }
+  if (insuranceLower.includes('spot') && pet?.spot_account_number) {
+    addLabelValue('Spot Account #', pet.spot_account_number)
+  }
+  if (insuranceLower.includes('figo') && pet?.figo_policy_number) {
+    addLabelValue('Figo Policy #', pet.figo_policy_number)
+  }
+  if (insuranceLower.includes('pumpkin') && pet?.pumpkin_account_number) {
+    addLabelValue('Pumpkin Account #', pet.pumpkin_account_number)
+  }
+
   addLabelValue('Invoice Number', extracted.invoiceNumber || 'N/A')
   y += 8
 
