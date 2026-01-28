@@ -93,7 +93,8 @@ export default function App() {
 }
 
 
-// Helper to create/update vet expense when claim is paid or marked not insured
+// Helper to create/update vet expense for a claim
+// All vet bills create expenses. Amount is updated to net cost when reimbursement is received.
 async function createOrUpdateVetExpense(claim: any, netCost: number) {
   const { data: user } = await supabase.auth.getUser()
   if (!user?.user?.id) {
@@ -2290,7 +2291,18 @@ function MainApp() {
                             filing_status: 'not_filed',
                             filing_deadline_days: filingDaysToUse,
                           })
-                          if (row?.id) await uploadClaimPdf(userId, row.id, blob)
+                          if (row?.id) {
+                            await uploadClaimPdf(userId, row.id, blob)
+                            // Create expense for this vet bill
+                            await createOrUpdateVetExpense({
+                              id: row.id,
+                              total_amount: totalNum,
+                              service_date: multiExtracted.dateOfService,
+                              clinic_name: multiExtracted.clinicName,
+                              diagnosis: multiExtracted.diagnosis,
+                              visit_title: pg.petName ? `${pg.petName} vet visit` : 'Vet visit',
+                            }, totalNum || 0)
+                          }
                         } catch (e) { console.error('[createClaim multi] error', e) }
                       }
                       const url = URL.createObjectURL(blob)
@@ -2676,8 +2688,9 @@ function MainApp() {
                           }
                         }
 
-                        // If claim is not_insured, create expense for full amount
-                        if (expenseCategory === 'not_insured' && row?.id) {
+                        // Create expense for ALL vet bills (they represent money spent)
+                        // For insured claims, amount will be updated to net cost when reimbursement is received
+                        if (row?.id) {
                           await createOrUpdateVetExpense({
                             id: row.id,
                             total_amount: totalNum,
@@ -3819,17 +3832,9 @@ function MainApp() {
                     expense_category: editExpenseCat,
                   } as any)
 
-                  // Handle expense for not_insured claims
-                  if (editExpenseCat === 'not_insured') {
-                    // Create expense for full amount (no insurance reimbursement expected)
-                    await createOrUpdateVetExpense(editingClaim, editingClaim.total_amount || 0)
-                  } else if (editingClaim.expense_category === 'not_insured' && editExpenseCat !== 'not_insured') {
-                    // Changed FROM not_insured - delete the auto-created expense
-                    await supabase
-                      .from('pet_expenses')
-                      .delete()
-                      .eq('claim_id', editingClaim.id)
-                  }
+                  // Ensure expense exists for this claim (all vet bills are expenses)
+                  // Amount will be updated to net cost when reimbursement is received
+                  await createOrUpdateVetExpense(editingClaim, editingClaim.total_amount || 0)
 
                   if (userId) {
                     const refreshed = await listClaims(userId)
