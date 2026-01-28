@@ -284,159 +284,170 @@ export default function AddMedicationForm({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="relative mx-4 w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div
+        className="relative w-full max-w-md max-h-[90vh] flex flex-col rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Fixed Header */}
+        <div className="flex-shrink-0 flex items-center justify-between p-6 pb-4 border-b border-slate-200 dark:border-slate-800">
           <h2 className="text-lg font-semibold">{editMode ? 'Edit Medication' : 'Add Medication'}</h2>
-          <button type="button" className="text-sm" onClick={onClose}>Close</button>
+          <button type="button" className="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" onClick={onClose}>Close</button>
         </div>
-        {error && <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</div>}
-        <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Pet{editMode && <span className="text-xs text-slate-500 ml-2">(cannot be changed)</span>}</label>
-            <select
-              value={petId}
-              onChange={(e) => setPetId(e.target.value)}
-              className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
-              disabled={editMode}
-            >
-              <option value="">— Select —</option>
-              {pets.map((p) => (
-                <option key={p.id} value={p.id}>{p.name} ({p.species})</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Medication name</label>
-            <input
-              value={medicationName}
-              onChange={(e) => setMedicationName(e.target.value)}
-              className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
-              placeholder="Amoxicillin"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Dosage</label>
-            <input
-              value={dosage}
-              onChange={(e) => setDosage(e.target.value)}
-              className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
-              placeholder="1 pill"
-            />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-6 pt-4">
+          {error && <div className="mb-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</div>}
+          <form id="medication-form" className="space-y-4" onSubmit={handleSubmit}>
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Frequency</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Pet{editMode && <span className="text-xs text-slate-500 ml-2">(cannot be changed)</span>}</label>
               <select
-                value={frequency}
-                onChange={(e) => setFrequency(e.target.value as Frequency)}
+                value={petId}
+                onChange={(e) => setPetId(e.target.value)}
                 className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                disabled={editMode}
               >
-                <option>Once daily</option>
-                <option>Twice daily</option>
-                <option>Three times daily</option>
-                <option>Weekly</option>
-                <option>Monthly</option>
-                <option>Every 3 months</option>
-                <option>As needed</option>
+                <option value="">— Select —</option>
+                {pets.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.species})</option>
+                ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Duration</label>
-              <select
-                value={duration}
-                onChange={(e) => setDuration(e.target.value as any)}
-                className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
-              >
-                <option value="7">7 days</option>
-                <option value="14">14 days</option>
-                <option value="30">30 days</option>
-                <option value="90">90 days</option>
-                <option value="ongoing">Ongoing</option>
-                <option value="custom">Custom</option>
-              </select>
-            </div>
-          </div>
-          {duration === 'custom' && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Custom days</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Medication name</label>
               <input
-                type="number"
-                min={1}
-                value={customDays}
-                onChange={(e) => setCustomDays(Number(e.target.value))}
+                value={medicationName}
+                onChange={(e) => setMedicationName(e.target.value)}
                 className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                placeholder="Amoxicillin"
               />
             </div>
-          )}
-          {frequency === 'Weekly' && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Day of week</label>
-              <select
-                value={dayOfWeek}
-                onChange={(e) => setDayOfWeek(Number(e.target.value))}
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Dosage</label>
+              <input
+                value={dosage}
+                onChange={(e) => setDosage(e.target.value)}
                 className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
-              >
-                <option value={0}>Sunday</option>
-                <option value={1}>Monday</option>
-                <option value={2}>Tuesday</option>
-                <option value={3}>Wednesday</option>
-                <option value={4}>Thursday</option>
-                <option value={5}>Friday</option>
-                <option value={6}>Saturday</option>
-              </select>
+                placeholder="1 pill"
+              />
             </div>
-          )}
-          {(frequency === 'Monthly' || frequency === 'Every 3 months') && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Day of month</label>
-              <select
-                value={dayOfMonth}
-                onChange={(e) => setDayOfMonth(Number(e.target.value))}
-                className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
-              >
-                {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
-                  <option key={day} value={day}>{day}</option>
-                ))}
-              </select>
-            </div>
-          )}
-          {frequency !== 'As needed' && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-                Reminder time{requiredTimes > 1 ? 's' : ''}
-              </label>
-              <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {Array.from({ length: requiredTimes }).map((_, idx) => (
-                  <input
-                    key={idx}
-                    type="time"
-                    value={times[idx] || ''}
-                    onChange={(e) => handleTimeChange(idx, e.target.value)}
-                    className="w-full min-w-[140px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
-                  />
-                ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Frequency</label>
+                <select
+                  value={frequency}
+                  onChange={(e) => setFrequency(e.target.value as Frequency)}
+                  className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                >
+                  <option>Once daily</option>
+                  <option>Twice daily</option>
+                  <option>Three times daily</option>
+                  <option>Weekly</option>
+                  <option>Monthly</option>
+                  <option>Every 3 months</option>
+                  <option>As needed</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Duration</label>
+                <select
+                  value={duration}
+                  onChange={(e) => setDuration(e.target.value as any)}
+                  className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                >
+                  <option value="7">7 days</option>
+                  <option value="14">14 days</option>
+                  <option value="30">30 days</option>
+                  <option value="90">90 days</option>
+                  <option value="ongoing">Ongoing</option>
+                  <option value="custom">Custom</option>
+                </select>
               </div>
             </div>
-          )}
-          {frequency === 'As needed' && (
-            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-              <p className="text-sm text-blue-800 dark:text-blue-200">
-                No reminders - log doses manually when needed
-              </p>
-            </div>
-          )}
-          <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row gap-3 sm:justify-end">
-            <button type="button" onClick={onClose} className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4">Cancel</button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 disabled:opacity-60"
-            >
-              {loading ? 'Saving…' : editMode ? 'Update Medication' : 'Save Medication'}
-            </button>
-          </div>
-        </form>
+            {duration === 'custom' && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Custom days</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={customDays}
+                  onChange={(e) => setCustomDays(Number(e.target.value))}
+                  className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                />
+              </div>
+            )}
+            {frequency === 'Weekly' && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Day of week</label>
+                <select
+                  value={dayOfWeek}
+                  onChange={(e) => setDayOfWeek(Number(e.target.value))}
+                  className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                >
+                  <option value={0}>Sunday</option>
+                  <option value={1}>Monday</option>
+                  <option value={2}>Tuesday</option>
+                  <option value={3}>Wednesday</option>
+                  <option value={4}>Thursday</option>
+                  <option value={5}>Friday</option>
+                  <option value={6}>Saturday</option>
+                </select>
+              </div>
+            )}
+            {(frequency === 'Monthly' || frequency === 'Every 3 months') && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Day of month</label>
+                <select
+                  value={dayOfMonth}
+                  onChange={(e) => setDayOfMonth(Number(e.target.value))}
+                  className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                >
+                  {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                    <option key={day} value={day}>{day}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {frequency !== 'As needed' && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Reminder time{requiredTimes > 1 ? 's' : ''}
+                </label>
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {Array.from({ length: requiredTimes }).map((_, idx) => (
+                    <input
+                      key={idx}
+                      type="time"
+                      value={times[idx] || ''}
+                      onChange={(e) => handleTimeChange(idx, e.target.value)}
+                      className="w-full min-w-[140px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {frequency === 'As needed' && (
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  No reminders - log doses manually when needed
+                </p>
+              </div>
+            )}
+          </form>
+        </div>
+
+        {/* Fixed Footer */}
+        <div className="flex-shrink-0 p-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row gap-3 sm:justify-end">
+          <button type="button" onClick={onClose} className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4">Cancel</button>
+          <button
+            type="submit"
+            form="medication-form"
+            disabled={loading}
+            className="h-12 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 disabled:opacity-60"
+          >
+            {loading ? 'Saving…' : editMode ? 'Update Medication' : 'Save Medication'}
+          </button>
+        </div>
       </div>
     </div>
   )
