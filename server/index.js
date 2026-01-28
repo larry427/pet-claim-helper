@@ -515,6 +515,89 @@ if (error) {
     }
   })
 
+  // Demo account login notification endpoint
+  app.options('/api/notify-demo-login', (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*')
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS')
+    res.set('Access-Control-Allow-Headers', 'Content-Type')
+    return res.sendStatus(204)
+  })
+  app.post('/api/notify-demo-login', async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*')
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS')
+    res.set('Access-Control-Allow-Headers', 'Content-Type')
+
+    try {
+      const { email, user_id, logged_in_at } = req.body
+
+      if (!email || !user_id) {
+        return res.status(400).json({ ok: false, error: 'Missing required fields' })
+      }
+
+      // Verify this is actually a demo account (prevent abuse)
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('is_demo_account, full_name')
+        .eq('id', user_id)
+        .single()
+
+      if (profileError || !profile?.is_demo_account) {
+        console.log('[notify-demo-login] Not a demo account or profile not found:', email)
+        return res.status(200).json({ ok: true, sent: false, reason: 'Not a demo account' })
+      }
+
+      // Send notification email to admin
+      const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || 'larry@vrexistence.com'
+      const loginTime = new Date(logged_in_at).toLocaleString('en-US', {
+        timeZone: 'America/Los_Angeles',
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      })
+
+      const result = await resend.emails.send({
+        from: process.env.MAIL_FROM || 'Pet Claim Helper <onboarding@resend.dev>',
+        to: [adminEmail],
+        subject: `🐾 Demo Account Login: ${email}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #059669;">Demo Account Login Notification</h2>
+            <p>A demo account has logged in to Pet Claim Helper:</p>
+            <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
+              <tr>
+                <td style="padding: 10px; border: 1px solid #e5e7eb; font-weight: bold; background: #f9fafb;">Email</td>
+                <td style="padding: 10px; border: 1px solid #e5e7eb;">${email}</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #e5e7eb; font-weight: bold; background: #f9fafb;">Name</td>
+                <td style="padding: 10px; border: 1px solid #e5e7eb;">${profile.full_name || 'Not set'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #e5e7eb; font-weight: bold; background: #f9fafb;">Login Time</td>
+                <td style="padding: 10px; border: 1px solid #e5e7eb;">${loginTime} (Pacific)</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px; border: 1px solid #e5e7eb; font-weight: bold; background: #f9fafb;">User ID</td>
+                <td style="padding: 10px; border: 1px solid #e5e7eb; font-size: 12px;">${user_id}</td>
+              </tr>
+            </table>
+            <p style="color: #6b7280; font-size: 14px;">This is an automated notification from Pet Claim Helper.</p>
+          </div>
+        `
+      })
+
+      console.log('[notify-demo-login] ✅ Notification sent for:', email, 'Message ID:', result?.id)
+      return res.json({ ok: true, sent: true, messageId: result?.id })
+    } catch (err) {
+      console.error('[notify-demo-login] Error:', err)
+      return res.status(500).json({ ok: false, error: String(err?.message || err) })
+    }
+  })
+
   // Daily deadline reminders endpoint (used by cron)
   app.options('/api/send-deadline-reminders', (req, res) => {
     res.set('Access-Control-Allow-Origin', '*')

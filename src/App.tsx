@@ -443,6 +443,34 @@ function MainApp() {
         setAuthView('app')
         dbEnsureProfile(session.user.id, session.user.email ?? null).catch(() => {})
 
+        // Track user login (only on actual sign-in events, not token refreshes)
+        if (event === 'SIGNED_IN') {
+          (async () => {
+            try {
+              // Check if user is a demo account
+              const { data: profileData } = await supabase
+                .from('profiles')
+                .select('is_demo_account')
+                .eq('id', session.user.id)
+                .single()
+
+              const isDemoAccount = profileData?.is_demo_account ?? false
+
+              // Insert login record
+              await supabase
+                .from('user_logins')
+                .insert({
+                  user_id: session.user.id,
+                  email: session.user.email ?? '',
+                  is_demo_account: isDemoAccount,
+                  user_agent: navigator.userAgent
+                })
+            } catch (err) {
+              // Silently ignore login tracking errors
+            }
+          })()
+        }
+
         // Check for pending SMS consent from signup
         try {
           const pendingConsent = localStorage.getItem('pending_sms_consent')

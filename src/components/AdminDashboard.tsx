@@ -43,6 +43,16 @@ interface FoodTrackingUserStats {
   alerts: number;
 }
 
+interface UserLogin {
+  id: string;
+  user_id: string;
+  email: string;
+  is_demo_account: boolean;
+  logged_in_at: string;
+  user_agent: string | null;
+  created_at: string;
+}
+
 type SortColumn = 'email' | 'name' | 'petsCount' | 'claimsCount' | 'lastActive';
 type SortDirection = 'asc' | 'desc';
 
@@ -92,6 +102,7 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<UserWithStats[]>([]);
   const [allClaims, setAllClaims] = useState<ClaimWithDetails[]>([]);
   const [allFoodEntries, setAllFoodEntries] = useState<FoodEntryWithDetails[]>([]);
+  const [recentLogins, setRecentLogins] = useState<UserLogin[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -253,9 +264,22 @@ export default function AdminDashboard() {
         };
       });
 
+      // Load recent logins
+      const { data: logins, error: loginsError } = await supabase
+        .from('user_logins')
+        .select('*')
+        .order('logged_in_at', { ascending: false })
+        .limit(50);
+
+      if (loginsError) {
+        console.error('Error loading logins (table may not exist yet):', loginsError);
+        // Don't throw - logins table might not exist yet
+      }
+
       setUsers(usersWithStats);
       setAllClaims(claimsWithDetails);
       setAllFoodEntries(foodEntriesWithDetails);
+      setRecentLogins(logins || []);
     } catch (err: any) {
       console.error('Error loading admin data:', err);
       setError(err.message);
@@ -566,6 +590,61 @@ export default function AdminDashboard() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Recent Logins */}
+      <div className="bg-white rounded-lg shadow mb-8">
+        <div className="px-6 py-4 border-b">
+          <h2 className="text-xl font-semibold text-gray-900">Recent Logins</h2>
+          <p className="text-sm text-gray-600 mt-1">Last 50 user logins</p>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {recentLogins.length > 0 ? (
+            recentLogins.map(login => {
+              const emailPrefix = (login.email || '').split('@')[0];
+              const domain = (login.email || '').split('@')[1] || '';
+              const relativeTime = getRelativeTime(login.logged_in_at);
+              const isMobile = login.user_agent?.toLowerCase().includes('mobile') ||
+                              login.user_agent?.toLowerCase().includes('iphone') ||
+                              login.user_agent?.toLowerCase().includes('android');
+              const deviceIcon = isMobile ? '📱' : '💻';
+
+              return (
+                <div key={login.id} className="px-6 py-3 hover:bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">{deviceIcon}</span>
+                      <div className="text-sm">
+                        <span className="font-medium text-gray-900">{emailPrefix}@</span>
+                        <span className="text-gray-500">{domain}</span>
+                        {login.is_demo_account && (
+                          <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                            Demo
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-500 whitespace-nowrap ml-4">{relativeTime}</span>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="px-6 py-8 text-center text-sm text-gray-500">
+              No login records yet. Run the SQL migration to create the user_logins table.
+            </div>
+          )}
+        </div>
+        {recentLogins.length > 0 && (
+          <div className="px-6 py-3 bg-gray-50 border-t text-sm text-gray-600">
+            <div className="flex justify-between">
+              <span>Total shown: {recentLogins.length}</span>
+              <span>
+                Demo accounts: {recentLogins.filter(l => l.is_demo_account).length}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* HIDDEN: Food Tracking Metrics - set to true to re-enable */}
