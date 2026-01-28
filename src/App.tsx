@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { fileToDataUrl } from './lib/fileUtils'
-import { scanDocument, isImageFile, preloadOpenCV } from './lib/documentScanner'
+import { scanDocument, isImageFile } from './lib/documentScanner'
 import type { ExtractedBill, LineItem, PetProfile, PetSpecies, InsuranceCompany, MultiPetExtracted, ExtractedPetGroup } from './types'
 import { pdfFileToPngDataUrl } from './lib/pdfToImage'
 import { dbLoadPets, dbUpsertPet, dbDeletePet, dbEnsureProfile } from './lib/petStorage'
@@ -334,10 +334,8 @@ function MainApp() {
   //   }
   // }, [])
 
-  // Preload OpenCV.js in the background for document scanning
-  useEffect(() => {
-    preloadOpenCV()
-  }, [])
+  // OpenCV.js is loaded on-demand when user scans a document (not preloaded)
+  // This avoids blocking mobile devices with the 10+ MB download on startup
 
   // Force re-render when extracted data changes - fix for mobile Safari
   useEffect(() => {

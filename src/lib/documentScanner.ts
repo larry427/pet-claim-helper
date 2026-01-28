@@ -10,13 +10,20 @@ declare const cv: any
 
 // Track OpenCV loading state
 let cvReady = false
+let cvLoadFailed = false // Permanently disable if loading fails
 let cvLoadPromise: Promise<void> | null = null
 
 /**
  * Load OpenCV.js asynchronously
  * Returns a promise that resolves when OpenCV is ready
+ * If loading fails, marks OpenCV as permanently disabled for this session
  */
 export async function loadOpenCV(): Promise<void> {
+  // If loading previously failed, don't try again
+  if (cvLoadFailed) {
+    return Promise.reject(new Error('OpenCV loading previously failed'))
+  }
+
   // Already loaded
   if (cvReady && typeof cv !== 'undefined') {
     return Promise.resolve()
@@ -35,7 +42,13 @@ export async function loadOpenCV(): Promise<void> {
       return
     }
 
-    // Dynamic import of opencv.js
+    // Dynamic import of opencv.js with timeout wrapper
+    const loadTimeout = setTimeout(() => {
+      cvLoadFailed = true
+      cvLoadPromise = null
+      reject(new Error('OpenCV.js load timeout'))
+    }, 15000) // 15 second timeout for the entire load process
+
     import('@techstark/opencv-js')
       .then((opencvModule) => {
         // The module exports cv directly or as default
@@ -44,11 +57,13 @@ export async function loadOpenCV(): Promise<void> {
         // Wait for OpenCV to be ready
         if (cvInstance && cvInstance.onRuntimeInitialized !== undefined) {
           cvInstance.onRuntimeInitialized = () => {
+            clearTimeout(loadTimeout)
             cvReady = true
             resolve()
           }
         } else if (cvInstance && cvInstance.Mat) {
           // Already initialized
+          clearTimeout(loadTimeout)
           cvReady = true
           resolve()
         } else {
@@ -56,27 +71,41 @@ export async function loadOpenCV(): Promise<void> {
           const checkReady = setInterval(() => {
             if (typeof cv !== 'undefined' && cv.Mat) {
               clearInterval(checkReady)
+              clearTimeout(loadTimeout)
               cvReady = true
               resolve()
             }
           }, 100)
 
-          // Timeout after 10 seconds
+          // Timeout after 10 seconds of polling
           setTimeout(() => {
             clearInterval(checkReady)
             if (!cvReady) {
+              clearTimeout(loadTimeout)
+              cvLoadFailed = true
+              cvLoadPromise = null
               reject(new Error('OpenCV.js failed to initialize'))
             }
           }, 10000)
         }
       })
       .catch((err) => {
+        clearTimeout(loadTimeout)
+        cvLoadFailed = true
+        cvLoadPromise = null
         console.error('[documentScanner] Failed to load OpenCV.js:', err)
         reject(err)
       })
   })
 
   return cvLoadPromise
+}
+
+/**
+ * Check if OpenCV loading has been disabled due to previous failure
+ */
+export function isOpenCVDisabled(): boolean {
+  return cvLoadFailed
 }
 
 /**
@@ -332,8 +361,37 @@ export type ScanResult = {
  * @returns Processed image as base64 and blob, with metadata
  */
 export async function scanDocument(input: File | string): Promise<ScanResult> {
+  // If OpenCV previously failed to load, skip scanning entirely and return original
+  if (cvLoadFailed) {
+    console.log('[documentScanner] OpenCV disabled, using original image')
+    if (input instanceof File) {
+      try {
+        const base64 = await fileToBase64Fallback(input)
+        return {
+          success: true,
+          processed: false,
+          base64,
+          blob: input,
+          originalWidth: 0,
+          originalHeight: 0,
+        }
+      } catch {
+        // Fallback failed too
+      }
+    }
+    return {
+      success: false,
+      processed: false,
+      base64: '',
+      blob: new Blob(),
+      originalWidth: 0,
+      originalHeight: 0,
+      error: 'OpenCV disabled'
+    }
+  }
+
   try {
-    // Ensure OpenCV is loaded
+    // Ensure OpenCV is loaded (with timeout protection)
     await loadOpenCV()
 
     if (!isOpenCVReady()) {
