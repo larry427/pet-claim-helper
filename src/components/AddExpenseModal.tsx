@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react'
 import ManualExpenseForm from './ManualExpenseForm'
 import { NewExpense, ExpenseCategory } from '../lib/useExpenses'
 import { supabase } from '../lib/supabase'
-import { scanDocument, isImageFile } from '../lib/documentScanner'
+// Document scanner disabled for now - too slow on mobile
+// import { scanDocument, isImageFile } from '../lib/documentScanner'
 
 type Props = {
   onClose: () => void
@@ -26,7 +27,6 @@ export default function AddExpenseModal({ onClose, onSubmit }: Props) {
 
   // Scan state
   const [selectedFile, setSelectedFile] = useState<{ file: File; objectUrl: string } | null>(null)
-  const [isScanning, setIsScanning] = useState(false) // Document edge detection
   const [isProcessing, setIsProcessing] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
   const [extractedData, setExtractedData] = useState<ExtractedReceipt | null>(null)
@@ -72,7 +72,7 @@ export default function AddExpenseModal({ onClose, onSubmit }: Props) {
     }
   }
 
-  const handleFileSelect = async (file: File | null) => {
+  const handleFileSelect = (file: File | null) => {
     if (!file) return
 
     // Validate file type
@@ -86,39 +86,11 @@ export default function AddExpenseModal({ onClose, onSubmit }: Props) {
       URL.revokeObjectURL(selectedFile.objectUrl)
     }
 
+    // Document scanning disabled - too slow on mobile
+    // Just use the file directly
+    const objectUrl = URL.createObjectURL(file)
+    setSelectedFile({ file, objectUrl })
     setScanError(null)
-
-    // Run document edge detection for images
-    if (isImageFile(file)) {
-      setIsScanning(true)
-      try {
-        const scanResult = await scanDocument(file)
-        if (scanResult.success) {
-          // Use the processed (cropped/straightened) image
-          const processedFile = new File([scanResult.blob], file.name, { type: 'image/jpeg' })
-          const objectUrl = URL.createObjectURL(scanResult.blob)
-          setSelectedFile({ file: processedFile, objectUrl })
-          if (scanResult.processed) {
-            console.log('[AddExpenseModal] Receipt auto-cropped')
-          }
-        } else {
-          // Fallback to original image
-          const objectUrl = URL.createObjectURL(file)
-          setSelectedFile({ file, objectUrl })
-        }
-      } catch (err) {
-        console.error('[AddExpenseModal] Document scan error:', err)
-        // Fallback to original image
-        const objectUrl = URL.createObjectURL(file)
-        setSelectedFile({ file, objectUrl })
-      } finally {
-        setIsScanning(false)
-      }
-    } else {
-      // Non-image file (shouldn't happen given validation above)
-      const objectUrl = URL.createObjectURL(file)
-      setSelectedFile({ file, objectUrl })
-    }
   }
 
   const handleProcessReceipt = async () => {
@@ -363,14 +335,7 @@ export default function AddExpenseModal({ onClose, onSubmit }: Props) {
                 </div>
               )}
 
-              {isScanning ? (
-                // Scanning/cropping indicator
-                <div className="flex flex-col items-center justify-center py-12 px-4 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 border-dashed border-blue-300 dark:border-blue-700">
-                  <div className="w-14 h-14 border-4 border-blue-200 dark:border-blue-700 border-t-blue-500 dark:border-t-blue-400 rounded-full animate-spin mb-4" />
-                  <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">Detecting receipt edges...</p>
-                  <p className="text-xs text-blue-600/70 dark:text-blue-500 mt-1">Auto-cropping and straightening</p>
-                </div>
-              ) : !selectedFile ? (
+              {!selectedFile ? (
                 <>
                   {/* Upload options */}
                   <div className="space-y-4">

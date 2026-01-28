@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { fileToDataUrl } from './lib/fileUtils'
-import { scanDocument, isImageFile } from './lib/documentScanner'
+// Document scanner disabled for now - too slow on mobile
+// import { scanDocument, isImageFile } from './lib/documentScanner'
 import type { ExtractedBill, LineItem, PetProfile, PetSpecies, InsuranceCompany, MultiPetExtracted, ExtractedPetGroup } from './types'
 import { pdfFileToPngDataUrl } from './lib/pdfToImage'
 import { dbLoadPets, dbUpsertPet, dbDeletePet, dbEnsureProfile } from './lib/petStorage'
@@ -154,7 +155,6 @@ function MainApp() {
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [isScanning, setIsScanning] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [extracted, setExtracted] = useState<ExtractedBill | null>(null)
@@ -897,40 +897,13 @@ function MainApp() {
     setExtracted(null)
     setErrorMessage(null)
 
-    // For image files, try to auto-crop/straighten the document
-    if (isImageFile(file)) {
-      setIsScanning(true)
-      try {
-        const scanResult = await scanDocument(file)
-
-        if (scanResult.success) {
-          // Create a new File from the processed blob
-          const processedFile = new File([scanResult.blob], file.name, { type: 'image/jpeg' })
-          const objectUrl = URL.createObjectURL(scanResult.blob)
-
-          setSelectedFile({ file: processedFile, objectUrl })
-
-          if (scanResult.processed) {
-            console.log(`[App] Document scanned: ${scanResult.originalWidth}x${scanResult.originalHeight} → ${scanResult.croppedWidth}x${scanResult.croppedHeight}`)
-          } else {
-            console.log('[App] No document detected, using original image')
-          }
-        } else {
-          // Fallback to original file
-          const objectUrl = URL.createObjectURL(file)
-          setSelectedFile({ file, objectUrl })
-          console.log('[App] Scan failed, using original image')
-        }
-      } catch (err) {
-        console.error('[App] Document scanning error:', err)
-        // Fallback to original file
-        const objectUrl = URL.createObjectURL(file)
-        setSelectedFile({ file, objectUrl })
-      } finally {
-        setIsScanning(false)
-      }
+    // Document scanning disabled - too slow on mobile
+    // Just use the file directly
+    if (file.type.startsWith('image/')) {
+      const objectUrl = URL.createObjectURL(file)
+      setSelectedFile({ file, objectUrl })
     } else {
-      // PDF or other file type - no scanning needed
+      // PDF or other file type
       setSelectedFile({ file, objectUrl: undefined })
     }
   }
@@ -2150,18 +2123,7 @@ function MainApp() {
                   className="sr-only"
                 />
 
-                {/* Scanning indicator */}
-                {isScanning && (
-                  <div className="mt-6 w-full">
-                    <div className="flex flex-col items-center justify-center py-8 px-4 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-200 dark:border-emerald-800">
-                      <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-500 rounded-full animate-spin mb-4" />
-                      <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Detecting document edges...</p>
-                      <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70 mt-1">Auto-cropping and straightening</p>
-                    </div>
-                  </div>
-                )}
-
-                {selectedFile && !isScanning && (
+                {selectedFile && (
                   <div className="mt-6 w-full text-left">
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
