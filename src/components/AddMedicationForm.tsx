@@ -286,7 +286,7 @@ export default function AddMedicationForm({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4" onClick={onClose}>
       <div
-        className="relative w-full sm:max-w-md max-h-[85vh] sm:max-h-[90vh] flex flex-col rounded-t-2xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl"
+        className="relative w-full sm:max-w-md max-h-[70vh] sm:max-h-[90vh] mb-20 sm:mb-0 flex flex-col rounded-t-2xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Fixed Header */}
