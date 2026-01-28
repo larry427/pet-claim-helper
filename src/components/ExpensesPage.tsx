@@ -7,6 +7,7 @@ type Props = {
   userId: string | null
   onClose: () => void
   onModalStateChange?: (isOpen: boolean) => void
+  refreshKey?: number
 }
 
 // Category colors for the pie chart - distinct harmonious palette
@@ -19,13 +20,20 @@ const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
   other: '#64748b'             // slate-500
 }
 
-export default function ExpensesPage({ userId, onClose, onModalStateChange }: Props) {
+export default function ExpensesPage({ userId, onClose, onModalStateChange, refreshKey }: Props) {
   // Disable browser scroll restoration to prevent mobile scroll position issues
   if (typeof window !== 'undefined') {
     window.history.scrollRestoration = 'manual'
   }
 
   const { expenses, summary, loading, error, addExpense, updateExpense, deleteExpense, refreshExpenses } = useExpenses(userId)
+
+  // Refresh expenses when refreshKey changes (triggered by external expense additions)
+  useEffect(() => {
+    if (refreshKey !== undefined && refreshKey > 0) {
+      refreshExpenses()
+    }
+  }, [refreshKey, refreshExpenses])
 
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)

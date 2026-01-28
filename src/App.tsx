@@ -309,6 +309,8 @@ function MainApp() {
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false)
   // Track when ExpensesPage has a modal open
   const [expensesPageModalOpen, setExpensesPageModalOpen] = useState(false)
+  // Refresh key for ExpensesPage - incremented when expense added from main modal
+  const [expensesRefreshKey, setExpensesRefreshKey] = useState(0)
 
   // Check if any modal is open (used to hide BottomTabBar on mobile)
   // This prevents the tab bar from blocking Save buttons in modals
@@ -1722,6 +1724,7 @@ function MainApp() {
             userId={userId}
             onClose={() => setActiveView('app')}
             onModalStateChange={setExpensesPageModalOpen}
+            refreshKey={expensesRefreshKey}
           />
         )}
         {authView !== 'app' && (
@@ -2515,7 +2518,7 @@ function MainApp() {
                 + Add Expense
               </button>
             </div>
-            <ExpensesPage userId={userId} onClose={() => setActiveTab('home')} onModalStateChange={setExpensesPageModalOpen} />
+            <ExpensesPage userId={userId} onClose={() => setActiveTab('home')} onModalStateChange={setExpensesPageModalOpen} refreshKey={expensesRefreshKey} />
           </section>
         )}
 
@@ -4148,7 +4151,14 @@ function MainApp() {
       {showAddExpenseModal && (
         <AddExpenseModal
           onClose={() => setShowAddExpenseModal(false)}
-          onSubmit={addExpense}
+          onSubmit={async (expense) => {
+            const result = await addExpense(expense)
+            if (result.success) {
+              // Trigger refresh in ExpensesPage
+              setExpensesRefreshKey(k => k + 1)
+            }
+            return result
+          }}
         />
       )}
 
