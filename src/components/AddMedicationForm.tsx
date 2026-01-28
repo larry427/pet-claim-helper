@@ -284,9 +284,9 @@ export default function AddMedicationForm({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4" onClick={onClose}>
       <div
-        className="relative w-full max-w-md max-h-[90vh] flex flex-col rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl"
+        className="relative w-full sm:max-w-md max-h-[85vh] sm:max-h-[90vh] flex flex-col rounded-t-2xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Fixed Header */}
@@ -370,8 +370,12 @@ export default function AddMedicationForm({
                 <input
                   type="number"
                   min={1}
-                  value={customDays}
-                  onChange={(e) => setCustomDays(Number(e.target.value))}
+                  value={customDays || ''}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    // Parse as integer to strip leading zeros, default to empty for clearing
+                    setCustomDays(val === '' ? 0 : parseInt(val, 10) || 1)
+                  }}
                   className="mt-2 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-3"
                 />
               </div>
@@ -436,8 +440,8 @@ export default function AddMedicationForm({
           </form>
         </div>
 
-        {/* Fixed Footer */}
-        <div className="flex-shrink-0 p-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row gap-3 sm:justify-end">
+        {/* Fixed Footer - flex-col-reverse puts Save at top on mobile */}
+        <div className="flex-shrink-0 px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
           <button type="button" onClick={onClose} className="h-12 rounded-lg border border-slate-300 dark:border-slate-700 px-4">Cancel</button>
           <button
             type="submit"
