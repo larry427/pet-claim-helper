@@ -13,12 +13,13 @@ type MedicationsSectionProps = {
 type MedicationWithPet = MedicationRow & {
   pet_name: string
   pet_species: string
-  todayDoseGiven: boolean
+  dosesGivenToday: number
+  dosesExpectedToday: number
 }
 
 type MedicationStatus = {
   label: string
-  color: 'orange' | 'emerald' | 'green'
+  color: 'red' | 'orange' | 'emerald' | 'green'
 }
 
 export default function MedicationsSection({ userId, pets, onAddMedication, onManage, refreshKey }: MedicationsSectionProps) {
@@ -49,29 +50,44 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
 
         if (error) throw error
 
-        // Fetch today's doses for these medications
+        // Fetch today's given doses for these medications
         const medIds = (data || []).map((m: any) => m.id)
         let todayDoses: any[] = []
         if (medIds.length > 0) {
+          // Query doses given today (by given_time date)
           const { data: doses } = await supabase
             .from('medication_doses')
-            .select('medication_id, status')
+            .select('medication_id')
             .in('medication_id', medIds)
-            .gte('scheduled_time', todayStart)
-            .lte('scheduled_time', todayEnd)
+            .gte('given_time', todayStart)
+            .lte('given_time', todayEnd)
             .eq('status', 'given')
           todayDoses = doses || []
         }
 
-        // Create a set of medication IDs that have a dose given today
-        const medsWithDoseToday = new Set(todayDoses.map((d: any) => d.medication_id))
+        // Count doses given today per medication
+        const dosesGivenByMed: Record<string, number> = {}
+        todayDoses.forEach((d: any) => {
+          dosesGivenByMed[d.medication_id] = (dosesGivenByMed[d.medication_id] || 0) + 1
+        })
 
-        const medsWithPets = (data || []).map((med: any) => ({
-          ...med,
-          pet_name: med.pets?.name || 'Unknown Pet',
-          pet_species: med.pets?.species || 'dog',
-          todayDoseGiven: medsWithDoseToday.has(med.id)
-        }))
+        const medsWithPets = (data || []).map((med: any) => {
+          // Calculate expected doses per day from reminder_times
+          let dosesExpectedToday = 1
+          if (Array.isArray(med.reminder_times)) {
+            dosesExpectedToday = med.reminder_times.length
+          } else if (med.reminder_times?.type === 'as_needed') {
+            dosesExpectedToday = 0 // No expected doses for as-needed
+          }
+
+          return {
+            ...med,
+            pet_name: med.pets?.name || 'Unknown Pet',
+            pet_species: med.pets?.species || 'dog',
+            dosesGivenToday: dosesGivenByMed[med.id] || 0,
+            dosesExpectedToday
+          }
+        })
 
         setMedications(medsWithPets)
       } catch (err) {
@@ -100,31 +116,44 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
   const calculateStatus = (med: MedicationWithPet): MedicationStatus => {
     const now = new Date()
     const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
 
     const reminderTimes = med.reminder_times
 
-    // If today's dose was already given, show "Given today" instead of "Due Now"
-    if (med.todayDoseGiven) {
-      return { label: 'Given today ✓', color: 'green' }
+    // All today's doses given
+    if (med.dosesExpectedToday > 0 && med.dosesGivenToday >= med.dosesExpectedToday) {
+      return { label: 'All given ✓', color: 'green' }
     }
 
     if (Array.isArray(reminderTimes)) {
-      // Daily frequencies
-      const withinOneHour = reminderTimes.some(time => {
-        const [hour, minute] = time.split(':')
-        const reminderMinutes = parseInt(hour) * 60 + parseInt(minute)
-        const currentMinutes = now.getHours() * 60 + now.getMinutes()
-        const diff = Math.abs(currentMinutes - reminderMinutes)
-        return diff <= 60
-      })
+      // Daily frequencies - sort times chronologically
+      const sortedTimes = [...reminderTimes].sort()
 
-      if (withinOneHour) {
-        return { label: 'Due Now', color: 'orange' }
+      // Find times that have passed without a dose
+      const passedTimes = sortedTimes.filter(time => time <= currentTime)
+      const overdueCount = Math.max(0, passedTimes.length - med.dosesGivenToday)
+
+      // Check if overdue (a scheduled time has passed and not enough doses given)
+      if (overdueCount > 0) {
+        const lastOverdueTime = passedTimes[passedTimes.length - 1]
+        return { label: `Overdue ${formatTime12Hour(lastOverdueTime)}`, color: 'red' }
       }
 
-      const nextTime = reminderTimes.find(time => time > currentTime)
+      // Check if within 1 hour of next scheduled time
+      const nextTime = sortedTimes.find(time => time > currentTime)
       if (nextTime) {
-        return { label: 'Later today', color: 'emerald' }
+        const [hour, minute] = nextTime.split(':')
+        const reminderMinutes = parseInt(hour) * 60 + parseInt(minute)
+        const diff = reminderMinutes - currentMinutes
+        if (diff <= 60 && diff > 0) {
+          return { label: `Due ${formatTime12Hour(nextTime)}`, color: 'orange' }
+        }
+        return { label: `Next ${formatTime12Hour(nextTime)}`, color: 'emerald' }
+      }
+
+      // All times passed for today, show partial if some given
+      if (med.dosesGivenToday > 0) {
+        return { label: `${med.dosesGivenToday}/${med.dosesExpectedToday} given`, color: 'orange' }
       }
 
       return { label: 'Tomorrow', color: 'emerald' }
@@ -133,15 +162,23 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
 
       if (rt.type === 'weekly') {
         const todayDayOfWeek = now.getDay() // 0=Sunday, 1=Monday, etc
-        if (todayDayOfWeek === rt.dayOfWeek && currentTime < rt.time) {
-          return { label: 'Today', color: 'orange' }
+        if (todayDayOfWeek === rt.dayOfWeek) {
+          if (currentTime < rt.time) {
+            return { label: `Due ${formatTime12Hour(rt.time)}`, color: 'orange' }
+          } else if (med.dosesGivenToday === 0) {
+            return { label: `Overdue ${formatTime12Hour(rt.time)}`, color: 'red' }
+          }
         }
-        const daysUntil = (rt.dayOfWeek - todayDayOfWeek + 7) % 7
+        const daysUntil = (rt.dayOfWeek - todayDayOfWeek + 7) % 7 || 7
         return { label: `In ${daysUntil} days`, color: 'emerald' }
       } else if (rt.type === 'monthly') {
         const todayDayOfMonth = now.getDate()
-        if (todayDayOfMonth === rt.dayOfMonth && currentTime < rt.time) {
-          return { label: 'Due today', color: 'orange' }
+        if (todayDayOfMonth === rt.dayOfMonth) {
+          if (currentTime < rt.time) {
+            return { label: `Due ${formatTime12Hour(rt.time)}`, color: 'orange' }
+          } else if (med.dosesGivenToday === 0) {
+            return { label: `Overdue ${formatTime12Hour(rt.time)}`, color: 'red' }
+          }
         }
         const daysUntil = rt.dayOfMonth - todayDayOfMonth
         if (daysUntil > 0) {
@@ -179,6 +216,7 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
   }
 
   const statusColors = {
+    red: 'bg-red-100 text-red-600',
     orange: 'bg-orange-100 text-orange-600',
     emerald: 'bg-emerald-100 text-emerald-600',
     green: 'bg-green-100 text-green-600'

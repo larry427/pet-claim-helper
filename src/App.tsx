@@ -586,6 +586,7 @@ function MainApp() {
   }, [userId])
 
   // Fetch today's medication alerts for Home tab
+  // NEW SIMPLIFIED: Calculate due/overdue from medication schedules, not dose records
   useEffect(() => {
     if (!userId) {
       setMedicationAlerts([])
@@ -594,50 +595,109 @@ function MainApp() {
 
     const fetchMedicationAlerts = async () => {
       try {
-        // Get today's date range in local time
         const now = new Date()
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
-        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString()
+        const today = now.toISOString().split('T')[0]
+        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+        const todayStart = `${today}T00:00:00`
+        const todayEnd = `${today}T23:59:59`
 
-        // Fetch today's pending doses with medication and pet info
-        const { data: doses, error } = await supabase
-          .from('medication_doses')
-          .select(`
-            id,
-            scheduled_time,
-            status,
-            medications!inner(
-              id,
-              medication_name,
-              pet_id,
-              pets!inner(name)
-            )
-          `)
+        // Fetch active medications with their schedules
+        const { data: medications, error: medsError } = await supabase
+          .from('medications')
+          .select('id, medication_name, reminder_times, pets(name)')
           .eq('user_id', userId)
-          .gte('scheduled_time', todayStart)
-          .lte('scheduled_time', todayEnd)
-          .neq('status', 'given')
-          .order('scheduled_time', { ascending: true })
-          .limit(5)
+          .or(`end_date.is.null,end_date.gte.${today}`)
+          .order('created_at', { ascending: false })
 
-        if (error) {
-          console.error('Error fetching medication alerts:', error)
+        if (medsError) {
+          console.error('Error fetching medications:', medsError)
           return
         }
 
-        const alerts: MedicationAlert[] = (doses || []).map((dose: any) => {
-          const scheduledDate = new Date(dose.scheduled_time)
-          const isOverdue = scheduledDate < now
-          return {
-            id: dose.id,
-            medicationName: dose.medications?.medication_name || 'Medication',
-            petName: dose.medications?.pets?.name || 'Pet',
-            scheduledTime: scheduledDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
-            isOverdue
-          }
+        if (!medications || medications.length === 0) {
+          setMedicationAlerts([])
+          return
+        }
+
+        // Fetch today's given doses for these medications
+        const medIds = medications.map((m: any) => m.id)
+        const { data: givenDoses } = await supabase
+          .from('medication_doses')
+          .select('medication_id')
+          .in('medication_id', medIds)
+          .eq('status', 'given')
+          .gte('given_time', todayStart)
+          .lte('given_time', todayEnd)
+
+        // Count doses given today per medication
+        const dosesGivenByMed: Record<string, number> = {}
+        ;(givenDoses || []).forEach((d: any) => {
+          dosesGivenByMed[d.medication_id] = (dosesGivenByMed[d.medication_id] || 0) + 1
         })
 
-        setMedicationAlerts(alerts)
+        // Calculate alerts from medication schedules
+        const alerts: MedicationAlert[] = []
+
+        for (const med of medications as any[]) {
+          const reminderTimes = med.reminder_times
+
+          // Skip non-daily medications for now (weekly, monthly, etc.)
+          if (!Array.isArray(reminderTimes)) continue
+
+          const sortedTimes = [...reminderTimes].sort()
+          const givenCount = dosesGivenByMed[med.id] || 0
+
+          // Find times that haven't been covered by given doses
+          const passedTimes = sortedTimes.filter(time => time <= currentTime)
+          const overdueCount = Math.max(0, passedTimes.length - givenCount)
+
+          // Add overdue alerts
+          if (overdueCount > 0) {
+            const overdueTime = passedTimes[passedTimes.length - 1]
+            const [h, m] = overdueTime.split(':')
+            const timeDate = new Date(now)
+            timeDate.setHours(parseInt(h), parseInt(m), 0, 0)
+
+            alerts.push({
+              id: `${med.id}-overdue`,
+              medicationName: med.medication_name,
+              petName: med.pets?.name || 'Pet',
+              scheduledTime: timeDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+              isOverdue: true
+            })
+          } else {
+            // Check for upcoming doses (within 60 minutes)
+            const futureTimes = sortedTimes.filter(time => time > currentTime)
+            if (futureTimes.length > 0) {
+              const nextTime = futureTimes[0]
+              const [h, m] = nextTime.split(':')
+              const nextMinutes = parseInt(h) * 60 + parseInt(m)
+              const currentMinutes = now.getHours() * 60 + now.getMinutes()
+
+              // Only show if within 60 minutes
+              if (nextMinutes - currentMinutes <= 60) {
+                const timeDate = new Date(now)
+                timeDate.setHours(parseInt(h), parseInt(m), 0, 0)
+
+                alerts.push({
+                  id: `${med.id}-upcoming`,
+                  medicationName: med.medication_name,
+                  petName: med.pets?.name || 'Pet',
+                  scheduledTime: timeDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+                  isOverdue: false
+                })
+              }
+            }
+          }
+        }
+
+        // Sort: overdue first, then by time
+        alerts.sort((a, b) => {
+          if (a.isOverdue !== b.isOverdue) return a.isOverdue ? -1 : 1
+          return 0
+        })
+
+        setMedicationAlerts(alerts.slice(0, 5))
       } catch (err) {
         console.error('Error in fetchMedicationAlerts:', err)
       }

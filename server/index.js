@@ -861,6 +861,7 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
   })
 
   // Mark medication dose as given
+  // SIMPLIFIED VERSION - removed complex dose count validation
   // Supports three auth methods:
   // 1. Short code (new format) - /dose/Xk7mP9ab
   // 2. Magic link token (legacy format) - /dose/uuid?token=xyz
@@ -870,12 +871,13 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
       const { id: medicationId } = req.params
       const { userId, token, shortCode } = req.body
       const nowPST = DateTime.now().setZone('America/Los_Angeles')
+      const todayPST = nowPST.toISODate()
 
-      // METHOD 1: Short Code Authentication (new passwordless method)
+      // METHOD 1: Short Code Authentication (SMS links)
       if (shortCode) {
         console.log('[Mark Given] Short code auth attempt:', { shortCode })
 
-        // Find dose by short code (don't filter by status - we'll check it after)
+        // Find dose by short code
         const { data: dose, error: doseError } = await supabase
           .from('medication_doses')
           .select('*')
@@ -887,45 +889,10 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
           return res.status(401).json({ ok: false, error: 'Invalid or expired link.' })
         }
 
-        // If already given, return success (idempotent - don't error)
+        // If already given, return success (idempotent)
         if (dose.status === 'given') {
           console.log('[Mark Given] Dose already marked as given:', dose.id)
           return res.json({ ok: true, message: 'Medication already marked as given' })
-        }
-
-        // VALIDATION: Check if all doses are already complete
-        const { data: medication, error: medError } = await supabase
-          .from('medications')
-          .select('start_date, end_date, times_per_day')
-          .eq('id', dose.medication_id)
-          .single()
-
-        if (medError || !medication) {
-          console.error('[Mark Given] Medication not found:', medError?.message)
-          return res.status(404).json({ ok: false, error: 'Medication not found' })
-        }
-
-        // Calculate total expected doses
-        const start = DateTime.fromISO(medication.start_date)
-        const end = DateTime.fromISO(medication.end_date)
-        const totalDays = Math.max(1, Math.round(end.diff(start, 'days').days) + 1)
-        const totalExpectedDoses = totalDays * (medication.times_per_day || 1)
-
-        // Count existing given doses
-        const { count: givenCount, error: countError } = await supabase
-          .from('medication_doses')
-          .select('*', { count: 'exact', head: true })
-          .eq('medication_id', dose.medication_id)
-          .eq('status', 'given')
-
-        if (countError) {
-          console.error('[Mark Given] Error counting doses:', countError)
-          return res.status(500).json({ ok: false, error: 'Error checking dose count' })
-        }
-
-        if (givenCount >= totalExpectedDoses) {
-          console.log('[Mark Given] All doses already complete:', { givenCount, totalExpectedDoses })
-          return res.status(400).json({ ok: false, error: 'All doses have been recorded for this medication', isComplete: true })
         }
 
         // Mark dose as given
@@ -943,11 +910,10 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         }
 
         console.log('[Mark Given] ✅ Dose marked via short code:', dose.id)
-
         return res.json({ ok: true, message: 'Medication marked as given' })
       }
 
-      // METHOD 2: Magic Link Token Authentication (legacy passwordless)
+      // METHOD 2: Magic Link Token Authentication (legacy)
       if (token) {
         console.log('[Mark Given] Magic link auth attempt:', { medicationId, token: token.slice(0, 8) + '...' })
 
@@ -957,7 +923,6 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
           .select('*')
           .eq('medication_id', medicationId)
           .eq('one_time_token', token)
-          .eq('status', 'pending')
           .single()
 
         if (doseError || !dose) {
@@ -965,46 +930,19 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
           return res.status(401).json({ ok: false, error: 'Invalid or expired link. Please check your recent SMS.' })
         }
 
+        // If already given, return success (idempotent)
+        if (dose.status === 'given') {
+          console.log('[Mark Given] Dose already marked as given:', dose.id)
+          return res.json({ ok: true, message: 'Medication already marked as given' })
+        }
+
         // Check token expiration
-        const expiresAt = DateTime.fromISO(dose.token_expires_at)
-        if (nowPST > expiresAt) {
-          console.error('[Mark Given] Token expired:', { expiresAt: expiresAt.toISO(), now: nowPST.toISO() })
-          return res.status(401).json({ ok: false, error: 'This link has expired. Please check for a newer SMS.' })
-        }
-
-        // VALIDATION: Check if all doses are already complete
-        const { data: medication, error: medError } = await supabase
-          .from('medications')
-          .select('start_date, end_date, times_per_day')
-          .eq('id', medicationId)
-          .single()
-
-        if (medError || !medication) {
-          console.error('[Mark Given] Medication not found:', medError?.message)
-          return res.status(404).json({ ok: false, error: 'Medication not found' })
-        }
-
-        // Calculate total expected doses
-        const start = DateTime.fromISO(medication.start_date)
-        const end = DateTime.fromISO(medication.end_date)
-        const totalDays = Math.max(1, Math.round(end.diff(start, 'days').days) + 1)
-        const totalExpectedDoses = totalDays * (medication.times_per_day || 1)
-
-        // Count existing given doses
-        const { count: givenCount, error: countError } = await supabase
-          .from('medication_doses')
-          .select('*', { count: 'exact', head: true })
-          .eq('medication_id', medicationId)
-          .eq('status', 'given')
-
-        if (countError) {
-          console.error('[Mark Given] Error counting doses:', countError)
-          return res.status(500).json({ ok: false, error: 'Error checking dose count' })
-        }
-
-        if (givenCount >= totalExpectedDoses) {
-          console.log('[Mark Given] All doses already complete:', { givenCount, totalExpectedDoses })
-          return res.status(400).json({ ok: false, error: 'All doses have been recorded for this medication', isComplete: true })
+        if (dose.token_expires_at) {
+          const expiresAt = DateTime.fromISO(dose.token_expires_at)
+          if (nowPST > expiresAt) {
+            console.error('[Mark Given] Token expired:', { expiresAt: expiresAt.toISO(), now: nowPST.toISO() })
+            return res.status(401).json({ ok: false, error: 'This link has expired. Please check for a newer SMS.' })
+          }
         }
 
         // Mark dose as given and DELETE token (single use)
@@ -1013,7 +951,7 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
           .update({
             status: 'given',
             given_time: nowPST.toISO(),
-            one_time_token: null, // Delete token after use
+            one_time_token: null,
             token_expires_at: null
           })
           .eq('id', dose.id)
@@ -1024,12 +962,10 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         }
 
         console.log('[Mark Given] ✅ Dose marked via magic link:', dose.id)
-
         return res.json({ ok: true, message: 'Medication marked as given' })
       }
 
-      // METHOD 3: Traditional Session Authentication (requires Bearer token)
-      // Require Bearer token and validate that authenticated user matches claimed userId
+      // METHOD 3: Session Authentication (logged-in users)
       const authHeader = req.headers.authorization
       if (!authHeader?.startsWith('Bearer ')) {
         console.error('[Mark Given] Session auth - no authorization header')
@@ -1041,12 +977,10 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         console.error('[Mark Given] Session auth - invalid token:', authError?.message)
         return res.status(401).json({ ok: false, error: 'Invalid or expired token' })
       }
-      // Verify the authenticated user matches the claimed userId (if provided)
       if (userId && user.id !== userId) {
         console.error('[Mark Given] Session auth - user mismatch:', { authenticated: user.id, claimed: userId })
         return res.status(403).json({ ok: false, error: 'Forbidden - user mismatch' })
       }
-      // Use the authenticated user's ID
       const authenticatedUserId = user.id
 
       console.log('[Mark Given] Session auth attempt:', { medicationId, userId: authenticatedUserId })
@@ -1063,76 +997,33 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         return res.status(404).json({ ok: false, error: 'Medication not found' })
       }
 
-      // Find today's pending dose for this medication (using PST timezone)
-      const todayPST = nowPST.toISODate()
-
-      console.log('[Mark Given] Finding dose:', {
-        medicationId,
-        userId: authenticatedUserId,
-        todayPST
-      })
-
-      const { data: doses, error: doseError } = await supabase
+      // SIMPLIFIED: Insert a new dose log entry for today
+      // This replaces the old "find pending dose and update" logic
+      const { data: newDose, error: insertError } = await supabase
         .from('medication_doses')
-        .select('*')
-        .eq('medication_id', medicationId)
-        .eq('user_id', authenticatedUserId)
-        .eq('status', 'pending')
-        .gte('scheduled_time', `${todayPST}T00:00:00`)
-        .lt('scheduled_time', `${todayPST}T23:59:59`)
-        .order('scheduled_time', { ascending: true })
-        .limit(1)
-
-      if (doseError) {
-        console.error('[Mark Given] Error finding dose:', doseError)
-        return res.status(500).json({ ok: false, error: 'Error finding dose' })
-      }
-
-      if (!doses || doses.length === 0) {
-        console.error('[Mark Given] No pending dose found for today')
-        return res.status(404).json({ ok: false, error: 'No pending dose found for today' })
-      }
-
-      // VALIDATION: Check if all doses are already complete
-      const start = DateTime.fromISO(medication.start_date)
-      const end = DateTime.fromISO(medication.end_date)
-      const totalDays = Math.max(1, Math.round(end.diff(start, 'days').days) + 1)
-      const totalExpectedDoses = totalDays * (medication.times_per_day || 1)
-
-      // Count existing given doses
-      const { count: givenCount, error: countError } = await supabase
-        .from('medication_doses')
-        .select('*', { count: 'exact', head: true })
-        .eq('medication_id', medicationId)
-        .eq('status', 'given')
-
-      if (countError) {
-        console.error('[Mark Given] Error counting doses:', countError)
-        return res.status(500).json({ ok: false, error: 'Error checking dose count' })
-      }
-
-      if (givenCount >= totalExpectedDoses) {
-        console.log('[Mark Given] All doses already complete:', { givenCount, totalExpectedDoses })
-        return res.status(400).json({ ok: false, error: 'All doses have been recorded for this medication', isComplete: true })
-      }
-
-      // Mark the dose as given
-      const dose = doses[0]
-      const { error: updateError } = await supabase
-        .from('medication_doses')
-        .update({
+        .insert({
+          medication_id: medicationId,
+          user_id: authenticatedUserId,
           status: 'given',
-          given_time: nowPST.toISO()
+          given_time: nowPST.toISO(),
+          scheduled_time: nowPST.toISO(),
+          dose_date: todayPST
         })
-        .eq('id', dose.id)
+        .select()
+        .single()
 
-      if (updateError) {
-        console.error('[Mark Given] Error updating dose:', updateError)
+      if (insertError) {
+        // Handle unique constraint - already given for this slot
+        if (insertError.code === '23505') {
+          console.log('[Mark Given] Dose already recorded for this slot')
+          return res.json({ ok: true, message: 'Medication already marked as given' })
+        }
+        console.error('[Mark Given] Error inserting dose:', insertError)
         return res.status(500).json({ ok: false, error: 'Error marking dose as given' })
       }
 
-      console.log('[Mark Given] ✅ Dose marked via session:', dose.id)
-      return res.json({ ok: true, doseId: dose.id })
+      console.log('[Mark Given] ✅ Dose marked via session:', newDose?.id)
+      return res.json({ ok: true, doseId: newDose?.id })
     } catch (error) {
       console.error('[Mark Given] Error:', error)
       return res.status(500).json({ ok: false, error: error.message })

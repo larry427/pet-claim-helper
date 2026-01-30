@@ -328,7 +328,8 @@ export async function runMedicationReminders(options = {}) {
           status: 'pending',
           one_time_token: oneTimeToken,
           token_expires_at: tokenExpiresAt,
-          short_code: shortCode
+          short_code: shortCode,
+          dose_date: today // For simplified querying
         })
         .select()
         .single()
