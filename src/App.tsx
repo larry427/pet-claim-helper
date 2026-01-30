@@ -596,10 +596,16 @@ function MainApp() {
     const fetchMedicationAlerts = async () => {
       try {
         const now = new Date()
-        const today = now.toISOString().split('T')[0]
-        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+        // Use LOCAL date (not UTC) - this is critical for timezone correctness
+        const pad = (n: number) => String(n).padStart(2, '0')
+        const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+        const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`
         const todayStart = `${today}T00:00:00`
         const todayEnd = `${today}T23:59:59`
+
+        console.log('[MedAlerts] Fetching alerts, refreshKey:', medicationsRefreshKey)
+        console.log('[MedAlerts] Today (local):', today, 'Current time:', currentTime)
+        console.log('[MedAlerts] Query range:', todayStart, 'to', todayEnd)
 
         // Fetch active medications with their schedules
         const { data: medications, error: medsError } = await supabase
@@ -610,30 +616,37 @@ function MainApp() {
           .order('created_at', { ascending: false })
 
         if (medsError) {
-          console.error('Error fetching medications:', medsError)
+          console.error('[MedAlerts] Error fetching medications:', medsError)
           return
         }
 
         if (!medications || medications.length === 0) {
+          console.log('[MedAlerts] No active medications found')
           setMedicationAlerts([])
           return
         }
 
+        console.log('[MedAlerts] Found medications:', medications.map((m: any) => m.medication_name))
+
         // Fetch today's given doses for these medications
         const medIds = medications.map((m: any) => m.id)
-        const { data: givenDoses } = await supabase
+        const { data: givenDoses, error: dosesError } = await supabase
           .from('medication_doses')
-          .select('medication_id')
+          .select('medication_id, given_time, status')
           .in('medication_id', medIds)
           .eq('status', 'given')
           .gte('given_time', todayStart)
           .lte('given_time', todayEnd)
+
+        console.log('[MedAlerts] Doses query result:', givenDoses, 'error:', dosesError)
 
         // Count doses given today per medication
         const dosesGivenByMed: Record<string, number> = {}
         ;(givenDoses || []).forEach((d: any) => {
           dosesGivenByMed[d.medication_id] = (dosesGivenByMed[d.medication_id] || 0) + 1
         })
+
+        console.log('[MedAlerts] Doses given by med:', dosesGivenByMed)
 
         // Calculate alerts from medication schedules
         const alerts: MedicationAlert[] = []
@@ -646,10 +659,13 @@ function MainApp() {
 
           const sortedTimes = [...reminderTimes].sort()
           const givenCount = dosesGivenByMed[med.id] || 0
+          const expectedToday = sortedTimes.length
 
-          // Find times that haven't been covered by given doses
+          // Find times that have passed
           const passedTimes = sortedTimes.filter(time => time <= currentTime)
           const overdueCount = Math.max(0, passedTimes.length - givenCount)
+
+          console.log(`[MedAlerts] ${med.medication_name}: given=${givenCount}, expected=${expectedToday}, passed=${passedTimes.length}, overdue=${overdueCount}`)
 
           // Add overdue alerts
           if (overdueCount > 0) {
@@ -658,6 +674,7 @@ function MainApp() {
             const timeDate = new Date(now)
             timeDate.setHours(parseInt(h), parseInt(m), 0, 0)
 
+            console.log(`[MedAlerts] Adding OVERDUE alert for ${med.medication_name}`)
             alerts.push({
               id: `${med.id}-overdue`,
               medicationName: med.medication_name,
@@ -679,6 +696,7 @@ function MainApp() {
                 const timeDate = new Date(now)
                 timeDate.setHours(parseInt(h), parseInt(m), 0, 0)
 
+                console.log(`[MedAlerts] Adding UPCOMING alert for ${med.medication_name}`)
                 alerts.push({
                   id: `${med.id}-upcoming`,
                   medicationName: med.medication_name,
@@ -697,9 +715,10 @@ function MainApp() {
           return 0
         })
 
+        console.log('[MedAlerts] Final alerts:', alerts.length, alerts.map(a => `${a.medicationName} (${a.isOverdue ? 'overdue' : 'upcoming'})`))
         setMedicationAlerts(alerts.slice(0, 5))
       } catch (err) {
-        console.error('Error in fetchMedicationAlerts:', err)
+        console.error('[MedAlerts] Error in fetchMedicationAlerts:', err)
       }
     }
 
@@ -1787,7 +1806,13 @@ function MainApp() {
               userId={userId}
               pets={pets}
               refreshKey={medicationsRefreshKey}
-              onDoseRecorded={() => setMedicationsRefreshKey(prev => prev + 1)}
+              onDoseRecorded={() => {
+                console.log('[App] onDoseRecorded callback received, incrementing refreshKey')
+                setMedicationsRefreshKey(prev => {
+                  console.log('[App] medicationsRefreshKey:', prev, '->', prev + 1)
+                  return prev + 1
+                })
+              }}
             />
           </section>
         )}

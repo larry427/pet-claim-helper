@@ -281,7 +281,10 @@ export default function DoseTrackingPage({
         }, 2000)
       }
 
-      if (onDoseRecorded) onDoseRecorded()
+      if (onDoseRecorded) {
+        console.log('[DoseTrackingPage] Calling onDoseRecorded callback')
+        onDoseRecorded()
+      }
     } catch (e: any) {
       setError(e?.message || 'Failed to record dose')
     } finally {

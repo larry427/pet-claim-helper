@@ -474,8 +474,14 @@ export default function MedicationsDashboard({ userId, pets, refreshKey, onDoseR
           userId={userId}
           onClose={() => setSelectedMedicationId(null)}
           onDoseRecorded={() => {
+            console.log('[MedicationsDashboard] onDoseRecorded called, refreshing and notifying parent')
             refresh()
-            if (onDoseRecorded) onDoseRecorded()
+            if (onDoseRecorded) {
+              console.log('[MedicationsDashboard] Calling parent onDoseRecorded')
+              onDoseRecorded()
+            } else {
+              console.log('[MedicationsDashboard] WARNING: No parent onDoseRecorded callback!')
+            }
           }}
         />
       )}
