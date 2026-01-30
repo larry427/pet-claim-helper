@@ -28,7 +28,7 @@ type DoseRow = {
   status: 'pending' | 'given'
 }
 
-export default function MedicationsDashboard({ userId, pets, refreshKey }: { userId: string | null; pets: PetProfile[]; refreshKey?: number }) {
+export default function MedicationsDashboard({ userId, pets, refreshKey, onDoseRecorded }: { userId: string | null; pets: PetProfile[]; refreshKey?: number; onDoseRecorded?: () => void }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [medications, setMedications] = useState<MedicationRow[]>([])
@@ -473,7 +473,10 @@ export default function MedicationsDashboard({ userId, pets, refreshKey }: { use
           medicationId={selectedMedicationId}
           userId={userId}
           onClose={() => setSelectedMedicationId(null)}
-          onDoseRecorded={() => refresh()}
+          onDoseRecorded={() => {
+            refresh()
+            if (onDoseRecorded) onDoseRecorded()
+          }}
         />
       )}
     </section>

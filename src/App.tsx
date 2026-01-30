@@ -1783,7 +1783,12 @@ function MainApp() {
         )}
         {authView === 'app' && activeView === 'medications' && (
           <section className="mx-auto mt-8 max-w-6xl px-2">
-            <MedicationsDashboard userId={userId} pets={pets} refreshKey={medicationsRefreshKey} />
+            <MedicationsDashboard
+              userId={userId}
+              pets={pets}
+              refreshKey={medicationsRefreshKey}
+              onDoseRecorded={() => setMedicationsRefreshKey(prev => prev + 1)}
+            />
           </section>
         )}
         {authView === 'app' && activeView === 'admin' && (

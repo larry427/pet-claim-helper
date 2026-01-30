@@ -10,20 +10,19 @@ type MedicationsSectionProps = {
   refreshKey?: number
 }
 
-type MedicationWithPet = MedicationRow & {
+type MedicationWithStats = MedicationRow & {
   pet_name: string
   pet_species: string
-  dosesGivenToday: number
-  dosesExpectedToday: number
-}
-
-type MedicationStatus = {
-  label: string
-  color: 'red' | 'orange' | 'emerald' | 'green'
+  totalDoses: number       // Total doses in the course
+  dosesGiven: number       // Total doses given (all time)
+  dosesLeft: number        // Remaining doses
+  dosesGivenToday: number  // Doses given today
+  dosesExpectedToday: number // Doses expected today
+  isFiniteCourse: boolean  // Has an end date
 }
 
 export default function MedicationsSection({ userId, pets, onAddMedication, onManage, refreshKey }: MedicationsSectionProps) {
-  const [medications, setMedications] = useState<MedicationWithPet[]>([])
+  const [medications, setMedications] = useState<MedicationWithStats[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -50,46 +49,82 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
 
         if (error) throw error
 
-        // Fetch today's given doses for these medications
         const medIds = (data || []).map((m: any) => m.id)
+
+        // Fetch ALL given doses for these medications (for total count)
+        let allGivenDoses: any[] = []
         let todayDoses: any[] = []
+
         if (medIds.length > 0) {
-          // Query doses given today (by given_time date)
-          const { data: doses } = await supabase
+          // All given doses
+          const { data: allDoses } = await supabase
+            .from('medication_doses')
+            .select('medication_id')
+            .in('medication_id', medIds)
+            .eq('status', 'given')
+          allGivenDoses = allDoses || []
+
+          // Today's given doses
+          const { data: todayData } = await supabase
             .from('medication_doses')
             .select('medication_id')
             .in('medication_id', medIds)
             .gte('given_time', todayStart)
             .lte('given_time', todayEnd)
             .eq('status', 'given')
-          todayDoses = doses || []
+          todayDoses = todayData || []
         }
 
-        // Count doses given today per medication
-        const dosesGivenByMed: Record<string, number> = {}
-        todayDoses.forEach((d: any) => {
-          dosesGivenByMed[d.medication_id] = (dosesGivenByMed[d.medication_id] || 0) + 1
+        // Count doses per medication
+        const totalGivenByMed: Record<string, number> = {}
+        allGivenDoses.forEach((d: any) => {
+          totalGivenByMed[d.medication_id] = (totalGivenByMed[d.medication_id] || 0) + 1
         })
 
-        const medsWithPets = (data || []).map((med: any) => {
-          // Calculate expected doses per day from reminder_times
-          let dosesExpectedToday = 1
+        const todayGivenByMed: Record<string, number> = {}
+        todayDoses.forEach((d: any) => {
+          todayGivenByMed[d.medication_id] = (todayGivenByMed[d.medication_id] || 0) + 1
+        })
+
+        const medsWithStats = (data || []).map((med: any) => {
+          const isFiniteCourse = !!med.end_date
+
+          // Calculate doses per day
+          let dosesPerDay = 1
           if (Array.isArray(med.reminder_times)) {
-            dosesExpectedToday = med.reminder_times.length
+            dosesPerDay = med.reminder_times.length
           } else if (med.reminder_times?.type === 'as_needed') {
-            dosesExpectedToday = 0 // No expected doses for as-needed
+            dosesPerDay = 0
+          } else if (med.reminder_times?.type === 'monthly' || med.reminder_times?.type === 'weekly' || med.reminder_times?.type === 'quarterly') {
+            dosesPerDay = 0 // Not daily
           }
+
+          // Calculate total doses for finite courses
+          let totalDoses = 0
+          if (isFiniteCourse && med.start_date && dosesPerDay > 0) {
+            const start = new Date(med.start_date)
+            const end = new Date(med.end_date)
+            const days = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+            totalDoses = days * dosesPerDay
+          }
+
+          const dosesGiven = totalGivenByMed[med.id] || 0
+          const dosesLeft = Math.max(0, totalDoses - dosesGiven)
 
           return {
             ...med,
             pet_name: med.pets?.name || 'Unknown Pet',
             pet_species: med.pets?.species || 'dog',
-            dosesGivenToday: dosesGivenByMed[med.id] || 0,
-            dosesExpectedToday
+            totalDoses,
+            dosesGiven,
+            dosesLeft,
+            dosesGivenToday: todayGivenByMed[med.id] || 0,
+            dosesExpectedToday: dosesPerDay,
+            isFiniteCourse
           }
         })
 
-        setMedications(medsWithPets)
+        setMedications(medsWithStats)
       } catch (err) {
         console.error('Error fetching medications:', err)
       } finally {
@@ -106,120 +141,163 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
     let hour = parseInt(hourStr)
     const minute = minuteStr
     const ampm = hour >= 12 ? 'PM' : 'AM'
-
     hour = hour % 12
     if (hour === 0) hour = 12
-
     return `${hour}:${minute} ${ampm}`
   }
 
-  const calculateStatus = (med: MedicationWithPet): MedicationStatus => {
+  // Get dosage + frequency + time display line
+  const getDosageFrequencyLine = (med: MedicationWithStats): string => {
+    const parts: string[] = []
+
+    // Dosage
+    if (med.dosage) {
+      parts.push(med.dosage)
+    }
+
+    // Frequency + times
+    const reminderTimes = med.reminder_times
+    if (Array.isArray(reminderTimes)) {
+      if (reminderTimes.length === 1) {
+        parts.push(`Once daily`)
+        parts.push(formatTime12Hour(reminderTimes[0]))
+      } else if (reminderTimes.length === 2) {
+        parts.push(`Twice daily`)
+      } else if (reminderTimes.length === 3) {
+        parts.push(`3x daily`)
+      }
+    } else if (reminderTimes && typeof reminderTimes === 'object') {
+      const rt = reminderTimes as any
+      if (rt.type === 'weekly') parts.push('Weekly')
+      else if (rt.type === 'monthly') parts.push('Monthly')
+      else if (rt.type === 'quarterly') parts.push('Every 3 months')
+      else if (rt.type === 'as_needed') parts.push('As needed')
+    }
+
+    return parts.join(' · ')
+  }
+
+  // Get status line with doses left and due status
+  const getStatusLine = (med: MedicationWithStats): { text: string; color: string } => {
     const now = new Date()
     const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
-
     const reminderTimes = med.reminder_times
 
-    // All today's doses given
-    if (med.dosesExpectedToday > 0 && med.dosesGivenToday >= med.dosesExpectedToday) {
-      return { label: 'All given ✓', color: 'green' }
+    // Handle non-finite courses (monthly, weekly, ongoing)
+    if (!med.isFiniteCourse || med.dosesExpectedToday === 0) {
+      // Monthly/weekly medications
+      if (reminderTimes && typeof reminderTimes === 'object') {
+        const rt = reminderTimes as any
+
+        if (rt.type === 'monthly') {
+          const todayDayOfMonth = now.getDate()
+          if (todayDayOfMonth === rt.dayOfMonth) {
+            if (med.dosesGivenToday > 0) {
+              // Calculate next month
+              const nextMonth = new Date(now)
+              nextMonth.setMonth(nextMonth.getMonth() + 1)
+              const monthName = nextMonth.toLocaleString('en-US', { month: 'short' })
+              return { text: `Given · Next: ${monthName} ${rt.dayOfMonth}`, color: 'text-green-600' }
+            } else if (currentTime < rt.time) {
+              return { text: `Due today at ${formatTime12Hour(rt.time)}`, color: 'text-orange-600' }
+            } else {
+              return { text: `Overdue ${formatTime12Hour(rt.time)}`, color: 'text-red-600' }
+            }
+          } else {
+            const nextMonth = todayDayOfMonth > rt.dayOfMonth ? new Date(now.getFullYear(), now.getMonth() + 1, 1) : now
+            const monthName = nextMonth.toLocaleString('en-US', { month: 'short' })
+            return { text: `Next: ${monthName} ${rt.dayOfMonth}`, color: 'text-gray-500' }
+          }
+        }
+
+        if (rt.type === 'weekly') {
+          const todayDayOfWeek = now.getDay()
+          const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+          if (todayDayOfWeek === rt.dayOfWeek) {
+            if (med.dosesGivenToday > 0) {
+              return { text: `Given · Next: ${dayNames[rt.dayOfWeek]}`, color: 'text-green-600' }
+            } else if (currentTime < rt.time) {
+              return { text: `Due today at ${formatTime12Hour(rt.time)}`, color: 'text-orange-600' }
+            } else {
+              return { text: `Overdue ${formatTime12Hour(rt.time)}`, color: 'text-red-600' }
+            }
+          } else {
+            return { text: `Next: ${dayNames[rt.dayOfWeek]}`, color: 'text-gray-500' }
+          }
+        }
+
+        if (rt.type === 'as_needed') {
+          return { text: 'As needed', color: 'text-gray-500' }
+        }
+      }
+      return { text: 'Ongoing', color: 'text-gray-500' }
     }
 
-    if (Array.isArray(reminderTimes)) {
-      // Daily frequencies - sort times chronologically
-      const sortedTimes = [...reminderTimes].sort()
+    // Finite course - daily medications
+    if (!Array.isArray(reminderTimes)) {
+      return { text: `${med.dosesLeft} doses left`, color: 'text-gray-500' }
+    }
 
-      // Find times that have passed without a dose
-      const passedTimes = sortedTimes.filter(time => time <= currentTime)
-      const overdueCount = Math.max(0, passedTimes.length - med.dosesGivenToday)
+    const sortedTimes = [...reminderTimes].sort()
 
-      // Check if overdue (a scheduled time has passed and not enough doses given)
+    // Check if complete (all doses given)
+    if (med.dosesLeft === 0) {
+      return { text: 'Complete', color: 'text-green-600' }
+    }
+
+    // Find the dose status for today
+    const passedTimes = sortedTimes.filter(time => time <= currentTime)
+    const overdueCount = Math.max(0, passedTimes.length - med.dosesGivenToday)
+
+    // Last dose special case
+    if (med.dosesLeft === 1) {
       if (overdueCount > 0) {
         const lastOverdueTime = passedTimes[passedTimes.length - 1]
-        return { label: `Overdue ${formatTime12Hour(lastOverdueTime)}`, color: 'red' }
+        return { text: `Last dose! · Overdue ${formatTime12Hour(lastOverdueTime)}`, color: 'text-red-600' }
       }
-
-      // Check if within 1 hour of next scheduled time
       const nextTime = sortedTimes.find(time => time > currentTime)
       if (nextTime) {
-        const [hour, minute] = nextTime.split(':')
-        const reminderMinutes = parseInt(hour) * 60 + parseInt(minute)
+        const [h, m] = nextTime.split(':')
+        const reminderMinutes = parseInt(h) * 60 + parseInt(m)
         const diff = reminderMinutes - currentMinutes
-        if (diff <= 60 && diff > 0) {
-          return { label: `Due ${formatTime12Hour(nextTime)}`, color: 'orange' }
+        if (diff <= 60) {
+          return { text: `Last dose! · Due at ${formatTime12Hour(nextTime)}`, color: 'text-orange-600' }
         }
-        return { label: `Next ${formatTime12Hour(nextTime)}`, color: 'emerald' }
+        return { text: `Last dose! · Next: Tomorrow ${formatTime12Hour(nextTime)}`, color: 'text-gray-600' }
       }
-
-      // All times passed for today, show partial if some given
-      if (med.dosesGivenToday > 0) {
-        return { label: `${med.dosesGivenToday}/${med.dosesExpectedToday} given`, color: 'orange' }
-      }
-
-      return { label: 'Tomorrow', color: 'emerald' }
-    } else if (reminderTimes && typeof reminderTimes === 'object') {
-      const rt = reminderTimes as any
-
-      if (rt.type === 'weekly') {
-        const todayDayOfWeek = now.getDay() // 0=Sunday, 1=Monday, etc
-        if (todayDayOfWeek === rt.dayOfWeek) {
-          if (currentTime < rt.time) {
-            return { label: `Due ${formatTime12Hour(rt.time)}`, color: 'orange' }
-          } else if (med.dosesGivenToday === 0) {
-            return { label: `Overdue ${formatTime12Hour(rt.time)}`, color: 'red' }
-          }
-        }
-        const daysUntil = (rt.dayOfWeek - todayDayOfWeek + 7) % 7 || 7
-        return { label: `In ${daysUntil} days`, color: 'emerald' }
-      } else if (rt.type === 'monthly') {
-        const todayDayOfMonth = now.getDate()
-        if (todayDayOfMonth === rt.dayOfMonth) {
-          if (currentTime < rt.time) {
-            return { label: `Due ${formatTime12Hour(rt.time)}`, color: 'orange' }
-          } else if (med.dosesGivenToday === 0) {
-            return { label: `Overdue ${formatTime12Hour(rt.time)}`, color: 'red' }
-          }
-        }
-        const daysUntil = rt.dayOfMonth - todayDayOfMonth
-        if (daysUntil > 0) {
-          return { label: `In ${daysUntil} days`, color: 'emerald' }
-        }
-        return { label: 'Next month', color: 'emerald' }
-      } else if (rt.type === 'quarterly') {
-        return { label: 'Quarterly', color: 'emerald' }
-      } else if (rt.type === 'as_needed') {
-        return { label: 'As needed', color: 'emerald' }
-      }
+      return { text: `Last dose! · Tomorrow ${formatTime12Hour(sortedTimes[0])}`, color: 'text-gray-600' }
     }
 
-    return { label: 'Active', color: 'green' }
-  }
-
-  const getFrequencyDisplay = (med: MedicationWithPet): string => {
-    const reminderTimes = med.reminder_times
-
-    if (Array.isArray(reminderTimes)) {
-      // Daily frequencies
-      if (reminderTimes.length === 1) return `Daily • ${formatTime12Hour(reminderTimes[0])}`
-      if (reminderTimes.length === 2) return `2x daily`
-      if (reminderTimes.length === 3) return `3x daily`
-      return 'Daily'
-    } else if (reminderTimes && typeof reminderTimes === 'object') {
-      const rt = reminderTimes as any
-      if (rt.type === 'weekly') return 'Weekly'
-      if (rt.type === 'monthly') return 'Monthly'
-      if (rt.type === 'quarterly') return 'Every 3 months'
-      if (rt.type === 'as_needed') return 'As needed'
+    // Overdue
+    if (overdueCount > 0) {
+      const lastOverdueTime = passedTimes[passedTimes.length - 1]
+      return { text: `${med.dosesLeft} doses left · Overdue ${formatTime12Hour(lastOverdueTime)}`, color: 'text-red-600' }
     }
 
-    return med.frequency || 'Daily'
-  }
+    // Find next time
+    const nextTime = sortedTimes.find(time => time > currentTime)
 
-  const statusColors = {
-    red: 'bg-red-100 text-red-600',
-    orange: 'bg-orange-100 text-orange-600',
-    emerald: 'bg-emerald-100 text-emerald-600',
-    green: 'bg-green-100 text-green-600'
+    // All times passed for today - all given
+    if (!nextTime) {
+      if (med.dosesGivenToday >= med.dosesExpectedToday) {
+        // All today's doses given
+        return { text: `${med.dosesLeft} doses left · Next: Tomorrow ${formatTime12Hour(sortedTimes[0])}`, color: 'text-green-600' }
+      }
+      return { text: `${med.dosesLeft} doses left · Tomorrow ${formatTime12Hour(sortedTimes[0])}`, color: 'text-gray-500' }
+    }
+
+    // Check if due now (within 60 min)
+    const [h, m] = nextTime.split(':')
+    const reminderMinutes = parseInt(h) * 60 + parseInt(m)
+    const diff = reminderMinutes - currentMinutes
+
+    if (diff <= 60 && diff > 0) {
+      return { text: `${med.dosesLeft} doses left · Due at ${formatTime12Hour(nextTime)}`, color: 'text-orange-600' }
+    }
+
+    // Not due yet today
+    return { text: `${med.dosesLeft} doses left · Next: ${formatTime12Hour(nextTime)}`, color: 'text-gray-500' }
   }
 
   if (loading) {
@@ -233,14 +311,11 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
   }
 
   if (medications.length === 0) {
-    // Empty state
     return (
       <section className="mx-auto max-w-4xl px-4 mt-8">
         <div className="rounded-3xl p-6 bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 relative overflow-hidden shadow-2xl shadow-emerald-600/30">
-          {/* Decorative elements */}
           <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
           <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
-
           <div className="relative z-10 text-center py-8">
             <div className="w-20 h-20 mx-auto rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center mb-4">
               <span className="text-5xl">💊</span>
@@ -262,7 +337,6 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
   return (
     <section className="mx-auto max-w-4xl px-4 mt-8">
       <div className="rounded-3xl p-6 bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 relative overflow-hidden shadow-2xl shadow-emerald-600/30">
-        {/* Decorative elements */}
         <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
 
@@ -288,9 +362,8 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
         {/* Medication cards */}
         <div className="relative z-10 space-y-3">
           {medications.map((med) => {
-            const status = calculateStatus(med)
-            const frequencyDisplay = getFrequencyDisplay(med)
-            const petEmoji = med.pet_species === 'dog' ? '🐕' : '🐈'
+            const dosageFrequency = getDosageFrequencyLine(med)
+            const status = getStatusLine(med)
 
             return (
               <div key={med.id} className="bg-white/95 backdrop-blur-sm rounded-xl p-4 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200">
@@ -299,15 +372,14 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
                     💊
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-bold text-gray-800 truncate">{med.medication_name}</div>
-                    <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
-                      <span>{petEmoji} {med.pet_name}</span>
-                      <span className="text-gray-300">•</span>
-                      <span>{frequencyDisplay}</span>
+                    {/* Medication name */}
+                    <div className="font-bold text-gray-800">{med.medication_name}</div>
+                    {/* Dosage + Frequency + Time */}
+                    <div className="text-sm text-gray-600 mt-0.5">{dosageFrequency}</div>
+                    {/* Doses left + Status */}
+                    <div className={`text-sm font-medium mt-1 ${status.color}`}>
+                      {status.text}
                     </div>
-                  </div>
-                  <div className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap shadow-sm ${statusColors[status.color]}`}>
-                    {status.label}
                   </div>
                 </div>
               </div>

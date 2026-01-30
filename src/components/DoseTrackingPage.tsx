@@ -51,21 +51,7 @@ export default function DoseTrackingPage({
     return days * timesPerDay
   }, [med, timesPerDay])
 
-  const pct = useMemo(() => (totalDoses > 0 ? Math.min(Math.round((givenCount / totalDoses) * 100), 100) : 0), [givenCount, totalDoses])
-
-  const daysRemaining = useMemo(() => {
-    if (!med || !med.end_date) return 0
-    const today = new Date()
-    const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-    const [endYear, endMonth, endDay] = med.end_date.split('-').map(Number)
-    const endDate = new Date(endYear, endMonth - 1, endDay)
-    return Math.max(0, Math.round((endDate.getTime() - todayDay.getTime()) / (1000 * 60 * 60 * 24)))
-  }, [med])
-
-  const endDateLabel = useMemo(() => {
-    if (!med || !med.end_date) return '—'
-    return med.end_date
-  }, [med])
+  const dosesLeft = useMemo(() => Math.max(0, totalDoses - givenCount), [totalDoses, givenCount])
 
   const fetchAll = async () => {
     setLoading(true)
@@ -351,9 +337,9 @@ export default function DoseTrackingPage({
             <div className="text-sm text-slate-600 dark:text-slate-400">Frequency: <span className="font-medium text-slate-800 dark:text-slate-100">{med.frequency}</span></div>
 
             <div className="mt-2 rounded-lg border border-slate-200 dark:border-slate-800 p-3 text-sm space-y-1.5">
-              <div><span className="text-slate-500">Progress:</span> {`${givenCount}/${totalDoses} doses (${pct}%)`}</div>
-              <div><span className="text-slate-500">Days remaining:</span> {daysRemaining}</div>
-              <div><span className="text-slate-500">End date:</span> {endDateLabel}</div>
+              <div className="font-medium text-slate-800 dark:text-slate-200">
+                {dosesLeft === 0 ? 'Complete' : dosesLeft === 1 ? 'Last dose!' : `${dosesLeft} doses left`}
+              </div>
               <div><span className="text-slate-500">Last dose given:</span> {formatLastDose(lastDoseGiven)}</div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-slate-500">Reminder times:</span>
