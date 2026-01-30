@@ -181,71 +181,93 @@ export default function MedicationsDashboard({ userId, pets, refreshKey, onDoseR
 
     const today = new Date()
     const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    const now = new Date()
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 
-    // CRITICAL FIX: Use date-only comparison to avoid off-by-one errors from timestamps
-    const totalDays = endDay ? Math.max(1, Math.round((endDay.getTime() - startDay.getTime()) / 86400000) + 1) : 1
+    // Calculate total doses and doses left
+    const totalDays = endDay ? Math.max(1, Math.round((endDay.getTime() - startDay.getTime()) / 86400000) + 1) : 0
     const tpd = timesPerDay(m)
     const totalDoses = totalDays * tpd
     const given = dosesGivenByMed[m.id] || 0
-    const pct = totalDoses > 0 ? Math.min(Math.round((given / totalDoses) * 100), 100) : 0
-
-    const daysRemaining = endDay ? Math.max(0, Math.round((endDay.getTime() - todayDay.getTime()) / (1000 * 60 * 60 * 24))) : 0
-
-    // Next dose (compute from schedule rather than doses, in case doses aren't pre-generated)
-    // Times are now stored in PST format (HH:mm), no conversion needed
-    const schedule = (m.reminder_times && m.reminder_times.length > 0)
-      ? m.reminder_times.filter(Boolean)
-      : (m.frequency === '1x daily' ? ['07:00'] : m.frequency === '2x daily' ? ['07:00', '19:00'] : ['08:00', '14:00', '20:00'])
-    let next: Date | null = null
-
-    // Create a fresh reference time for comparison
-    const now = new Date()
-
-    // Check if today's doses are complete
-    const dosesPerDay = tpd
+    const dosesLeft = Math.max(0, totalDoses - given)
     const dosesGivenToday = dosesGivenTodayByMed[m.id] || 0
-    const todayComplete = dosesGivenToday >= dosesPerDay
 
-    // Start searching from today, or tomorrow if today's doses are complete
-    let searchDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    if (todayComplete) {
-      searchDate.setDate(searchDate.getDate() + 1)
-    }
+    // Get schedule times
+    const schedule = (m.reminder_times && m.reminder_times.length > 0)
+      ? [...m.reminder_times].filter(Boolean).sort()
+      : (m.frequency === '1x daily' ? ['07:00'] : m.frequency === '2x daily' ? ['07:00', '19:00'] : ['08:00', '14:00', '20:00'])
 
-    // Search up to 7 days ahead to find the next scheduled time within the course
-    for (let i = 0; i < 7; i++) {
-      if (searchDate < startDay) {
-        searchDate.setDate(searchDate.getDate() + 1)
-        continue
-      }
-      if (endDay && searchDate > endDay) break
+    // Compute status line
+    let statusLine = ''
+    let statusColor = 'text-gray-500'
 
-      for (const t of schedule) {
-        const [hh, mm] = t.split(':').map(n => Number(n))
-        const candidate = new Date(searchDate.getFullYear(), searchDate.getMonth(), searchDate.getDate(), hh, mm, 0)
+    // Check if complete
+    if (dosesLeft === 0) {
+      statusLine = 'Complete'
+      statusColor = 'text-green-600'
+    } else {
+      // Find passed times and overdue count
+      const passedTimes = schedule.filter(time => time <= currentTime)
+      const overdueCount = Math.max(0, passedTimes.length - dosesGivenToday)
 
-        // CRITICAL FIX: Ensure candidate is strictly in the future
-        if (candidate.getTime() > now.getTime()) {
-          next = candidate
-          break
+      // Last dose special case
+      if (dosesLeft === 1) {
+        if (overdueCount > 0) {
+          const lastOverdueTime = passedTimes[passedTimes.length - 1]
+          statusLine = `Last dose! · Overdue ${formatClock(lastOverdueTime)}`
+          statusColor = 'text-red-600'
+        } else {
+          const nextTime = schedule.find(time => time > currentTime)
+          if (nextTime) {
+            statusLine = `Last dose! · Due at ${formatClock(nextTime)}`
+            statusColor = 'text-orange-600'
+          } else {
+            statusLine = `Last dose! · Tomorrow ${formatClock(schedule[0])}`
+            statusColor = 'text-gray-600'
+          }
+        }
+      } else if (overdueCount > 0) {
+        // Overdue
+        const lastOverdueTime = passedTimes[passedTimes.length - 1]
+        statusLine = `${dosesLeft} doses left · Overdue ${formatClock(lastOverdueTime)}`
+        statusColor = 'text-red-600'
+      } else {
+        // Find next time
+        const nextTime = schedule.find(time => time > currentTime)
+
+        if (!nextTime) {
+          // All times passed for today
+          if (dosesGivenToday >= tpd) {
+            statusLine = `${dosesLeft} doses left · Next: Tomorrow ${formatClock(schedule[0])}`
+            statusColor = 'text-green-600'
+          } else {
+            statusLine = `${dosesLeft} doses left · Tomorrow ${formatClock(schedule[0])}`
+            statusColor = 'text-gray-500'
+          }
+        } else {
+          // Check if due soon (within 60 min)
+          const [h, min] = nextTime.split(':').map(Number)
+          const nextMinutes = h * 60 + min
+          const currentMinutes = now.getHours() * 60 + now.getMinutes()
+          const diff = nextMinutes - currentMinutes
+
+          if (diff <= 60 && diff > 0) {
+            statusLine = `${dosesLeft} doses left · Due at ${formatClock(nextTime)}`
+            statusColor = 'text-orange-600'
+          } else {
+            statusLine = `${dosesLeft} doses left · Next: ${formatClock(nextTime)}`
+            statusColor = 'text-gray-500'
+          }
         }
       }
-
-      if (next) break
-      searchDate.setDate(searchDate.getDate() + 1)
     }
 
     return {
       totalDoses,
       given,
-      pct,
-      daysRemaining,
-      nextDoseLabel: next
-        ? formatRelativeNext(next, now)
-        : (endDay && todayDay > endDay
-            ? (given >= totalDoses ? 'Completed' : 'Ended')
-            : '—'),
-      endLabel: m.end_date || '—'
+      dosesLeft,
+      statusLine,
+      statusColor
     }
   }
 
@@ -399,11 +421,8 @@ export default function MedicationsDashboard({ userId, pets, refreshKey, onDoseR
                           <span key={idx} className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-700 dark:text-slate-300">{formatClock(t)}</span>
                         ))}
                       </div>
-                      <div className="mt-3 space-y-1.5 text-sm">
-                        <div><span className="text-slate-500">Progress:</span> {`${stats.given}/${stats.totalDoses} doses (${stats.pct}%)`}</div>
-                        <div><span className="text-slate-500">Next dose:</span> {stats.nextDoseLabel}</div>
-                        <div><span className="text-slate-500">Days remaining:</span> {stats.daysRemaining}</div>
-                        <div><span className="text-slate-500">End date:</span> {stats.endLabel}</div>
+                      <div className={`mt-3 text-sm font-medium ${stats.statusColor}`}>
+                        {stats.statusLine}
                       </div>
                     </div>
                   )
@@ -434,7 +453,6 @@ export default function MedicationsDashboard({ userId, pets, refreshKey, onDoseR
               {completed.map(m => {
                 const stats = computeStats(m)
                 const pet = petMap[m.pet_id]
-                const completionDate = m.end_date || new Date().toISOString().slice(0, 10)
 
                 return (
                   <div
@@ -446,10 +464,8 @@ export default function MedicationsDashboard({ userId, pets, refreshKey, onDoseR
                       <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">✓ Completed</span>
                     </div>
                     {m.dosage && <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">{m.dosage}</div>}
-                    <div className="mt-3 space-y-1.5 text-sm">
-                      <div><span className="text-slate-500">Pet:</span> {pet?.name || 'Unknown'}</div>
-                      <div><span className="text-slate-500">Progress:</span> {`${stats.given}/${stats.totalDoses} doses`}</div>
-                      <div><span className="text-slate-500">Completed:</span> {completionDate}</div>
+                    <div className="mt-2 text-sm text-slate-500">
+                      {pet?.name || 'Unknown'} · {stats.given} doses given
                     </div>
                   </div>
                 )
