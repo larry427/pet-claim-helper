@@ -1933,13 +1933,42 @@ function MainApp() {
         {/* HOME TAB - Dashboard overview (whitelisted users only) */}
         {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'home' && (
           <section className="mx-auto max-w-4xl space-y-8">
-            {/* PERSONALIZED GREETING */}
-            <div className="text-2xl font-semibold text-slate-800 dark:text-slate-100">
-              {userFirstName ? (
-                <span>{getTimeGreeting()}, {userFirstName}! 👋</span>
-              ) : (
-                <span>{getTimeGreeting()}! 👋</span>
+            {/* PERSONALIZED GREETING WITH PET */}
+            <div className="flex items-center gap-4">
+              {/* Primary pet photo */}
+              {pets.length > 0 && (
+                <div className="flex-shrink-0">
+                  {pets[0].photo_url ? (
+                    <img
+                      src={pets[0].photo_url}
+                      alt={pets[0].name}
+                      className="w-16 h-16 rounded-full object-cover border-3 shadow-lg"
+                      style={{ borderColor: pets[0].color || (pets[0].species === 'dog' ? '#3B82F6' : pets[0].species === 'cat' ? '#F97316' : '#6B7280') }}
+                    />
+                  ) : (
+                    <div
+                      className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg text-white text-2xl"
+                      style={{ backgroundColor: pets[0].color || (pets[0].species === 'dog' ? '#3B82F6' : pets[0].species === 'cat' ? '#F97316' : '#6B7280') }}
+                    >
+                      {pets[0].species === 'dog' ? '🐕' : pets[0].species === 'cat' ? '🐱' : '🐾'}
+                    </div>
+                  )}
+                </div>
               )}
+              <div>
+                <div className="text-2xl font-semibold text-slate-800 dark:text-slate-100">
+                  {userFirstName ? (
+                    <span>{getTimeGreeting()}, {userFirstName}!</span>
+                  ) : (
+                    <span>{getTimeGreeting()}!</span>
+                  )}
+                </div>
+                {pets.length > 0 && (
+                  <div className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                    Taking care of <span className="font-medium text-slate-700 dark:text-slate-300">{pets[0].name}</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* ALERTS SECTION */}
@@ -2114,7 +2143,13 @@ function MainApp() {
                 {/* Total Pets */}
                 <button
                   type="button"
-                  onClick={() => setActiveTab('vetbills')}
+                  onClick={() => {
+                    setActiveTab('vetbills')
+                    // Scroll to pets section after tab renders
+                    setTimeout(() => {
+                      petsSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
+                    }, 100)
+                  }}
                   className="p-5 rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 text-left group"
                 >
                   <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-medium mb-2">
