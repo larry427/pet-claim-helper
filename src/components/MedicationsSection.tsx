@@ -34,9 +34,14 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
     const fetchMedications = async () => {
       setLoading(true)
       try {
-        const today = new Date().toISOString().split('T')[0]
-        const todayStart = `${today}T00:00:00`
-        const todayEnd = `${today}T23:59:59`
+        // Use local date format for database queries (avoid UTC issues)
+        const now = new Date()
+        const pad = (n: number) => String(n).padStart(2, '0')
+        const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+
+        // Today's boundaries for client-side date comparison (more reliable than DB string comparison)
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
+        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
 
         // Fetch active medications (end_date IS NULL OR end_date >= today)
         const { data, error } = await supabase
@@ -51,39 +56,34 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
 
         const medIds = (data || []).map((m: any) => m.id)
 
-        // Fetch ALL given doses for these medications (for total count)
+        // Fetch ALL given doses for these medications (includes given_time for client-side filtering)
         let allGivenDoses: any[] = []
-        let todayDoses: any[] = []
 
         if (medIds.length > 0) {
-          // All given doses
+          // Fetch all given doses with given_time for client-side date filtering
           const { data: allDoses } = await supabase
             .from('medication_doses')
-            .select('medication_id')
+            .select('medication_id, given_time')
             .in('medication_id', medIds)
             .eq('status', 'given')
           allGivenDoses = allDoses || []
-
-          // Today's given doses
-          const { data: todayData } = await supabase
-            .from('medication_doses')
-            .select('medication_id')
-            .in('medication_id', medIds)
-            .gte('given_time', todayStart)
-            .lte('given_time', todayEnd)
-            .eq('status', 'given')
-          todayDoses = todayData || []
         }
 
-        // Count doses per medication
+        // Count doses per medication (total and today)
         const totalGivenByMed: Record<string, number> = {}
-        allGivenDoses.forEach((d: any) => {
-          totalGivenByMed[d.medication_id] = (totalGivenByMed[d.medication_id] || 0) + 1
-        })
-
         const todayGivenByMed: Record<string, number> = {}
-        todayDoses.forEach((d: any) => {
-          todayGivenByMed[d.medication_id] = (todayGivenByMed[d.medication_id] || 0) + 1
+
+        allGivenDoses.forEach((d: any) => {
+          // Count total
+          totalGivenByMed[d.medication_id] = (totalGivenByMed[d.medication_id] || 0) + 1
+
+          // Count today's doses using client-side date comparison (matches MedicationsDashboard logic)
+          if (d.given_time) {
+            const givenDate = new Date(d.given_time)
+            if (givenDate >= todayStart && givenDate <= todayEnd) {
+              todayGivenByMed[d.medication_id] = (todayGivenByMed[d.medication_id] || 0) + 1
+            }
+          }
         })
 
         const medsWithStats = (data || []).map((med: any) => {
