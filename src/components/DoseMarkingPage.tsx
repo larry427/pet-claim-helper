@@ -47,33 +47,53 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       const isShortCode = medicationId.length === 8 && !medicationId.includes('-')
       const isUUID = medicationId.includes('-')
 
-      // SHORT CODE LOOKUP (backwards compatibility with old SMS links)
+      // SHORT CODE LOOKUP - use server API to bypass RLS restrictions
       if (isShortCode) {
-        const { data: doseData, error: doseError } = await supabase
-          .from('medication_doses')
-          .select('*, medications(*, pets(name, species))')
-          .eq('short_code', medicationId)
-          .single()
+        try {
+          const response = await fetch(`/api/doses/by-short-code/${medicationId}`)
+          const result = await response.json()
 
-        if (doseError || !doseData) {
-          setError('This link is invalid or has expired. Please check for a newer SMS.')
+          if (!response.ok || !result.ok) {
+            setError(result.error || 'This link is invalid or has expired. Please check for a newer SMS.')
+            setLoading(false)
+            return
+          }
+
+          // Map server response to component state
+          setMedication({
+            id: result.medication?.id,
+            medication_name: result.medication?.name,
+            dosage: result.medication?.dosage,
+            frequency: result.medication?.frequency,
+            reminder_times: result.medication?.reminderTimes,
+            user_id: result.dose?.userId
+          })
+          setPet({
+            id: result.pet?.id,
+            name: result.pet?.name,
+            species: result.pet?.species
+          })
+          setActualMedicationId(result.dose?.medicationId)
+          setShortCode(medicationId)
+          setLegacyDose({
+            id: result.dose?.id,
+            status: result.dose?.status,
+            medication_id: result.dose?.medicationId
+          })
+
+          // Check if this specific dose is already given
+          if (result.dose?.status === 'given') {
+            setAlreadyGivenToday(true)
+          }
+
+          setLoading(false)
+          return
+        } catch (err) {
+          console.error('Error fetching dose via API:', err)
+          setError('Failed to load medication details. Please try again.')
           setLoading(false)
           return
         }
-
-        setMedication(doseData.medications)
-        setPet(doseData.medications?.pets)
-        setActualMedicationId(doseData.medication_id)
-        setShortCode(medicationId)
-        setLegacyDose(doseData)
-
-        // Check if this specific dose is already given
-        if (doseData.status === 'given') {
-          setAlreadyGivenToday(true)
-        }
-
-        setLoading(false)
-        return
       }
 
       // UUID LOOKUP (direct medication ID)

@@ -860,6 +860,80 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
     }
   })
 
+  // Get dose details by short_code (for SMS link display)
+  // Uses service role to bypass RLS and return full medication/pet info
+  app.get('/api/doses/by-short-code/:shortCode', async (req, res) => {
+    try {
+      const { shortCode } = req.params
+
+      if (!shortCode || shortCode.length !== 8) {
+        return res.status(400).json({ ok: false, error: 'Invalid short code' })
+      }
+
+      // Fetch dose with joined medication and pet data using service role
+      const { data: dose, error: doseError } = await supabase
+        .from('medication_doses')
+        .select(`
+          id,
+          medication_id,
+          user_id,
+          status,
+          scheduled_time,
+          given_time,
+          short_code,
+          medications (
+            id,
+            medication_name,
+            dosage,
+            frequency,
+            reminder_times,
+            user_id,
+            pets (
+              id,
+              name,
+              species
+            )
+          )
+        `)
+        .eq('short_code', shortCode)
+        .single()
+
+      if (doseError || !dose) {
+        console.error('[Get Dose] Invalid short code:', doseError?.message)
+        return res.status(404).json({ ok: false, error: 'Dose not found or link expired' })
+      }
+
+      // Return the dose with medication and pet info
+      res.json({
+        ok: true,
+        dose: {
+          id: dose.id,
+          status: dose.status,
+          scheduledTime: dose.scheduled_time,
+          givenTime: dose.given_time,
+          shortCode: dose.short_code,
+          medicationId: dose.medication_id,
+          userId: dose.user_id
+        },
+        medication: dose.medications ? {
+          id: dose.medications.id,
+          name: dose.medications.medication_name,
+          dosage: dose.medications.dosage,
+          frequency: dose.medications.frequency,
+          reminderTimes: dose.medications.reminder_times
+        } : null,
+        pet: dose.medications?.pets ? {
+          id: dose.medications.pets.id,
+          name: dose.medications.pets.name,
+          species: dose.medications.pets.species
+        } : null
+      })
+    } catch (error) {
+      console.error('[Get Dose] Error:', error)
+      res.status(500).json({ ok: false, error: 'Server error' })
+    }
+  })
+
   // Mark medication dose as given
   // SIMPLIFIED VERSION - removed complex dose count validation
   // Supports three auth methods:
