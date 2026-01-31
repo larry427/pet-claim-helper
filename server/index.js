@@ -872,71 +872,66 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         return res.status(400).json({ ok: false, error: 'Invalid short code' })
       }
 
-      // First, try to find the dose record (without joins to debug)
-      console.log('[Get Dose] Querying medication_doses table...')
-      const { data: doseOnly, error: doseOnlyError } = await supabase
+      // Step 1: Find the dose record
+      console.log('[Get Dose] Step 1: Querying medication_doses...')
+      const { data: dose, error: doseError } = await supabase
         .from('medication_doses')
         .select('*')
         .eq('short_code', shortCode)
         .single()
 
-      console.log('[Get Dose] Dose query result:', {
-        found: !!doseOnly,
-        error: doseOnlyError?.message,
-        doseId: doseOnly?.id,
-        medicationId: doseOnly?.medication_id
-      })
-
-      if (doseOnlyError || !doseOnly) {
-        console.error('[Get Dose] Dose not found in medication_doses:', doseOnlyError?.message)
+      if (doseError || !dose) {
+        console.error('[Get Dose] Dose not found:', doseError?.message, doseError?.code)
         return res.status(404).json({
           ok: false,
-          error: 'Dose not found or link expired',
-          debug: { table: 'medication_doses', shortCode, dbError: doseOnlyError?.message }
+          error: 'Dose not found or link expired'
         })
       }
+      console.log('[Get Dose] Found dose:', { id: dose.id, medicationId: dose.medication_id, status: dose.status })
 
-      // Now fetch with joins
-      const { data: dose, error: doseError } = await supabase
-        .from('medication_doses')
-        .select(`
-          id,
-          medication_id,
-          user_id,
-          status,
-          scheduled_time,
-          given_time,
-          short_code,
-          medications (
-            id,
-            medication_name,
-            dosage,
-            frequency,
-            reminder_times,
-            user_id,
-            pets (
-              id,
-              name,
-              species
-            )
-          )
-        `)
-        .eq('short_code', shortCode)
+      // Step 2: Find the medication
+      console.log('[Get Dose] Step 2: Querying medications...')
+      const { data: medication, error: medError } = await supabase
+        .from('medications')
+        .select('*')
+        .eq('id', dose.medication_id)
         .single()
 
-      console.log('[Get Dose] Full query result:', {
-        found: !!dose,
-        error: doseError?.message,
-        hasMedication: !!dose?.medications,
-        hasPet: !!dose?.medications?.pets
-      })
+      if (medError || !medication) {
+        console.error('[Get Dose] Medication not found:', medError?.message)
+        // Return dose without medication details
+        return res.json({
+          ok: true,
+          dose: {
+            id: dose.id,
+            status: dose.status,
+            scheduledTime: dose.scheduled_time,
+            givenTime: dose.given_time,
+            shortCode: dose.short_code,
+            medicationId: dose.medication_id,
+            userId: dose.user_id
+          },
+          medication: null,
+          pet: null
+        })
+      }
+      console.log('[Get Dose] Found medication:', { id: medication.id, name: medication.medication_name, petId: medication.pet_id })
 
-      if (doseError || !dose) {
-        console.error('[Get Dose] Join query failed:', doseError?.message)
-        return res.status(404).json({ ok: false, error: 'Dose not found or link expired' })
+      // Step 3: Find the pet
+      console.log('[Get Dose] Step 3: Querying pets...')
+      const { data: pet, error: petError } = await supabase
+        .from('pets')
+        .select('*')
+        .eq('id', medication.pet_id)
+        .single()
+
+      if (petError) {
+        console.error('[Get Dose] Pet not found:', petError?.message)
+      } else {
+        console.log('[Get Dose] Found pet:', { id: pet?.id, name: pet?.name })
       }
 
-      // Return the dose with medication and pet info
+      // Return the complete response
       res.json({
         ok: true,
         dose: {
@@ -948,17 +943,17 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
           medicationId: dose.medication_id,
           userId: dose.user_id
         },
-        medication: dose.medications ? {
-          id: dose.medications.id,
-          name: dose.medications.medication_name,
-          dosage: dose.medications.dosage,
-          frequency: dose.medications.frequency,
-          reminderTimes: dose.medications.reminder_times
-        } : null,
-        pet: dose.medications?.pets ? {
-          id: dose.medications.pets.id,
-          name: dose.medications.pets.name,
-          species: dose.medications.pets.species
+        medication: {
+          id: medication.id,
+          name: medication.medication_name,
+          dosage: medication.dosage,
+          frequency: medication.frequency,
+          reminderTimes: medication.reminder_times
+        },
+        pet: pet ? {
+          id: pet.id,
+          name: pet.name,
+          species: pet.species
         } : null
       })
     } catch (error) {
