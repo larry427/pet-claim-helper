@@ -865,12 +865,38 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
   app.get('/api/doses/by-short-code/:shortCode', async (req, res) => {
     try {
       const { shortCode } = req.params
+      console.log('[Get Dose] Request for short code:', shortCode)
 
       if (!shortCode || shortCode.length !== 8) {
+        console.log('[Get Dose] Invalid short code length:', shortCode?.length)
         return res.status(400).json({ ok: false, error: 'Invalid short code' })
       }
 
-      // Fetch dose with joined medication and pet data using service role
+      // First, try to find the dose record (without joins to debug)
+      console.log('[Get Dose] Querying medication_doses table...')
+      const { data: doseOnly, error: doseOnlyError } = await supabase
+        .from('medication_doses')
+        .select('*')
+        .eq('short_code', shortCode)
+        .single()
+
+      console.log('[Get Dose] Dose query result:', {
+        found: !!doseOnly,
+        error: doseOnlyError?.message,
+        doseId: doseOnly?.id,
+        medicationId: doseOnly?.medication_id
+      })
+
+      if (doseOnlyError || !doseOnly) {
+        console.error('[Get Dose] Dose not found in medication_doses:', doseOnlyError?.message)
+        return res.status(404).json({
+          ok: false,
+          error: 'Dose not found or link expired',
+          debug: { table: 'medication_doses', shortCode, dbError: doseOnlyError?.message }
+        })
+      }
+
+      // Now fetch with joins
       const { data: dose, error: doseError } = await supabase
         .from('medication_doses')
         .select(`
@@ -898,8 +924,15 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         .eq('short_code', shortCode)
         .single()
 
+      console.log('[Get Dose] Full query result:', {
+        found: !!dose,
+        error: doseError?.message,
+        hasMedication: !!dose?.medications,
+        hasPet: !!dose?.medications?.pets
+      })
+
       if (doseError || !dose) {
-        console.error('[Get Dose] Invalid short code:', doseError?.message)
+        console.error('[Get Dose] Join query failed:', doseError?.message)
         return res.status(404).json({ ok: false, error: 'Dose not found or link expired' })
       }
 
