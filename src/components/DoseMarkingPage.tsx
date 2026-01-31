@@ -50,11 +50,25 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       // SHORT CODE LOOKUP - use server API to bypass RLS restrictions
       if (isShortCode) {
         try {
+          console.log('[DoseMarkingPage] Fetching dose by short code:', medicationId)
           const response = await fetch(`/api/doses/by-short-code/${medicationId}`)
-          const result = await response.json()
+
+          let result
+          try {
+            result = await response.json()
+          } catch (parseErr) {
+            console.error('[DoseMarkingPage] Failed to parse API response:', parseErr)
+            setError(`API Error (${response.status}): Invalid response - ${response.statusText}`)
+            setLoading(false)
+            return
+          }
+
+          console.log('[DoseMarkingPage] API response:', { status: response.status, ok: response.ok, result })
 
           if (!response.ok || !result.ok) {
-            setError(result.error || 'This link is invalid or has expired. Please check for a newer SMS.')
+            const errorMsg = result.error || result.message || 'Unknown error'
+            console.error('[DoseMarkingPage] API error:', { status: response.status, error: errorMsg, fullResult: result })
+            setError(`API Error (${response.status}): ${errorMsg}`)
             setLoading(false)
             return
           }
@@ -88,9 +102,9 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
 
           setLoading(false)
           return
-        } catch (err) {
-          console.error('Error fetching dose via API:', err)
-          setError('Failed to load medication details. Please try again.')
+        } catch (err: any) {
+          console.error('[DoseMarkingPage] Fetch error:', err)
+          setError(`Network error: ${err.message || 'Failed to connect to server'}`)
           setLoading(false)
           return
         }
