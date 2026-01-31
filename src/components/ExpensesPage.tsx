@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
+import { PieChart, Pie, Cell, ResponsiveContainer, Sector } from 'recharts'
 import { useExpenses, Expense, ExpenseCategory, CATEGORY_LABELS, CATEGORY_ICONS, NewExpense } from '../lib/useExpenses'
 import AddExpenseModal from './AddExpenseModal'
 
@@ -8,6 +8,16 @@ type Props = {
   onClose: () => void
   onModalStateChange?: (isOpen: boolean) => void
   refreshKey?: number
+}
+
+// Helper to get month key from date string (YYYY-MM)
+const getMonthKey = (dateStr: string) => dateStr.slice(0, 7)
+
+// Helper to format month key for display
+const formatMonthLabel = (monthKey: string) => {
+  const [year, month] = monthKey.split('-')
+  const date = new Date(parseInt(year), parseInt(month) - 1, 1)
+  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 }
 
 // Category colors for the pie chart - distinct harmonious palette
@@ -39,6 +49,50 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
+
+  // Month selector state - default to current month
+  const now = new Date()
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey)
+
+  // Selected pie chart category
+  const [selectedCategory, setSelectedCategory] = useState<ExpenseCategory | null>(null)
+
+  // Get available months from expenses
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>()
+    expenses.forEach(exp => {
+      const monthKey = getMonthKey(exp.expense_date)
+      months.add(monthKey)
+    })
+    // Always include current month
+    months.add(currentMonthKey)
+    // Sort descending (newest first)
+    return Array.from(months).sort((a, b) => b.localeCompare(a))
+  }, [expenses, currentMonthKey])
+
+  // Filter expenses by selected month
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter(exp => getMonthKey(exp.expense_date) === selectedMonth)
+  }, [expenses, selectedMonth])
+
+  // Calculate summary for selected month
+  const monthSummary = useMemo(() => {
+    const byCategory: Record<ExpenseCategory, number> = {
+      food_treats: 0,
+      grooming: 0,
+      supplies_gear: 0,
+      training_boarding: 0,
+      vet_medical: 0,
+      other: 0
+    }
+    let total = 0
+    filteredExpenses.forEach(exp => {
+      byCategory[exp.category] += exp.amount
+      total += exp.amount
+    })
+    return { total, byCategory, count: filteredExpenses.length }
+  }, [filteredExpenses])
 
   // Notify parent when any modal opens/closes (used to hide BottomTabBar)
   useEffect(() => {
@@ -76,8 +130,8 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
-  // Prepare pie chart data - only categories with values
-  const pieData = Object.entries(summary.byCategory)
+  // Prepare pie chart data - only categories with values for selected month
+  const pieData = Object.entries(monthSummary.byCategory)
     .filter(([_, amount]) => amount > 0)
     .map(([category, amount]) => ({
       name: CATEGORY_LABELS[category as ExpenseCategory],
@@ -87,9 +141,26 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
     }))
     .sort((a, b) => b.value - a.value)
 
-  // Calculate percentages
-  const totalSpent = summary.yearToDate || 1
-  const getPercentage = (amount: number) => Math.round((amount / totalSpent) * 100)
+  // Calculate percentages based on selected month total
+  const monthTotal = monthSummary.total || 1
+  const getPercentage = (amount: number) => Math.round((amount / monthTotal) * 100)
+
+  // Handle pie slice click
+  const handlePieClick = (data: any, index: number) => {
+    const clickedCategory = pieData[index]?.category
+    if (clickedCategory) {
+      setSelectedCategory(prev => prev === clickedCategory ? null : clickedCategory)
+    }
+  }
+
+  // Get selected category data for display
+  const selectedCategoryData = selectedCategory ? {
+    name: CATEGORY_LABELS[selectedCategory],
+    icon: CATEGORY_ICONS[selectedCategory],
+    amount: monthSummary.byCategory[selectedCategory],
+    percentage: getPercentage(monthSummary.byCategory[selectedCategory]),
+    color: CATEGORY_COLORS[selectedCategory]
+  } : null
 
   // Handle delete
   const handleDelete = async (id: string) => {
@@ -199,6 +270,25 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
         {/* Content */}
         {!loading && !error && expenses.length > 0 && (
           <div className="space-y-4">
+            {/* Month Selector */}
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-sm font-medium text-slate-600 dark:text-slate-400">View:</span>
+              <select
+                value={selectedMonth}
+                onChange={(e) => {
+                  setSelectedMonth(e.target.value)
+                  setSelectedCategory(null) // Reset pie selection when changing month
+                }}
+                className="px-4 py-2 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer"
+              >
+                {availableMonths.map(monthKey => (
+                  <option key={monthKey} value={monthKey}>
+                    {formatMonthLabel(monthKey)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Summary Card */}
             <div className="rounded-3xl bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 p-6 sm:p-8 text-white shadow-2xl shadow-emerald-600/30 relative overflow-hidden">
               {/* Decorative elements */}
@@ -206,8 +296,10 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
               <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
 
               <div className="relative">
-                <p className="text-emerald-100 text-sm font-semibold uppercase tracking-wider mb-2">This Month's Spending</p>
-                <p className="text-5xl sm:text-6xl font-bold tracking-tight">{fmtMoney(summary.thisMonth)}</p>
+                <p className="text-emerald-100 text-sm font-semibold uppercase tracking-wider mb-2">
+                  {formatMonthLabel(selectedMonth)} Spending
+                </p>
+                <p className="text-5xl sm:text-6xl font-bold tracking-tight">{fmtMoney(monthSummary.total)}</p>
 
                 <div className="mt-6 pt-6 border-t border-white/20">
                   <div className="flex items-center justify-between">
@@ -216,8 +308,8 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
                       <p className="text-2xl font-bold mt-1">{fmtMoney(summary.yearToDate)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-emerald-200 text-xs font-medium uppercase tracking-wider">Total Expenses</p>
-                      <p className="text-2xl font-bold mt-1">{expenses.length}</p>
+                      <p className="text-emerald-200 text-xs font-medium uppercase tracking-wider">Expenses This Month</p>
+                      <p className="text-2xl font-bold mt-1">{monthSummary.count}</p>
                     </div>
                   </div>
                 </div>
@@ -229,40 +321,97 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
               <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-6">Spending by Category</h2>
 
               {pieData.length > 0 ? (
-                <div className="flex flex-col lg:flex-row lg:items-center gap-6 lg:gap-10">
+                <div className="flex flex-col lg:flex-row lg:items-start gap-6 lg:gap-10">
                   {/* Donut Chart */}
-                  <div className="relative w-44 h-44 sm:w-52 sm:h-52 flex-shrink-0 mx-auto lg:mx-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={pieData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius="60%"
-                          outerRadius="90%"
-                          paddingAngle={3}
-                          dataKey="value"
-                          strokeWidth={0}
-                        >
-                          {pieData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
-                    {/* Center text */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">Total</p>
-                      <p className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{fmtMoneyShort(summary.yearToDate)}</p>
+                  <div className="flex flex-col items-center lg:items-start">
+                    <div className="relative w-44 h-44 sm:w-52 sm:h-52 flex-shrink-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={pieData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius="60%"
+                            outerRadius="90%"
+                            paddingAngle={3}
+                            dataKey="value"
+                            strokeWidth={0}
+                            onClick={handlePieClick}
+                            style={{ cursor: 'pointer' }}
+                          >
+                            {pieData.map((entry, index) => (
+                              <Cell
+                                key={`cell-${index}`}
+                                fill={entry.color}
+                                opacity={selectedCategory === null || selectedCategory === entry.category ? 1 : 0.4}
+                                stroke={selectedCategory === entry.category ? '#fff' : 'none'}
+                                strokeWidth={selectedCategory === entry.category ? 3 : 0}
+                              />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                      {/* Center text */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">
+                          {selectedCategory ? CATEGORY_LABELS[selectedCategory].split(' ')[0] : 'Total'}
+                        </p>
+                        <p className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                          {selectedCategory
+                            ? fmtMoneyShort(monthSummary.byCategory[selectedCategory])
+                            : fmtMoneyShort(monthSummary.total)
+                          }
+                        </p>
+                      </div>
                     </div>
+
+                    {/* Selected Category Display */}
+                    {selectedCategoryData && (
+                      <div
+                        className="mt-4 px-4 py-3 rounded-xl border-2 w-full max-w-[220px]"
+                        style={{
+                          borderColor: selectedCategoryData.color,
+                          backgroundColor: `${selectedCategoryData.color}10`
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">{selectedCategoryData.icon}</span>
+                          <span className="font-semibold text-slate-900 dark:text-white text-sm">
+                            {selectedCategoryData.name}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-baseline gap-2">
+                          <span className="text-lg font-bold text-slate-900 dark:text-white">
+                            {fmtMoney(selectedCategoryData.amount)}
+                          </span>
+                          <span className="text-sm text-slate-500 dark:text-slate-400">
+                            ({selectedCategoryData.percentage}%)
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    {!selectedCategoryData && (
+                      <p className="mt-4 text-xs text-slate-400 dark:text-slate-500 text-center">
+                        Tap a slice to see details
+                      </p>
+                    )}
                   </div>
 
                   {/* Legend - single column on desktop, stacked on mobile */}
                   <div className="flex-1 w-full flex flex-col gap-2">
                     {pieData.map((item) => (
-                      <div
+                      <button
                         key={item.category}
-                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+                        type="button"
+                        onClick={() => setSelectedCategory(prev => prev === item.category ? null : item.category)}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-left ${
+                          selectedCategory === item.category
+                            ? 'bg-slate-100 dark:bg-slate-800 shadow-md ring-2'
+                            : 'bg-slate-50/80 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 hover:shadow-md hover:-translate-y-0.5'
+                        }`}
+                        style={{
+                          ringColor: selectedCategory === item.category ? item.color : 'transparent'
+                        }}
                       >
                         <div
                           className="w-3 h-3 rounded-full flex-shrink-0"
@@ -278,7 +427,7 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
                         <p className="text-sm font-bold text-slate-900 dark:text-white flex-shrink-0 w-20 text-right">
                           {fmtMoney(item.value)}
                         </p>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -301,11 +450,18 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
             {/* Recent Expenses */}
             <div className="rounded-3xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-white/60 dark:border-slate-800 overflow-hidden shadow-xl shadow-slate-200/50 dark:shadow-none">
               <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Recent Expenses</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Tap to edit, swipe to delete</p>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  {formatMonthLabel(selectedMonth)} Expenses
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                  {filteredExpenses.length === 0
+                    ? 'No expenses this month'
+                    : 'Tap to edit, swipe to delete'
+                  }
+                </p>
               </div>
               <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                {expenses.map((expense) => (
+                {filteredExpenses.map((expense) => (
                   <div
                     key={expense.id}
                     className="relative overflow-hidden"
