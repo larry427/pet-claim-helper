@@ -50,8 +50,10 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       // SHORT CODE LOOKUP - use server API to bypass RLS restrictions
       if (isShortCode) {
         try {
-          console.log('[DoseMarkingPage] Fetching dose by short code:', medicationId)
-          const response = await fetch(`/api/doses/by-short-code/${medicationId}`)
+          // Use Render backend URL (not relative path which goes to Vercel)
+          const apiBase = import.meta.env.DEV ? 'http://localhost:8787' : 'https://pet-claim-helper.onrender.com'
+          console.log('[DoseMarkingPage] Fetching dose by short code:', medicationId, 'from', apiBase)
+          const response = await fetch(`${apiBase}/api/doses/by-short-code/${medicationId}`)
 
           let result
           try {
