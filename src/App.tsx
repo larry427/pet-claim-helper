@@ -1383,6 +1383,17 @@ function MainApp() {
     return 'Good evening'
   }
 
+  // Format pet names with proper grammar (Oxford comma for 3+)
+  const formatPetNames = (petList: typeof pets): string => {
+    if (petList.length === 0) return ''
+    if (petList.length === 1) return petList[0].name
+    if (petList.length === 2) return `${petList[0].name} and ${petList[1].name}`
+    // 3+ pets: "Snoopy, Marmaduke, and Woodstock"
+    const allButLast = petList.slice(0, -1).map(p => p.name).join(', ')
+    const last = petList[petList.length - 1].name
+    return `${allButLast}, and ${last}`
+  }
+
   const statusBadge = (status: string): { text: string; cls: string } => {
     const s = (status || 'not_submitted').toLowerCase()
     switch (s) {
@@ -1988,7 +1999,7 @@ function MainApp() {
                 </div>
                 {pets.length > 0 && (
                   <div className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                    Taking care of <span className="font-medium text-slate-700 dark:text-slate-300">{pets[0].name}</span>
+                    Taking care of <span className="font-medium text-slate-700 dark:text-slate-300">{formatPetNames(pets)}</span>
                   </div>
                 )}
               </div>
