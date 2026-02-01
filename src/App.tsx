@@ -725,6 +725,19 @@ function MainApp() {
     fetchMedicationAlerts()
   }, [userId, medicationsRefreshKey])
 
+  // Refresh medications when app becomes visible again (e.g., after marking dose via SMS link)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && userId) {
+        console.log('[App] Page became visible, refreshing medications')
+        setMedicationsRefreshKey(prev => prev + 1)
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [userId])
+
   // Auto-select pet when there is exactly one
   // Also triggers when a bill is extracted to ensure selection happens at the right time
   useEffect(() => {
