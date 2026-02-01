@@ -725,6 +725,29 @@ function MainApp() {
     fetchMedicationAlerts()
   }, [userId, medicationsRefreshKey])
 
+  // Refresh medications when app becomes visible after being hidden
+  // (e.g., after user marks dose via SMS link in another tab)
+  useEffect(() => {
+    // Track if page was hidden - only refresh when returning from hidden state
+    let wasHidden = false
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        wasHidden = true
+      } else if (document.visibilityState === 'visible' && wasHidden && userId) {
+        console.log('[App] Returned from hidden state, refreshing medications')
+        wasHidden = false
+        // Small delay to ensure the page is fully visible before refreshing
+        setTimeout(() => {
+          setMedicationsRefreshKey(prev => prev + 1)
+        }, 500)
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [userId])
+
   // Auto-select pet when there is exactly one
   // Also triggers when a bill is extracted to ensure selection happens at the right time
   useEffect(() => {
