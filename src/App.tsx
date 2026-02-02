@@ -748,6 +748,30 @@ function MainApp() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [userId])
 
+  // Auto-poll data every 30 seconds for cross-device sync
+  // (e.g., mark dose on phone, see update on desktop within 30 seconds)
+  useEffect(() => {
+    if (!userId) return
+
+    const POLL_INTERVAL = 30000 // 30 seconds
+
+    const pollData = () => {
+      // Only poll when page is visible
+      if (document.visibilityState === 'visible') {
+        console.log('[App] Auto-polling: refreshing data')
+        setMedicationsRefreshKey(prev => prev + 1)
+      }
+    }
+
+    const intervalId = setInterval(pollData, POLL_INTERVAL)
+    console.log('[App] Started auto-polling every 30 seconds')
+
+    return () => {
+      clearInterval(intervalId)
+      console.log('[App] Stopped auto-polling')
+    }
+  }, [userId])
+
   // Auto-select pet when there is exactly one
   // Also triggers when a bill is extracted to ensure selection happens at the right time
   useEffect(() => {
