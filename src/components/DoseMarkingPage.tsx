@@ -182,7 +182,7 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
       const today = getTodayDateString()
       const nowISO = getLocalISOString()
 
-      // LEGACY: If we have a short code dose, update that specific dose record
+      // SHORT CODE: Use server API to update (bypasses RLS for anonymous users)
       if (shortCode && legacyDose) {
         if (legacyDose.status === 'given') {
           // Already given - redirect to success
@@ -190,21 +190,39 @@ export default function DoseMarkingPage({ medicationId, userId, onClose }: DoseM
           return
         }
 
-        const { error: updateError } = await supabase
-          .from('medication_doses')
-          .update({
-            status: 'given',
-            given_time: nowISO
-          })
-          .eq('id', legacyDose.id)
+        console.log('[DoseMarkingPage] Marking dose via API:', { shortCode, doseId: legacyDose.id })
 
-        if (updateError) {
-          setError('Failed to mark dose as given. Please try again.')
+        // Call server API which uses service role (bypasses RLS)
+        const apiBase = import.meta.env.DEV ? 'http://localhost:8787' : 'https://pet-claim-helper.onrender.com'
+        const response = await fetch(`${apiBase}/api/medications/${medId}/mark-given`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ shortCode })
+        })
+
+        let result
+        try {
+          result = await response.json()
+        } catch (parseErr) {
+          console.error('[DoseMarkingPage] Failed to parse mark-given response:', parseErr)
+          setError(`Server error: Invalid response`)
           setMarking(false)
           markingRef.current = false
           return
         }
 
+        console.log('[DoseMarkingPage] Mark-given API response:', { status: response.status, result })
+
+        if (!response.ok || !result.ok) {
+          const errorMsg = result.error || 'Failed to mark dose as given'
+          console.error('[DoseMarkingPage] Mark-given failed:', errorMsg)
+          setError(errorMsg)
+          setMarking(false)
+          markingRef.current = false
+          return
+        }
+
+        console.log('[DoseMarkingPage] Dose marked successfully!')
         redirectToSuccess()
         return
       }
