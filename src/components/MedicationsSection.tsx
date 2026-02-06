@@ -374,6 +374,8 @@ export default function MedicationsSection({ userId, pets, onAddMedication, onMa
                   <div className="flex-1 min-w-0">
                     {/* Medication name */}
                     <div className="font-bold text-gray-800">{med.medication_name}</div>
+                    {/* Pet name */}
+                    <div className="text-xs text-gray-500">for {med.pet_name}</div>
                     {/* Dosage + Frequency + Time */}
                     <div className="text-sm text-gray-600 mt-0.5">{dosageFrequency}</div>
                     {/* Doses left + Status */}
