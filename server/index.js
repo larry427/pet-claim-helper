@@ -2323,6 +2323,396 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
     }
   })
 
+  // ========================================
+  // PET CLAIM IQ - Public Claim Analysis API
+  // ========================================
+  // Analyzes vet bills against insurance policies
+  // NO authentication required - completely public
+  // Does NOT store any data - stateless processing
+  // ========================================
+
+  // Rate limiter for public claim analysis (prevents abuse)
+  const analyzeClaimLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20, // 20 requests per IP per 15 minutes
+    message: { ok: false, error: 'Too many analysis requests, please try again later' },
+    standardHeaders: true,
+    legacyHeaders: false
+  })
+
+  // Multer config for multi-file upload (4 files max, 10MB each)
+  const analyzeUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB per file
+      files: 4
+    },
+    fileFilter: (_req, file, cb) => {
+      const allowedMimes = [
+        'application/pdf',
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/webp',
+        'image/heic',
+        'image/heif'
+      ]
+      if (allowedMimes.includes(file.mimetype) ||
+          file.originalname.toLowerCase().endsWith('.pdf') ||
+          file.originalname.toLowerCase().endsWith('.jpg') ||
+          file.originalname.toLowerCase().endsWith('.jpeg') ||
+          file.originalname.toLowerCase().endsWith('.png') ||
+          file.originalname.toLowerCase().endsWith('.webp') ||
+          file.originalname.toLowerCase().endsWith('.heic') ||
+          file.originalname.toLowerCase().endsWith('.heif')) {
+        cb(null, true)
+      } else {
+        cb(new Error(`Unsupported file format: ${file.mimetype}. Please upload PDF or image files.`))
+      }
+    }
+  })
+
+  // CORS preflight for analyze-claim
+  app.options('/api/analyze-claim', (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*')
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS')
+    res.set('Access-Control-Allow-Headers', 'Content-Type')
+    res.set('Access-Control-Max-Age', '86400')
+    return res.sendStatus(204)
+  })
+
+  // Pet Claim IQ - Analyze claim against policy
+  app.post('/api/analyze-claim', analyzeClaimLimiter, (req, res, next) => {
+    // Set CORS headers for all responses
+    res.set('Access-Control-Allow-Origin', '*')
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS')
+    res.set('Access-Control-Allow-Headers', 'Content-Type')
+
+    // Handle multipart upload with field names
+    analyzeUpload.fields([
+      { name: 'vetBill', maxCount: 1 },
+      { name: 'coverageDetails', maxCount: 1 },
+      { name: 'planRules', maxCount: 1 },
+      { name: 'fullPolicy', maxCount: 1 }
+    ])(req, res, async (uploadError) => {
+      if (uploadError) {
+        console.error('[analyze-claim] Upload error:', uploadError.message)
+        if (uploadError.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ ok: false, error: 'File too large. Maximum size is 10MB per file.' })
+        }
+        return res.status(400).json({ ok: false, error: uploadError.message })
+      }
+
+      try {
+        if (!process.env.OPENAI_API_KEY) {
+          return res.status(500).json({ ok: false, error: 'OpenAI API key not configured' })
+        }
+
+        const files = req.files || {}
+        const vetBillFile = files.vetBill?.[0]
+        const coverageFile = files.coverageDetails?.[0]
+        const planRulesFile = files.planRules?.[0]
+        const fullPolicyFile = files.fullPolicy?.[0]
+
+        // Validate required files
+        if (!vetBillFile) {
+          return res.status(400).json({ ok: false, error: 'Vet bill is required. Please upload a PDF or image of your veterinary invoice.' })
+        }
+        if (!coverageFile) {
+          return res.status(400).json({ ok: false, error: 'Coverage details are required. Please upload your declarations page or coverage summary.' })
+        }
+
+        console.log('[analyze-claim] Processing files:', {
+          vetBill: { name: vetBillFile.originalname, size: vetBillFile.size, mime: vetBillFile.mimetype },
+          coverage: { name: coverageFile.originalname, size: coverageFile.size, mime: coverageFile.mimetype },
+          planRules: planRulesFile ? { name: planRulesFile.originalname, size: planRulesFile.size } : null,
+          fullPolicy: fullPolicyFile ? { name: fullPolicyFile.originalname, size: fullPolicyFile.size } : null
+        })
+
+        // Helper function to extract text from PDF
+        const extractPdfText = async (buffer, filename) => {
+          try {
+            const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise
+            const pieces = []
+            for (let i = 1; i <= pdf.numPages; i++) {
+              const page = await pdf.getPage(i)
+              const content = await page.getTextContent()
+              const pageText = (content.items || []).map((it) => (it.str || '')).join(' ')
+              pieces.push(pageText)
+            }
+            console.log(`[analyze-claim] Extracted ${pieces.length} pages from ${filename}`)
+            return pieces.join('\n\n')
+          } catch (err) {
+            console.error(`[analyze-claim] PDF extraction failed for ${filename}:`, err.message)
+            throw new Error(`Failed to read PDF: ${filename}`)
+          }
+        }
+
+        // Helper to check if file is PDF
+        const isPdf = (file) => {
+          return file.mimetype === 'application/pdf' ||
+                 file.originalname.toLowerCase().endsWith('.pdf')
+        }
+
+        // Helper to convert file to base64 data URL for OpenAI Vision
+        const toDataUrl = (file) => {
+          const base64 = file.buffer.toString('base64')
+          const mime = file.mimetype || 'image/jpeg'
+          return `data:${mime};base64,${base64}`
+        }
+
+        // Process all files - extract text from PDFs, prepare images for vision
+        const documentContents = []
+        const imageContents = []
+
+        // Process vet bill
+        if (isPdf(vetBillFile)) {
+          const text = await extractPdfText(vetBillFile.buffer, vetBillFile.originalname)
+          documentContents.push(`=== VET BILL ===\n${text}`)
+        } else {
+          imageContents.push({
+            type: 'image_url',
+            image_url: { url: toDataUrl(vetBillFile), detail: 'high' }
+          })
+          documentContents.push('=== VET BILL ===\n[See attached image]')
+        }
+
+        // Process coverage details
+        if (isPdf(coverageFile)) {
+          const text = await extractPdfText(coverageFile.buffer, coverageFile.originalname)
+          documentContents.push(`=== COVERAGE DETAILS / DECLARATIONS PAGE ===\n${text}`)
+        } else {
+          imageContents.push({
+            type: 'image_url',
+            image_url: { url: toDataUrl(coverageFile), detail: 'high' }
+          })
+          documentContents.push('=== COVERAGE DETAILS / DECLARATIONS PAGE ===\n[See attached image]')
+        }
+
+        // Process plan rules (optional)
+        if (planRulesFile) {
+          if (isPdf(planRulesFile)) {
+            const text = await extractPdfText(planRulesFile.buffer, planRulesFile.originalname)
+            documentContents.push(`=== PLAN RULES (WHAT'S COVERED/EXCLUDED) ===\n${text}`)
+          } else {
+            imageContents.push({
+              type: 'image_url',
+              image_url: { url: toDataUrl(planRulesFile), detail: 'high' }
+            })
+            documentContents.push("=== PLAN RULES (WHAT'S COVERED/EXCLUDED) ===\n[See attached image]")
+          }
+        }
+
+        // Process full policy (optional)
+        if (fullPolicyFile) {
+          if (isPdf(fullPolicyFile)) {
+            const text = await extractPdfText(fullPolicyFile.buffer, fullPolicyFile.originalname)
+            documentContents.push(`=== FULL POLICY DOCUMENT ===\n${text}`)
+          } else {
+            imageContents.push({
+              type: 'image_url',
+              image_url: { url: toDataUrl(fullPolicyFile), detail: 'high' }
+            })
+            documentContents.push('=== FULL POLICY DOCUMENT ===\n[See attached image]')
+          }
+        }
+
+        // Build the analysis prompt
+        const analysisPrompt = `You are an expert pet insurance claim analyst. Analyze the provided vet bill against the insurance policy documents and provide a detailed reimbursement estimate.
+
+DOCUMENTS PROVIDED:
+${documentContents.join('\n\n')}
+
+ANALYSIS INSTRUCTIONS:
+
+1. EXTRACT VET BILL DETAILS:
+   - Extract every line item with description and amount
+   - Identify the clinic name, date, and total bill amount
+   - Look for pet information (name, species, breed) if visible
+
+2. EXTRACT POLICY DETAILS:
+   - Identify the insurance company name
+   - Find the reimbursement rate (e.g., 70%, 80%, 90%)
+   - Find the annual deductible amount
+   - Find the annual limit (if any)
+   - Determine if exam fees are covered (many policies exclude them)
+   - Identify the calculation method: "deductible-first" means (Bill - Deductible) × Rate, while "reimbursement-first" means (Bill × Rate) - Deductible. Most modern policies use deductible-first.
+
+3. FOR EACH LINE ITEM, DETERMINE COVERAGE:
+   Be CONSERVATIVE - if uncertain, mark as "uncertain" rather than guessing.
+
+   Common exclusions to check for:
+   - Exam fees / office visit fees (often excluded, especially by Healthy Paws)
+   - Pre-existing conditions (anything that occurred before policy effective date)
+   - Wellness / preventive care (vaccines, heartworm prevention, flea/tick)
+   - Breeding-related costs
+   - Cosmetic procedures
+   - Dental cleaning (unless accident-related)
+   - Food, supplements, vitamins
+   - Boarding, grooming, training
+
+   For each item, provide a reason that cites the policy section if excluded.
+
+4. CALCULATE REIMBURSEMENT:
+   - Sum all COVERED line items to get "totalCovered"
+   - Sum all EXCLUDED line items to get "totalExcluded"
+   - Calculate "reimbursementBeforeDeductible" = totalCovered × reimbursementRate
+   - Note: We cannot calculate exact reimbursement because we don't know how much of the user's deductible has been used this year
+
+5. FILING RECOMMENDATION:
+   - If the covered amount is very small (e.g., under $50), it may not be worth the paperwork
+   - If most items are excluded, explain why
+   - Look for filing deadline requirements in the policy
+
+Return your analysis as valid JSON matching this exact schema:
+{
+  "petInfo": {
+    "name": string | null,
+    "species": string | null,
+    "breed": string | null
+  },
+  "billInfo": {
+    "clinic": string,
+    "date": string,
+    "lineItems": [
+      {
+        "description": string,
+        "amount": number,
+        "covered": boolean,
+        "reason": string
+      }
+    ],
+    "total": number
+  },
+  "policyInfo": {
+    "insurer": string,
+    "reimbursementRate": number,
+    "annualDeductible": number,
+    "annualLimit": number | null,
+    "examFeesCovered": boolean,
+    "calculationMethod": "reimbursement-first" | "deductible-first"
+  },
+  "analysis": {
+    "totalBill": number,
+    "totalExcluded": number,
+    "totalCovered": number,
+    "reimbursementBeforeDeductible": number,
+    "deductibleNote": "User needs to provide how much deductible has been used this year",
+    "maxPossibleReimbursement": number,
+    "filingDeadline": string | null,
+    "shouldFile": boolean,
+    "shouldFileReason": string,
+    "exclusionWarnings": [string]
+  }
+}
+
+IMPORTANT:
+- For "reason" on line items: Use format "Covered — [category]" or "Excluded — [Policy Section]: [reason]" or "Uncertain — [reason]"
+- For amounts, use numbers not strings (e.g., 150.00 not "$150.00")
+- For reimbursementRate, use the percentage number (e.g., 80 not 0.80)
+- If you cannot determine a value with confidence, use null
+- If a line item's coverage is uncertain, set covered: false and explain in reason
+- Return ONLY the JSON object, no additional text or markdown formatting`
+
+        // Build message content
+        const messageContent = [
+          { type: 'text', text: analysisPrompt },
+          ...imageContents
+        ]
+
+        console.log('[analyze-claim] Sending to OpenAI...', {
+          textLength: analysisPrompt.length,
+          imageCount: imageContents.length
+        })
+
+        // Call OpenAI
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert pet insurance claim analyst. Provide accurate, conservative analysis. Always return valid JSON.'
+            },
+            {
+              role: 'user',
+              content: messageContent
+            }
+          ],
+          temperature: 0.1, // Low temperature for consistent, accurate analysis
+          max_tokens: 4000,
+          response_format: { type: 'json_object' }
+        })
+
+        const content = completion.choices?.[0]?.message?.content ?? ''
+
+        // Parse response
+        let analysis = null
+        try {
+          let cleaned = content.trim()
+          if (cleaned.startsWith('```')) {
+            cleaned = cleaned.replace(/^```json\s*/i, '')
+            cleaned = cleaned.replace(/^```\s*/i, '')
+            cleaned = cleaned.replace(/\s*```\s*$/, '')
+          }
+          analysis = JSON.parse(cleaned)
+        } catch {
+          const match = content.match(/\{[\s\S]*\}/)
+          if (match) {
+            try { analysis = JSON.parse(match[0]) } catch {}
+          }
+        }
+
+        if (!analysis) {
+          console.error('[analyze-claim] Failed to parse OpenAI response:', content.substring(0, 500))
+          return res.status(422).json({
+            ok: false,
+            error: 'Failed to analyze documents. Please try again.',
+            raw: content.substring(0, 1000)
+          })
+        }
+
+        console.log('[analyze-claim] ✅ Analysis complete:', {
+          insurer: analysis.policyInfo?.insurer,
+          totalBill: analysis.billInfo?.total,
+          totalCovered: analysis.analysis?.totalCovered,
+          lineItemCount: analysis.billInfo?.lineItems?.length
+        })
+
+        // Clean up file buffers (help GC)
+        if (vetBillFile) vetBillFile.buffer = null
+        if (coverageFile) coverageFile.buffer = null
+        if (planRulesFile) planRulesFile.buffer = null
+        if (fullPolicyFile) fullPolicyFile.buffer = null
+
+        return res.json({ ok: true, data: analysis })
+
+      } catch (error) {
+        console.error('[analyze-claim] Error:', error)
+
+        // Handle OpenAI timeout
+        if (error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
+          return res.status(504).json({
+            ok: false,
+            error: 'Analysis timed out. Please try with smaller files or fewer documents.'
+          })
+        }
+
+        // Handle OpenAI rate limits
+        if (error.status === 429) {
+          return res.status(429).json({
+            ok: false,
+            error: 'Service is busy. Please try again in a few moments.'
+          })
+        }
+
+        return res.status(500).json({
+          ok: false,
+          error: error.message || 'An unexpected error occurred during analysis.'
+        })
+      }
+    })
+  })
+
   app.listen(port, () => {
     console.log(`[server] listening on http://localhost:${port}`)
   })
