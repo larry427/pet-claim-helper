@@ -2719,10 +2719,15 @@ IMPORTANT:
           analysis.analysis.maxReimbursement = 0
         }
 
-        // Fix: calculate maxReimbursement if it's 0 but there are covered charges
-        if (analysis.analysis && analysis.analysis.totalCovered > 0 && analysis.analysis.maxReimbursement === 0) {
+        // Fix: calculate maxReimbursement if it's 0 or negative but there are covered charges
+        if (analysis.analysis && analysis.analysis.totalCovered > 0 && analysis.analysis.maxReimbursement <= 0) {
           const rate = (analysis.policyInfo?.reimbursementRate || 80) / 100
           analysis.analysis.maxReimbursement = Math.round(analysis.analysis.totalCovered * rate * 100) / 100
+        }
+
+        // Backwards compatibility: add old field name for older frontends
+        if (analysis.analysis) {
+          analysis.analysis.reimbursementBeforeDeductible = analysis.analysis.maxReimbursement
         }
 
         console.log('[analyze-claim] ✅ Analysis complete:', {
