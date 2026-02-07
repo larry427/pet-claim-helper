@@ -2,13 +2,15 @@ export const config = {
   matcher: '/(.*)',
 };
 
-export default function middleware(request) {
+export default async function middleware(request) {
   const hostname = request.headers.get('host') || '';
 
   if (hostname === 'claimiq.petclaimhelper.com' || hostname === 'www.claimiq.petclaimhelper.com') {
-    return fetch(new URL('/api/claim-iq', request.url));
+    const url = new URL('/api/claim-iq', request.url);
+    const response = await fetch(url.toString());
+    return new Response(response.body, {
+      status: 200,
+      headers: { 'Content-Type': 'text/html' },
+    });
   }
-
-  // For all other hosts, continue normally (serves the PCH React app)
-  return undefined;
 }
