@@ -2391,9 +2391,7 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
     // Handle multipart upload with field names
     analyzeUpload.fields([
       { name: 'vetBill', maxCount: 1 },
-      { name: 'coverageDetails', maxCount: 1 },
-      { name: 'planRules', maxCount: 1 },
-      { name: 'fullPolicy', maxCount: 1 }
+      { name: 'insuranceDocs', maxCount: 5 }
     ])(req, res, async (uploadError) => {
       if (uploadError) {
         console.error('[analyze-claim] Upload error:', uploadError.message)
@@ -2410,23 +2408,16 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
 
         const files = req.files || {}
         const vetBillFile = files.vetBill?.[0]
-        const coverageFile = files.coverageDetails?.[0]
-        const planRulesFile = files.planRules?.[0]
-        const fullPolicyFile = files.fullPolicy?.[0]
+        const insuranceDocsFiles = files.insuranceDocs || []
 
         // Validate required files
         if (!vetBillFile) {
           return res.status(400).json({ ok: false, error: 'Vet bill is required. Please upload a PDF or image of your veterinary invoice.' })
         }
-        if (!coverageFile) {
-          return res.status(400).json({ ok: false, error: 'Coverage details are required. Please upload your declarations page or coverage summary.' })
-        }
 
         console.log('[analyze-claim] Processing files:', {
           vetBill: { name: vetBillFile.originalname, size: vetBillFile.size, mime: vetBillFile.mimetype },
-          coverage: { name: coverageFile.originalname, size: coverageFile.size, mime: coverageFile.mimetype },
-          planRules: planRulesFile ? { name: planRulesFile.originalname, size: planRulesFile.size } : null,
-          fullPolicy: fullPolicyFile ? { name: fullPolicyFile.originalname, size: fullPolicyFile.size } : null
+          insuranceDocs: insuranceDocsFiles.map(f => ({ name: f.originalname, size: f.size }))
         })
 
         // Helper function to extract text from PDF
@@ -2477,43 +2468,19 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
           documentContents.push('=== VET BILL ===\n[See attached image]')
         }
 
-        // Process coverage details
-        if (isPdf(coverageFile)) {
-          const text = await extractPdfText(coverageFile.buffer, coverageFile.originalname)
-          documentContents.push(`=== COVERAGE DETAILS / DECLARATIONS PAGE ===\n${text}`)
-        } else {
-          imageContents.push({
-            type: 'image_url',
-            image_url: { url: toDataUrl(coverageFile), detail: 'high' }
-          })
-          documentContents.push('=== COVERAGE DETAILS / DECLARATIONS PAGE ===\n[See attached image]')
-        }
-
-        // Process plan rules (optional)
-        if (planRulesFile) {
-          if (isPdf(planRulesFile)) {
-            const text = await extractPdfText(planRulesFile.buffer, planRulesFile.originalname)
-            documentContents.push(`=== PLAN RULES (WHAT'S COVERED/EXCLUDED) ===\n${text}`)
+        // Process insurance documents (optional, up to 5)
+        for (let i = 0; i < insuranceDocsFiles.length; i++) {
+          const docFile = insuranceDocsFiles[i]
+          const docLabel = `=== INSURANCE DOCUMENT ${i + 1} ===`
+          if (isPdf(docFile)) {
+            const text = await extractPdfText(docFile.buffer, docFile.originalname)
+            documentContents.push(`${docLabel}\n${text}`)
           } else {
             imageContents.push({
               type: 'image_url',
-              image_url: { url: toDataUrl(planRulesFile), detail: 'high' }
+              image_url: { url: toDataUrl(docFile), detail: 'high' }
             })
-            documentContents.push("=== PLAN RULES (WHAT'S COVERED/EXCLUDED) ===\n[See attached image]")
-          }
-        }
-
-        // Process full policy (optional)
-        if (fullPolicyFile) {
-          if (isPdf(fullPolicyFile)) {
-            const text = await extractPdfText(fullPolicyFile.buffer, fullPolicyFile.originalname)
-            documentContents.push(`=== FULL POLICY DOCUMENT ===\n${text}`)
-          } else {
-            imageContents.push({
-              type: 'image_url',
-              image_url: { url: toDataUrl(fullPolicyFile), detail: 'high' }
-            })
-            documentContents.push('=== FULL POLICY DOCUMENT ===\n[See attached image]')
+            documentContents.push(`${docLabel}\n[See attached image]`)
           }
         }
 
@@ -2739,9 +2706,9 @@ IMPORTANT:
 
         // Clean up file buffers (help GC)
         if (vetBillFile) vetBillFile.buffer = null
-        if (coverageFile) coverageFile.buffer = null
-        if (planRulesFile) planRulesFile.buffer = null
-        if (fullPolicyFile) fullPolicyFile.buffer = null
+        for (const docFile of insuranceDocsFiles) {
+          if (docFile) docFile.buffer = null
+        }
 
         return res.json({ ok: true, data: analysis })
 
