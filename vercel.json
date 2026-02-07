@@ -1,5 +1,10 @@
 {
   "rewrites": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "claimiq.petclaimhelper.com" }],
+      "destination": "/claim-iq/index.html"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "crons": [

@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pet Claim IQ - Free Coverage Calculator | Pet Claim Helper</title>
+
+  <meta name="description" content="Find out if your vet bill will be covered BEFORE you file. Free coverage analysis tool from Pet Claim Helper.">
+  <meta property="og:title" content="Pet Claim IQ - Will Your Vet Bill Be Covered?">
+  <meta property="og:description" content="Upload your vet bill and get instant coverage analysis. Free tool from Pet Claim Helper.">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'pch-teal': '#1abc9c',
+            'pch-teal-dark': '#16a085',
+            'pch-orange': '#f39c12',
+            'pch-blue': '#3498db',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f8f9fa;
+    }
+
+    .card-hover {
+      transition: all 0.2s ease;
+    }
+
+    .card-hover:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(26, 188, 156, 0.15);
+    }
+
+    .pch-gradient {
+      background: linear-gradient(135deg, #1abc9c 0%, #16a085 100%);
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+    const { createRoot } = ReactDOM;
+
+    // Icons
+    const Upload = ({ className }) => (
+      <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+      </svg>
+    );
+
+    const Check = ({ className }) => (
+      <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path d="M20 6L9 17l-5-5"/>
+      </svg>
+    );
+
+    const X = ({ className }) => (
+      <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path d="M18 6L6 18M6 6l12 12"/>
+      </svg>
+    );
+
+    const FileText = ({ className }) => (
+      <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+        <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+      </svg>
+    );
+
+    const DollarSign = ({ className }) => (
+      <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+      </svg>
+    );
+
+    const INSURANCE_RULES = {
+      'healthy-paws': {
+        name: 'Healthy Paws',
+        excludes: ['Veterinary examination fees', 'Preventive care', 'Pre-existing conditions'],
+        waitingPeriods: { accident: 15, illness: 15, hipDysplasia: 365 }
+      }
+    };
+
+    function PetClaimIQ() {
+      const [step, setStep] = useState('upload');
+      const [vetBill, setVetBill] = useState(null);
+      const [policyInput, setPolicyInput] = useState('select');
+
+      const [billData, setBillData] = useState({
+        petName: '', date: '', clinic: '', lineItems: [], total: 0
+      });
+
+      const [policyData, setPolicyData] = useState({
+        insurance: 'healthy-paws',
+        reimbursement: 80,
+        deductible: 500,
+        policyStart: '',
+        deductibleMet: 0
+      });
+
+      const [results, setResults] = useState(null);
+      const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+      const handleVetBillUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setVetBill(file);
+        setIsAnalyzing(true);
+
+        setTimeout(() => {
+          setBillData({
+            petName: 'Trinity',
+            date: '2026-02-04',
+            clinic: 'East Chapman Veterinary Center',
+            lineItems: [
+              { description: 'Examination', amount: 76.00, category: 'exam' },
+              { description: 'Dexamethasone injection', amount: 52.02, category: 'medication' },
+              { description: 'Cerenia injection', amount: 52.02, category: 'medication' },
+              { description: 'Prednisone tablets', amount: 15.50, category: 'medication' },
+              { description: 'Hydroxyzine tablets', amount: 15.50, category: 'medication' }
+            ],
+            total: 211.04
+          });
+          setIsAnalyzing(false);
+          setStep('validate');
+        }, 2000);
+      };
+
+      const validateExtraction = () => {
+        const calculatedTotal = billData.lineItems.reduce((sum, item) => sum + item.amount, 0);
+        return Math.abs(calculatedTotal - billData.total) < 0.01;
+      };
+
+      const analyzeCoverage = () => {
+        if (!policyData.policyStart) {
+          alert('Please enter your policy start date');
+          return;
+        }
+
+        setIsAnalyzing(true);
+
+        setTimeout(() => {
+          const rules = INSURANCE_RULES[policyData.insurance];
+          const policyStartDate = new Date(policyData.policyStart);
+          const billDate = new Date(billData.date);
+
+          const daysSincePolicyStart = Math.floor((billDate - policyStartDate) / (1000 * 60 * 60 * 24));
+          const pastWaitingPeriod = daysSincePolicyStart >= rules.waitingPeriods.illness;
+
+          const analyzedItems = billData.lineItems.map(item => {
+            let covered = true;
+            let reason = '';
+
+            if (item.category === 'exam') {
+              covered = false;
+              reason = 'Exam fees excluded by policy';
+            } else if (!pastWaitingPeriod) {
+              covered = false;
+              reason = `Within ${rules.waitingPeriods.illness}-day waiting period`;
+            }
+
+            return { ...item, covered, reason };
+          });
+
+          const totalCovered = analyzedItems.filter(item => item.covered).reduce((sum, item) => sum + item.amount, 0);
+          const totalNotCovered = analyzedItems.filter(item => !item.covered).reduce((sum, item) => sum + item.amount, 0);
+
+          const reimbursementAmount = totalCovered * (policyData.reimbursement / 100);
+          const remainingDeductible = Math.max(0, policyData.deductible - policyData.deductibleMet);
+          const finalReimbursement = Math.max(0, reimbursementAmount - remainingDeductible);
+          const deductibleUsed = Math.min(remainingDeductible, reimbursementAmount);
+
+          setResults({
+            pastWaitingPeriod,
+            analyzedItems,
+            totalCovered,
+            totalNotCovered,
+            reimbursementAmount,
+            deductibleUsed,
+            finalReimbursement,
+            newDeductibleMet: policyData.deductibleMet + deductibleUsed
+          });
+
+          setIsAnalyzing(false);
+          setStep('results');
+        }, 1500);
+      };
+
+      // Header Component
+      const Header = () => (
+        <div className="bg-white border-b border-gray-200">
+          <div className="max-w-6xl mx-auto px-6 py-6">
+            <div className="flex items-center justify-between">
+              <div className="text-center flex-1">
+                <div className="inline-block">
+                  <h1 className="text-5xl font-bold text-pch-teal tracking-tight">PCH</h1>
+                  <p className="text-pch-orange text-sm font-semibold tracking-wide">PET CLAIM HELPER</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+
+      if (step === 'upload') {
+        return (
+          <div className="min-h-screen">
+            <Header />
+
+            <div className="max-w-5xl mx-auto px-6 py-12">
+              {/* Hero */}
+              <div className="text-center mb-12">
+                <h2 className="text-4xl font-bold text-gray-900 mb-4">Pet Claim IQ</h2>
+                <p className="text-xl text-gray-600 mb-2">Will your vet bill be covered?</p>
+                <p className="text-gray-500">Find out in seconds—before you file</p>
+              </div>
+
+              {/* Upload Cards */}
+              <div className="grid md:grid-cols-2 gap-6 mb-8">
+                {/* Vet Bill */}
+                <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 card-hover">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-pch-teal/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <FileText className="w-8 h-8 text-pch-teal" />
+                    </div>
+                    <h3 className="text-xl font-semibold mb-2 text-gray-900">Upload Vet Bill</h3>
+                    <p className="text-gray-600 mb-6 text-sm">Photo or PDF of your receipt</p>
+
+                    <label>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={handleVetBillUpload}
+                        className="hidden"
+                      />
+                      <div className="bg-pch-teal text-white px-6 py-3 rounded-xl font-semibold cursor-pointer hover:bg-pch-teal-dark transition-colors inline-block">
+                        {vetBill ? '✓ Bill Uploaded' : 'Choose File'}
+                      </div>
+                    </label>
+
+                    {vetBill && (
+                      <p className="mt-3 text-sm text-gray-500">{vetBill.name}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Policy Info */}
+                <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 card-hover">
+                  <div className="text-center mb-6">
+                    <div className="w-16 h-16 bg-pch-blue/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <DollarSign className="w-8 h-8 text-pch-blue" />
+                    </div>
+                    <h3 className="text-xl font-semibold mb-2 text-gray-900">Your Policy</h3>
+                    <p className="text-gray-600 text-sm">Tell us about your insurance</p>
+                  </div>
+
+                  <div className="flex gap-2 mb-6">
+                    <button
+                      onClick={() => setPolicyInput('select')}
+                      className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                        policyInput === 'select'
+                          ? 'bg-pch-teal text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      Enter Details
+                    </button>
+                    <button
+                      onClick={() => setPolicyInput('upload')}
+                      className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                        policyInput === 'upload'
+                          ? 'bg-pch-teal text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      Upload Policy
+                    </button>
+                  </div>
+
+                  {policyInput === 'select' ? (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">Insurance</label>
+                        <select
+                          value={policyData.insurance}
+                          onChange={(e) => setPolicyData(prev => ({ ...prev, insurance: e.target.value }))}
+                          className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-200 focus:border-pch-teal focus:outline-none text-sm"
+                        >
+                          <option value="healthy-paws">Healthy Paws</option>
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">Reimburse %</label>
+                          <input
+                            type="number"
+                            value={policyData.reimbursement}
+                            onChange={(e) => setPolicyData(prev => ({ ...prev, reimbursement: parseInt(e.target.value) }))}
+                            className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-200 focus:border-pch-teal focus:outline-none text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">Deductible</label>
+                          <input
+                            type="number"
+                            value={policyData.deductible}
+                            onChange={(e) => setPolicyData(prev => ({ ...prev, deductible: parseInt(e.target.value) }))}
+                            className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-200 focus:border-pch-teal focus:outline-none text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">Policy Start</label>
+                        <input
+                          type="date"
+                          value={policyData.policyStart}
+                          onChange={(e) => setPolicyData(prev => ({ ...prev, policyStart: e.target.value }))}
+                          className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-200 focus:border-pch-teal focus:outline-none text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">Deductible Met <span className="text-gray-400 font-normal">(optional)</span></label>
+                        <input
+                          type="number"
+                          value={policyData.deductibleMet}
+                          onChange={(e) => setPolicyData(prev => ({ ...prev, deductibleMet: parseInt(e.target.value) || 0 }))}
+                          className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-200 focus:border-pch-teal focus:outline-none text-sm"
+                          placeholder="$0"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <label>
+                      <input type="file" accept=".pdf" className="hidden" />
+                      <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-pch-teal transition-colors">
+                        <Upload className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600">Upload Declarations Page</p>
+                      </div>
+                    </label>
+                  )}
+                </div>
+              </div>
+
+              {isAnalyzing && (
+                <div className="text-center py-8">
+                  <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-pch-teal"></div>
+                  <p className="mt-4 text-gray-600">Analyzing your documents...</p>
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="text-center text-sm text-gray-500 mt-12">
+                <p>Free tool by <a href="https://petclaimhelper.com" className="text-pch-teal hover:underline font-semibold">Pet Claim Helper</a></p>
+                <p className="mt-1">© 2026 Pet Claim Helper</p>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (step === 'validate') {
+        const isValid = validateExtraction();
+
+        return (
+          <div className="min-h-screen">
+            <Header />
+
+            <div className="max-w-4xl mx-auto px-6 py-12">
+              <h2 className="text-3xl font-bold text-center mb-2 text-gray-900">Review & Confirm</h2>
+              <p className="text-center text-gray-600 mb-8">Make sure everything looks correct</p>
+
+              {/* Bill Details */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">{billData.petName}'s Vet Visit</h3>
+                    <p className="text-sm text-gray-600">{new Date(billData.date).toLocaleDateString()} • {billData.clinic}</p>
+                  </div>
+                  {isValid ? (
+                    <div className="flex items-center gap-2 text-pch-teal">
+                      <Check className="w-5 h-5" />
+                      <span className="text-sm font-semibold">Verified</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-red-600">
+                      <X className="w-5 h-5" />
+                      <span className="text-sm font-semibold">Check totals</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  {billData.lineItems.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center py-3 px-4 bg-gray-50 rounded-lg">
+                      <span className="text-sm text-gray-700">{item.description}</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={item.amount}
+                        onChange={(e) => {
+                          const newItems = [...billData.lineItems];
+                          newItems[idx].amount = parseFloat(e.target.value);
+                          setBillData(prev => ({ ...prev, lineItems: newItems }));
+                        }}
+                        className="w-24 px-3 py-1.5 rounded border border-gray-300 focus:border-pch-teal focus:outline-none text-right text-sm"
+                      />
+                    </div>
+                  ))}
+
+                  <div className="flex justify-between items-center py-3 px-4 bg-pch-teal/10 rounded-lg font-semibold">
+                    <span className="text-gray-900">Total</span>
+                    <span className="text-lg text-gray-900">${billData.total.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Policy Summary */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-8">
+                <h3 className="text-lg font-semibold mb-4 text-gray-900">Policy Summary</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-500 mb-1">Insurance</p>
+                    <p className="font-semibold text-gray-900">Healthy Paws</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 mb-1">Reimbursement</p>
+                    <p className="font-semibold text-gray-900">{policyData.reimbursement}%</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 mb-1">Deductible</p>
+                    <p className="font-semibold text-gray-900">${policyData.deductible}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 mb-1">Policy Start</p>
+                    <p className="font-semibold text-gray-900">{policyData.policyStart || 'Not set'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setStep('upload')}
+                  className="flex-1 py-3 rounded-xl border-2 border-gray-300 font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={analyzeCoverage}
+                  disabled={!isValid || !policyData.policyStart}
+                  className="flex-1 py-3 rounded-xl bg-pch-teal text-white font-semibold hover:bg-pch-teal-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Analyze Coverage →
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (step === 'results' && results) {
+        const shouldSubmit = results.totalCovered > 0;
+
+        return (
+          <div className="min-h-screen">
+            <Header />
+
+            <div className="max-w-4xl mx-auto px-6 py-12">
+              <h2 className="text-3xl font-bold text-center mb-2 text-gray-900">Coverage Analysis</h2>
+              <p className="text-center text-gray-600 mb-8">{billData.petName}'s Claim • {new Date(billData.date).toLocaleDateString()}</p>
+
+              {/* Recommendation */}
+              <div className={`rounded-2xl p-6 mb-8 ${shouldSubmit ? 'bg-pch-teal/10 border-2 border-pch-teal' : 'bg-red-50 border-2 border-red-500'}`}>
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${shouldSubmit ? 'bg-pch-teal' : 'bg-red-500'}`}>
+                    {shouldSubmit ? <Check className="w-7 h-7 text-white" /> : <X className="w-7 h-7 text-white" />}
+                  </div>
+                  <div>
+                    <h3 className={`text-2xl font-bold ${shouldSubmit ? 'text-pch-teal-dark' : 'text-red-900'}`}>
+                      {shouldSubmit ? 'Submit This Claim' : "Don't Submit Yet"}
+                    </h3>
+                    <p className={shouldSubmit ? 'text-pch-teal-dark' : 'text-red-700'}>
+                      {shouldSubmit ? 'Parts of this bill are covered' : 'This bill isn't covered by your policy'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Breakdown */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-8">
+                <h3 className="text-lg font-semibold mb-4 text-gray-900">What's Covered</h3>
+
+                <div className="space-y-2 mb-6">
+                  {results.analyzedItems.map((item, idx) => (
+                    <div key={idx} className={`p-4 rounded-lg ${item.covered ? 'bg-green-50' : 'bg-red-50'}`}>
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                          {item.covered ? <Check className="w-5 h-5 text-green-600" /> : <X className="w-5 h-5 text-red-600" />}
+                          <div>
+                            <p className="font-medium text-gray-900">{item.description}</p>
+                            {!item.covered && <p className="text-sm text-red-600">{item.reason}</p>}
+                          </div>
+                        </div>
+                        <span className="font-semibold text-gray-900">${item.amount.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t pt-4 space-y-2">
+                  <div className="flex justify-between text-green-700">
+                    <span className="font-medium">Covered</span>
+                    <span className="font-semibold">${results.totalCovered.toFixed(2)}</span>
+                  </div>
+                  {results.totalNotCovered > 0 && (
+                    <div className="flex justify-between text-red-700">
+                      <span className="font-medium">Not Covered</span>
+                      <span className="font-semibold">${results.totalNotCovered.toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Reimbursement */}
+              <div className="pch-gradient rounded-2xl p-6 text-white mb-8">
+                <h3 className="text-xl font-semibold mb-6">Estimated Reimbursement</h3>
+
+                <div className="space-y-3 bg-white/10 rounded-xl p-5">
+                  <div className="flex justify-between items-center">
+                    <span>Covered amount</span>
+                    <span className="font-semibold text-lg">${results.totalCovered.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Your reimbursement ({policyData.reimbursement}%)</span>
+                    <span className="font-semibold text-lg">${results.reimbursementAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Minus deductible</span>
+                    <span className="font-semibold text-lg">-${results.deductibleUsed.toFixed(2)}</span>
+                  </div>
+                  <div className="border-t border-white/30 pt-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xl font-bold">You Get Back</span>
+                      <span className="text-3xl font-bold">${results.finalReimbursement.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {results.deductibleUsed > 0 && (
+                  <div className="mt-5 bg-white/10 rounded-xl p-4 text-sm">
+                    <p className="mb-1">
+                      This claim uses <strong>${results.deductibleUsed.toFixed(2)}</strong> of your deductible.
+                    </p>
+                    <p>Remaining: <strong>${(policyData.deductible - results.newDeductibleMet).toFixed(2)}</strong></p>
+                  </div>
+                )}
+              </div>
+
+              {/* Next Steps */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-8">
+                <h3 className="text-lg font-semibold mb-4 text-gray-900">Next Steps</h3>
+                <ol className="space-y-2 text-gray-700">
+                  <li className="flex gap-3">
+                    <span className="text-pch-teal font-bold">1.</span>
+                    <span>File this claim with Healthy Paws</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="text-pch-teal font-bold">2.</span>
+                    <span>Keep your receipt and this analysis</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="text-pch-teal font-bold">3.</span>
+                    <span>Track your deductible progress</span>
+                  </li>
+                </ol>
+              </div>
+
+              {/* CTAs */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <button
+                  onClick={() => {
+                    setStep('upload');
+                    setResults(null);
+                    setVetBill(null);
+                  }}
+                  className="py-3 rounded-xl border-2 border-gray-300 font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Analyze Another Bill
+                </button>
+                <button
+                  onClick={() => window.open('https://petclaimhelper.com', '_blank')}
+                  className="py-3 rounded-xl bg-pch-teal text-white font-semibold hover:bg-pch-teal-dark transition-colors"
+                >
+                  Get Pet Claim Helper →
+                </button>
+              </div>
+
+              {/* Footer */}
+              <div className="text-center text-sm text-gray-500 mt-12">
+                <p>Powered by <a href="https://petclaimhelper.com" className="text-pch-teal hover:underline font-semibold">Pet Claim Helper</a></p>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      return null;
+    }
+
+    const root = createRoot(document.getElementById('root'));
+    root.render(<PetClaimIQ />);
+  </script>
+</body>
+</html>
