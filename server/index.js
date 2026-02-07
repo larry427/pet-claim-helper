@@ -2518,54 +2518,90 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         }
 
         // Build the analysis prompt
-        const analysisPrompt = `You are an expert pet insurance claim analyst. Analyze the provided vet bill against the insurance policy documents and provide a detailed reimbursement estimate.
+        const analysisPrompt = `You are an expert pet insurance claim analyst. Analyze the provided vet bill against any insurance policy documents and provide a detailed coverage analysis.
 
 DOCUMENTS PROVIDED:
 ${documentContents.join('\n\n')}
 
-ANALYSIS INSTRUCTIONS:
+STEP 1 — ASSESS DOCUMENT COMPLETENESS:
+First, determine what documents you received and what information you can extract:
+- Did you receive a vet bill/invoice? (required)
+- Can you identify the insurance company? Use the CONSUMER-FACING BRAND NAME, not the underwriting entity. For example: "Healthy Paws" not "Westchester Fire Insurance Company", "Pumpkin" not "United States Fire Insurance Company", "Fetch" not "American Pet Insurance Company". If you see an underwriter name, look for the actual pet insurance brand name in the documents.
+- Can you determine the reimbursement rate?
+- Can you determine the annual deductible?
+- Can you determine the annual limit?
+- Can you determine what's covered vs excluded?
 
-1. EXTRACT VET BILL DETAILS:
-   - Extract every line item with description and amount
-   - Identify the clinic name, date, and total bill amount
-   - Look for pet information (name, species, breed) if visible
+Set "completeness" to one of:
+- "full" — You have the vet bill AND enough policy info to do a complete analysis
+- "partial" — You have the vet bill and SOME policy info but are missing key details
+- "bill_only" — You only have the vet bill, no usable insurance documents
 
-2. EXTRACT POLICY DETAILS:
-   - Identify the insurance company name
-   - Find the reimbursement rate (e.g., 70%, 80%, 90%)
-   - Find the annual deductible amount
-   - Find the annual limit (if any)
-   - Determine if exam fees are covered (many policies exclude them)
-   - Identify the calculation method: "deductible-first" means (Bill - Deductible) × Rate, while "reimbursement-first" means (Bill × Rate) - Deductible. Most modern policies use deductible-first.
+If "partial", list exactly what's missing in "missingInfo" array with user-friendly descriptions like:
+- "Your reimbursement rate (the percentage your insurer pays back, usually 70%, 80%, or 90%)"
+- "Your annual deductible amount"
+- "Your policy's exclusion list (to determine which charges are covered)"
 
-3. FOR EACH LINE ITEM, DETERMINE COVERAGE:
-   Be CONSERVATIVE - if uncertain, mark as "uncertain" rather than guessing.
+Also include "missingDocumentHint" — a helpful suggestion like:
+- "Look for an email from Healthy Paws with your 'declarations page' — it shows your deductible, reimbursement rate, and limits."
 
-   Common exclusions to check for:
-   - Exam fees / office visit fees (often excluded, especially by Healthy Paws)
-   - Pre-existing conditions (anything that occurred before policy effective date)
-   - Wellness / preventive care (vaccines, heartworm prevention, flea/tick)
-   - Breeding-related costs
-   - Cosmetic procedures
-   - Dental cleaning (unless accident-related)
-   - Food, supplements, vitamins
-   - Boarding, grooming, training
+STEP 2 — EXTRACT VET BILL DETAILS:
+Extract every line item with its description and amount. Be EXTREMELY careful to match each description to its correct dollar amount — read across each row of the invoice precisely. Items with $0.00 amounts should still be listed.
+- Identify the clinic name, date, and total bill amount
+- Look for pet information (name, species, breed) if visible
+- Double-check that all line item amounts sum to the invoice total
 
-   For each item, provide a reason that cites the policy section if excluded.
+STEP 3 — EXTRACT POLICY DETAILS (if documents available):
+- Identify the insurance company BRAND NAME (see Step 1 about consumer-facing names)
+- Find the reimbursement rate (e.g., 70%, 80%, 90%)
+- Find the annual deductible amount
+- Find the annual limit (if any)
+- Determine if exam fees are covered
+- Identify the calculation method:
+  "deductible-first": (Covered - Deductible) × Rate
+  "reimbursement-first": (Covered × Rate) - Deductible
+  Most policies use "deductible-first".
+- Look for filing deadline requirements
 
-4. CALCULATE REIMBURSEMENT:
-   - Sum all COVERED line items to get "totalCovered"
-   - Sum all EXCLUDED line items to get "totalExcluded"
-   - Calculate "reimbursementBeforeDeductible" = totalCovered × reimbursementRate
-   - Note: We cannot calculate exact reimbursement because we don't know how much of the user's deductible has been used this year
+STEP 4 — DETERMINE COVERAGE FOR EACH LINE ITEM:
+Only do this if you have enough policy info.
+Be CONSERVATIVE — if uncertain, mark as "uncertain".
 
-5. FILING RECOMMENDATION:
-   - If the covered amount is very small (e.g., under $50), it may not be worth the paperwork
-   - If most items are excluded, explain why
-   - Look for filing deadline requirements in the policy
+Common exclusions to check:
+- Exam fees / office visit fees (often excluded)
+- Pre-existing conditions
+- Wellness / preventive care (vaccines, heartworm, flea/tick)
+- Breeding-related costs
+- Cosmetic procedures
+- Dental cleaning (unless accident-related)
+- Food, supplements, vitamins
+- Boarding, grooming, training
 
-Return your analysis as valid JSON matching this exact schema:
+For excluded items, cite the policy section if possible.
+
+STEP 5 — CALCULATE REIMBURSEMENT:
+- totalCovered = sum of all COVERED line items
+- totalExcluded = sum of all EXCLUDED line items
+- maxReimbursement = totalCovered × reimbursementRate (as a decimal, e.g. 80% = 0.80)
+- This represents what the user would receive IF their annual deductible is fully met
+- maxReimbursement must ALWAYS be a positive number when there are covered charges. Never return 0 when totalCovered > 0.
+
+STEP 6 — FILING RECOMMENDATION:
+CRITICAL: Almost ALWAYS recommend filing. Here's why:
+- Even if covered charges are less than the deductible, filing applies those charges toward the annual deductible
+- Every filed claim brings the user closer to receiving reimbursement checks
+- Skipping a claim means losing deductible progress — that's leaving money on the table
+
+Set shouldFile to true unless totalCovered is literally $0.
+For shouldFileReason:
+- If totalCovered > 0: "Yes — filing this claim applies $[totalCovered] toward your annual deductible, bringing you closer to the point where you start receiving reimbursement. Never skip a claim."
+- If totalCovered is 0: "This bill consists entirely of excluded charges, so there's nothing eligible to file."
+
+Return valid JSON matching this schema:
 {
+  "completeness": "full" | "partial" | "bill_only",
+  "missingInfo": [string],
+  "missingDocumentHint": string | null,
   "petInfo": {
     "name": string | null,
     "species": string | null,
@@ -2578,28 +2614,26 @@ Return your analysis as valid JSON matching this exact schema:
       {
         "description": string,
         "amount": number,
-        "covered": boolean,
+        "covered": boolean | null,
         "reason": string
       }
     ],
     "total": number
   },
   "policyInfo": {
-    "insurer": string,
-    "reimbursementRate": number,
-    "annualDeductible": number,
+    "insurer": string | null,
+    "reimbursementRate": number | null,
+    "annualDeductible": number | null,
     "annualLimit": number | null,
-    "examFeesCovered": boolean,
-    "calculationMethod": "reimbursement-first" | "deductible-first"
+    "examFeesCovered": boolean | null,
+    "calculationMethod": "reimbursement-first" | "deductible-first" | null,
+    "filingDeadline": string | null
   },
   "analysis": {
     "totalBill": number,
     "totalExcluded": number,
     "totalCovered": number,
-    "reimbursementBeforeDeductible": number,
-    "deductibleNote": "User needs to provide how much deductible has been used this year",
-    "maxPossibleReimbursement": number,
-    "filingDeadline": string | null,
+    "maxReimbursement": number,
     "shouldFile": boolean,
     "shouldFileReason": string,
     "exclusionWarnings": [string]
@@ -2607,12 +2641,13 @@ Return your analysis as valid JSON matching this exact schema:
 }
 
 IMPORTANT:
-- For "reason" on line items: Use format "Covered — [category]" or "Excluded — [Policy Section]: [reason]" or "Uncertain — [reason]"
-- For amounts, use numbers not strings (e.g., 150.00 not "$150.00")
-- For reimbursementRate, use the percentage number (e.g., 80 not 0.80)
-- If you cannot determine a value with confidence, use null
-- If a line item's coverage is uncertain, set covered: false and explain in reason
-- Return ONLY the JSON object, no additional text or markdown formatting`
+- For "reason" on line items: Use "Covered — [category]" or "Excluded — [Policy Section]: [reason]" or "Uncertain — [reason]"
+- For amounts, use numbers not strings (150.00 not "$150.00")
+- For reimbursementRate, use the percentage number (80 not 0.80)
+- If completeness is "partial" or "bill_only", set covered to null for line items
+- NEVER use the underwriter/parent company name as the insurer
+- Double-check line item amounts match the invoice exactly
+- Return ONLY the JSON object`
 
         // Build message content
         const messageContent = [
@@ -2669,6 +2704,11 @@ IMPORTANT:
             error: 'Failed to analyze documents. Please try again.',
             raw: content.substring(0, 1000)
           })
+        }
+
+        // Safety check: ensure maxReimbursement is never negative
+        if (analysis.analysis && analysis.analysis.maxReimbursement < 0) {
+          analysis.analysis.maxReimbursement = 0
         }
 
         console.log('[analyze-claim] ✅ Analysis complete:', {
