@@ -3,7 +3,7 @@
     {
       "source": "/(.*)",
       "has": [{ "type": "host", "value": "claimiq.petclaimhelper.com" }],
-      "destination": "/claim-iq/index.html"
+      "destination": "/api/claim-iq"
     },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
