@@ -2527,6 +2527,14 @@ STEP 1 — ASSESS DOCUMENT COMPLETENESS:
 First, determine what documents you received and what information you can extract:
 - Did you receive a vet bill/invoice? (required)
 - Can you identify the insurance company? Use the CONSUMER-FACING BRAND NAME, not the underwriting entity. For example: "Healthy Paws" not "Westchester Fire Insurance Company", "Pumpkin" not "United States Fire Insurance Company", "Fetch" not "American Pet Insurance Company". If you see an underwriter name, look for the actual pet insurance brand name in the documents.
+
+Known underwriter-to-brand mappings:
+- "Westchester Fire Insurance Company" = "Healthy Paws"
+- "United States Fire Insurance Company" = "Pumpkin"
+- "American Pet Insurance Company" = "Fetch"
+- "Independence American Insurance Company" = "Figo"
+- "National Casualty Company" = "Nationwide Pet Insurance"
+If you see any of these underwriter names, ALWAYS use the brand name instead.
 - Can you determine the reimbursement rate?
 - Can you determine the annual deductible?
 - Can you determine the annual limit?
@@ -2709,6 +2717,12 @@ IMPORTANT:
         // Safety check: ensure maxReimbursement is never negative
         if (analysis.analysis && analysis.analysis.maxReimbursement < 0) {
           analysis.analysis.maxReimbursement = 0
+        }
+
+        // Fix: calculate maxReimbursement if it's 0 but there are covered charges
+        if (analysis.analysis && analysis.analysis.totalCovered > 0 && analysis.analysis.maxReimbursement === 0) {
+          const rate = (analysis.policyInfo?.reimbursementRate || 80) / 100
+          analysis.analysis.maxReimbursement = Math.round(analysis.analysis.totalCovered * rate * 100) / 100
         }
 
         console.log('[analyze-claim] ✅ Analysis complete:', {
