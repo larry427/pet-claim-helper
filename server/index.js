@@ -2568,6 +2568,17 @@ CRITICAL COVERAGE LOGIC: Pet insurance works on an EXCLUSION basis. Everything t
 4. If you genuinely cannot determine the category → mark as UNKNOWN
 5. Default should be COVERED, not UNKNOWN. Most legitimate vet charges for illness/injury treatment are covered.
 
+CONTEXTUAL COVERAGE RULES:
+Some line items do not have independent coverage status — their coverage depends on the PURPOSE they were performed for. Apply these rules:
+
+6. "Pre-op" or "pre-surgical" items (bloodwork, exams, consults) inherit the coverage status of the surgery they support. If the surgery is for a covered condition (illness/accident), the pre-op work is covered. If the surgery is excluded (e.g., spay/neuter, elective, cosmetic), the pre-op work is ALSO excluded. Look for clues: patient age, appointment context, item descriptions containing "pre-op", "pre-surgical", or "pre-anesthetic".
+
+7. "Post-op" items (medications, follow-ups, rechecks) similarly inherit coverage from the original procedure.
+
+8. If a line item says "pre-op" but the bill does not show what surgery it's for, mark it as UNKNOWN with reason: "Pre-op work is only covered if the associated surgery is for a covered illness or accident. Coverage cannot be determined without knowing the surgery type."
+
+9. Common contextual clues for spay/neuter pre-op: young pet age (under 1-2 years), "pre-op blood panel" as only item, no illness or injury noted on the bill, scheduled surgery appointment the following day.
+
 Common exclusions to check:
 - Exam fees / office visit fees (often excluded)
 - Pre-existing conditions
