@@ -11,6 +11,7 @@ import { getReminderEmailHtml } from './emailTemplates.js'
 import multer from 'multer'
 import OpenAI from 'openai'
 import * as pdfjsLib from 'pdfjs-dist'
+import { pdf as pdfToImg } from 'pdf-to-img'
 import { runMedicationReminders } from './routes/medication-reminders.js'
 import deadlineNotifications from './routes/deadline-notifications.js'
 import schedule from 'node-schedule'
@@ -2452,42 +2453,70 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
           return `data:${mime};base64,${base64}`
         }
 
-        // Process all files - extract text from PDFs, prepare images for vision
+        // Convert PDF pages to base64 images for Vision API
+        const pdfToImages = async (buffer, filename) => {
+          const images = []
+          const document = await pdfToImg(buffer, { scale: 2.0 }) // scale 2.0 for readability
+          let pageNum = 0
+          for await (const page of document) {
+            pageNum++
+            const base64 = page.toString('base64')
+            images.push({
+              type: 'image_url',
+              image_url: {
+                url: `data:image/png;base64,${base64}`,
+                detail: 'high'
+              }
+            })
+            console.log(`[analyze-claim] Converted ${filename} page ${pageNum} to image`)
+          }
+          return images
+        }
+
+        // Process all files - convert PDFs to images for vision, prepare uploaded images
         const documentContents = []
         const imageContents = []
 
-        // Process vet bill
+        // Process vet bill - convert PDFs to images for Vision API
         if (isPdf(vetBillFile)) {
+          const pdfImages = await pdfToImages(vetBillFile.buffer, vetBillFile.originalname)
+          imageContents.push(...pdfImages)
+          // Keep text extraction as supplementary context
           const text = await extractPdfText(vetBillFile.buffer, vetBillFile.originalname)
-          documentContents.push(`=== VET BILL ===\n${text}`)
+          documentContents.push(`=== VET BILL (text backup) ===\n${text}`)
         } else {
           imageContents.push({
             type: 'image_url',
             image_url: { url: toDataUrl(vetBillFile), detail: 'high' }
           })
-          documentContents.push('=== VET BILL ===\n[See attached image]')
         }
 
-        // Process insurance documents (optional, up to 5)
+        // Process insurance documents - convert PDFs to images for Vision API
         for (let i = 0; i < insuranceDocsFiles.length; i++) {
           const docFile = insuranceDocsFiles[i]
-          const docLabel = `=== INSURANCE DOCUMENT ${i + 1} ===`
           if (isPdf(docFile)) {
+            const pdfImages = await pdfToImages(docFile.buffer, docFile.originalname)
+            imageContents.push(...pdfImages)
+            // Keep text extraction as supplementary context
             const text = await extractPdfText(docFile.buffer, docFile.originalname)
-            documentContents.push(`${docLabel}\n${text}`)
+            documentContents.push(`=== INSURANCE DOC ${i + 1} (text backup) ===\n${text}`)
           } else {
             imageContents.push({
               type: 'image_url',
               image_url: { url: toDataUrl(docFile), detail: 'high' }
             })
-            documentContents.push(`${docLabel}\n[See attached image]`)
           }
         }
 
         // Build the analysis prompt
         const analysisPrompt = `You are an expert pet insurance claim analyst. Analyze the provided vet bill against any insurance policy documents and provide a detailed coverage analysis.
 
-DOCUMENTS PROVIDED:
+IMPORTANT: The documents have been converted to images for your analysis. Carefully examine EACH attached image:
+- The vet bill shows line items and charges
+- The declarations page (usually 1 page) contains tables with reimbursement rate, deductible, annual limit, and pet schedule
+- Policy documents contain coverage details, exclusions, and terms
+
+TEXT BACKUP (may be incomplete - always prefer the images):
 ${documentContents.join('\n\n')}
 
 STEP 1 — ASSESS DOCUMENT COMPLETENESS:
