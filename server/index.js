@@ -2575,7 +2575,7 @@ Some line items do not have independent coverage status — their coverage depen
 
 7. "Post-op" items (medications, follow-ups, rechecks) similarly inherit coverage from the original procedure.
 
-8. If a line item says "pre-op" but the bill does not show what surgery it's for, mark it as UNKNOWN with reason: "Pre-op work is only covered if the associated surgery is for a covered illness or accident. Coverage cannot be determined without knowing the surgery type."
+8. If a line item says "pre-op" but the bill does not explicitly state what surgery it's for, look for contextual clues (rule 9). If 2 or more clues are present, mark as EXCLUDED with reason explaining the likely procedure. If no clues are present, mark as UNKNOWN with reason: "Pre-op work is only covered if the associated surgery is for a covered illness or accident. Coverage cannot be determined without knowing the surgery type."
 
 9. Common contextual clues for spay/neuter pre-op: young pet age (under 1-2 years), "pre-op blood panel" as only item, no illness or injury noted on the bill, scheduled surgery appointment the following day.
 
@@ -2610,6 +2610,7 @@ CRITICAL: Almost ALWAYS recommend filing. Here's why:
 - Skipping a claim means losing deductible progress — that's leaving money on the table
 
 Set shouldFile to true unless totalCovered is literally $0.
+If totalCovered is $0.00 and all items are excluded or unknown, shouldFile should be false.
 For shouldFileReason:
 - If totalCovered > 0: "Yes — filing this claim applies $[totalCovered] toward your annual deductible, bringing you closer to the point where you start receiving reimbursement. Never skip a claim."
 - If totalCovered is 0: "This bill consists entirely of excluded charges, so there's nothing eligible to file."
