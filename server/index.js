@@ -11,7 +11,6 @@ import { getReminderEmailHtml } from './emailTemplates.js'
 import multer from 'multer'
 import OpenAI from 'openai'
 import * as pdfjsLib from 'pdfjs-dist'
-import { pdf as pdfToImg } from 'pdf-to-img'
 import { runMedicationReminders } from './routes/medication-reminders.js'
 import deadlineNotifications from './routes/deadline-notifications.js'
 import schedule from 'node-schedule'
@@ -2453,55 +2452,47 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
           return `data:${mime};base64,${base64}`
         }
 
-        // Convert PDF pages to base64 images for Vision API
-        const pdfToImages = async (buffer, filename) => {
-          const images = []
-          const document = await pdfToImg(buffer, { scale: 2.0 }) // scale 2.0 for readability
-          let pageNum = 0
-          for await (const page of document) {
-            pageNum++
-            const base64 = page.toString('base64')
-            images.push({
-              type: 'image_url',
-              image_url: {
-                url: `data:image/png;base64,${base64}`,
-                detail: 'high'
-              }
-            })
-            console.log(`[analyze-claim] Converted ${filename} page ${pageNum} to image`)
+        // Helper to convert PDF buffer to OpenAI file input format
+        const pdfToFileInput = (buffer, filename) => {
+          const base64 = buffer.toString('base64')
+          return {
+            type: 'file',
+            file: {
+              filename: filename,
+              file_data: `data:application/pdf;base64,${base64}`
+            }
           }
-          return images
         }
 
-        // Process all files - convert PDFs to images for vision, prepare uploaded images
+        // Process all files - send PDFs directly, images via image_url
         const documentContents = []
-        const imageContents = []
+        const fileContents = [] // PDFs and images for OpenAI
 
-        // Process vet bill - convert PDFs to images for Vision API
+        // Process vet bill
         if (isPdf(vetBillFile)) {
-          const pdfImages = await pdfToImages(vetBillFile.buffer, vetBillFile.originalname)
-          imageContents.push(...pdfImages)
+          fileContents.push(pdfToFileInput(vetBillFile.buffer, vetBillFile.originalname))
+          console.log(`[analyze-claim] Added PDF: ${vetBillFile.originalname}`)
           // Keep text extraction as supplementary context
           const text = await extractPdfText(vetBillFile.buffer, vetBillFile.originalname)
           documentContents.push(`=== VET BILL (text backup) ===\n${text}`)
         } else {
-          imageContents.push({
+          fileContents.push({
             type: 'image_url',
             image_url: { url: toDataUrl(vetBillFile), detail: 'high' }
           })
         }
 
-        // Process insurance documents - convert PDFs to images for Vision API
+        // Process insurance documents
         for (let i = 0; i < insuranceDocsFiles.length; i++) {
           const docFile = insuranceDocsFiles[i]
           if (isPdf(docFile)) {
-            const pdfImages = await pdfToImages(docFile.buffer, docFile.originalname)
-            imageContents.push(...pdfImages)
+            fileContents.push(pdfToFileInput(docFile.buffer, docFile.originalname))
+            console.log(`[analyze-claim] Added PDF: ${docFile.originalname}`)
             // Keep text extraction as supplementary context
             const text = await extractPdfText(docFile.buffer, docFile.originalname)
             documentContents.push(`=== INSURANCE DOC ${i + 1} (text backup) ===\n${text}`)
           } else {
-            imageContents.push({
+            fileContents.push({
               type: 'image_url',
               image_url: { url: toDataUrl(docFile), detail: 'high' }
             })
@@ -2511,12 +2502,12 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         // Build the analysis prompt
         const analysisPrompt = `You are an expert pet insurance claim analyst. Analyze the provided vet bill against any insurance policy documents and provide a detailed coverage analysis.
 
-IMPORTANT: The documents have been converted to images for your analysis. Carefully examine EACH attached image:
+IMPORTANT: PDF documents and images are attached directly. Carefully examine EACH attached document:
 - The vet bill shows line items and charges
 - The declarations page (usually 1 page) contains tables with reimbursement rate, deductible, annual limit, and pet schedule
 - Policy documents contain coverage details, exclusions, and terms
 
-TEXT BACKUP (may be incomplete - always prefer the images):
+TEXT BACKUP (may be incomplete - always prefer examining the actual documents):
 ${documentContents.join('\n\n')}
 
 STEP 1 — ASSESS DOCUMENT COMPLETENESS:
@@ -2656,12 +2647,12 @@ IMPORTANT:
         // Build message content
         const messageContent = [
           { type: 'text', text: analysisPrompt },
-          ...imageContents
+          ...fileContents
         ]
 
         console.log('[analyze-claim] Sending to OpenAI...', {
           textLength: analysisPrompt.length,
-          imageCount: imageContents.length
+          fileCount: fileContents.length
         })
 
         // Call OpenAI
