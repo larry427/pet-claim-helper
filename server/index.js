@@ -2558,6 +2558,8 @@ STEP 3 — EXTRACT POLICY DETAILS (if documents available):
   Most policies use "deductible-first".
 - Look for filing deadline requirements
 
+If the uploaded documents include a "Pet Health Policy Changes" or endorsement document, it may contain updated or added parameters (deductible, reimbursement rate, coinsurance) for a specific pet that OVERRIDE the original declarations page. Always match the pet name on the vet bill to the correct pet in ALL uploaded policy documents. Use the most specific and most recent document for that pet's parameters. Do not assume all pets share the same deductible.
+
 STEP 4 — DETERMINE COVERAGE FOR EACH LINE ITEM:
 Only do this if you have enough policy info.
 
