@@ -2580,6 +2580,11 @@ Common exclusions to check:
 
 For excluded items, cite the policy section. For covered items, cite the insuring agreement (e.g., "Covered — Section V.31.b: Laboratory and diagnostic tests").
 
+For EACH line item, also include a "sourceQuote" field containing the verbatim or near-verbatim quote from the policy document that supports the coverage decision. Examples:
+- Excluded item: "We do not cover: a. Veterinary examination fees."
+- Covered item: "Veterinary Treatment means: b. Laboratory and diagnostic tests"
+If no policy document is available or the specific text cannot be identified, set sourceQuote to null.
+
 STEP 5 — CALCULATE REIMBURSEMENT:
 - totalCovered = sum of all COVERED line items
 - totalExcluded = sum of all EXCLUDED line items
@@ -2616,7 +2621,8 @@ Return valid JSON matching this schema:
         "description": string,
         "amount": number,
         "covered": boolean | null,
-        "reason": string
+        "reason": string,
+        "sourceQuote": string | null
       }
     ],
     "total": number
@@ -2643,6 +2649,7 @@ Return valid JSON matching this schema:
 
 IMPORTANT:
 - For "reason" on line items: Use "Covered — [category]" or "Excluded — [Policy Section]: [reason]" or "Uncertain — [reason]"
+- For "sourceQuote" on line items: Include the verbatim policy text supporting the coverage decision, or null if unavailable
 - For amounts, use numbers not strings (150.00 not "$150.00")
 - For reimbursementRate, use the percentage number (80 not 0.80)
 - If completeness is "partial" or "bill_only", set covered to null for line items
