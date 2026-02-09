@@ -2581,6 +2581,8 @@ Some line items do not have independent coverage status — their coverage depen
 
 9. Common contextual clues for spay/neuter pre-op: young pet age (under 1-2 years), "pre-op blood panel" as only item, no illness or injury noted on the bill, scheduled surgery appointment the following day.
 
+10. RADIOLOGY AND SPECIALIST READS: Line items for radiologist interpretation, radiologist consultation, or specialist reads of diagnostic images (X-rays, ultrasounds, MRIs, CT scans) are part of the DIAGNOSTIC workup, NOT veterinary examination fees. These should be classified under diagnostic tests (e.g., Healthy Paws Section V.31.b) and marked as COVERED. Do not confuse the word "consultation" in a radiology context with a veterinary examination/consultation fee. Veterinary examination fees refer to the physical exam performed by the treating veterinarian, not specialist interpretation of diagnostic results.
+
 Common exclusions to check:
 - Exam fees / office visit fees (often excluded)
 - Pre-existing conditions
