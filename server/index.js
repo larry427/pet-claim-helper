@@ -2560,7 +2560,13 @@ STEP 3 — EXTRACT POLICY DETAILS (if documents available):
 
 STEP 4 — DETERMINE COVERAGE FOR EACH LINE ITEM:
 Only do this if you have enough policy info.
-Be CONSERVATIVE — if uncertain, mark as "uncertain".
+
+CRITICAL COVERAGE LOGIC: Pet insurance works on an EXCLUSION basis. Everything that qualifies as medically necessary veterinary treatment IS COVERED unless it falls under a specific exclusion in the policy. When determining coverage for each line item:
+1. First check if the item matches ANY exclusion (exam fees, preventive care, pre-existing conditions, etc.)
+2. If it matches an exclusion → mark as EXCLUDED with the specific policy section
+3. If it does NOT match any exclusion AND it is a medically necessary veterinary service (diagnostics, medication, surgery, hospitalization, lab tests, x-rays, supplies, nursing care) → mark as COVERED, citing the policy's insuring agreement
+4. If you genuinely cannot determine the category → mark as UNKNOWN
+5. Default should be COVERED, not UNKNOWN. Most legitimate vet charges for illness/injury treatment are covered.
 
 Common exclusions to check:
 - Exam fees / office visit fees (often excluded)
@@ -2572,7 +2578,7 @@ Common exclusions to check:
 - Food, supplements, vitamins
 - Boarding, grooming, training
 
-For excluded items, cite the policy section if possible.
+For excluded items, cite the policy section. For covered items, cite the insuring agreement (e.g., "Covered — Section V.31.b: Laboratory and diagnostic tests").
 
 STEP 5 — CALCULATE REIMBURSEMENT:
 - totalCovered = sum of all COVERED line items
