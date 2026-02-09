@@ -2552,10 +2552,11 @@ STEP 3 — EXTRACT POLICY DETAILS (if documents available):
 - Find the annual deductible amount
 - Find the annual limit (if any)
 - Determine if exam fees are covered
-- Identify the calculation method:
-  "deductible-first": (Covered - Deductible) × Rate
-  "reimbursement-first": (Covered × Rate) - Deductible
-  Most policies use "deductible-first".
+- Determine the reimbursement math order by reading the policy's definition of "deductible":
+  If the policy says the deductible is applied AFTER coinsurance/your share (e.g., Healthy Paws Section V.9: "the amount you must first pay after your pet's coinsurance portion has been applied"), set mathOrder to "coinsurance-first".
+  Otherwise set mathOrder to "deductible-first" (most policies use this).
+  - coinsurance-first: (coveredAmount × reimbursementRate) − deductible
+  - deductible-first: (coveredAmount − deductible) × reimbursementRate
 - Look for filing deadline requirements
 
 If the uploaded documents include a "Pet Health Policy Changes" or endorsement document, it may contain updated or added parameters (deductible, reimbursement rate, coinsurance) for a specific pet that OVERRIDE the original declarations page. Always match the pet name on the vet bill to the correct pet in ALL uploaded policy documents. Use the most specific and most recent document for that pet's parameters. Do not assume all pets share the same deductible.
@@ -2649,7 +2650,7 @@ Return valid JSON matching this schema:
     "annualDeductible": number | null,
     "annualLimit": number | null,
     "examFeesCovered": boolean | null,
-    "calculationMethod": "reimbursement-first" | "deductible-first" | null,
+    "mathOrder": "coinsurance-first" | "deductible-first" | null,
     "filingDeadline": string | null
   },
   "analysis": {
