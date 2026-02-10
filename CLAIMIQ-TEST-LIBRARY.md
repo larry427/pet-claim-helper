@@ -202,6 +202,52 @@ All 7 line items correct. No regressions. Same results as Test Case 1.
 
 ---
 
+## Test Case 6: Jessi Blu Emergency Visit + Pumpkin
+
+**Status:** ✅ PASSING
+**Date verified:** Feb 10, 2026
+**Bill format:** PDF
+
+### Inputs
+- **Pet:** Jessi Blu
+- **Vet bill:** Emergency visit
+- **Policy:** Pumpkin
+- **Deductible:** $500
+- **Reimbursement:** 90%
+- **Math order:** Deductible-first
+
+### Expected Line-by-Line Results
+
+| # | Item | Amount | Status | Reason |
+|---|------|--------|--------|--------|
+| 1 | PCV Emergency Exam Fee | $175.00 | ✅ COVERED | Accident Benefits (m): Veterinary Treatment including examinations |
+| 2 | Handling & Hazardous Waste Fee | $17.00 | ❌ EXCLUDED | Exclusion (p): Administrative fees |
+| 3 | Blood Pressure | $40.21 | ✅ COVERED | Diagnostic test |
+| 4 | Pulse Oximeter | $47.59 | ✅ COVERED | Diagnostic test |
+| 5 | IV Catheter | $79.69 | ✅ COVERED | Medical supplies/treatment |
+| 6 | PCV4 Follow-up Metabolic Panel | $326.40 | ✅ COVERED | Laboratory test |
+| 7 | IDEXX Coag Panel | $108.26 | ✅ COVERED | Laboratory test |
+| 8 | Methadone Injection | $149.93 | ✅ COVERED | Medication |
+| 9 | Invoiced by David | $0.00 | — FILTERED | Zero-amount administrative line |
+
+### Expected Summary
+- **Total bill:** $944.08
+- **Excluded:** $17.00
+- **Covered:** $927.08
+- **Math order:** Deductible-first
+- **Should File:** Yes (applies toward deductible)
+
+### Key Validations
+- **CRITICAL:** Exam fee is COVERED for Pumpkin (Accident Benefits m), NOT excluded
+- Pumpkin explicitly covers "examinations, consultations" — unlike Healthy Paws
+- Hazardous waste fee excluded under Exclusion (p) administrative fees
+- Rule 11 prevents cross-carrier exclusion bleed
+
+### Purpose
+This test case validates that the AI does not over-generalize exclusions learned from one carrier (Healthy Paws) to another carrier (Pumpkin) that has different coverage rules.
+
+---
+
 ## Prompt Rules Changelog
 
 Track every rule added to the analysisPrompt so we know what to check if regressions occur.
@@ -214,6 +260,7 @@ Track every rule added to the analysisPrompt so we know what to check if regress
 | Feb 9 | d3653d98 | Radiologist reads = diagnostic tests, not exam fees (Rule 10) | TC4 |
 | Feb 9 | ca3562f4 | Carrier-specific math order (coinsurance-first vs deductible-first) | TC4 |
 | Feb 9 | 5620eead | Line item amount extraction accuracy (use Total column, validate sum) | TC4 |
+| Feb 10 | TBD | Carrier-specific exclusions — no cross-carrier bleed (Rule 11) | TC6 |
 
 ---
 
