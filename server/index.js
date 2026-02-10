@@ -2546,6 +2546,13 @@ Extract every line item with its description and amount. Be EXTREMELY careful to
 - Look for pet information (name, species, breed) if visible
 - Double-check that all line item amounts sum to the invoice total
 
+LINE ITEM AMOUNT ACCURACY: When extracting amounts from vet bills, follow these rules strictly:
+1. Always use the TOTAL column (rightmost dollar amount) for each line item, never the Quantity or Unit Price columns.
+2. Vet bills typically have columns: Description | Quantity | Total (or Description | Staff | Quantity | Total). The dollar amount you want is always the last column.
+3. VALIDATION: After extracting all line items, verify that your individual amounts sum to the Patient Subtotal or Invoice Total shown on the bill. If they don't match, re-read the bill carefully and correct the amounts.
+4. Watch for items with high quantities but low/zero totals (e.g., 'Fluid - Lactated Ringers, per cc' with Quantity: 100.00 and Total: $0.00). The total is $0.00, not $100.00.
+5. Watch for items where quantity includes decimals (e.g., 1.18) — this is NOT a dollar amount, it's a quantity multiplied by a unit price to get the total.
+
 STEP 3 — EXTRACT POLICY DETAILS (if documents available):
 - Identify the insurance company BRAND NAME (see Step 1 about consumer-facing names)
 - Find the reimbursement rate (e.g., 70%, 80%, 90%)
