@@ -14,6 +14,7 @@ import * as pdfjsLib from 'pdfjs-dist'
 import { runMedicationReminders } from './routes/medication-reminders.js'
 import deadlineNotifications from './routes/deadline-notifications.js'
 import odieRoutes from './routes/odie.js'
+import odieWebhookRoutes from './routes/odieWebhook.js'
 import schedule from 'node-schedule'
 import { sendSMS } from './utils/sendSMS.js'
 import { DateTime } from 'luxon'
@@ -102,6 +103,7 @@ const signupLimiter = rateLimit({
 
 // Odie Pet Insurance API routes
 app.use('/api/odie', odieRoutes)
+app.use('/api/odie', odieWebhookRoutes)  // Odie webhook receiver
 
 app.get('/api/health', (_req, res) => {
   res.json({
