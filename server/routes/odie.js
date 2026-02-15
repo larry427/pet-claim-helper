@@ -23,8 +23,8 @@ const router = Router()
 // ---------------------------------------------------------------------------
 
 function getOdieConfig() {
-  const apiKey = process.env.ODIE_API_KEY
-  const baseUrl = process.env.ODIE_API_BASE_URL
+  const apiKey = process.env.ODIE_API_KEY?.trim()
+  const baseUrl = process.env.ODIE_API_BASE_URL?.trim()
   if (!apiKey || !baseUrl) {
     throw new Error('Missing ODIE_API_KEY or ODIE_API_BASE_URL environment variables')
   }
