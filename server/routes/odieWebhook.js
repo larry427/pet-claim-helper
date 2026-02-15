@@ -3,7 +3,8 @@
  *
  * Receives POST callbacks from Odie when claim or policy statuses change.
  * Logs every event to the `odie_webhook_logs` table and updates the matching
- * PCH claim when a CLAIM webhook arrives.
+ * PCH claim when a CLAIM webhook arrives. Sends SMS + email notifications
+ * to the user when their claim status changes.
  *
  * Endpoint:
  *   POST /api/odie/webhook
@@ -13,6 +14,7 @@
  */
 
 import { Router } from 'express'
+import { sendTwilioSMS } from '../utils/sendTwilioSMS.js'
 
 const router = Router()
 
@@ -33,6 +35,17 @@ async function getSupabase() {
   return _supabase
 }
 
+// Resend client (lazy — same pattern)
+let _resend = null
+
+async function getResend() {
+  if (!_resend) {
+    const { Resend } = await import('resend')
+    _resend = new Resend(process.env.RESEND_API_KEY)
+  }
+  return _resend
+}
+
 // ---------------------------------------------------------------------------
 // Odie status → PCH filing_status mapping
 // ---------------------------------------------------------------------------
@@ -45,6 +58,127 @@ const ODIE_STATUS_TO_FILING = {
   CLAIMCLOSEDPAYMENTPENDING: 'filed',
   CLAIMDENIED:               'denied',
   CLAIMCLOSEDPAID:           'paid',
+}
+
+// ---------------------------------------------------------------------------
+// Friendly status messages for notifications
+// ---------------------------------------------------------------------------
+
+const ODIE_STATUS_FRIENDLY = {
+  CLAIMSUBMITTED:            'has been submitted',
+  CLAIMUNDERREVIEW:          'is under review',
+  CLAIMNEEDSUSERACTION:      'needs your attention — additional documents may be required',
+  CLAIMAPPROVED:             'has been approved',
+  CLAIMDENIED:               'has been denied',
+  CLAIMCLOSEDPAID:           'has been paid',
+  CLAIMCLOSEDPAYMENTPENDING: 'has been approved — payment is pending',
+}
+
+function getFriendlyStatus(odieStatus) {
+  return ODIE_STATUS_FRIENDLY[odieStatus] || `status updated to ${odieStatus}`
+}
+
+// ---------------------------------------------------------------------------
+// Notification helpers
+// ---------------------------------------------------------------------------
+
+async function sendClaimNotifications(supabase, { claimId, claimNumber, odieStatus, amountPaid }) {
+  // Look up claim → pet → user profile
+  const { data: claimRow, error: claimErr } = await supabase
+    .from('claims')
+    .select('pet_id, user_id')
+    .eq('id', claimId)
+    .single()
+
+  if (claimErr || !claimRow) {
+    console.warn(`[Odie Webhook] Could not look up claim ${claimId} for notifications:`, claimErr?.message)
+    return
+  }
+
+  // Get pet name
+  let petName = 'your pet'
+  if (claimRow.pet_id) {
+    const { data: pet } = await supabase
+      .from('pets')
+      .select('name')
+      .eq('id', claimRow.pet_id)
+      .single()
+    if (pet?.name) petName = pet.name
+  }
+
+  // Get user profile (email, phone, sms_opt_in, full_name)
+  if (!claimRow.user_id) {
+    console.warn(`[Odie Webhook] Claim ${claimId} has no user_id — skipping notifications`)
+    return
+  }
+
+  const { data: profile, error: profileErr } = await supabase
+    .from('profiles')
+    .select('email, phone, sms_opt_in, full_name')
+    .eq('id', claimRow.user_id)
+    .single()
+
+  if (profileErr || !profile) {
+    console.warn(`[Odie Webhook] Could not look up profile for user ${claimRow.user_id}:`, profileErr?.message)
+    return
+  }
+
+  const friendly = getFriendlyStatus(odieStatus)
+  const reimbursementNote = amountPaid > 0 ? `Reimbursement: $${amountPaid.toFixed(2)}. ` : ''
+
+  // --- SMS notification ---
+  if (profile.sms_opt_in && profile.phone) {
+    try {
+      const smsBody =
+        `\uD83D\uDC3E PCH Update: Your claim for ${petName} ${friendly}. ` +
+        reimbursementNote +
+        'View details: pet-claim-helper.vercel.app'
+
+      const result = await sendTwilioSMS(profile.phone, smsBody)
+      if (result.success) {
+        console.log(`[Odie Webhook] SMS sent to ${profile.phone} for claim ${claimNumber}`)
+      } else {
+        console.error(`[Odie Webhook] SMS failed for claim ${claimNumber}:`, result.error)
+      }
+    } catch (smsErr) {
+      console.error(`[Odie Webhook] SMS error for claim ${claimNumber}:`, smsErr.message)
+    }
+  }
+
+  // --- Email notification ---
+  if (profile.email) {
+    try {
+      const resend = await getResend()
+      const firstName = profile.full_name?.split(' ')[0] || 'there'
+
+      const html = `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
+  <h2 style="color: #0d9488; margin: 0 0 16px;">Claim Update</h2>
+  <p style="color: #334155; font-size: 16px; line-height: 1.6;">
+    Hi ${firstName},
+  </p>
+  <p style="color: #334155; font-size: 16px; line-height: 1.6;">
+    Your claim for <strong>${petName}</strong> ${friendly}.
+  </p>
+  ${amountPaid > 0 ? `<p style="color: #334155; font-size: 16px; line-height: 1.6;">Reimbursement amount: <strong>$${amountPaid.toFixed(2)}</strong></p>` : ''}
+  <p style="margin: 24px 0;">
+    <a href="https://pet-claim-helper.vercel.app" style="display: inline-block; padding: 12px 24px; background: #0d9488; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600;">View Your Dashboard</a>
+  </p>
+  <p style="color: #94a3b8; font-size: 13px;">— Pet Claim Helper</p>
+</div>`
+
+      await resend.emails.send({
+        from: 'Pet Claim Helper <notifications@petclaimhelper.com>',
+        to: [profile.email],
+        subject: `Claim Update: ${petName}`,
+        html,
+      })
+
+      console.log(`[Odie Webhook] Email sent to ${profile.email} for claim ${claimNumber}`)
+    } catch (emailErr) {
+      console.error(`[Odie Webhook] Email error for claim ${claimNumber}:`, emailErr.message)
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +237,13 @@ async function processClaimWebhook(supabase, { claim, claimNumber, logId }) {
     `[Odie Webhook] Updated claim ${claimId}: odie_status=${odieStatus}` +
     ` → filing_status=${mappedStatus || '(unchanged)'}, amountPaid=${amountPaid}`
   )
+
+  // Send SMS + email notifications (fire-and-forget — failures don't break the webhook)
+  try {
+    await sendClaimNotifications(supabase, { claimId, claimNumber, odieStatus, amountPaid })
+  } catch (notifyErr) {
+    console.error(`[Odie Webhook] Notification error for claim ${claimNumber}:`, notifyErr.message)
+  }
 }
 
 // ---------------------------------------------------------------------------
