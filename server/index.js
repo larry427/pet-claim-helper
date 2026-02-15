@@ -13,6 +13,7 @@ import OpenAI from 'openai'
 import * as pdfjsLib from 'pdfjs-dist'
 import { runMedicationReminders } from './routes/medication-reminders.js'
 import deadlineNotifications from './routes/deadline-notifications.js'
+import odieRoutes from './routes/odie.js'
 import schedule from 'node-schedule'
 import { sendSMS } from './utils/sendSMS.js'
 import { DateTime } from 'luxon'
@@ -98,6 +99,9 @@ const signupLimiter = rateLimit({
 
 // Routes (medication reminders router not ready yet)
 // app.use('/api/medication-reminders', medicationRemindersRouter)
+
+// Odie Pet Insurance API routes
+app.use('/api/odie', odieRoutes)
 
 app.get('/api/health', (_req, res) => {
   res.json({
