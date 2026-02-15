@@ -86,6 +86,22 @@ async function fetchOdiePolicy(policyNumber: string): Promise<{ ok: boolean; pol
   return { ok: true, policy: data.policy }
 }
 
+/** Fire-and-forget: register our webhook URL with Odie for this policy */
+function registerPolicyWebhook(policyNumber: string): void {
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8787'
+  supabase.auth.getSession().then(({ data }) => {
+    const token = data?.session?.access_token
+    fetch(`${apiUrl}/api/odie/policy/${encodeURIComponent(policyNumber)}/webhook`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ webhook: 'https://pet-claim-helper.onrender.com/api/odie/webhook' }),
+    }).catch(err => console.error('[Odie] Webhook registration failed:', err))
+  })
+}
+
 function parsePolicyStartDate(raw: string | null | undefined): string | null {
   if (!raw) return null
   try {
@@ -228,6 +244,7 @@ function OdieConnectModal({
       }
 
       await saveOdiePolicyToPet(petId, policy, true)
+      registerPolicyWebhook(policy.policyNumber)
       setSuccess(true)
       setTimeout(() => onConnect(), 1500)
     } catch (err: any) {
@@ -367,6 +384,7 @@ function OdieInlineConnect({ petId, onConnect, onPolicyData }: InlineProps) {
       // If we have a petId, save directly to Supabase
       if (petId) {
         await saveOdiePolicyToPet(petId, policy, true)
+        registerPolicyWebhook(policy.policyNumber)
         setSuccess(true)
         onConnect?.()
       }

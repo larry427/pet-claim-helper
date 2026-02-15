@@ -11,6 +11,7 @@
  *   PATCH /api/odie/claims/:claimNumber/review    - Mark docs ready for review
  *   GET  /api/odie/claims/:claimNumber            - Get single claim status
  *   GET  /api/odie/policy/:policyNumber/claims    - List all claims for a policy
+ *   PATCH /api/odie/policy/:policyNumber/webhook - Register webhook URL for a policy
  */
 
 import { Router } from 'express'
@@ -170,6 +171,7 @@ router.post('/claims/submit', async (req, res) => {
       pecAcknowledgment: true,
       certifiedInfoAck: now,
       crimeAck: now,
+      webhook: 'https://pet-claim-helper.onrender.com/api/odie/webhook',
     }
 
     const response = await fetch(
@@ -192,6 +194,9 @@ router.post('/claims/submit', async (req, res) => {
       })
     }
 
+    // TODO: When frontend claim-via-API submission is built, the caller should
+    // save data.claimNumber as odie_claim_number in the claims table so webhooks
+    // can match against it.
     console.log(`[Odie] Claim submitted: claimNumber=${data.claimNumber}, status=${data.status}`)
     return res.json({
       ok: true,
@@ -396,6 +401,47 @@ router.get('/policy/:policyNumber/claims', async (req, res) => {
     return res.json({ ok: true, claims })
   } catch (err) {
     console.error('[Odie] Policy claims fetch error:', err.message)
+    return res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// 7. PATCH /api/odie/policy/:policyNumber/webhook
+//    Register a webhook URL for policy and claim status updates
+// ---------------------------------------------------------------------------
+router.patch('/policy/:policyNumber/webhook', async (req, res) => {
+  const { policyNumber } = req.params
+  // Hardcode webhook URL server-side for safety — ignore whatever the client sends
+  const webhookUrl = 'https://pet-claim-helper.onrender.com/api/odie/webhook'
+  console.log(`[Odie] PATCH webhook for policy ${policyNumber}: ${webhookUrl}`)
+
+  try {
+    const { apiKey, baseUrl } = getOdieConfig()
+
+    const response = await fetch(
+      `${baseUrl}/v1/policy/${encodeURIComponent(policyNumber)}/webhook`,
+      {
+        method: 'PATCH',
+        headers: odieHeaders(apiKey, 'application/json'),
+        body: JSON.stringify({ webhook: webhookUrl }),
+      }
+    )
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      console.error(`[Odie] Webhook registration failed (${response.status}):`, data)
+      return res.status(response.status).json({
+        ok: false,
+        error: data.message || `Odie API error ${response.status}`,
+        odieCode: data.code,
+      })
+    }
+
+    console.log(`[Odie] Webhook registered for policy ${policyNumber}`)
+    return res.json({ ok: true, data })
+  } catch (err) {
+    console.error('[Odie] Webhook registration error:', err.message)
     return res.status(500).json({ ok: false, error: err.message })
   }
 })
