@@ -102,6 +102,11 @@ router.get('/policy/:policyNumber', async (req, res) => {
         illnessEffectiveDate: data.illnessEffectiveDate,
         accidentEffectiveDate: data.accidentEffectiveDate,
         office_visits: data.office_visits,
+        pet: data.pet ? { id: data.pet.id } : null,
+        user: data.user ? { id: data.user.id } : null,
+        monthlyPremium: data.monthlyPremium,
+        breedDescription: data.breedDescription,
+        gender: data.gender,
       },
     })
   } catch (err) {

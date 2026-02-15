@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { createPet } from '../lib/petStorage'
 import { INSURANCE_OPTIONS, getInsuranceValue } from '../lib/insuranceOptions'
+import { OdieInlineConnect } from './OdieConnectButton'
 
 type Props = {
   open: boolean
@@ -22,6 +23,19 @@ export default function OnboardingModal({ open, onClose, userId, userEmail }: Pr
   const [newMonthlyPremium, setNewMonthlyPremium] = useState('')
   const [newCoverageMonth, setNewCoverageMonth] = useState('')
   const [newCoverageYear, setNewCoverageYear] = useState('')
+  // Odie connect state
+  const [odiePolicyData, setOdiePolicyData] = useState<{
+    policyNumber: string
+    deductibleAmount: number
+    coinsurancePercent: number
+    standardAnnualLimit: number
+    policyStartDate: string | null
+    monthlyPremium: number | null
+    petName: string
+    species: string
+    odiePetId: string | null
+    odieUserId: string | null
+  } | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -35,6 +49,7 @@ export default function OnboardingModal({ open, onClose, userId, userEmail }: Pr
     setNewMonthlyPremium('')
     setNewCoverageMonth('')
     setNewCoverageYear('')
+    setOdiePolicyData(null)
   }, [open])
 
   // Onboarding validation - only 4 required fields
@@ -93,7 +108,18 @@ export default function OnboardingModal({ open, onClose, userId, userEmail }: Pr
         species: newSpecies || 'other',
         insurance_company: insuranceValue || null,
         monthly_premium: newMonthlyPremium === '' ? null : parseFloat(newMonthlyPremium),
-        coverage_start_date: coverageStartDateISO
+        coverage_start_date: coverageStartDateISO,
+        // Include Odie data if connected during onboarding
+        ...(odiePolicyData ? {
+          odie_policy_number: odiePolicyData.policyNumber,
+          odie_pet_id: odiePolicyData.odiePetId,
+          odie_user_id: odiePolicyData.odieUserId,
+          odie_connected: true,
+          policy_number: odiePolicyData.policyNumber,
+          deductible_per_claim: odiePolicyData.deductibleAmount,
+          insurance_pays_percentage: odiePolicyData.coinsurancePercent / 100,
+          annual_coverage_limit: odiePolicyData.standardAnnualLimit,
+        } : {}),
       }
 
       await createPet(petPayload)
@@ -178,6 +204,34 @@ export default function OnboardingModal({ open, onClose, userId, userEmail }: Pr
                   ))}
                 </select>
               </div>
+
+              {/* Odie Connect: show inline policy input when Odie is selected */}
+              {getInsuranceValue(newInsurance).toLowerCase() === 'odie' && (
+                <div className="mt-3 p-3 rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950">
+                  <p className="text-sm text-teal-800 dark:text-teal-200 mb-2">
+                    Have your Odie policy number? Connect now to auto-fill your insurance details.
+                  </p>
+                  <OdieInlineConnect
+                    onPolicyData={(data) => {
+                      setOdiePolicyData(data)
+                      // Auto-fill the optional onboarding fields
+                      if (data.monthlyPremium != null) {
+                        setNewMonthlyPremium(String(data.monthlyPremium))
+                      }
+                      if (data.policyStartDate) {
+                        const parts = data.policyStartDate.split('-')
+                        if (parts.length === 3) {
+                          setNewCoverageYear(parts[0])
+                          setNewCoverageMonth(String(parseInt(parts[1], 10)))
+                        }
+                      }
+                    }}
+                  />
+                  <p className="text-xs text-teal-600 dark:text-teal-400 mt-2">
+                    Or skip and enter details manually below.
+                  </p>
+                </div>
+              )}
 
               {/* Optional: Monthly Premium & Coverage Start */}
               <div className="pt-4 border-t border-slate-200 dark:border-slate-700">

@@ -28,6 +28,7 @@ export const INSURANCE_OPTIONS: InsuranceOption[] = [
   { display: 'Figo (180 days)', value: 'Figo', deadlineDays: 180 },
   { display: 'Pets Best (90 days)', value: 'Pets Best', deadlineDays: 90 },
   { display: 'ASPCA (90 days)', value: 'ASPCA', deadlineDays: 90 },
+  { display: 'Odie (365 days)', value: 'Odie', deadlineDays: 365 },
   { display: 'Other - Insurance not listed', value: 'Other' }
 ]
 

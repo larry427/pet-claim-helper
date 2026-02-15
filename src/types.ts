@@ -43,6 +43,11 @@ export type PetProfile = {
   breed?: string | null
   gender?: string | null
   date_of_birth?: string | null
+  // Odie Pet Insurance API integration
+  odie_policy_number?: string | null
+  odie_pet_id?: string | null
+  odie_user_id?: string | null
+  odie_connected?: boolean
 }
 
 export type ExtractedPetGroup = {

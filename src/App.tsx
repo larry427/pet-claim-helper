@@ -9,6 +9,7 @@ import { supabase, updateUserTimezone } from './lib/supabase'
 import { generateClaimPdf, generateClaimPdfForPet } from './lib/pdfClaim'
 import AddMedicationForm from './components/AddMedicationForm'
 import OnboardingModal from './components/OnboardingModal'
+import OdieConnectButton from './components/OdieConnectButton'
 // DISABLED: Using add-to-homescreen library in index.html instead
 // import AddToHomeScreenModal from './components/AddToHomeScreenModal'
 import FinancialSummary from './components/FinancialSummary'
@@ -3662,6 +3663,7 @@ function MainApp() {
                       const isSpot = company.toLowerCase().includes('spot')
                       const isFigo = company.toLowerCase().includes('figo')
                       const isPetsBest = company.toLowerCase().includes('pets best')
+                      const isOdie = company.toLowerCase().includes('odie')
                       const isNotInsured = company.toLowerCase().includes('not insured') || company.toLowerCase().includes('none')
 
                       let bgColor = 'bg-slate-100 dark:bg-slate-800'
@@ -3696,6 +3698,10 @@ function MainApp() {
                         bgColor = 'bg-cyan-50 dark:bg-cyan-950'
                         textColor = 'text-cyan-700 dark:text-cyan-300'
                         borderColor = 'border-cyan-200 dark:border-cyan-800'
+                      } else if (isOdie) {
+                        bgColor = 'bg-teal-50 dark:bg-teal-950'
+                        textColor = 'text-teal-600 dark:text-teal-300'
+                        borderColor = 'border-teal-200 dark:border-teal-800'
                       } else if (isNotInsured) {
                         bgColor = 'bg-slate-100 dark:bg-slate-800'
                         textColor = 'text-slate-600 dark:text-slate-400'
@@ -3711,12 +3717,14 @@ function MainApp() {
                           {isSpot && '🐾'}
                           {isFigo && '🐕'}
                           {isPetsBest && '🐶'}
+                          {isOdie && '🛡️'}
                           {isNotInsured && '—'}
                           {company}
                         </span>
                       )
                     })()}
                   </div>
+                  <OdieConnectButton pet={pet} onConnect={async () => { if (userId) { const refreshed = await dbLoadPets(userId); setPets(refreshed) } }} />
                 </div>
                 {editingPetId === pet.id && editPet && (
                   <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-800 p-3 max-w-3xl mx-auto overflow-x-hidden">

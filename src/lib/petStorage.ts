@@ -6,7 +6,7 @@ export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
   try {
     const { data, error} = await supabase
       .from('pets')
-      .select('id, name, species, color, photo_url, insurance_company, policy_number, owner_name, owner_phone, filing_deadline_days, monthly_premium, deductible_per_claim, coverage_start_date, insurance_pays_percentage, annual_coverage_limit, healthy_paws_pet_id, pumpkin_account_number, spot_account_number, figo_policy_number, breed, gender, date_of_birth')
+      .select('id, name, species, color, photo_url, insurance_company, policy_number, owner_name, owner_phone, filing_deadline_days, monthly_premium, deductible_per_claim, coverage_start_date, insurance_pays_percentage, annual_coverage_limit, healthy_paws_pet_id, pumpkin_account_number, spot_account_number, figo_policy_number, breed, gender, date_of_birth, odie_policy_number, odie_pet_id, odie_user_id, odie_connected')
       .eq('user_id', userId)
       .order('created_at', { ascending: true })
     if (error) {
@@ -35,6 +35,10 @@ export async function dbLoadPets(userId: string): Promise<PetProfile[]> {
       breed: p.breed || null,
       gender: p.gender || null,
       date_of_birth: p.date_of_birth || null,
+      odie_policy_number: p.odie_policy_number || null,
+      odie_pet_id: p.odie_pet_id || null,
+      odie_user_id: p.odie_user_id || null,
+      odie_connected: p.odie_connected || false,
     }))
     return mapped
   } catch (e) {
@@ -68,6 +72,10 @@ export async function dbUpsertPet(userId: string, pet: PetProfile): Promise<void
     breed: pet.breed || null,
     gender: pet.gender || null,
     date_of_birth: pet.date_of_birth || null,
+    odie_policy_number: pet.odie_policy_number || null,
+    odie_pet_id: pet.odie_pet_id || null,
+    odie_user_id: pet.odie_user_id || null,
+    odie_connected: pet.odie_connected || false,
   }
 
   const { data, error } = await supabase.from('pets').upsert(payload, { onConflict: 'id' }).select()
@@ -112,6 +120,10 @@ export async function createPet(pet: any): Promise<any> {
         annual_coverage_limit: pet.annual_coverage_limit ?? null,
         insurance_pays_percentage: pet.insurance_pays_percentage ?? null,
         filing_deadline_days: pet.filing_deadline_days ?? null,
+        odie_policy_number: pet.odie_policy_number ?? null,
+        odie_pet_id: pet.odie_pet_id ?? null,
+        odie_user_id: pet.odie_user_id ?? null,
+        odie_connected: pet.odie_connected ?? false,
       },
     ])
     .select('*')
