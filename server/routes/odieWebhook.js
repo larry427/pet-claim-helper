@@ -13,19 +13,24 @@
  */
 
 import { Router } from 'express'
-import { createClient } from '@supabase/supabase-js'
 
 const router = Router()
 
 // ---------------------------------------------------------------------------
-// Supabase client (lazy — ensures env vars are loaded before first use)
+// Supabase client (lazy — dynamic import avoids top-level ESM resolution issues)
 // ---------------------------------------------------------------------------
 
-function getSupabase() {
-  return createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  )
+let _supabase = null
+
+async function getSupabase() {
+  if (!_supabase) {
+    const { createClient } = await import('@supabase/supabase-js')
+    _supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    )
+  }
+  return _supabase
 }
 
 // ---------------------------------------------------------------------------
@@ -105,7 +110,7 @@ async function processClaimWebhook(supabase, { claim, claimNumber, logId }) {
 // ---------------------------------------------------------------------------
 
 router.post('/webhook', async (req, res) => {
-  const supabase = getSupabase()
+  const supabase = await getSupabase()
   let logId = null
 
   try {
