@@ -2060,8 +2060,8 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
                 console.error('[Submit Claim] [Odie] Failed to fetch invoice PDF:', storageError)
               } else if (invoiceData) {
                 const invoiceBuffer = Buffer.from(await invoiceData.arrayBuffer())
-                const { FormData, Blob } = await import('node-fetch')
 
+                // Use global FormData/Blob (available in Node 18+)
                 const form = new FormData()
                 const blob = new Blob([invoiceBuffer], { type: 'application/pdf' })
                 form.append('document', blob, 'invoice.pdf')
@@ -2130,13 +2130,17 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
           })
 
         } catch (odieErr) {
-          // Odie API failed — fall through to PDF/email path
-          console.error('[Submit Claim] [Odie] API submission failed, falling back to PDF/email:', odieErr.message)
+          console.error('[Submit Claim] [Odie] API submission failed:', odieErr.message)
+          return res.status(500).json({
+            ok: false,
+            error: 'Odie submission failed',
+            details: odieErr.message,
+          })
         }
       }
 
       // -----------------------------------------------------------------------
-      // 8. PDF/EMAIL PATH — default for non-Odie or Odie fallback
+      // 8. PDF/EMAIL PATH — for non-Odie pets only
       // -----------------------------------------------------------------------
 
       // 8a. Generate PDF

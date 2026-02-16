@@ -32,6 +32,7 @@ interface ClaimSubmissionModalProps {
 export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSuccess }: ClaimSubmissionModalProps) {
   const [step, setStep] = useState<'validating' | 'collect-missing-fields' | 'confirm' | 'submitting' | 'success' | 'error' | 'missing-data'>('validating')
   const [messageId, setMessageId] = useState<string | null>(null)
+  const [submittedViaOdie, setSubmittedViaOdie] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
   const [profile, setProfile] = useState<any>(null)
@@ -264,6 +265,9 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
       }
 
       setMessageId(result.messageId)
+      if (result.message?.includes('via Odie API')) {
+        setSubmittedViaOdie(true)
+      }
       setStep('success')
 
       // Don't auto-close - let user click "Done" button
@@ -435,27 +439,46 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 max-w-md w-full text-center">
           <div className="text-green-600 text-6xl mb-4">✓</div>
           <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">Claim Submitted!</h2>
-          <p className="text-gray-700 dark:text-gray-300 mb-6">
-            Your claim for <strong>{pet?.name || 'your pet'}</strong> has been automatically submitted to <strong>{insurer}</strong>.
-          </p>
-
-          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6 text-left">
-            <h3 className="font-semibold text-green-800 dark:text-green-300 mb-2">What happens next:</h3>
-            <ul className="text-sm text-green-700 dark:text-green-400 space-y-1">
-              <li>✓ Claim form PDF sent to {insurer}</li>
-              <li>✓ Copy sent to your email (BCC)</li>
-              <li className="ml-4 text-xs">💡 Don't see it? Check your spam or junk folder</li>
-              <li>✓ Claim status updated to "Submitted"</li>
-              <li>⏳ Insurance company will review (typically 5-10 business days)</li>
-            </ul>
-          </div>
-
-          {messageId && (
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-6">
-              <p className="text-xs text-blue-700 dark:text-blue-400 font-mono break-all">
-                Tracking ID: {messageId.slice(0, 20)}...
+          {submittedViaOdie ? (
+            <>
+              <p className="text-gray-700 dark:text-gray-300 mb-6">
+                Your claim for <strong>{pet?.name || 'your pet'}</strong> was sent directly to <strong>Odie</strong> — no extra steps needed.
               </p>
-            </div>
+
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6 text-left">
+                <h3 className="font-semibold text-green-800 dark:text-green-300 mb-2">What happens next:</h3>
+                <ul className="text-sm text-green-700 dark:text-green-400 space-y-1">
+                  {messageId && <li>✓ Your claim number is <strong>{messageId}</strong></li>}
+                  <li>✓ We'll notify you when Odie has an update</li>
+                  <li>✓ Sit back and let us handle the rest</li>
+                </ul>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-gray-700 dark:text-gray-300 mb-6">
+                Your claim for <strong>{pet?.name || 'your pet'}</strong> has been automatically submitted to <strong>{insurer}</strong>.
+              </p>
+
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6 text-left">
+                <h3 className="font-semibold text-green-800 dark:text-green-300 mb-2">What happens next:</h3>
+                <ul className="text-sm text-green-700 dark:text-green-400 space-y-1">
+                  <li>✓ Claim form PDF sent to {insurer}</li>
+                  <li>✓ Copy sent to your email (BCC)</li>
+                  <li className="ml-4 text-xs">💡 Don't see it? Check your spam or junk folder</li>
+                  <li>✓ Claim status updated to "Submitted"</li>
+                  <li>⏳ Insurance company will review (typically 5-10 business days)</li>
+                </ul>
+              </div>
+
+              {messageId && (
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-6">
+                  <p className="text-xs text-blue-700 dark:text-blue-400 font-mono break-all">
+                    Tracking ID: {messageId.slice(0, 20)}...
+                  </p>
+                </div>
+              )}
+            </>
           )}
 
           <button
