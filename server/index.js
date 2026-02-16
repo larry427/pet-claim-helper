@@ -1952,7 +1952,6 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
       // -----------------------------------------------------------------------
       // 7. ODIE API PATH — if pet is connected to Odie, submit via API
       // -----------------------------------------------------------------------
-      console.log('[Odie Debug] pet odie_connected:', claim.pets?.odie_connected, 'odie_policy_number:', claim.pets?.odie_policy_number, 'pet_id:', claim.pet_id, 'full pets object keys:', Object.keys(claim.pets || {}))
       if (claim.pets?.odie_connected && claim.pets?.odie_policy_number) {
         console.log('[Submit Claim] Odie-connected pet detected, attempting API submission')
 
@@ -1978,8 +1977,30 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
           }
 
           // Parse vet address into structured fields
+          // Expected format: "street, city, state zip" e.g. "21157 Newport Coast Dr, Newport Coast, CA 92657"
           const clinicAddr = claim.clinic_address || ''
-          const addrParts = clinicAddr.split(',').map(s => s.trim())
+          let parsedLine1 = ''
+          let parsedCity = ''
+          let parsedState = ''
+          let parsedZip = ''
+
+          // Try to match "street, city, STATE ZIP" pattern
+          const addrMatch = clinicAddr.match(/^(.+?),\s*(.+?),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i)
+          if (addrMatch) {
+            parsedLine1 = addrMatch[1].trim()
+            parsedCity = addrMatch[2].trim()
+            parsedState = addrMatch[3].trim().toUpperCase()
+            parsedZip = addrMatch[4].trim()
+          } else {
+            // Fallback: split by comma, extract zip via regex
+            const parts = clinicAddr.split(',').map(s => s.trim())
+            parsedLine1 = parts[0] || ''
+            parsedCity = parts[1] || ''
+            const zipMatch = clinicAddr.match(/\b(\d{5}(?:-\d{4})?)\b/)
+            if (zipMatch) parsedZip = zipMatch[1]
+            const stateMatch = clinicAddr.match(/\b([A-Z]{2})\s+\d{5}/i)
+            if (stateMatch) parsedState = stateMatch[1].toUpperCase()
+          }
 
           // Step 1: Submit claim to Odie
           const odieClaimPayload = {
@@ -1990,10 +2011,10 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
             veterinaryPractice: {
               practiceName: claim.clinic_name || claim.pets.preferred_vet_name || 'Veterinary Clinic',
               contact: {
-                line1: addrParts[0] || '',
-                city: addrParts[1] || '',
-                state: addrParts[2] || '',
-                zipCode: addrParts[3] || '',
+                line1: parsedLine1,
+                city: parsedCity,
+                state: parsedState,
+                zipCode: parsedZip,
                 country: 'USA',
                 phone: claim.clinic_phone || '',
               },
