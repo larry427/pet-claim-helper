@@ -1952,6 +1952,7 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
       // -----------------------------------------------------------------------
       // 7. ODIE API PATH — if pet is connected to Odie, submit via API
       // -----------------------------------------------------------------------
+      console.log('[Odie Debug] pet odie_connected:', claim.pets?.odie_connected, 'odie_policy_number:', claim.pets?.odie_policy_number, 'pet_id:', claim.pet_id, 'full pets object keys:', Object.keys(claim.pets || {}))
       if (claim.pets?.odie_connected && claim.pets?.odie_policy_number) {
         console.log('[Submit Claim] Odie-connected pet detected, attempting API submission')
 
