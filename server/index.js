@@ -2126,6 +2126,8 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
             ok: true,
             message: 'Claim submitted successfully via Odie API',
             messageId: odieClaimNumber,
+            odieClaimNumber,
+            submittedViaApi: true,
             insurer,
           })
 

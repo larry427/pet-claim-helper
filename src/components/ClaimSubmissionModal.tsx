@@ -264,8 +264,8 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
         throw new Error(result.error || 'Failed to submit claim')
       }
 
-      setMessageId(result.messageId)
-      if (result.message?.includes('via Odie API')) {
+      setMessageId(result.submittedViaApi ? result.odieClaimNumber : result.messageId)
+      if (result.submittedViaApi === true) {
         setSubmittedViaOdie(true)
       }
       setStep('success')
