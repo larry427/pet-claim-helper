@@ -1800,7 +1800,9 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
             healthy_paws_pet_id,
             pumpkin_account_number,
             spot_account_number,
-            figo_policy_number
+            figo_policy_number,
+            odie_connected,
+            odie_policy_number
           )
         `)
         .eq('id', claimId)
@@ -1947,7 +1949,175 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         })
       }
 
-      // 7. Generate PDF
+      // -----------------------------------------------------------------------
+      // 7. ODIE API PATH — if pet is connected to Odie, submit via API
+      // -----------------------------------------------------------------------
+      if (claim.pets?.odie_connected && claim.pets?.odie_policy_number) {
+        console.log('[Submit Claim] Odie-connected pet detected, attempting API submission')
+
+        try {
+          const odieApiKey = process.env.ODIE_API_KEY?.trim()
+          const odieBaseUrl = process.env.ODIE_API_BASE_URL?.trim()
+          if (!odieApiKey || !odieBaseUrl) {
+            throw new Error('Missing ODIE_API_KEY or ODIE_API_BASE_URL env vars')
+          }
+
+          const odiePolicyNumber = claim.pets.odie_policy_number
+          const now = new Date().toISOString()
+
+          // Map expense_category / claim_type to Odie category
+          const rawCategory = (claim.expense_category || claim.claim_type || '').toLowerCase()
+          let odieCategory = 'CLAIMTYPEILLNESS' // default
+          if (/accident|emergency/.test(rawCategory)) {
+            odieCategory = 'CLAIMTYPEACCIDENT'
+          } else if (/illness|medication/.test(rawCategory)) {
+            odieCategory = 'CLAIMTYPEILLNESS'
+          } else if (/routine|wellness|checkup/.test(rawCategory)) {
+            odieCategory = 'CLAIMTYPEROUTINE'
+          }
+
+          // Parse vet address into structured fields
+          const clinicAddr = claim.clinic_address || ''
+          const addrParts = clinicAddr.split(',').map(s => s.trim())
+
+          // Step 1: Submit claim to Odie
+          const odieClaimPayload = {
+            dateOfService: claim.service_date || claim.created_at?.split('T')[0],
+            category: odieCategory,
+            amountClaimed: Number(claim.total_amount) || 0,
+            description: claim.visit_title || claim.diagnosis || claim.ai_diagnosis || 'Veterinary visit',
+            veterinaryPractice: {
+              practiceName: claim.clinic_name || claim.pets.preferred_vet_name || 'Veterinary Clinic',
+              contact: {
+                line1: addrParts[0] || '',
+                city: addrParts[1] || '',
+                state: addrParts[2] || '',
+                zipCode: addrParts[3] || '',
+                country: 'USA',
+                phone: claim.clinic_phone || '',
+              },
+            },
+            pecAcknowledgment: true,
+            certifiedInfoAck: now,
+            crimeAck: now,
+            webhook: 'https://pet-claim-helper.onrender.com/api/odie/webhook',
+          }
+
+          console.log('[Submit Claim] [Odie] Submitting claim to Odie API:', {
+            policy: odiePolicyNumber,
+            category: odieCategory,
+            amount: odieClaimPayload.amountClaimed,
+          })
+
+          const claimResponse = await fetch(
+            `${odieBaseUrl}/v1/policy/${encodeURIComponent(odiePolicyNumber)}/claims`,
+            {
+              method: 'POST',
+              headers: { 'x-api-key': odieApiKey, 'Content-Type': 'application/json' },
+              body: JSON.stringify(odieClaimPayload),
+            }
+          )
+
+          const claimResult = await claimResponse.json()
+
+          if (!claimResponse.ok) {
+            throw new Error(`Odie claim submit failed (${claimResponse.status}): ${claimResult.message || JSON.stringify(claimResult)}`)
+          }
+
+          const odieClaimNumber = claimResult.claimNumber
+          console.log(`[Submit Claim] [Odie] Claim created: ${odieClaimNumber}`)
+
+          // Step 2: Upload invoice PDF if available
+          if (claim.pdf_path) {
+            try {
+              const { data: invoiceData, error: storageError } = await supabase.storage
+                .from('claim-pdfs')
+                .download(claim.pdf_path)
+
+              if (storageError) {
+                console.error('[Submit Claim] [Odie] Failed to fetch invoice PDF:', storageError)
+              } else if (invoiceData) {
+                const invoiceBuffer = Buffer.from(await invoiceData.arrayBuffer())
+                const { FormData, Blob } = await import('node-fetch')
+
+                const form = new FormData()
+                const blob = new Blob([invoiceBuffer], { type: 'application/pdf' })
+                form.append('document', blob, 'invoice.pdf')
+                form.append('documentType', 'Veterinary_Invoice')
+
+                const uploadResponse = await fetch(
+                  `${odieBaseUrl}/v2/claim/${encodeURIComponent(odieClaimNumber)}/documents`,
+                  {
+                    method: 'POST',
+                    headers: { 'x-api-key': odieApiKey },
+                    body: form,
+                  }
+                )
+
+                if (!uploadResponse.ok) {
+                  const uploadErr = await uploadResponse.json().catch(() => ({}))
+                  console.error(`[Submit Claim] [Odie] Document upload failed (${uploadResponse.status}):`, uploadErr)
+                } else {
+                  console.log(`[Submit Claim] [Odie] Invoice uploaded to claim ${odieClaimNumber}`)
+
+                  // Step 3: Mark documents ready for review
+                  const reviewResponse = await fetch(
+                    `${odieBaseUrl}/v2/claim/${encodeURIComponent(odieClaimNumber)}/review-documents`,
+                    {
+                      method: 'PATCH',
+                      headers: { 'x-api-key': odieApiKey, 'Content-Type': 'application/json' },
+                    }
+                  )
+
+                  if (!reviewResponse.ok) {
+                    const reviewErr = await reviewResponse.json().catch(() => ({}))
+                    console.error(`[Submit Claim] [Odie] Review-documents failed (${reviewResponse.status}):`, reviewErr)
+                  } else {
+                    console.log(`[Submit Claim] [Odie] Claim ${odieClaimNumber} marked ready for review`)
+                  }
+                }
+              }
+            } catch (docErr) {
+              console.error('[Submit Claim] [Odie] Document upload/review error (non-fatal):', docErr.message)
+            }
+          }
+
+          // Step 4: Update claims table
+          const { error: odieUpdateError } = await supabase
+            .from('claims')
+            .update({
+              filing_status: 'submitted',
+              submitted_at: new Date().toISOString(),
+              odie_claim_number: odieClaimNumber,
+              odie_claim_status: 'CLAIMSUBMITTED',
+              submitted_via_api: true,
+            })
+            .eq('id', claimId)
+
+          if (odieUpdateError) {
+            console.error('[Submit Claim] [Odie] Failed to update claim status:', odieUpdateError)
+          }
+
+          console.log(`[Submit Claim] [Odie] ✅ Claim ${claimId} submitted via Odie API (${odieClaimNumber})`)
+
+          return res.json({
+            ok: true,
+            message: 'Claim submitted successfully via Odie API',
+            messageId: odieClaimNumber,
+            insurer,
+          })
+
+        } catch (odieErr) {
+          // Odie API failed — fall through to PDF/email path
+          console.error('[Submit Claim] [Odie] API submission failed, falling back to PDF/email:', odieErr.message)
+        }
+      }
+
+      // -----------------------------------------------------------------------
+      // 8. PDF/EMAIL PATH — default for non-Odie or Odie fallback
+      // -----------------------------------------------------------------------
+
+      // 8a. Generate PDF
       // Format date as MM/DD/YYYY for all PDF forms
       const today = new Date()
       const mm = String(today.getMonth() + 1).padStart(2, '0')
@@ -1962,7 +2132,7 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         dateSigned
       )
 
-      // 7.5. Fetch invoice PDF from storage if it exists
+      // 8b. Fetch invoice PDF from storage if it exists
       let invoiceBuffer = null
       if (claim.pdf_path) {
         try {
@@ -1982,7 +2152,7 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         }
       }
 
-      // 8. Send email to insurer (with both claim form and invoice)
+      // 8c. Send email to insurer (with both claim form and invoice)
       // Pass is_demo_account flag to route demo account claims to safe test email
       const isDemoAccount = profile.is_demo_account || false
       const emailResult = await sendClaimEmail(insurer, claimData, pdfBuffer, invoiceBuffer, isDemoAccount)
@@ -1992,7 +2162,7 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         return res.status(500).json({ ok: false, error: `Failed to send email: ${emailResult.error}` })
       }
 
-      // 9. Update claim status in database
+      // 8d. Update claim status in database
       const { error: updateError } = await supabase
         .from('claims')
         .update({
