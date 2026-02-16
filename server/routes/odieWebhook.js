@@ -132,7 +132,7 @@ async function sendClaimNotifications(supabase, { claimId, claimNumber, odieStat
       const smsBody =
         `\uD83D\uDC3E PCH Update: Your claim for ${petName} ${friendly}. ` +
         reimbursementNote +
-        'View details: pet-claim-helper.vercel.app'
+        'View details: https://pet-claim-helper.vercel.app'
 
       const result = await sendTwilioSMS(profile.phone, smsBody)
       if (result.success) {
