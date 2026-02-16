@@ -3717,7 +3717,7 @@ function MainApp() {
                           {isSpot && '🐾'}
                           {isFigo && '🐕'}
                           {isPetsBest && '🐶'}
-                          {isOdie && '🛡️'}
+                          {isOdie && <img src="/odie-logo.png" alt="Odie" className="inline-block w-4 h-4 mr-1" />}
                           {isNotInsured && '—'}
                           {company}
                         </span>
