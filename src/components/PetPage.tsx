@@ -377,7 +377,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
               <span className="text-slate-300 dark:text-slate-600">·</span>
             )}
             {pet.gender && (
-              <span className="text-base text-slate-600 dark:text-slate-400 capitalize">{pet.gender}</span>
+              <span className="text-base text-slate-600 dark:text-slate-400">{pet.gender.charAt(0).toUpperCase() + pet.gender.slice(1).toLowerCase()}</span>
             )}
           </div>
 

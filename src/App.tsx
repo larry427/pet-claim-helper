@@ -1676,7 +1676,7 @@ function MainApp() {
           </div>
         </div>
       )}
-      <header className="px-4 pt-2 pb-3 md:py-8 bg-gradient-to-b from-white/50 to-transparent dark:from-slate-900/50">
+      <header className={`px-4 pt-2 pb-3 md:py-8 bg-gradient-to-b from-white/50 to-transparent dark:from-slate-900/50${currentPetPageId ? ' hidden' : ''}`}>
         <div className="mx-auto max-w-6xl">
           {/* Header with logo and settings gear for whitelisted users */}
           <div className="relative">
