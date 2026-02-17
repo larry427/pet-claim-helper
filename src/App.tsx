@@ -3983,19 +3983,21 @@ function MainApp() {
                 <textarea rows={3} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2" value={editVisitNotes} onChange={(e) => setEditVisitNotes(e.target.value)} />
               </div>
               <div className="sm:col-span-2">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs text-slate-500">Line Items</label>
-                  <button type="button" className="text-xs text-emerald-700" onClick={() => setEditItems([...editItems, { description: '', amount: '' }])}>+ Add Item</button>
-                </div>
+                <label className="block text-xs text-slate-500">Line Items</label>
                 <div className="mt-2 space-y-2">
                   {editItems.map((it, idx) => (
                     <div key={idx} className="grid grid-cols-12 gap-2">
-                      <input className="col-span-8 rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-2 py-1" placeholder="Description" value={it.description} onChange={(e) => { const arr = [...editItems]; arr[idx] = { ...arr[idx], description: e.target.value }; setEditItems(arr) }} />
-                      <input className="col-span-3 rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-2 py-1" placeholder="Amount" value={it.amount} onChange={(e) => { const arr = [...editItems]; arr[idx] = { ...arr[idx], amount: e.target.value }; setEditItems(arr) }} />
-                      <button className="col-span-1 text-xs" onClick={() => { const arr = editItems.filter((_,i)=>i!==idx); setEditItems(arr) }}>✕</button>
+                      <input className="col-span-8 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-2 py-1 text-slate-600 dark:text-slate-400" value={it.description} readOnly tabIndex={-1} />
+                      <input className="col-span-4 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-2 py-1 text-right text-slate-600 dark:text-slate-400" value={typeof it.amount === 'number' ? `$${Number(it.amount).toFixed(2)}` : it.amount?.toString().startsWith('$') ? it.amount : `$${it.amount}`} readOnly tabIndex={-1} />
                     </div>
                   ))}
                 </div>
+                {editItems.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-slate-300 dark:border-slate-700 grid grid-cols-12 gap-2">
+                    <div className="col-span-8 px-2 py-1 text-sm font-semibold text-slate-700 dark:text-slate-300 text-right">Total</div>
+                    <div className="col-span-4 px-2 py-1 text-sm font-semibold text-right text-slate-700 dark:text-slate-300">${editItems.reduce((sum, it) => { const n = parseFloat(String(it.amount).replace(/[$,]/g, '')); return sum + (isNaN(n) ? 0 : n) }, 0).toFixed(2)}</div>
+                  </div>
+                )}
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-xs text-slate-500 mb-1">Expense Category</label>
