@@ -1512,11 +1512,15 @@ function MainApp() {
       const rem = getDaysRemaining(c)
       return rem !== null && rem >= 1 && rem <= 14
     }).length
+    const approaching = notSubmitted.filter(c => {
+      const rem = getDaysRemaining(c)
+      return rem !== null && rem >= 15 && rem <= 30
+    }).length
     const overdue = notSubmitted.filter(c => {
       const rem = getDaysRemaining(c)
       return rem !== null && rem < 0
     }).length
-    return { total, notFiledCount: notSubmitted.length, notFiledSum, filedPending, expiringSoon, overdue }
+    return { total, notFiledCount: notSubmitted.length, notFiledSum, filedPending, expiringSoon, approaching, overdue }
   }, [claims])
 
   // Financial aggregates
@@ -2102,7 +2106,7 @@ function MainApp() {
             {(() => {
               const overdueMeds = medicationAlerts.filter(a => a.isOverdue)
               const upcomingMeds = medicationAlerts.filter(a => !a.isOverdue)
-              const hasAlerts = claimsSummary.overdue > 0 || claimsSummary.expiringSoon > 0 || medicationAlerts.length > 0
+              const hasAlerts = claimsSummary.overdue > 0 || claimsSummary.expiringSoon > 0 || claimsSummary.approaching > 0 || claimsSummary.notFiledCount > 0 || medicationAlerts.length > 0
 
               return hasAlerts ? (
                 <div className="space-y-4">
@@ -2197,6 +2201,54 @@ function MainApp() {
                       <div className="text-amber-400 text-lg">→</div>
                     </button>
                   ))}
+
+                  {/* Approaching Deadline Alert (15-30 days) */}
+                  {claimsSummary.approaching > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('vetbills')}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-blue-200/60 dark:border-blue-800 bg-blue-50/80 dark:bg-blue-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
+                    >
+                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-800 dark:to-blue-900 flex items-center justify-center shadow-sm">
+                        <Clock className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-blue-900 dark:text-blue-200">
+                          {claimsSummary.approaching} Claim{claimsSummary.approaching > 1 ? 's' : ''} Due Within 30 Days
+                        </div>
+                        <div className="text-base text-blue-700 dark:text-blue-400">
+                          File soon to avoid missing deadlines
+                        </div>
+                      </div>
+                      <div className="text-blue-400 text-lg">→</div>
+                    </button>
+                  )}
+
+                  {/* Pending Unfiled Claims (not overdue, not expiring, but still unfiled) */}
+                  {(() => {
+                    const otherUnfiled = claimsSummary.notFiledCount - claimsSummary.overdue - claimsSummary.expiringSoon - claimsSummary.approaching
+                    if (otherUnfiled <= 0) return null
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('vetbills')}
+                        className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200/60 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
+                      >
+                        <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center shadow-sm">
+                          <FileText className="w-6 h-6 text-slate-600 dark:text-slate-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-slate-800 dark:text-slate-200">
+                            {otherUnfiled} Pending Claim{otherUnfiled > 1 ? 's' : ''}
+                          </div>
+                          <div className="text-base text-slate-600 dark:text-slate-400">
+                            Ready to submit to insurance
+                          </div>
+                        </div>
+                        <div className="text-slate-400 text-lg">→</div>
+                      </button>
+                    )
+                  })()}
                 </div>
               ) : (
                 /* All Caught Up Message */
