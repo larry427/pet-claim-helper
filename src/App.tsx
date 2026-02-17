@@ -2020,243 +2020,20 @@ function MainApp() {
         {/* HOME TAB - Dashboard overview (whitelisted users only) */}
         {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'home' && !currentPetPageId && (
           <section className="mx-auto max-w-4xl space-y-8">
-            {/* PERSONALIZED GREETING WITH PET */}
-            <div className="flex items-center gap-4">
-              {/* Primary pet photo */}
-              {pets.length > 0 && (
-                <div className="flex-shrink-0">
-                  {pets[0].photo_url ? (
-                    <img
-                      src={pets[0].photo_url}
-                      alt={pets[0].name}
-                      className="w-16 h-16 rounded-full object-cover border-3 shadow-lg"
-                      style={{ borderColor: pets[0].color || (pets[0].species === 'dog' ? '#3B82F6' : pets[0].species === 'cat' ? '#F97316' : '#6B7280') }}
-                    />
-                  ) : (
-                    <div
-                      className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg text-white text-2xl"
-                      style={{ backgroundColor: pets[0].color || (pets[0].species === 'dog' ? '#3B82F6' : pets[0].species === 'cat' ? '#F97316' : '#6B7280') }}
-                    >
-                      {pets[0].species === 'dog' ? '🐕' : pets[0].species === 'cat' ? '🐱' : '🐾'}
-                    </div>
-                  )}
-                </div>
-              )}
-              <div>
-                <div className="text-2xl font-semibold text-slate-800 dark:text-slate-100">
-                  {userFirstName ? (
-                    <span>{getTimeGreeting()}, {userFirstName}!</span>
-                  ) : (
-                    <span>{getTimeGreeting()}!</span>
-                  )}
-                </div>
-                {pets.length > 0 && (
-                  <div className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                    Taking care of <span className="font-medium text-slate-700 dark:text-slate-300">{formatPetNames(pets)}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* ALERTS SECTION */}
-            {(() => {
-              const overdueMeds = medicationAlerts.filter(a => a.isOverdue)
-              const upcomingMeds = medicationAlerts.filter(a => !a.isOverdue)
-              const hasAlerts = claimsSummary.overdue > 0 || claimsSummary.expiringSoon > 0 || medicationAlerts.length > 0
-
-              return hasAlerts ? (
-                <div className="space-y-4">
-                  <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Needs Attention</h2>
-
-                  {/* Overdue Claims Alert */}
-                  {claimsSummary.overdue > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('vetbills')}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-red-200/60 dark:border-red-800 bg-red-50/80 dark:bg-red-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
-                    >
-                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-red-100 to-red-200 dark:from-red-800 dark:to-red-900 flex items-center justify-center shadow-sm">
-                        <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-red-800 dark:text-red-200">
-                          {claimsSummary.overdue} Overdue Claim{claimsSummary.overdue > 1 ? 's' : ''}
-                        </div>
-                        <div className="text-sm text-red-600 dark:text-red-400">
-                          Past filing deadline - submit ASAP
-                        </div>
-                      </div>
-                      <div className="text-red-400 text-lg">→</div>
-                    </button>
-                  )}
-
-                  {/* Overdue Medication Alerts */}
-                  {overdueMeds.map((alert) => (
-                    <button
-                      key={alert.id}
-                      type="button"
-                      onClick={() => setActiveView('medications')}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-red-200/60 dark:border-red-800 bg-red-50/80 dark:bg-red-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
-                    >
-                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-red-100 to-red-200 dark:from-red-800 dark:to-red-900 flex items-center justify-center shadow-sm">
-                        <Pill className="w-6 h-6 text-red-600 dark:text-red-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-red-800 dark:text-red-200">
-                          {alert.petName}'s {alert.medicationName}
-                        </div>
-                        <div className="text-sm text-red-600 dark:text-red-400">
-                          Was due at {alert.scheduledTime} - mark as given
-                        </div>
-                      </div>
-                      <div className="text-red-400 text-lg">→</div>
-                    </button>
-                  ))}
-
-                  {/* Expiring Soon Alert */}
-                  {claimsSummary.expiringSoon > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('vetbills')}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-amber-200/60 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
-                    >
-                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-800 dark:to-amber-900 flex items-center justify-center shadow-sm">
-                        <Clock className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-amber-800 dark:text-amber-200">
-                          {claimsSummary.expiringSoon} Claim{claimsSummary.expiringSoon > 1 ? 's' : ''} Expiring Soon
-                        </div>
-                        <div className="text-sm text-amber-600 dark:text-amber-400">
-                          Due within 14 days - don't miss out
-                        </div>
-                      </div>
-                      <div className="text-amber-400 text-lg">→</div>
-                    </button>
-                  )}
-
-                  {/* Upcoming Medication Alerts */}
-                  {upcomingMeds.map((alert) => (
-                    <button
-                      key={alert.id}
-                      type="button"
-                      onClick={() => setActiveView('medications')}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-amber-200/60 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
-                    >
-                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-800 dark:to-amber-900 flex items-center justify-center shadow-sm">
-                        <Pill className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-amber-800 dark:text-amber-200">
-                          {alert.petName}'s {alert.medicationName}
-                        </div>
-                        <div className="text-sm text-amber-600 dark:text-amber-400">
-                          Due at {alert.scheduledTime}
-                        </div>
-                      </div>
-                      <div className="text-amber-400 text-lg">→</div>
-                    </button>
-                  ))}
-                </div>
+            {/* PERSONALIZED GREETING */}
+            <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+              {userFirstName ? (
+                <span>{getTimeGreeting()}, {userFirstName}!</span>
               ) : (
-                /* All Caught Up Message */
-                <div className="flex items-center gap-4 p-5 rounded-xl border border-emerald-200/60 dark:border-emerald-800 bg-gradient-to-r from-emerald-50/90 to-teal-50/90 dark:from-emerald-900/20 dark:to-teal-900/20 backdrop-blur-sm shadow-md">
-                  <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg">
-                    <CheckCircle2 className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <div className="font-bold text-emerald-800 dark:text-emerald-200 text-lg">All caught up!</div>
-                    <div className="text-sm text-emerald-600 dark:text-emerald-400">No urgent claims or reminders</div>
-                  </div>
-                </div>
-              )
-            })()}
-
-            {/* QUICK STATS CARDS */}
-            <div className="space-y-4">
-              <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">At a Glance</h2>
-              <div className="grid grid-cols-2 gap-4">
-                {/* This Month Spending */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('expenses')}
-                  className="p-5 rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 text-left group"
-                >
-                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-medium mb-2">
-                    <div className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 group-hover:bg-emerald-200 dark:group-hover:bg-emerald-800/50 transition-colors">
-                      <Wallet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    </div>
-                    <span>This Month</span>
-                  </div>
-                  <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">
-                    ${expensesSummary.thisMonth.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </div>
-                </button>
-
-                {/* Pending Claims */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('vetbills')}
-                  className="p-5 rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 text-left group"
-                >
-                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-medium mb-2">
-                    <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/50 group-hover:bg-blue-200 dark:group-hover:bg-blue-800/50 transition-colors">
-                      <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <span>Pending Claims</span>
-                  </div>
-                  <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">
-                    {claimsSummary.notFiledCount}
-                  </div>
-                </button>
-
-                {/* Year to Date Spending */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('expenses')}
-                  className="p-5 rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 text-left group"
-                >
-                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-medium mb-2">
-                    <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-900/50 group-hover:bg-purple-200 dark:group-hover:bg-purple-800/50 transition-colors">
-                      <Wallet className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <span>Year to Date</span>
-                  </div>
-                  <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">
-                    ${expensesSummary.yearToDate.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </div>
-                </button>
-
-                {/* Total Pets */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('vetbills')
-                    // Scroll to pets section after tab renders
-                    setTimeout(() => {
-                      petsSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
-                    }, 100)
-                  }}
-                  className="p-5 rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 text-left group"
-                >
-                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-medium mb-2">
-                    <div className="p-1.5 rounded-lg bg-teal-100 dark:bg-teal-900/50 group-hover:bg-teal-200 dark:group-hover:bg-teal-800/50 transition-colors">
-                      <Pill className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-                    </div>
-                    <span>Your Pets</span>
-                  </div>
-                  <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">
-                    {pets.length}
-                  </div>
-                </button>
-              </div>
+                <span>{getTimeGreeting()}!</span>
+              )}
             </div>
 
-            {/* YOUR PETS — tappable cards (feature-flagged) */}
+            {/* YOUR PETS — tappable cards (feature-flagged, PRIMARY navigation) */}
             {showPetPage && pets.length > 0 && (
-              <div className="space-y-4">
-                <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Your Pets</h2>
-                <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <div className="space-y-3">
+                <h2 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Your Pets</h2>
+                <div className="flex gap-5 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
                   {pets.map((p) => {
                     // Compute status dot color
                     const pClaims = claims.filter((c: any) => c.pet_id === p.id)
@@ -2294,26 +2071,26 @@ function MainApp() {
                         key={p.id}
                         type="button"
                         onClick={() => setCurrentPetPageId(p.id)}
-                        className="flex flex-col items-center gap-2 min-w-[80px] py-3 px-2 rounded-2xl hover:bg-white/60 dark:hover:bg-slate-800/40 transition-all duration-200 active:scale-95"
+                        className="flex flex-col items-center gap-2.5 min-w-[88px] py-3 px-3 rounded-2xl hover:bg-white/60 dark:hover:bg-slate-800/40 transition-all duration-200 active:scale-95"
                       >
                         <div className="relative">
                           {p.photo_url ? (
                             <img
                               src={p.photo_url}
                               alt={p.name}
-                              className="w-12 h-12 rounded-full object-cover ring-2 ring-white dark:ring-slate-800 shadow-md"
+                              className="w-16 h-16 rounded-full object-cover ring-2 ring-white dark:ring-slate-800 shadow-lg"
                             />
                           ) : (
                             <div
-                              className="w-12 h-12 rounded-full flex items-center justify-center ring-2 ring-white dark:ring-slate-800 shadow-md text-white text-lg"
+                              className="w-16 h-16 rounded-full flex items-center justify-center ring-2 ring-white dark:ring-slate-800 shadow-lg text-white text-2xl"
                               style={{ backgroundColor: petColor }}
                             >
                               {p.species === 'dog' ? '🐕' : p.species === 'cat' ? '🐱' : '🐾'}
                             </div>
                           )}
-                          <span className={`absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-900 ${dotColor}`} />
+                          <span className={`absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 ${dotColor}`} />
                         </div>
-                        <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate max-w-[72px]">{p.name}</span>
+                        <span className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate max-w-[80px]">{p.name}</span>
                       </button>
                     )
                   })}
@@ -2321,9 +2098,203 @@ function MainApp() {
               </div>
             )}
 
+            {/* ALERTS SECTION */}
+            {(() => {
+              const overdueMeds = medicationAlerts.filter(a => a.isOverdue)
+              const upcomingMeds = medicationAlerts.filter(a => !a.isOverdue)
+              const hasAlerts = claimsSummary.overdue > 0 || claimsSummary.expiringSoon > 0 || medicationAlerts.length > 0
+
+              return hasAlerts ? (
+                <div className="space-y-4">
+                  <h2 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Needs Attention</h2>
+
+                  {/* Overdue Claims Alert */}
+                  {claimsSummary.overdue > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('vetbills')}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-red-200/60 dark:border-red-800 bg-red-50/80 dark:bg-red-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
+                    >
+                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-red-100 to-red-200 dark:from-red-800 dark:to-red-900 flex items-center justify-center shadow-sm">
+                        <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-red-900 dark:text-red-200">
+                          {claimsSummary.overdue} Overdue Claim{claimsSummary.overdue > 1 ? 's' : ''}
+                        </div>
+                        <div className="text-base text-red-700 dark:text-red-400">
+                          Past filing deadline - submit ASAP
+                        </div>
+                      </div>
+                      <div className="text-red-400 text-lg">→</div>
+                    </button>
+                  )}
+
+                  {/* Overdue Medication Alerts */}
+                  {overdueMeds.map((alert) => (
+                    <button
+                      key={alert.id}
+                      type="button"
+                      onClick={() => setActiveView('medications')}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-red-200/60 dark:border-red-800 bg-red-50/80 dark:bg-red-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
+                    >
+                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-red-100 to-red-200 dark:from-red-800 dark:to-red-900 flex items-center justify-center shadow-sm">
+                        <Pill className="w-6 h-6 text-red-600 dark:text-red-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-red-900 dark:text-red-200">
+                          {alert.petName}'s {alert.medicationName}
+                        </div>
+                        <div className="text-base text-red-700 dark:text-red-400">
+                          Was due at {alert.scheduledTime} - mark as given
+                        </div>
+                      </div>
+                      <div className="text-red-400 text-lg">→</div>
+                    </button>
+                  ))}
+
+                  {/* Expiring Soon Alert */}
+                  {claimsSummary.expiringSoon > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('vetbills')}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-amber-200/60 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
+                    >
+                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-800 dark:to-amber-900 flex items-center justify-center shadow-sm">
+                        <Clock className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-amber-900 dark:text-amber-200">
+                          {claimsSummary.expiringSoon} Claim{claimsSummary.expiringSoon > 1 ? 's' : ''} Expiring Soon
+                        </div>
+                        <div className="text-base text-amber-700 dark:text-amber-400">
+                          Due within 14 days - don't miss out
+                        </div>
+                      </div>
+                      <div className="text-amber-400 text-lg">→</div>
+                    </button>
+                  )}
+
+                  {/* Upcoming Medication Alerts */}
+                  {upcomingMeds.map((alert) => (
+                    <button
+                      key={alert.id}
+                      type="button"
+                      onClick={() => setActiveView('medications')}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-amber-200/60 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
+                    >
+                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-800 dark:to-amber-900 flex items-center justify-center shadow-sm">
+                        <Pill className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-amber-900 dark:text-amber-200">
+                          {alert.petName}'s {alert.medicationName}
+                        </div>
+                        <div className="text-base text-amber-700 dark:text-amber-400">
+                          Due at {alert.scheduledTime}
+                        </div>
+                      </div>
+                      <div className="text-amber-400 text-lg">→</div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                /* All Caught Up Message */
+                <div className="flex items-center gap-4 p-5 rounded-xl border border-emerald-200/60 dark:border-emerald-800 bg-gradient-to-r from-emerald-50/90 to-teal-50/90 dark:from-emerald-900/20 dark:to-teal-900/20 backdrop-blur-sm shadow-md">
+                  <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg">
+                    <CheckCircle2 className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-emerald-800 dark:text-emerald-200 text-lg">All caught up!</div>
+                    <div className="text-base text-emerald-700 dark:text-emerald-400">No urgent claims or reminders</div>
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* QUICK STATS CARDS */}
+            <div className="space-y-4">
+              <h2 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">At a Glance</h2>
+              <div className="grid grid-cols-2 gap-4">
+                {/* This Month Spending */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('expenses')}
+                  className="p-5 rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 text-left group"
+                >
+                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-sm font-medium mb-2">
+                    <div className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 group-hover:bg-emerald-200 dark:group-hover:bg-emerald-800/50 transition-colors">
+                      <Wallet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <span>This Month</span>
+                  </div>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                    ${expensesSummary.thisMonth.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </div>
+                </button>
+
+                {/* Pending Claims */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('vetbills')}
+                  className="p-5 rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 text-left group"
+                >
+                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-sm font-medium mb-2">
+                    <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/50 group-hover:bg-blue-200 dark:group-hover:bg-blue-800/50 transition-colors">
+                      <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <span>Pending Claims</span>
+                  </div>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                    {claimsSummary.notFiledCount}
+                  </div>
+                </button>
+
+                {/* Year to Date Spending */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('expenses')}
+                  className="p-5 rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 text-left group"
+                >
+                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-sm font-medium mb-2">
+                    <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-900/50 group-hover:bg-purple-200 dark:group-hover:bg-purple-800/50 transition-colors">
+                      <Wallet className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <span>Year to Date</span>
+                  </div>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                    ${expensesSummary.yearToDate.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </div>
+                </button>
+
+                {/* Total Pets */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('vetbills')
+                    // Scroll to pets section after tab renders
+                    setTimeout(() => {
+                      petsSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
+                    }, 100)
+                  }}
+                  className="p-5 rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 text-left group"
+                >
+                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-sm font-medium mb-2">
+                    <div className="p-1.5 rounded-lg bg-teal-100 dark:bg-teal-900/50 group-hover:bg-teal-200 dark:group-hover:bg-teal-800/50 transition-colors">
+                      <Pill className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                    </div>
+                    <span>Your Pets</span>
+                  </div>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                    {pets.length}
+                  </div>
+                </button>
+              </div>
+            </div>
+
             {/* QUICK ACTIONS */}
             <div className="space-y-4">
-              <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Quick Actions</h2>
+              <h2 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Quick Actions</h2>
               <div className="grid grid-cols-2 gap-4">
                 <button
                   type="button"
@@ -2660,31 +2631,31 @@ function MainApp() {
 
               <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Clinic Name</label>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Clinic Name</label>
                   <input value={extracted.clinicName} onChange={(e) => setExtracted({ ...extracted, clinicName: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Clinic Address</label>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Clinic Address</label>
                   <input value={extracted.clinicAddress} onChange={(e) => setExtracted({ ...extracted, clinicAddress: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Clinic Phone</label>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Clinic Phone</label>
                   <input value={extracted.clinicPhone || ''} onChange={(e) => setExtracted({ ...extracted, clinicPhone: e.target.value })} placeholder="(XXX) XXX-XXXX" type="tel" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Pet Name</label>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Pet Name</label>
                   <input value={extracted.petName} onChange={(e) => setExtracted({ ...extracted, petName: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Date of Service</label>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Date of Service</label>
                   <input type="date" value={extracted.dateOfService} onChange={(e) => setExtracted({ ...extracted, dateOfService: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Invoice Number</label>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Invoice Number</label>
                   <input value={extracted.invoiceNumber || ''} onChange={(e) => setExtracted({ ...extracted, invoiceNumber: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Total Amount</label>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Total Amount</label>
                   <div className="relative mt-1">
                     <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                       <span className="text-slate-500 text-sm">$</span>
@@ -2693,7 +2664,7 @@ function MainApp() {
                   </div>
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Diagnosis / Reason</label>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Diagnosis / Reason</label>
                   <textarea value={extracted.diagnosis} onChange={(e) => setExtracted({ ...extracted, diagnosis: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" rows={3} />
                 </div>
               </div>
@@ -2703,11 +2674,11 @@ function MainApp() {
                   <h3 className="text-sm font-semibold">Pet Insurance</h3>
                   <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div>
-                      <label className="block text-xs text-slate-500">Insurance Company</label>
+                      <label className="block text-sm text-slate-500">Insurance Company</label>
                       <input value={selectedPet.insuranceCompany} readOnly className="mt-1 w-full rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 px-3 py-2 text-sm" />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-500">Policy Number</label>
+                      <label className="block text-sm text-slate-500">Policy Number</label>
                       <input value={selectedPet.policyNumber} readOnly className="mt-1 w-full rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 px-3 py-2 text-sm" />
                     </div>
                   </div>
@@ -3033,19 +3004,19 @@ function MainApp() {
             {/* Summary */}
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-                <div className="text-xs text-slate-500">Total bills</div>
+                <div className="text-sm text-slate-600">Total bills</div>
                 <div className="text-lg font-semibold">{claimsSummary.total}</div>
               </div>
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-                <div className="text-xs text-slate-500">Bills pending submission</div>
+                <div className="text-sm text-slate-600">Bills pending submission</div>
                 <div className="text-lg font-semibold">{claimsSummary.notFiledCount} <span className="text-sm text-slate-500">({fmtMoney(claimsSummary.notFiledSum)})</span></div>
               </div>
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-                <div className="text-xs text-slate-500">Claims filed</div>
+                <div className="text-sm text-slate-600">Claims filed</div>
                 <div className="text-lg font-semibold">{claimsSummary.filedPending}</div>
               </div>
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-                <div className="text-xs text-slate-500">Claims expiring soon (&lt; 15 days)</div>
+                <div className="text-sm text-slate-600">Claims expiring soon (&lt; 15 days)</div>
                 <div className="text-lg font-semibold">{claimsSummary.expiringSoon}</div>
               </div>
             </div>
@@ -3142,7 +3113,7 @@ function MainApp() {
                           </div>
                         </div>
                       </div>
-                      <div className="text-sm text-slate-600 dark:text-slate-400 truncate">
+                      <div className="text-base text-slate-600 dark:text-slate-400 truncate">
                         <span className="mr-1">🏥</span>{c.clinic_name || '—'}
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -3155,15 +3126,15 @@ function MainApp() {
 
                     <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
                       <div>
-                        <div className="text-slate-500">Service Date</div>
+                        <div className="text-slate-600">Service Date</div>
                         <div className="font-medium">{c.service_date ? (getServiceDate(c)?.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) || '—') : '—'}</div>
                       </div>
                       <div className="text-right">
-                        <div className="text-slate-500">Amount</div>
+                        <div className="text-slate-600">Amount</div>
                         <div className="font-mono font-semibold">{fmtMoney(c.total_amount)}</div>
                         {String(c.filing_status || '').toLowerCase() === 'paid' && (
                           <>
-                            <div className="mt-1 text-[11px]">
+                            <div className="mt-1 text-xs">
                               <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">
                                 {(() => {
                                   const claimed = Number(c.total_amount || 0)
@@ -3174,7 +3145,7 @@ function MainApp() {
                               </span>
                             </div>
                             {c.paid_date && (
-                              <div className="mt-1 text-[11px]">
+                              <div className="mt-1 text-xs">
                                 <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">
                                   {`Date Paid: ${new Date(c.paid_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}`}
                                 </span>
@@ -3198,7 +3169,7 @@ function MainApp() {
                           return d ? d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'
                         })()
                         return (
-                          <div className="col-span-2 mt-1 text-[11px] text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                          <div className="col-span-2 mt-1 text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1">
                             <span>📤</span>
                             <span>
                               Filed: {label}
@@ -3209,7 +3180,7 @@ function MainApp() {
                       {!isNotInsured ? (
                         <>
                           <div>
-                          <div className="text-slate-500">Filing Deadline</div>
+                          <div className="text-slate-600">Filing Deadline</div>
                             <div className="font-medium whitespace-nowrap overflow-hidden">{deadline ? deadline.toISOString().slice(0,10) : '—'}</div>
                           </div>
                           <div className="text-right">
@@ -3219,7 +3190,7 @@ function MainApp() {
                       ) : (
                         <>
                           <div>
-                            <div className="text-slate-500">Info</div>
+                            <div className="text-slate-600">Info</div>
                             <div className="font-medium whitespace-nowrap overflow-hidden">💰 Self-paid vet bill</div>
                           </div>
                         </>
@@ -3715,11 +3686,11 @@ function MainApp() {
 
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex-1 text-center">
-                      <div className="text-base font-semibold flex items-center justify-center gap-2">
+                      <div className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center justify-center gap-2">
                         <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: pet.color || (pet.species === 'dog' ? '#3B82F6' : pet.species === 'cat' ? '#F97316' : '#6B7280') }} />
                         {pet.name}
                       </div>
-                      <div className="text-sm text-slate-500 dark:text-slate-400 capitalize">{pet.species}</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400 capitalize">{pet.species}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -3827,11 +3798,11 @@ function MainApp() {
                   <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-800 p-3 max-w-3xl mx-auto overflow-x-hidden">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label htmlFor="edit-pet-name" className="block text-xs">Pet Name</label>
+                        <label htmlFor="edit-pet-name" className="block text-sm">Pet Name</label>
                         <input id="edit-pet-name" value={editPet.name} onChange={(e) => setEditPet({ ...editPet, name: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
                       </div>
                       <div>
-                        <label htmlFor="edit-pet-species" className="block text-xs">Species</label>
+                        <label htmlFor="edit-pet-species" className="block text-sm">Species</label>
                         <select id="edit-pet-species" value={editPet.species} onChange={(e) => setEditPet({ ...editPet, species: e.target.value as PetSpecies })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm">
                           <option value="dog">Dog</option>
                           <option value="cat">Cat</option>
@@ -3842,7 +3813,7 @@ function MainApp() {
                           <div className="text-xs font-medium text-slate-600 dark:text-slate-300">Insurance Information</div>
                           <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                              <label htmlFor="edit-pet-insurance" className="block text-xs text-slate-500">Insurance Company</label>
+                              <label htmlFor="edit-pet-insurance" className="block text-sm text-slate-500">Insurance Company</label>
                               <select id="edit-pet-insurance" value={editPetInsurer} onChange={(e) => {
                                 const displayValue = e.target.value
                                 setEditPetInsurer(displayValue)
@@ -3869,7 +3840,7 @@ function MainApp() {
                             )}
                             {editPetInsurer === 'Healthy Paws (90 days)' && (
                               <div className="sm:col-span-2">
-                                <label htmlFor="edit-pet-healthy-paws-id" className="block text-xs text-slate-500">Healthy Paws Pet ID</label>
+                                <label htmlFor="edit-pet-healthy-paws-id" className="block text-sm text-slate-500">Healthy Paws Pet ID</label>
                                 <input
                                   id="edit-pet-healthy-paws-id"
                                   value={editPet.healthy_paws_pet_id || ''}
@@ -3877,12 +3848,12 @@ function MainApp() {
                                   placeholder="e.g., 1400806-1"
                                   className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm"
                                 />
-                                <div className="mt-1 text-[11px] text-slate-500">Find this on your Healthy Paws policy card or portal</div>
+                                <div className="mt-1 text-xs text-slate-600">Find this on your Healthy Paws policy card or portal</div>
                               </div>
                             )}
                             {editPetInsurer === 'Spot (270 days)' && (
                               <div className="sm:col-span-2">
-                                <label htmlFor="edit-pet-spot-account-number" className="block text-xs text-slate-500">Account Number</label>
+                                <label htmlFor="edit-pet-spot-account-number" className="block text-sm text-slate-500">Account Number</label>
                                 <input
                                   id="edit-pet-spot-account-number"
                                   value={editPet.spot_account_number || ''}
@@ -3894,7 +3865,7 @@ function MainApp() {
                             )}
                             {editPetInsurer === 'Pumpkin (270 days)' && (
                               <div className="sm:col-span-2">
-                                <label htmlFor="edit-pet-pumpkin-account-number" className="block text-xs text-slate-500">Pumpkin Account Number</label>
+                                <label htmlFor="edit-pet-pumpkin-account-number" className="block text-sm text-slate-500">Pumpkin Account Number</label>
                                 <input
                                   id="edit-pet-pumpkin-account-number"
                                   value={editPet.pumpkin_account_number || ''}
@@ -3906,7 +3877,7 @@ function MainApp() {
                             )}
                             {editPetInsurer === 'Figo (180 days)' && (
                               <div className="sm:col-span-2">
-                                <label htmlFor="edit-pet-figo-policy-number" className="block text-xs text-slate-500">Figo Policy Number</label>
+                                <label htmlFor="edit-pet-figo-policy-number" className="block text-sm text-slate-500">Figo Policy Number</label>
                                 <input
                                   id="edit-pet-figo-policy-number"
                                   value={editPet.figo_policy_number || ''}
@@ -3918,7 +3889,7 @@ function MainApp() {
                             )}
                             {editPetInsurer && editPetInsurer !== 'Not Insured' && editPetInsurer !== '— Select —' && editPetInsurer !== 'Spot (270 days)' && editPetInsurer !== 'Pumpkin (270 days)' && editPetInsurer !== 'Figo (180 days)' && (
                               <div className="sm:col-span-2">
-                                <label htmlFor="edit-pet-policy-number" className="block text-xs text-slate-500">Policy Number <span className="text-slate-400">(optional)</span></label>
+                                <label htmlFor="edit-pet-policy-number" className="block text-sm text-slate-500">Policy Number <span className="text-slate-400">(optional)</span></label>
                                 <input
                                   id="edit-pet-policy-number"
                                   value={editPet.policyNumber || ''}
@@ -3934,24 +3905,24 @@ function MainApp() {
                       {editPetInsurer !== 'Not Insured' && editPetInsurer !== '— Select —' && editPetInsurer && (
                         <>
                           <div>
-                            <label htmlFor="edit-pet-premium" className="block text-xs">Monthly Premium (USD)</label>
+                            <label htmlFor="edit-pet-premium" className="block text-sm">Monthly Premium (USD)</label>
                             <input id="edit-pet-premium" type="number" step="0.01" placeholder="e.g., 38.00" value={String(editPet.monthly_premium ?? '')} onChange={(e) => setEditPet({ ...editPet, monthly_premium: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                            <div className="mt-1 text-[11px] text-slate-500">Monthly insurance premium cost</div>
+                            <div className="mt-1 text-xs text-slate-600">Monthly insurance premium cost</div>
                           </div>
                           <div>
-                            <label htmlFor="edit-pet-deductible" className="block text-xs">Deductible (Annual) (USD)</label>
+                            <label htmlFor="edit-pet-deductible" className="block text-sm">Deductible (Annual) (USD)</label>
                             <input id="edit-pet-deductible" type="number" step="0.01" placeholder="e.g., 250.00" value={String(editPet.deductible_per_claim ?? '')} onChange={(e) => setEditPet({ ...editPet, deductible_per_claim: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                            <div className="mt-1 text-[11px] text-slate-500">Amount you pay before insurance kicks in (resets yearly)</div>
+                            <div className="mt-1 text-xs text-slate-600">Amount you pay before insurance kicks in (resets yearly)</div>
                           </div>
                           <div>
-                            <label htmlFor="edit-pet-insurance-pays" className="block text-xs">Insurance Pays (%)</label>
+                            <label htmlFor="edit-pet-insurance-pays" className="block text-sm">Insurance Pays (%)</label>
                             <input id="edit-pet-insurance-pays" type="number" min={0} max={100} placeholder="80" value={String(editPet.insurance_pays_percentage ?? '')} onChange={(e) => setEditPet({ ...editPet, insurance_pays_percentage: e.target.value === '' ? '' : Number(e.target.value) })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                            <div className="mt-1 text-[11px] text-slate-500">What percentage your insurance covers (e.g., 80% means you pay 20%)</div>
+                            <div className="mt-1 text-xs text-slate-600">What percentage your insurance covers (e.g., 80% means you pay 20%)</div>
                           </div>
                           <div>
-                            <label htmlFor="edit-pet-coverage-start" className="block text-xs">Coverage Start Date</label>
+                            <label htmlFor="edit-pet-coverage-start" className="block text-sm">Coverage Start Date</label>
                             <input id="edit-pet-coverage-start" type="date" value={editPet.coverage_start_date || ''} onChange={(e) => setEditPet({ ...editPet, coverage_start_date: e.target.value })} className="mt-1 w-full min-w-[220px] rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
-                            <div className="mt-1 text-[11px] text-slate-500">When did your coverage start?</div>
+                            <div className="mt-1 text-xs text-slate-600">When did your coverage start?</div>
                           </div>
                         </>
                       )}
@@ -4057,30 +4028,30 @@ function MainApp() {
             <div className="p-5 overflow-y-auto">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div>
-                <label className="block text-xs text-slate-500">Pet</label>
+                <label className="block text-sm text-slate-500">Pet</label>
                 <select className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2" value={editPetId || ''} onChange={(e) => setEditPetId(e.target.value)}>
                   <option value="">—</option>
                   {pets.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-slate-500">Service Date</label>
+                <label className="block text-sm text-slate-500">Service Date</label>
                 <input type="date" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2" value={editServiceDate} onChange={(e) => setEditServiceDate(e.target.value)} />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-xs text-slate-500">Visit Title</label>
+                <label className="block text-sm text-slate-500">Visit Title</label>
                 <input className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2" value={editVisitTitle} onChange={(e) => setEditVisitTitle(e.target.value)} placeholder="e.g., Annual checkup, Teeth cleaning" />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-xs text-slate-500">Diagnosis / Reason</label>
+                <label className="block text-sm text-slate-500">Diagnosis / Reason</label>
                 <input className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2" value={editDiagnosis} onChange={(e) => setEditDiagnosis(e.target.value)} />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-xs text-slate-500">Visit Notes</label>
+                <label className="block text-sm text-slate-500">Visit Notes</label>
                 <textarea rows={3} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2" value={editVisitNotes} onChange={(e) => setEditVisitNotes(e.target.value)} />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-xs text-slate-500">Line Items</label>
+                <label className="block text-sm text-slate-500">Line Items</label>
                 <div className="mt-2 space-y-2">
                   {editItems.map((it, idx) => (
                     <div key={idx} className="grid grid-cols-12 gap-2">
@@ -4097,7 +4068,7 @@ function MainApp() {
                 )}
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-xs text-slate-500 mb-1">Expense Category</label>
+                <label className="block text-sm text-slate-500 mb-1">Expense Category</label>
                 <div className="flex items-center gap-3">
                   <label className="inline-flex items-center gap-1"><input type="radio" name="edit-exp" checked={editExpenseCat==='insured'} onChange={() => setEditExpenseCat('insured')} /> Insured</label>
                   <label className="inline-flex items-center gap-1"><input type="radio" name="edit-exp" checked={editExpenseCat==='not_insured'} onChange={() => setEditExpenseCat('not_insured')} /> Not Insured</label>
@@ -4569,7 +4540,7 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
       {signupNoticeEmail && (
         <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800 text-sm">
           <div className="font-medium">Account created!</div>
-          <div className="text-[13px] mt-1">
+          <div className="text-sm mt-1">
             Please check your email at <span className="font-mono">{signupNoticeEmail}</span> to verify your account.
             You won't be able to log in until you confirm your email address.
           </div>
@@ -4577,7 +4548,7 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
       )}
 
       <div>
-        <label htmlFor="auth-email" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Email</label>
+        <label htmlFor="auth-email" className="block text-sm font-medium text-slate-600 dark:text-slate-300">Email</label>
         <input
           id="auth-email"
           type="email"
@@ -4589,7 +4560,7 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
         />
       </div>
       <div>
-        <label htmlFor="auth-password" className="block text-xs font-medium text-slate-600 dark:text-slate-300">Password</label>
+        <label htmlFor="auth-password" className="block text-sm font-medium text-slate-600 dark:text-slate-300">Password</label>
         <div className="mt-1 relative">
           <input
             id="auth-password"
@@ -4813,33 +4784,33 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
           <p className="text-xs text-slate-500 mt-1">Manage your personal information</p>
           <div className="mt-3 grid grid-cols-1 gap-3">
             <div>
-              <label className="block text-xs text-slate-500">Email</label>
+              <label className="block text-sm text-slate-500">Email</label>
               <input value={userEmail || ''} readOnly className="mt-1 w-full rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-slate-500">Full Name <span className="text-red-500">*</span></label>
+              <label className="block text-sm text-slate-500">Full Name <span className="text-red-500">*</span></label>
               <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="John Smith" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs text-slate-500">Street Address <span className="text-red-500">*</span></label>
+              <label className="block text-sm text-slate-500">Street Address <span className="text-red-500">*</span></label>
               <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
             </div>
             <div className="grid grid-cols-12 gap-3">
               <div className="col-span-6">
-                <label className="block text-xs text-slate-500">City <span className="text-red-500">*</span></label>
+                <label className="block text-sm text-slate-500">City <span className="text-red-500">*</span></label>
                 <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="San Francisco" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
               </div>
               <div className="col-span-3">
-                <label className="block text-xs text-slate-500">State <span className="text-red-500">*</span></label>
+                <label className="block text-sm text-slate-500">State <span className="text-red-500">*</span></label>
                 <input value={state} onChange={(e) => setState(e.target.value.toUpperCase())} placeholder="CA" maxLength={2} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm uppercase" />
               </div>
               <div className="col-span-3">
-                <label className="block text-xs text-slate-500">ZIP <span className="text-red-500">*</span></label>
+                <label className="block text-sm text-slate-500">ZIP <span className="text-red-500">*</span></label>
                 <input value={zip} onChange={(e) => setZip(e.target.value)} placeholder="94105" maxLength={10} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
               </div>
             </div>
             <div>
-              <label className="block text-xs text-slate-500">Phone Number <span className="text-red-500">*</span></label>
+              <label className="block text-sm text-slate-500">Phone Number <span className="text-red-500">*</span></label>
               <input value={phone} onChange={(e) => setPhone(formatPhoneOnChange(e.target.value, phone))} placeholder="(123) 456-7890" className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm" />
             </div>
           </div>

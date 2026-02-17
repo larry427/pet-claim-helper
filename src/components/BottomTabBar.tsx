@@ -62,7 +62,7 @@ export default function BottomTabBar({ activeTab, onTabChange }: Props) {
               />
               <span
                 className={`
-                  text-[11px] mt-1.5 transition-all duration-300
+                  text-xs mt-1.5 transition-all duration-300
                   ${isActive
                     ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
                     : 'text-slate-500 dark:text-slate-400 font-medium'
