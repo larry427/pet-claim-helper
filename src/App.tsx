@@ -2512,7 +2512,7 @@ function MainApp() {
         )}
 
         {extracted && (
-          <section key={JSON.stringify(extracted)} className="mx-auto mt-8 max-w-3xl">
+          <section key="extracted-details" className="mx-auto mt-8 max-w-3xl">
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-sm p-5 sm:p-8">
               <div className="flex items-center justify-between">
                 <button
