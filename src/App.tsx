@@ -31,6 +31,7 @@ import ResetPassword from './components/ResetPassword'
 import AddExpenseModal from './components/AddExpenseModal'
 import ExpensesDashboardWidget from './components/ExpensesDashboardWidget'
 import ExpensesPage from './components/ExpensesPage'
+import PetPage from './components/PetPage'
 import BottomTabBar, { TabId } from './components/BottomTabBar'
 import { useExpenses } from './lib/useExpenses'
 import { createClaim, listClaims, updateClaim, deleteClaim as dbDeleteClaim } from './lib/claims'
@@ -61,6 +62,12 @@ const DEMO_ACCOUNTS = [
   'drsarah@petclaimhelper.com',
   'david@mybenefitexperience.com',
   'larry@uglydogadventures.com'
+]
+
+// Pet Page feature flag whitelist
+const PET_PAGE_WHITELIST = [
+  'larry@uglydogadventures.com',
+  'larry@dogstrainedright.com',
 ]
 
 // Route wrapper: Detect /dose/:code and render standalone page
@@ -230,6 +237,11 @@ function MainApp() {
   const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications' | 'food' | 'admin' | 'med-admin' | 'expenses'>('app')
   const [activeTab, setActiveTab] = useState<TabId>('home')
   const [isAdmin, setIsAdmin] = useState(false)
+
+  // Pet Page state (feature-flagged)
+  const [currentPetPageId, setCurrentPetPageId] = useState<string | null>(null)
+  const currentPetForPage = useMemo(() => pets.find(p => p.id === currentPetPageId) ?? null, [pets, currentPetPageId])
+  const showPetPage = PET_PAGE_WHITELIST.includes(userEmail?.toLowerCase() || '')
 
   // Tab-based navigation for all logged-in users
   const showTabNav = !!userId
@@ -1989,8 +2001,24 @@ function MainApp() {
             </div>
           </section>
         )}
+        {/* PET PAGE — full-screen overlay when a pet is selected */}
+        {authView === 'app' && showPetPage && currentPetForPage && (
+          <PetPage
+            pet={currentPetForPage}
+            claims={claims}
+            userId={userId!}
+            onBack={() => setCurrentPetPageId(null)}
+            onRefreshPets={async () => {
+              if (userId) {
+                const refreshed = await dbLoadPets(userId)
+                setPets(refreshed)
+              }
+            }}
+          />
+        )}
+
         {/* HOME TAB - Dashboard overview (whitelisted users only) */}
-        {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'home' && (
+        {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'home' && !currentPetPageId && (
           <section className="mx-auto max-w-4xl space-y-8">
             {/* PERSONALIZED GREETING WITH PET */}
             <div className="flex items-center gap-4">
@@ -2223,6 +2251,75 @@ function MainApp() {
                 </button>
               </div>
             </div>
+
+            {/* YOUR PETS — tappable cards (feature-flagged) */}
+            {showPetPage && pets.length > 0 && (
+              <div className="space-y-4">
+                <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Your Pets</h2>
+                <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
+                  {pets.map((p) => {
+                    // Compute status dot color
+                    const pClaims = claims.filter((c: any) => c.pet_id === p.id)
+                    const hasOverdue = pClaims.some((c: any) => {
+                      const st = (c.filing_status || 'not_submitted').toLowerCase()
+                      if (['submitted', 'filed', 'approved', 'paid', 'denied'].includes(st)) return false
+                      const svc = c.service_date ? (() => { const m = String(c.service_date).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null })() : null
+                      if (!svc) return false
+                      const ins = c.pets?.insurance_company || ''
+                      const days = getDeadlineDays(ins) || c.pets?.filing_deadline_days || 90
+                      const deadline = new Date(svc.getTime()); deadline.setDate(deadline.getDate() + days)
+                      return (deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24) < 0
+                    })
+                    const hasPending = pClaims.some((c: any) => ['submitted', 'filed'].includes((c.filing_status || '').toLowerCase()))
+                    const hasExpiring = !hasOverdue && pClaims.some((c: any) => {
+                      const st = (c.filing_status || 'not_submitted').toLowerCase()
+                      if (['submitted', 'filed', 'approved', 'paid', 'denied'].includes(st)) return false
+                      const svc = c.service_date ? (() => { const m = String(c.service_date).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null })() : null
+                      if (!svc) return false
+                      const ins = c.pets?.insurance_company || ''
+                      const days = getDeadlineDays(ins) || c.pets?.filing_deadline_days || 90
+                      const deadline = new Date(svc.getTime()); deadline.setDate(deadline.getDate() + days)
+                      const rem = (deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+                      return rem >= 1 && rem <= 14
+                    })
+                    let dotColor = 'bg-emerald-400' // green = all good
+                    if (hasOverdue) dotColor = 'bg-red-500'
+                    else if (hasExpiring) dotColor = 'bg-amber-500'
+                    else if (hasPending) dotColor = 'bg-blue-500'
+
+                    const petColor = p.color || (p.species === 'dog' ? '#3B82F6' : p.species === 'cat' ? '#F97316' : '#6B7280')
+
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setCurrentPetPageId(p.id)}
+                        className="flex flex-col items-center gap-2 min-w-[80px] py-3 px-2 rounded-2xl hover:bg-white/60 dark:hover:bg-slate-800/40 transition-all duration-200 active:scale-95"
+                      >
+                        <div className="relative">
+                          {p.photo_url ? (
+                            <img
+                              src={p.photo_url}
+                              alt={p.name}
+                              className="w-12 h-12 rounded-full object-cover ring-2 ring-white dark:ring-slate-800 shadow-md"
+                            />
+                          ) : (
+                            <div
+                              className="w-12 h-12 rounded-full flex items-center justify-center ring-2 ring-white dark:ring-slate-800 shadow-md text-white text-lg"
+                              style={{ backgroundColor: petColor }}
+                            >
+                              {p.species === 'dog' ? '🐕' : p.species === 'cat' ? '🐱' : '🐾'}
+                            </div>
+                          )}
+                          <span className={`absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-900 ${dotColor}`} />
+                        </div>
+                        <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate max-w-[72px]">{p.name}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* QUICK ACTIONS */}
             <div className="space-y-4">
@@ -4420,7 +4517,7 @@ function MainApp() {
       </footer>
 
       {/* Bottom Tab Navigation (only for whitelisted users, hidden when modals are open) */}
-      {authView === 'app' && showTabNav && !isAnyModalOpen && (
+      {authView === 'app' && showTabNav && !isAnyModalOpen && !currentPetPageId && (
         <BottomTabBar activeTab={activeTab} onTabChange={(tab) => {
           setActiveTab(tab)
           setActiveView('app') // Reset view to app when switching tabs
