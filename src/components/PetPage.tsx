@@ -176,8 +176,8 @@ function ProgressBar({ label, used, total, color = 'emerald' }: { label: string;
         />
       </div>
       <div className="flex items-center justify-between mt-1">
-        <span className="text-xs text-slate-500">{fmtMoney(used)} used</span>
-        <span className="text-xs text-slate-500">{fmtMoney(total)} total</span>
+        <span className="text-sm text-slate-600 dark:text-slate-400">{fmtMoney(used)} used</span>
+        <span className="text-sm text-slate-600 dark:text-slate-400">{fmtMoney(total)} total</span>
       </div>
     </div>
   )
@@ -278,28 +278,35 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
 
   // Financial summary computations
   const currentYear = new Date().getFullYear()
-  const ytdClaims = petClaims.filter((c: any) => {
-    const d = parseLocalDate(c.service_date)
-    return d && d.getFullYear() === currentYear
-  })
-  const totalBilled = ytdClaims.reduce((s: number, c: any) => s + (Number(c.total_amount) || 0), 0)
-  const totalReimbursed = ytdClaims
+  // All-time totals (for Financial Summary — claims may span years)
+  const totalBilled = petClaims.reduce((s: number, c: any) => s + (Number(c.total_amount) || 0), 0)
+  const totalReimbursed = petClaims
     .filter((c: any) => (c.filing_status || '').toLowerCase() === 'paid')
     .reduce((s: number, c: any) => s + (Number(c.reimbursed_amount) || 0), 0)
   const outOfPocket = totalBilled - totalReimbursed
 
-  // Monthly premiums YTD
+  // YTD totals (for insurance card overview)
+  const ytdClaims = petClaims.filter((c: any) => {
+    const d = parseLocalDate(c.service_date)
+    return d && d.getFullYear() === currentYear
+  })
+  const ytdBilled = ytdClaims.reduce((s: number, c: any) => s + (Number(c.total_amount) || 0), 0)
+  const ytdReimbursed = ytdClaims
+    .filter((c: any) => (c.filing_status || '').toLowerCase() === 'paid')
+    .reduce((s: number, c: any) => s + (Number(c.reimbursed_amount) || 0), 0)
+  const ytdOutOfPocket = ytdBilled - ytdReimbursed
+
+  // Monthly premiums — total since coverage started
   const premiumMonths = (() => {
     if (!pet.monthly_premium || !pet.coverage_start_date) return 0
     const start = parseLocalDate(pet.coverage_start_date)
     if (!start) return 0
     const now = new Date()
-    if (start.getFullYear() > currentYear) return 0
-    const startMonth = start.getFullYear() < currentYear ? 0 : start.getMonth()
-    const endMonth = now.getMonth()
-    return Math.max(0, endMonth - startMonth + 1)
+    if (start > now) return 0
+    const months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth()) + 1
+    return Math.max(0, months)
   })()
-  const premiumsPaidYtd = (pet.monthly_premium || 0) * premiumMonths
+  const premiumsPaidTotal = (pet.monthly_premium || 0) * premiumMonths
   const nonMedTotal = nonMedExpenses.reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0)
 
   // Insurance badge colors (same as App.tsx)
@@ -330,7 +337,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
     <div className="font-body min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       {/* Sticky back button */}
       <div className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center">
           <button
             type="button"
             onClick={onBack}
@@ -342,7 +349,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-5 pb-[calc(env(safe-area-inset-bottom,0px)+32px)]">
+      <div className="max-w-4xl mx-auto px-5 pb-[calc(env(safe-area-inset-bottom,0px)+32px)]">
         {/* ================================================================
             LAYER 1 — PET HEADER
             ================================================================ */}
@@ -371,13 +378,13 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
           {/* Age + gender */}
           <div className="flex items-center gap-2 mt-1.5">
             {computeAge(pet.date_of_birth) && (
-              <span className="text-base text-slate-600 dark:text-slate-400">{computeAge(pet.date_of_birth)}</span>
+              <span className="text-base text-slate-700 dark:text-slate-300">{computeAge(pet.date_of_birth)}</span>
             )}
             {pet.gender && computeAge(pet.date_of_birth) && (
               <span className="text-slate-300 dark:text-slate-600">·</span>
             )}
             {pet.gender && (
-              <span className="text-base text-slate-600 dark:text-slate-400">{pet.gender.charAt(0).toUpperCase() + pet.gender.slice(1).toLowerCase()}</span>
+              <span className="text-base text-slate-700 dark:text-slate-300">{pet.gender.charAt(0).toUpperCase() + pet.gender.slice(1).toLowerCase()}</span>
             )}
           </div>
 
@@ -406,7 +413,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                   <div className="text-sm font-semibold text-red-800 dark:text-red-200">
                     {overdueClaims.length} Overdue Claim{overdueClaims.length > 1 ? 's' : ''}
                   </div>
-                  <div className="text-xs text-red-600 dark:text-red-400">Past filing deadline</div>
+                  <div className="text-sm text-red-600 dark:text-red-400">Past filing deadline</div>
                 </div>
               </div>
             )}
@@ -419,7 +426,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                   <div className="text-sm font-semibold text-amber-800 dark:text-amber-200">
                     {expiringSoonClaims.length} Claim{expiringSoonClaims.length > 1 ? 's' : ''} Expiring Soon
                   </div>
-                  <div className="text-xs text-amber-600 dark:text-amber-400">Due within 14 days</div>
+                  <div className="text-sm text-amber-600 dark:text-amber-400">Due within 14 days</div>
                 </div>
               </div>
             )}
@@ -455,24 +462,24 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                   {/* YTD grid */}
                   <div className="grid grid-cols-3 gap-3 mt-5 pt-5 border-t border-slate-100 dark:border-slate-800">
                     <div className="text-center">
-                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{fmtMoney(totalBilled)}</div>
-                      <div className="text-xs text-slate-600 dark:text-slate-500 mt-0.5">YTD Claimed</div>
+                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdBilled)}</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">YTD Claimed</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{fmtMoney(totalReimbursed)}</div>
-                      <div className="text-xs text-slate-600 dark:text-slate-500 mt-0.5">Reimbursed</div>
+                      <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{fmtMoney(ytdReimbursed)}</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">Reimbursed</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{fmtMoney(outOfPocket)}</div>
-                      <div className="text-xs text-slate-600 dark:text-slate-500 mt-0.5">Out of Pocket</div>
+                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdOutOfPocket)}</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">Out of Pocket</div>
                     </div>
                   </div>
 
                   {/* Monthly premium */}
                   {odiePolicy.monthlyPremium && (
                     <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                      <span className="text-sm text-slate-600 dark:text-slate-400">Monthly Premium</span>
-                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{fmtMoney(odiePolicy.monthlyPremium)}/mo</span>
+                      <span className="text-base text-slate-700 dark:text-slate-400">Monthly Premium</span>
+                      <span className="text-base font-semibold text-slate-900 dark:text-slate-200">{fmtMoney(odiePolicy.monthlyPremium)}/mo</span>
                     </div>
                   )}
                 </div>
@@ -514,16 +521,16 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="text-center">
-                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{fmtMoney(totalBilled)}</div>
-                      <div className="text-xs text-slate-600 dark:text-slate-500 mt-0.5">YTD Billed</div>
+                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdBilled)}</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">YTD Billed</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{fmtMoney(totalReimbursed)}</div>
-                      <div className="text-xs text-slate-600 dark:text-slate-500 mt-0.5">Reimbursed</div>
+                      <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{fmtMoney(ytdReimbursed)}</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">Reimbursed</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{fmtMoney(outOfPocket)}</div>
-                      <div className="text-xs text-slate-600 dark:text-slate-500 mt-0.5">Out of Pocket</div>
+                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdOutOfPocket)}</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">Out of Pocket</div>
                     </div>
                   </div>
                 </div>
@@ -536,7 +543,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
             return (
               <div className="mb-6 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
                 <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.04)] p-5 text-center">
-                  <div className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Vet Expenses This Year</div>
+                  <div className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Vet Expenses This Year</div>
                   <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{fmtMoney(totalBilled)}</div>
                 </div>
               </div>
@@ -587,7 +594,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                               {badge.text}
                             </span>
                           </div>
-                          <div className="text-sm text-slate-500 dark:text-slate-500 mt-0.5">
+                          <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
                             {svcDate ? svcDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                           </div>
                         </div>
@@ -595,9 +602,9 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                           <div className="text-base font-semibold text-slate-900 dark:text-slate-100">
                             {c.total_amount ? fmtMoney(Number(c.total_amount)) : '—'}
                           </div>
-                          {c.reimbursed_amount && Number(c.reimbursed_amount) > 0 && (
-                            <div className="text-xs text-emerald-600 dark:text-emerald-400">
-                              +{fmtMoney(Number(c.reimbursed_amount))} back
+                          {Number(c.reimbursed_amount || 0) > 0 && (
+                            <div className="text-sm text-emerald-600 dark:text-emerald-400">
+                              +{fmtMoney(Number(c.reimbursed_amount))} reimbursed
                             </div>
                           )}
                         </div>
@@ -607,8 +614,8 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                         <div className="ml-3 pl-3 mb-2 border-l-2 border-slate-100 dark:border-slate-800">
                           {lineItems.map((item: any, idx: number) => (
                             <div key={idx} className="flex items-center justify-between py-1.5">
-                              <span className="text-xs text-slate-600 dark:text-slate-400 truncate pr-2">{item.description || 'Item'}</span>
-                              <span className="text-xs font-medium text-slate-700 dark:text-slate-300 flex-shrink-0">${item.amount || '0.00'}</span>
+                              <span className="text-sm text-slate-600 dark:text-slate-400 truncate pr-2">{item.description || 'Item'}</span>
+                              <span className="text-sm font-medium text-slate-700 dark:text-slate-300 flex-shrink-0">${item.amount || '0.00'}</span>
                             </div>
                           ))}
                         </div>
@@ -652,14 +659,14 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           {c.clinic_name && (
-                            <div className="text-xs font-semibold text-slate-600 dark:text-slate-500 uppercase tracking-wider mb-0.5">
+                            <div className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-0.5">
                               {c.clinic_name}
                             </div>
                           )}
                           <div className="text-base font-medium text-slate-900 dark:text-slate-100">
                             {c.visit_title || c.diagnosis || 'Vet Visit'}
                           </div>
-                          <div className="text-sm text-slate-500 dark:text-slate-500 mt-1">
+                          <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                             {svcDate ? svcDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                           </div>
                         </div>
@@ -668,7 +675,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                         </div>
                       </div>
                       {c.visit_notes && (
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 line-clamp-2">{c.visit_notes}</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 line-clamp-2">{c.visit_notes}</p>
                       )}
                     </div>
                   )
@@ -691,7 +698,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
               </div>
             ) : (
               <>
-                <div className="text-xs text-slate-600 dark:text-slate-400 mb-3 uppercase tracking-wider">All pets · Non-medical</div>
+                <div className="text-sm text-slate-600 dark:text-slate-400 mb-3 uppercase tracking-wider">All pets · Non-medical</div>
                 <div className="space-y-1.5">
                   {nonMedExpenses.slice(0, 10).map((e: any) => {
                     const d = parseLocalDate(e.expense_date)
@@ -708,10 +715,10 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                           <div className="text-base text-slate-900 dark:text-slate-200 truncate">
                             {e.description || e.vendor || catLabels[e.category] || 'Expense'}
                           </div>
-                          <div className="text-xs text-slate-600 dark:text-slate-500">
+                          <div className="text-sm text-slate-600 dark:text-slate-400">
                             {d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
                             {' · '}
-                            <span className="text-slate-400">{catLabels[e.category] || e.category}</span>
+                            <span className="text-slate-500">{catLabels[e.category] || e.category}</span>
                           </div>
                         </div>
                         <div className="text-sm font-medium text-slate-800 dark:text-slate-100 flex-shrink-0">
@@ -722,8 +729,8 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                   })}
                 </div>
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Total</span>
-                  <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{fmtMoney(nonMedTotal)}</span>
+                  <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Total</span>
+                  <span className="text-base font-bold text-slate-900 dark:text-slate-100">{fmtMoney(nonMedTotal)}</span>
                 </div>
               </>
             )}
@@ -735,12 +742,12 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
             icon={<TrendingUp size={18} />}
             delay={300}
           >
-            <div className="text-xs text-slate-600 dark:text-slate-400 mb-4 uppercase tracking-wider">Cost of Ownership · {currentYear}</div>
+            <div className="text-sm text-slate-600 dark:text-slate-400 mb-4 uppercase tracking-wider">Cost of Ownership</div>
             <div className="space-y-3">
-              {premiumsPaidYtd > 0 && (
+              {premiumsPaidTotal > 0 && (
                 <div className="flex items-center justify-between">
                   <span className="text-base text-slate-700 dark:text-slate-400">Insurance Premiums</span>
-                  <span className="text-base font-semibold text-slate-900 dark:text-slate-100">{fmtMoney(premiumsPaidYtd)}</span>
+                  <span className="text-base font-semibold text-slate-900 dark:text-slate-100">{fmtMoney(premiumsPaidTotal)}</span>
                 </div>
               )}
               <div className="flex items-center justify-between">
@@ -759,9 +766,9 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
               </div>
               <div className="border-t border-slate-200 dark:border-slate-700 pt-3 mt-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-slate-800 dark:text-slate-100">Net Out-of-Pocket</span>
+                  <span className="text-base font-bold text-slate-900 dark:text-slate-100">Net Out-of-Pocket</span>
                   <span className="text-lg font-bold text-slate-900 dark:text-white">
-                    {fmtMoney(premiumsPaidYtd + totalBilled - totalReimbursed + nonMedTotal)}
+                    {fmtMoney(premiumsPaidTotal + totalBilled - totalReimbursed + nonMedTotal)}
                   </span>
                 </div>
               </div>
