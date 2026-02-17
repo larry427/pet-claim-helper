@@ -330,7 +330,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
     <div className="font-body min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       {/* Sticky back button */}
       <div className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center">
           <button
             type="button"
             onClick={onBack}
@@ -342,7 +342,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-5 pb-[calc(env(safe-area-inset-bottom,0px)+32px)]">
+      <div className="max-w-3xl mx-auto px-5 pb-[calc(env(safe-area-inset-bottom,0px)+32px)]">
         {/* ================================================================
             LAYER 1 — PET HEADER
             ================================================================ */}
@@ -684,6 +684,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
             count={nonMedExpenses.length}
             delay={250}
           >
+            <div className="text-sm text-slate-500 dark:text-slate-400 mb-3">All pets</div>
             {nonMedExpenses.length === 0 ? (
               <div className="text-center py-6">
                 <div className="text-slate-500 dark:text-slate-500 text-base">No non-medical expenses this year</div>
