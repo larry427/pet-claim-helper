@@ -30,6 +30,27 @@ type MedicationRow = {
 }
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const CATEGORY_COLORS: Record<string, string> = {
+  food_treats: '#10b981',
+  grooming: '#8b5cf6',
+  supplies_gear: '#f97316',
+  training_boarding: '#f59e0b',
+  vet_medical: '#f43f5e',
+  other: '#64748b',
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  food_treats: 'Food & Treats',
+  supplies_gear: 'Supplies',
+  grooming: 'Grooming',
+  training_boarding: 'Boarding',
+  other: 'Other',
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -77,25 +98,25 @@ function fmtMoney(val: number): string {
   return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-function statusBadge(status: string): { text: string; cls: string } {
+function statusBadge(status: string): { text: string; cls: string; borderColor: string } {
   const s = (status || 'not_submitted').toLowerCase()
   switch (s) {
     case 'filed':
     case 'submitted':
-      return { text: 'Submitted', cls: 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border-blue-200 dark:border-blue-800' }
+      return { text: 'Submitted', cls: 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border-blue-200 dark:border-blue-800', borderColor: 'border-l-blue-500' }
     case 'approved':
-      return { text: 'Approved', cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' }
+      return { text: 'Approved', cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800', borderColor: 'border-l-emerald-500' }
     case 'paid':
-      return { text: 'Paid', cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' }
+      return { text: 'Paid', cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800', borderColor: 'border-l-emerald-500' }
     case 'denied':
-      return { text: 'Denied', cls: 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200 dark:border-red-800' }
+      return { text: 'Denied', cls: 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 border-red-200 dark:border-red-800', borderColor: 'border-l-red-500' }
     default:
-      return { text: 'Pending', cls: 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800' }
+      return { text: 'Pending', cls: 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800', borderColor: 'border-l-amber-500' }
   }
 }
 
 // ---------------------------------------------------------------------------
-// Accordion section wrapper
+// Accordion section wrapper — with gradient header when expanded
 // ---------------------------------------------------------------------------
 
 function AccordionSection({
@@ -117,16 +138,18 @@ function AccordionSection({
 
   return (
     <div
-      className="animate-fade-in-up bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.04)]"
+      className="animate-fade-in-up bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm rounded-2xl border border-white/60 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none overflow-hidden"
       style={{ animationDelay: `${delay}ms` }}
     >
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-5 py-4 text-left group"
+        className={`w-full flex items-center justify-between px-5 py-4 text-left group transition-all duration-300 ${
+          open ? 'bg-gradient-to-r from-emerald-50/80 via-teal-50/40 to-transparent dark:from-emerald-950/30 dark:via-teal-950/15 dark:to-transparent' : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
+        }`}
       >
         <div className="flex items-center gap-3">
-          <span className="text-slate-400 dark:text-slate-500">{icon}</span>
+          <span className={`transition-colors duration-300 ${open ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>{icon}</span>
           <span className="font-semibold text-slate-900 dark:text-slate-100 text-lg">{title}</span>
           {typeof count === 'number' && (
             <span className="text-sm font-medium text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
@@ -151,33 +174,34 @@ function AccordionSection({
 }
 
 // ---------------------------------------------------------------------------
-// Progress bar (for Odie insurance)
+// Progress bar (for Odie insurance) — thicker, gradient fills
 // ---------------------------------------------------------------------------
 
 function ProgressBar({ label, used, total, color = 'emerald' }: { label: string; used: number; total: number; color?: string }) {
   const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0
   const remaining = Math.max(0, total - used)
-  const colorMap: Record<string, string> = {
-    emerald: 'bg-emerald-500',
-    teal: 'bg-teal-500',
-    blue: 'bg-blue-500',
-  }
+
+  // Dynamic color based on usage
+  let barGradient = 'from-emerald-400 to-emerald-600'
+  if (pct > 80) barGradient = 'from-red-400 to-red-600'
+  else if (pct > 60) barGradient = 'from-amber-400 to-amber-600'
+  else if (color === 'teal') barGradient = 'from-teal-400 to-teal-600'
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-base font-medium text-slate-700 dark:text-slate-400">{label}</span>
-        <span className="text-base font-semibold text-slate-900 dark:text-slate-200">{fmtMoney(remaining)} remaining</span>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-base font-semibold text-slate-800 dark:text-slate-200">{label}</span>
+        <span className="text-base font-bold text-slate-900 dark:text-slate-100">{fmtMoney(remaining)} <span className="font-normal text-slate-500 dark:text-slate-400">remaining</span></span>
       </div>
-      <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+      <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner">
         <div
-          className={`h-full rounded-full transition-all duration-500 ${colorMap[color] || colorMap.emerald}`}
+          className={`h-full rounded-full bg-gradient-to-r ${barGradient} transition-all duration-700 shadow-sm`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <div className="flex items-center justify-between mt-1">
-        <span className="text-base text-slate-600 dark:text-slate-400">{fmtMoney(used)} used</span>
-        <span className="text-base text-slate-600 dark:text-slate-400">{fmtMoney(total)} total</span>
+      <div className="flex items-center justify-between mt-1.5">
+        <span className="text-base text-slate-500 dark:text-slate-400">{fmtMoney(used)} used</span>
+        <span className="text-base text-slate-500 dark:text-slate-400">{fmtMoney(total)} total</span>
       </div>
     </div>
   )
@@ -308,6 +332,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
   })()
   const premiumsPaidTotal = (pet.monthly_premium || 0) * premiumMonths
   const nonMedTotal = nonMedExpenses.reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0)
+  const grandTotal = premiumsPaidTotal + totalBilled - totalReimbursed + nonMedTotal
 
   // Insurance badge colors (same as App.tsx)
   const insuranceBadge = useMemo(() => {
@@ -434,54 +459,62 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
         )}
 
         {/* ================================================================
-            LAYER 3 — INSURANCE OVERVIEW
+            LAYER 3 — INSURANCE OVERVIEW (Hero card with gradient banner)
             ================================================================ */}
         {(() => {
-          // Tier A: Odie API-connected
+          // Tier A: Odie API-connected — gradient hero card
           if (isOdieConnected && odiePolicy) {
             const deductibleUsed = odiePolicy.deductibleAmount - odiePolicy.deductibleBalance
             const annualUsed = odiePolicy.standardAnnualLimit - odiePolicy.annualLimitBalance
             return (
               <div className="mb-6 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.04)] p-5">
-                  {/* Header */}
-                  <div className="flex items-center gap-3 mb-5">
-                    <img src="/odie-logo.png" alt="Odie" className="w-8 h-8" />
-                    <div>
-                      <div className="font-semibold text-slate-800 dark:text-slate-100 text-xl">Odie Pet Insurance</div>
-                      <div className="text-base text-slate-500 dark:text-slate-500 font-mono">{pet.odie_policy_number}</div>
+                <div className="rounded-3xl overflow-hidden shadow-2xl shadow-emerald-600/20 dark:shadow-none">
+                  {/* Gradient banner header */}
+                  <div className="relative bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 px-6 py-5">
+                    {/* Decorative circles */}
+                    <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white/10 -translate-y-1/2 translate-x-1/4" />
+                    <div className="absolute bottom-0 left-0 w-20 h-20 rounded-full bg-white/5 translate-y-1/3 -translate-x-1/4" />
+                    <div className="relative flex items-center gap-3">
+                      <img src="/odie-logo.png" alt="Odie" className="w-10 h-10 rounded-xl bg-white/20 p-1" />
+                      <div>
+                        <div className="font-bold text-white text-xl">Odie Pet Insurance</div>
+                        <div className="text-emerald-100 font-mono text-base">{pet.odie_policy_number}</div>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Progress bars */}
-                  <div className="space-y-4">
-                    <ProgressBar label="Deductible" used={deductibleUsed} total={odiePolicy.deductibleAmount} color="emerald" />
-                    <ProgressBar label="Annual Limit" used={annualUsed} total={odiePolicy.standardAnnualLimit} color="teal" />
-                  </div>
+                  {/* Card body */}
+                  <div className="bg-white dark:bg-slate-900 p-6">
+                    {/* Progress bars */}
+                    <div className="space-y-5">
+                      <ProgressBar label="Deductible" used={deductibleUsed} total={odiePolicy.deductibleAmount} color="emerald" />
+                      <ProgressBar label="Annual Limit" used={annualUsed} total={odiePolicy.standardAnnualLimit} color="teal" />
+                    </div>
 
-                  {/* YTD grid */}
-                  <div className="grid grid-cols-3 gap-3 mt-5 pt-5 border-t border-slate-100 dark:border-slate-800">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdBilled)}</div>
-                      <div className="text-base text-slate-600 dark:text-slate-400 mt-0.5">YTD Claimed</div>
+                    {/* YTD grid */}
+                    <div className="grid grid-cols-3 gap-3 mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+                      <div className="text-center p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                        <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdBilled)}</div>
+                        <div className="text-base text-slate-500 dark:text-slate-400 mt-0.5">YTD Claimed</div>
+                      </div>
+                      <div className="text-center p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30">
+                        <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{fmtMoney(ytdReimbursed)}</div>
+                        <div className="text-base text-emerald-600/70 dark:text-emerald-400/70 mt-0.5">Reimbursed</div>
+                      </div>
+                      <div className="text-center p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                        <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdOutOfPocket)}</div>
+                        <div className="text-base text-slate-500 dark:text-slate-400 mt-0.5">Out of Pocket</div>
+                      </div>
                     </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{fmtMoney(ytdReimbursed)}</div>
-                      <div className="text-base text-slate-600 dark:text-slate-400 mt-0.5">Reimbursed</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdOutOfPocket)}</div>
-                      <div className="text-base text-slate-600 dark:text-slate-400 mt-0.5">Out of Pocket</div>
-                    </div>
-                  </div>
 
-                  {/* Monthly premium */}
-                  {odiePolicy.monthlyPremium && (
-                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                      <span className="text-lg text-slate-700 dark:text-slate-400">Monthly Premium</span>
-                      <span className="text-lg font-semibold text-slate-900 dark:text-slate-200">{fmtMoney(odiePolicy.monthlyPremium)}/mo</span>
-                    </div>
-                  )}
+                    {/* Monthly premium */}
+                    {odiePolicy.monthlyPremium && (
+                      <div className="flex items-center justify-between mt-5 pt-5 border-t border-slate-100 dark:border-slate-800">
+                        <span className="text-lg text-slate-700 dark:text-slate-400">Monthly Premium</span>
+                        <span className="text-lg font-semibold text-slate-900 dark:text-slate-200">{fmtMoney(odiePolicy.monthlyPremium)}/mo</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )
@@ -491,46 +524,58 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
           if (isOdieInsurer && !isOdieConnected) {
             return (
               <div className="mb-6 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.04)] p-5">
-                  <div className="flex items-center gap-3 mb-3">
-                    <img src="/odie-logo.png" alt="Odie" className="w-8 h-8" />
-                    <div className="font-semibold text-slate-800 dark:text-slate-100 text-xl">Odie Pet Insurance</div>
+                <div className="rounded-3xl overflow-hidden shadow-xl shadow-slate-200/50 dark:shadow-none">
+                  <div className="relative bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 px-6 py-4">
+                    <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-white/10 -translate-y-1/2 translate-x-1/4" />
+                    <div className="relative flex items-center gap-3">
+                      <img src="/odie-logo.png" alt="Odie" className="w-8 h-8" />
+                      <div className="font-bold text-white text-xl">Odie Pet Insurance</div>
+                    </div>
                   </div>
-                  <p className="text-base text-slate-500 dark:text-slate-400 mb-4">
-                    Connect your Odie policy to see live deductible progress, coverage limits, and claim status.
-                  </p>
-                  <OdieConnectButton pet={pet} onConnect={onRefreshPets} />
+                  <div className="bg-white dark:bg-slate-900 p-6">
+                    <p className="text-base text-slate-500 dark:text-slate-400 mb-4">
+                      Connect your Odie policy to see live deductible progress, coverage limits, and claim status.
+                    </p>
+                    <OdieConnectButton pet={pet} onConnect={onRefreshPets} />
+                  </div>
                 </div>
               </div>
             )
           }
 
-          // Tier B: Non-API insurer
+          // Tier B: Non-API insurer — smaller gradient header
           if (isInsured) {
             return (
               <div className="mb-6 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.04)] p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    {insuranceBadge?.emoji && <span className="text-xl">{insuranceBadge.emoji}</span>}
-                    <div>
-                      <div className="font-semibold text-slate-800 dark:text-slate-100 text-xl">{insurerName}</div>
-                      {pet.policyNumber && (
-                        <div className="text-base text-slate-500 dark:text-slate-500 font-mono">{pet.policyNumber}</div>
-                      )}
+                <div className="rounded-3xl overflow-hidden shadow-xl shadow-slate-200/50 dark:shadow-none">
+                  {/* Gradient header */}
+                  <div className="relative bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 px-6 py-4">
+                    <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-white/10 -translate-y-1/2 translate-x-1/4" />
+                    <div className="relative flex items-center gap-3">
+                      {insuranceBadge?.emoji && <span className="text-2xl">{insuranceBadge.emoji}</span>}
+                      <div>
+                        <div className="font-bold text-white text-xl">{insurerName}</div>
+                        {pet.policyNumber && (
+                          <div className="text-blue-100 font-mono text-base">{pet.policyNumber}</div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdBilled)}</div>
-                      <div className="text-base text-slate-600 dark:text-slate-400 mt-0.5">YTD Billed</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{fmtMoney(ytdReimbursed)}</div>
-                      <div className="text-base text-slate-600 dark:text-slate-400 mt-0.5">Reimbursed</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdOutOfPocket)}</div>
-                      <div className="text-base text-slate-600 dark:text-slate-400 mt-0.5">Out of Pocket</div>
+                  {/* Card body */}
+                  <div className="bg-white dark:bg-slate-900 p-6">
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="text-center p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                        <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdBilled)}</div>
+                        <div className="text-base text-slate-500 dark:text-slate-400 mt-0.5">YTD Billed</div>
+                      </div>
+                      <div className="text-center p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30">
+                        <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{fmtMoney(ytdReimbursed)}</div>
+                        <div className="text-base text-emerald-600/70 dark:text-emerald-400/70 mt-0.5">Reimbursed</div>
+                      </div>
+                      <div className="text-center p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                        <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdOutOfPocket)}</div>
+                        <div className="text-base text-slate-500 dark:text-slate-400 mt-0.5">Out of Pocket</div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -538,13 +583,16 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
             )
           }
 
-          // Tier C: Uninsured
+          // Tier C: Uninsured — subtle gradient card
           if (totalBilled > 0) {
             return (
               <div className="mb-6 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.04)] p-5 text-center">
-                  <div className="text-base font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Vet Expenses This Year</div>
-                  <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">{fmtMoney(totalBilled)}</div>
+                <div className="relative rounded-3xl overflow-hidden shadow-xl shadow-slate-200/50 dark:shadow-none bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 border border-slate-200/60 dark:border-slate-700 p-8 text-center">
+                  <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-slate-200/30 dark:bg-slate-700/20 -translate-y-1/2 translate-x-1/4" />
+                  <div className="relative">
+                    <div className="text-base font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Vet Expenses This Year</div>
+                    <div className="text-4xl font-bold text-slate-800 dark:text-slate-100">{fmtMoney(totalBilled)}</div>
+                  </div>
                 </div>
               </div>
             )
@@ -558,7 +606,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
             ================================================================ */}
         <div className="space-y-4 pb-8">
 
-          {/* Section 1: Recent Claims */}
+          {/* Section 1: Recent Claims — with status-colored left borders */}
           <AccordionSection
             title="Recent Claims"
             icon={<FileText size={18} />}
@@ -583,7 +631,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                       <button
                         type="button"
                         onClick={() => setExpandedClaimId(isExpanded ? null : c.id)}
-                        className="w-full flex items-center gap-3 py-3 px-3 -mx-1 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors text-left"
+                        className={`w-full flex items-center gap-3 py-3 px-4 rounded-xl border-l-4 ${badge.borderColor} bg-slate-50/50 dark:bg-slate-800/30 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 transition-all duration-200 text-left hover:-translate-y-0.5 hover:shadow-md`}
                       >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
@@ -611,9 +659,9 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                       </button>
                       {/* Expanded line items */}
                       {isExpanded && lineItems.length > 0 && (
-                        <div className="ml-3 pl-3 mb-2 border-l-2 border-slate-100 dark:border-slate-800">
+                        <div className="ml-6 pl-4 mb-2 border-l-2 border-slate-200 dark:border-slate-700">
                           {lineItems.map((item: any, idx: number) => (
-                            <div key={idx} className="flex items-center justify-between py-1.5">
+                            <div key={idx} className="flex items-center justify-between py-2 hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded-lg px-2 transition-colors">
                               <span className="text-base text-slate-600 dark:text-slate-400 truncate pr-2">{item.description || 'Item'}</span>
                               <span className="text-base font-medium text-slate-700 dark:text-slate-300 flex-shrink-0">${item.amount || '0.00'}</span>
                             </div>
@@ -636,7 +684,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
             )}
           </AccordionSection>
 
-          {/* Section 2: Vet Visits */}
+          {/* Section 2: Vet Visits — with VET pill badges and tinted cards */}
           <AccordionSection
             title="Vet Visits"
             icon={<Stethoscope size={18} />}
@@ -654,15 +702,18 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                   return (
                     <div
                       key={c.id}
-                      className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800"
+                      className="p-4 rounded-xl bg-gradient-to-r from-rose-50/60 via-white to-white dark:from-rose-950/20 dark:via-slate-800/40 dark:to-slate-800/40 border border-slate-100 dark:border-slate-800 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          {c.clinic_name && (
-                            <div className="text-base font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-0.5">
-                              {c.clinic_name}
-                            </div>
-                          )}
+                          <div className="flex items-center gap-2 mb-1">
+                            {c.clinic_name && (
+                              <span className="text-base font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                                {c.clinic_name}
+                              </span>
+                            )}
+                            <span className="inline-flex px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-xs font-bold">VET</span>
+                          </div>
                           <div className="text-lg font-medium text-slate-900 dark:text-slate-100">
                             {c.visit_title || c.diagnosis || 'Vet Visit'}
                           </div>
@@ -684,7 +735,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
             )}
           </AccordionSection>
 
-          {/* Section 3: Expenses (non-medical) */}
+          {/* Section 3: Expenses (non-medical) — with category color dots */}
           <AccordionSection
             title="Expenses"
             icon={<ShoppingBag size={18} />}
@@ -699,36 +750,35 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
             ) : (
               <>
                 <div className="text-base text-slate-600 dark:text-slate-400 mb-3 uppercase tracking-wider">All pets · Non-medical</div>
-                <div className="space-y-1.5">
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
                   {nonMedExpenses.slice(0, 10).map((e: any) => {
                     const d = parseLocalDate(e.expense_date)
-                    const catLabels: Record<string, string> = {
-                      food_treats: 'Food & Treats',
-                      supplies_gear: 'Supplies',
-                      grooming: 'Grooming',
-                      training_boarding: 'Boarding',
-                      other: 'Other',
-                    }
+                    const catColor = CATEGORY_COLORS[e.category] || CATEGORY_COLORS.other
                     return (
-                      <div key={e.id} className="flex items-center justify-between py-2 px-1">
-                        <div className="min-w-0">
+                      <div key={e.id} className="flex items-center gap-3 py-3 px-1 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors rounded-lg">
+                        {/* Category color dot */}
+                        <div
+                          className="flex-shrink-0 w-3 h-3 rounded-full shadow-sm"
+                          style={{ backgroundColor: catColor }}
+                        />
+                        <div className="flex-1 min-w-0">
                           <div className="text-lg text-slate-900 dark:text-slate-200 truncate">
-                            {e.description || e.vendor || catLabels[e.category] || 'Expense'}
+                            {e.description || e.vendor || CATEGORY_LABELS[e.category] || 'Expense'}
                           </div>
-                          <div className="text-base text-slate-600 dark:text-slate-400">
+                          <div className="text-base text-slate-500 dark:text-slate-400">
                             {d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
                             {' · '}
-                            <span className="text-slate-500">{catLabels[e.category] || e.category}</span>
+                            <span style={{ color: catColor }}>{CATEGORY_LABELS[e.category] || e.category}</span>
                           </div>
                         </div>
-                        <div className="text-base font-medium text-slate-800 dark:text-slate-100 flex-shrink-0">
+                        <div className="text-base font-semibold text-slate-800 dark:text-slate-100 flex-shrink-0">
                           {fmtMoney(Number(e.amount) || 0)}
                         </div>
                       </div>
                     )
                   })}
                 </div>
-                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                   <span className="text-base font-medium text-slate-600 dark:text-slate-400">Total</span>
                   <span className="text-lg font-bold text-slate-900 dark:text-slate-100">{fmtMoney(nonMedTotal)}</span>
                 </div>
@@ -736,72 +786,90 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
             )}
           </AccordionSection>
 
-          {/* Section 4: Financial Summary */}
+          {/* Section 4: Financial Summary — gradient banner + large total */}
           <AccordionSection
             title="Financial Summary"
             icon={<TrendingUp size={18} />}
             delay={300}
           >
-            <div className="text-base text-slate-600 dark:text-slate-400 mb-4 uppercase tracking-wider">Cost of Ownership</div>
-            <div className="space-y-3">
+            {/* Gradient hero banner for total */}
+            <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 dark:from-slate-700 dark:via-slate-800 dark:to-slate-900 px-6 py-6 mb-5 shadow-lg">
+              <div className="absolute top-0 right-0 w-28 h-28 rounded-full bg-white/5 -translate-y-1/2 translate-x-1/4" />
+              <div className="absolute bottom-0 left-0 w-16 h-16 rounded-full bg-white/5 translate-y-1/3 -translate-x-1/4" />
+              <div className="relative text-center">
+                <div className="text-base font-medium text-slate-300 uppercase tracking-wider mb-1">Net Out-of-Pocket</div>
+                <div className="text-4xl sm:text-5xl font-bold text-white">
+                  {fmtMoney(grandTotal)}
+                </div>
+                <div className="text-sm text-slate-400 mt-1">Total cost of ownership</div>
+              </div>
+            </div>
+
+            {/* Itemized breakdown */}
+            <div className="space-y-1">
               {premiumsPaidTotal > 0 && (
-                <div className="flex items-center justify-between">
-                  <span className="text-lg text-slate-700 dark:text-slate-400">Insurance Premiums</span>
+                <div className="flex items-center justify-between py-3 px-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0" />
+                    <span className="text-lg text-slate-700 dark:text-slate-300">Insurance Premiums</span>
+                  </div>
                   <span className="text-lg font-semibold text-slate-900 dark:text-slate-100">{fmtMoney(premiumsPaidTotal)}</span>
                 </div>
               )}
-              <div className="flex items-center justify-between">
-                <span className="text-lg text-slate-700 dark:text-slate-400">Total Vet Bills</span>
+              <div className="flex items-center justify-between py-3 px-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500 flex-shrink-0" />
+                  <span className="text-lg text-slate-700 dark:text-slate-300">Total Vet Bills</span>
+                </div>
                 <span className="text-lg font-semibold text-slate-900 dark:text-slate-100">{fmtMoney(totalBilled)}</span>
               </div>
               {totalReimbursed > 0 && (
-                <div className="flex items-center justify-between">
-                  <span className="text-lg text-slate-700 dark:text-slate-400">Reimbursements Received</span>
+                <div className="flex items-center justify-between py-3 px-3 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                    <span className="text-lg text-emerald-700 dark:text-emerald-300">Reimbursements Received</span>
+                  </div>
                   <span className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">−{fmtMoney(totalReimbursed)}</span>
                 </div>
               )}
-              <div className="flex items-center justify-between">
-                <span className="text-lg text-slate-700 dark:text-slate-400">Non-Medical Expenses</span>
-                <span className="text-lg font-semibold text-slate-900 dark:text-slate-100">{fmtMoney(nonMedTotal)}</span>
-              </div>
-              <div className="border-t border-slate-200 dark:border-slate-700 pt-3 mt-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-lg font-bold text-slate-900 dark:text-slate-100">Net Out-of-Pocket</span>
-                  <span className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {fmtMoney(premiumsPaidTotal + totalBilled - totalReimbursed + nonMedTotal)}
-                  </span>
+              <div className="flex items-center justify-between py-3 px-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-2.5 h-2.5 rounded-full bg-orange-500 flex-shrink-0" />
+                  <span className="text-lg text-slate-700 dark:text-slate-300">Non-Medical Expenses</span>
                 </div>
+                <span className="text-lg font-semibold text-slate-900 dark:text-slate-100">{fmtMoney(nonMedTotal)}</span>
               </div>
             </div>
           </AccordionSection>
 
-          {/* Section 5: Policy Details (insured pets only) */}
+          {/* Section 5: Policy Details (insured pets only) — alternating rows */}
           {isInsured && (
             <AccordionSection
               title="Policy Details"
               icon={<Shield size={18} />}
               delay={350}
             >
-              <div className="space-y-3">
-                <DetailRow label="Insurance Company" value={insurerName} />
-                {pet.policyNumber && <DetailRow label="Policy Number" value={pet.policyNumber} mono />}
+              <div className="space-y-0.5">
+                <DetailRow label="Insurance Company" value={insurerName} index={0} />
+                {pet.policyNumber && <DetailRow label="Policy Number" value={pet.policyNumber} mono index={1} />}
                 {pet.deductible_per_claim != null && (
-                  <DetailRow label="Deductible (per claim)" value={fmtMoney(pet.deductible_per_claim)} />
+                  <DetailRow label="Deductible (per claim)" value={fmtMoney(pet.deductible_per_claim)} index={2} />
                 )}
                 {pet.insurance_pays_percentage != null && (
-                  <DetailRow label="Coinsurance" value={`Insurer pays ${Math.round(pet.insurance_pays_percentage * 100)}%`} />
+                  <DetailRow label="Coinsurance" value={`Insurer pays ${Math.round(pet.insurance_pays_percentage * 100)}%`} index={3} />
                 )}
                 {pet.annual_coverage_limit != null && (
-                  <DetailRow label="Annual Coverage Limit" value={fmtMoney(pet.annual_coverage_limit)} />
+                  <DetailRow label="Annual Coverage Limit" value={fmtMoney(pet.annual_coverage_limit)} index={4} />
                 )}
                 {pet.coverage_start_date && (
                   <DetailRow
                     label="Coverage Start Date"
                     value={parseLocalDate(pet.coverage_start_date)?.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) || pet.coverage_start_date}
+                    index={5}
                   />
                 )}
                 {pet.monthly_premium != null && (
-                  <DetailRow label="Monthly Premium" value={`${fmtMoney(pet.monthly_premium)}/mo`} />
+                  <DetailRow label="Monthly Premium" value={`${fmtMoney(pet.monthly_premium)}/mo`} index={6} />
                 )}
                 {/* Odie-specific extra fields */}
                 {isOdieConnected && odiePolicy && (
@@ -810,15 +878,17 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                       <DetailRow
                         label="Accident Coverage Effective"
                         value={new Date(odiePolicy.accidentEffectiveDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                        index={7}
                       />
                     )}
                     {odiePolicy.illnessEffectiveDate && (
                       <DetailRow
                         label="Illness Coverage Effective"
                         value={new Date(odiePolicy.illnessEffectiveDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                        index={8}
                       />
                     )}
-                    <DetailRow label="Office Visits Covered" value={odiePolicy.office_visits ? 'Yes' : 'No'} />
+                    <DetailRow label="Office Visits Covered" value={odiePolicy.office_visits ? 'Yes' : 'No'} index={9} />
                   </>
                 )}
               </div>
@@ -841,9 +911,12 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                 {medications.map((med) => (
                   <div
                     key={med.id}
-                    className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800"
+                    className="p-4 rounded-xl bg-gradient-to-r from-violet-50/50 via-white to-white dark:from-violet-950/20 dark:via-slate-800/40 dark:to-slate-800/40 border border-slate-100 dark:border-slate-800 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
                   >
-                    <div className="text-lg font-medium text-slate-900 dark:text-slate-100">{med.medication_name}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-lg font-medium text-slate-900 dark:text-slate-100">{med.medication_name}</div>
+                      <span className="inline-flex px-2 py-0.5 rounded-md bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-xs font-bold">Rx</span>
+                    </div>
                     <div className="flex items-center gap-2 mt-1">
                       {med.dosage && (
                         <span className="text-base text-slate-600 dark:text-slate-400">{med.dosage}</span>
@@ -864,12 +937,12 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
 }
 
 // ---------------------------------------------------------------------------
-// Detail row helper
+// Detail row helper — with alternating backgrounds
 // ---------------------------------------------------------------------------
 
-function DetailRow({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+function DetailRow({ label, value, mono = false, index = 0 }: { label: string; value: string; mono?: boolean; index?: number }) {
   return (
-    <div className="flex items-center justify-between py-1">
+    <div className={`flex items-center justify-between py-3 px-3 rounded-lg ${index % 2 === 0 ? 'bg-slate-50/70 dark:bg-slate-800/30' : ''}`}>
       <span className="text-lg text-slate-600 dark:text-slate-400">{label}</span>
       <span className={`font-medium text-slate-900 dark:text-slate-200 ${mono ? 'font-mono text-sm' : 'text-lg'}`}>{value}</span>
     </div>
