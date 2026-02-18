@@ -5,7 +5,8 @@ import type { OdiePolicy } from '../lib/odieApi'
 import type { PetProfile } from '../types'
 import { getDeadlineDays } from '../lib/insuranceOptions'
 import OdieConnectButton from './OdieConnectButton'
-import { ChevronDown, ChevronLeft, Clock, AlertTriangle, FileText, Stethoscope, ShoppingBag, TrendingUp, Shield, Pill } from 'lucide-react'
+import { ChevronDown, ChevronLeft, Clock, AlertTriangle, FileText, Stethoscope, ShoppingBag, TrendingUp, Shield, Pill, Upload, Pencil } from 'lucide-react'
+import EditClaimModal from './EditClaimModal'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -17,6 +18,8 @@ type PetPageProps = {
   userId: string
   onBack: () => void
   onRefreshPets: () => void
+  onRefreshClaims: () => Promise<void>
+  onUploadForPet: (petId: string) => void
 }
 
 type MedicationRow = {
@@ -211,7 +214,7 @@ function ProgressBar({ label, used, total, color = 'emerald' }: { label: string;
 // Main PetPage component
 // ---------------------------------------------------------------------------
 
-export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: PetPageProps) {
+export default function PetPage({ pet, claims, userId, onBack, onRefreshPets, onRefreshClaims, onUploadForPet }: PetPageProps) {
   // Filter claims for this pet
   const petClaims = useMemo(() =>
     claims
@@ -277,6 +280,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
   // Expanded claim inline detail
   const [expandedClaimId, setExpandedClaimId] = useState<string | null>(null)
   const [showAllClaims, setShowAllClaims] = useState(false)
+  const [editingClaim, setEditingClaim] = useState<any | null>(null)
 
   // Compute alerts for this pet
   const overdueClaims = petClaims.filter((c: any) => {
@@ -614,6 +618,16 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
             count={petClaims.length}
             delay={150}
           >
+            {/* Upload Vet Bill button */}
+            <button
+              type="button"
+              onClick={() => onUploadForPet(pet.id)}
+              className="w-full mb-4 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Upload size={18} />
+              Upload Vet Bill
+            </button>
+
             {petClaims.length === 0 ? (
               <div className="text-center py-6">
                 <div className="text-slate-500 dark:text-slate-500 text-base">No claims yet</div>
@@ -627,11 +641,11 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                   const lineItems = Array.isArray(c.line_items) ? c.line_items : []
 
                   return (
-                    <div key={c.id}>
+                    <div key={c.id} className="group relative">
                       <button
                         type="button"
                         onClick={() => setExpandedClaimId(isExpanded ? null : c.id)}
-                        className={`w-full flex items-center gap-3 py-3 px-4 rounded-xl border-l-4 ${badge.borderColor} bg-slate-50/50 dark:bg-slate-800/30 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 transition-all duration-200 text-left hover:-translate-y-0.5 hover:shadow-md`}
+                        className={`w-full flex items-center gap-3 py-3 px-4 pr-12 rounded-xl border-l-4 ${badge.borderColor} bg-slate-50/50 dark:bg-slate-800/30 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 transition-all duration-200 text-left hover:-translate-y-0.5 hover:shadow-md`}
                       >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
@@ -656,6 +670,15 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                             </div>
                           )}
                         </div>
+                      </button>
+                      {/* Edit button */}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setEditingClaim(c) }}
+                        className="absolute top-3 right-3 p-2 rounded-lg bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 shadow-sm text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all duration-200 opacity-0 group-hover:opacity-100"
+                        title="Edit claim"
+                      >
+                        <Pencil size={14} />
                       </button>
                       {/* Expanded line items */}
                       {isExpanded && lineItems.length > 0 && (
@@ -932,6 +955,18 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
 
         </div>
       </div>
+
+      {/* Edit Claim Modal */}
+      {editingClaim && (
+        <EditClaimModal
+          claim={editingClaim}
+          onClose={() => setEditingClaim(null)}
+          onSave={async () => {
+            await onRefreshClaims()
+            setEditingClaim(null)
+          }}
+        />
+      )}
     </div>
   )
 }

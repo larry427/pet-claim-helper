@@ -2018,6 +2018,17 @@ function MainApp() {
                 setPets(refreshed)
               }
             }}
+            onRefreshClaims={async () => {
+              if (userId) {
+                const updated = await listClaims(userId)
+                setClaims(updated)
+              }
+            }}
+            onUploadForPet={(petId: string) => {
+              setSelectedPetId(petId)
+              setCurrentPetPageId(null)
+              setActiveTab('vetbills')
+            }}
           />
         )}
 
