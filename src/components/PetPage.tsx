@@ -127,9 +127,9 @@ function AccordionSection({
       >
         <div className="flex items-center gap-3">
           <span className="text-slate-400 dark:text-slate-500">{icon}</span>
-          <span className="font-semibold text-slate-900 dark:text-slate-100 text-base">{title}</span>
+          <span className="font-semibold text-slate-900 dark:text-slate-100 text-lg">{title}</span>
           {typeof count === 'number' && (
-            <span className="text-xs font-medium text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+            <span className="text-sm font-medium text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
               {count}
             </span>
           )}
@@ -166,8 +166,8 @@ function ProgressBar({ label, used, total, color = 'emerald' }: { label: string;
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-sm font-medium text-slate-700 dark:text-slate-400">{label}</span>
-        <span className="text-sm font-semibold text-slate-900 dark:text-slate-200">{fmtMoney(remaining)} remaining</span>
+        <span className="text-base font-medium text-slate-700 dark:text-slate-400">{label}</span>
+        <span className="text-base font-semibold text-slate-900 dark:text-slate-200">{fmtMoney(remaining)} remaining</span>
       </div>
       <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
         <div
@@ -176,8 +176,8 @@ function ProgressBar({ label, used, total, color = 'emerald' }: { label: string;
         />
       </div>
       <div className="flex items-center justify-between mt-1">
-        <span className="text-sm text-slate-600 dark:text-slate-400">{fmtMoney(used)} used</span>
-        <span className="text-sm text-slate-600 dark:text-slate-400">{fmtMoney(total)} total</span>
+        <span className="text-base text-slate-600 dark:text-slate-400">{fmtMoney(used)} used</span>
+        <span className="text-base text-slate-600 dark:text-slate-400">{fmtMoney(total)} total</span>
       </div>
     </div>
   )
@@ -337,7 +337,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
     <div className="font-body min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       {/* Sticky back button */}
       <div className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center">
           <button
             type="button"
             onClick={onBack}
@@ -349,7 +349,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-5 pb-[calc(env(safe-area-inset-bottom,0px)+32px)]">
+      <div className="max-w-5xl mx-auto px-5 pb-[calc(env(safe-area-inset-bottom,0px)+32px)]">
         {/* ================================================================
             LAYER 1 — PET HEADER
             ================================================================ */}
@@ -371,27 +371,27 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
           )}
 
           {/* Pet name */}
-          <h1 className="font-display text-3xl text-slate-900 dark:text-white mt-4 tracking-tight">
+          <h1 className="font-display text-4xl text-slate-900 dark:text-white mt-4 tracking-tight">
             {pet.name}
           </h1>
 
           {/* Age + gender */}
           <div className="flex items-center gap-2 mt-1.5">
             {computeAge(pet.date_of_birth) && (
-              <span className="text-base text-slate-700 dark:text-slate-300">{computeAge(pet.date_of_birth)}</span>
+              <span className="text-lg text-slate-700 dark:text-slate-300">{computeAge(pet.date_of_birth)}</span>
             )}
             {pet.gender && computeAge(pet.date_of_birth) && (
               <span className="text-slate-300 dark:text-slate-600">·</span>
             )}
             {pet.gender && (
-              <span className="text-base text-slate-700 dark:text-slate-300">{pet.gender.charAt(0).toUpperCase() + pet.gender.slice(1).toLowerCase()}</span>
+              <span className="text-lg text-slate-700 dark:text-slate-300">{pet.gender.charAt(0).toUpperCase() + pet.gender.slice(1).toLowerCase()}</span>
             )}
           </div>
 
           {/* Insurance badge */}
           {insuranceBadge && (
             <div className="mt-3">
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${insuranceBadge.bg} ${insuranceBadge.text} ${insuranceBadge.border}`}>
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium border ${insuranceBadge.bg} ${insuranceBadge.text} ${insuranceBadge.border}`}>
                 {insuranceBadge.emoji}
                 {insurerName}
               </span>
@@ -410,10 +410,10 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                   <AlertTriangle size={16} className="text-red-600 dark:text-red-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-red-800 dark:text-red-200">
+                  <div className="text-base font-semibold text-red-800 dark:text-red-200">
                     {overdueClaims.length} Overdue Claim{overdueClaims.length > 1 ? 's' : ''}
                   </div>
-                  <div className="text-sm text-red-600 dark:text-red-400">Past filing deadline</div>
+                  <div className="text-base text-red-600 dark:text-red-400">Past filing deadline</div>
                 </div>
               </div>
             )}
@@ -423,10 +423,10 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                   <Clock size={16} className="text-amber-600 dark:text-amber-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                  <div className="text-base font-semibold text-amber-800 dark:text-amber-200">
                     {expiringSoonClaims.length} Claim{expiringSoonClaims.length > 1 ? 's' : ''} Expiring Soon
                   </div>
-                  <div className="text-sm text-amber-600 dark:text-amber-400">Due within 14 days</div>
+                  <div className="text-base text-amber-600 dark:text-amber-400">Due within 14 days</div>
                 </div>
               </div>
             )}
@@ -448,8 +448,8 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                   <div className="flex items-center gap-3 mb-5">
                     <img src="/odie-logo.png" alt="Odie" className="w-8 h-8" />
                     <div>
-                      <div className="font-semibold text-slate-800 dark:text-slate-100 text-base">Odie Pet Insurance</div>
-                      <div className="text-sm text-slate-500 dark:text-slate-500 font-mono">{pet.odie_policy_number}</div>
+                      <div className="font-semibold text-slate-800 dark:text-slate-100 text-xl">Odie Pet Insurance</div>
+                      <div className="text-base text-slate-500 dark:text-slate-500 font-mono">{pet.odie_policy_number}</div>
                     </div>
                   </div>
 
@@ -462,24 +462,24 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                   {/* YTD grid */}
                   <div className="grid grid-cols-3 gap-3 mt-5 pt-5 border-t border-slate-100 dark:border-slate-800">
                     <div className="text-center">
-                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdBilled)}</div>
-                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">YTD Claimed</div>
+                      <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdBilled)}</div>
+                      <div className="text-base text-slate-600 dark:text-slate-400 mt-0.5">YTD Claimed</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{fmtMoney(ytdReimbursed)}</div>
-                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">Reimbursed</div>
+                      <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{fmtMoney(ytdReimbursed)}</div>
+                      <div className="text-base text-slate-600 dark:text-slate-400 mt-0.5">Reimbursed</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdOutOfPocket)}</div>
-                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">Out of Pocket</div>
+                      <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdOutOfPocket)}</div>
+                      <div className="text-base text-slate-600 dark:text-slate-400 mt-0.5">Out of Pocket</div>
                     </div>
                   </div>
 
                   {/* Monthly premium */}
                   {odiePolicy.monthlyPremium && (
                     <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                      <span className="text-base text-slate-700 dark:text-slate-400">Monthly Premium</span>
-                      <span className="text-base font-semibold text-slate-900 dark:text-slate-200">{fmtMoney(odiePolicy.monthlyPremium)}/mo</span>
+                      <span className="text-lg text-slate-700 dark:text-slate-400">Monthly Premium</span>
+                      <span className="text-lg font-semibold text-slate-900 dark:text-slate-200">{fmtMoney(odiePolicy.monthlyPremium)}/mo</span>
                     </div>
                   )}
                 </div>
@@ -494,9 +494,9 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                 <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.04)] p-5">
                   <div className="flex items-center gap-3 mb-3">
                     <img src="/odie-logo.png" alt="Odie" className="w-8 h-8" />
-                    <div className="font-semibold text-slate-800 dark:text-slate-100 text-base">Odie Pet Insurance</div>
+                    <div className="font-semibold text-slate-800 dark:text-slate-100 text-xl">Odie Pet Insurance</div>
                   </div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                  <p className="text-base text-slate-500 dark:text-slate-400 mb-4">
                     Connect your Odie policy to see live deductible progress, coverage limits, and claim status.
                   </p>
                   <OdieConnectButton pet={pet} onConnect={onRefreshPets} />
@@ -513,24 +513,24 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                   <div className="flex items-center gap-3 mb-4">
                     {insuranceBadge?.emoji && <span className="text-xl">{insuranceBadge.emoji}</span>}
                     <div>
-                      <div className="font-semibold text-slate-800 dark:text-slate-100 text-base">{insurerName}</div>
+                      <div className="font-semibold text-slate-800 dark:text-slate-100 text-xl">{insurerName}</div>
                       {pet.policyNumber && (
-                        <div className="text-sm text-slate-500 dark:text-slate-500 font-mono">{pet.policyNumber}</div>
+                        <div className="text-base text-slate-500 dark:text-slate-500 font-mono">{pet.policyNumber}</div>
                       )}
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="text-center">
-                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdBilled)}</div>
-                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">YTD Billed</div>
+                      <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdBilled)}</div>
+                      <div className="text-base text-slate-600 dark:text-slate-400 mt-0.5">YTD Billed</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{fmtMoney(ytdReimbursed)}</div>
-                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">Reimbursed</div>
+                      <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{fmtMoney(ytdReimbursed)}</div>
+                      <div className="text-base text-slate-600 dark:text-slate-400 mt-0.5">Reimbursed</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdOutOfPocket)}</div>
-                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">Out of Pocket</div>
+                      <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{fmtMoney(ytdOutOfPocket)}</div>
+                      <div className="text-base text-slate-600 dark:text-slate-400 mt-0.5">Out of Pocket</div>
                     </div>
                   </div>
                 </div>
@@ -543,8 +543,8 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
             return (
               <div className="mb-6 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
                 <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_12px_rgba(0,0,0,0.04)] p-5 text-center">
-                  <div className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Vet Expenses This Year</div>
-                  <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{fmtMoney(totalBilled)}</div>
+                  <div className="text-base font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Vet Expenses This Year</div>
+                  <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">{fmtMoney(totalBilled)}</div>
                 </div>
               </div>
             )
@@ -587,23 +587,23 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                       >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-base font-medium text-slate-900 dark:text-slate-100 truncate">
+                            <span className="text-lg font-medium text-slate-900 dark:text-slate-100 truncate">
                               {c.visit_title || c.diagnosis || 'Vet Visit'}
                             </span>
                             <span className={`flex-shrink-0 inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium border ${badge.cls}`}>
                               {badge.text}
                             </span>
                           </div>
-                          <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+                          <div className="text-base text-slate-600 dark:text-slate-400 mt-0.5">
                             {svcDate ? svcDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <div className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                          <div className="text-lg font-bold text-slate-900 dark:text-slate-100">
                             {c.total_amount ? fmtMoney(Number(c.total_amount)) : '—'}
                           </div>
                           {Number(c.reimbursed_amount || 0) > 0 && (
-                            <div className="text-sm text-emerald-600 dark:text-emerald-400">
+                            <div className="text-base text-emerald-600 dark:text-emerald-400">
                               +{fmtMoney(Number(c.reimbursed_amount))} reimbursed
                             </div>
                           )}
@@ -614,8 +614,8 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                         <div className="ml-3 pl-3 mb-2 border-l-2 border-slate-100 dark:border-slate-800">
                           {lineItems.map((item: any, idx: number) => (
                             <div key={idx} className="flex items-center justify-between py-1.5">
-                              <span className="text-sm text-slate-600 dark:text-slate-400 truncate pr-2">{item.description || 'Item'}</span>
-                              <span className="text-sm font-medium text-slate-700 dark:text-slate-300 flex-shrink-0">${item.amount || '0.00'}</span>
+                              <span className="text-base text-slate-600 dark:text-slate-400 truncate pr-2">{item.description || 'Item'}</span>
+                              <span className="text-base font-medium text-slate-700 dark:text-slate-300 flex-shrink-0">${item.amount || '0.00'}</span>
                             </div>
                           ))}
                         </div>
@@ -627,7 +627,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                   <button
                     type="button"
                     onClick={() => setShowAllClaims(true)}
-                    className="text-sm font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors pt-2"
+                    className="text-base font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors pt-2"
                   >
                     View all {petClaims.length} claims →
                   </button>
@@ -659,23 +659,23 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           {c.clinic_name && (
-                            <div className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-0.5">
+                            <div className="text-base font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-0.5">
                               {c.clinic_name}
                             </div>
                           )}
-                          <div className="text-base font-medium text-slate-900 dark:text-slate-100">
+                          <div className="text-lg font-medium text-slate-900 dark:text-slate-100">
                             {c.visit_title || c.diagnosis || 'Vet Visit'}
                           </div>
-                          <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                          <div className="text-base text-slate-600 dark:text-slate-400 mt-1">
                             {svcDate ? svcDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                           </div>
                         </div>
-                        <div className="text-base font-bold text-slate-900 dark:text-slate-100 flex-shrink-0">
+                        <div className="text-lg font-bold text-slate-900 dark:text-slate-100 flex-shrink-0">
                           {c.total_amount ? fmtMoney(Number(c.total_amount)) : '—'}
                         </div>
                       </div>
                       {c.visit_notes && (
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 line-clamp-2">{c.visit_notes}</p>
+                        <p className="text-base text-slate-500 dark:text-slate-400 mt-2 line-clamp-2">{c.visit_notes}</p>
                       )}
                     </div>
                   )
@@ -691,14 +691,14 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
             count={nonMedExpenses.length}
             delay={250}
           >
-            <div className="text-sm text-slate-500 dark:text-slate-400 mb-3">All pets</div>
+            <div className="text-base text-slate-500 dark:text-slate-400 mb-3">All pets</div>
             {nonMedExpenses.length === 0 ? (
               <div className="text-center py-6">
                 <div className="text-slate-500 dark:text-slate-500 text-base">No non-medical expenses this year</div>
               </div>
             ) : (
               <>
-                <div className="text-sm text-slate-600 dark:text-slate-400 mb-3 uppercase tracking-wider">All pets · Non-medical</div>
+                <div className="text-base text-slate-600 dark:text-slate-400 mb-3 uppercase tracking-wider">All pets · Non-medical</div>
                 <div className="space-y-1.5">
                   {nonMedExpenses.slice(0, 10).map((e: any) => {
                     const d = parseLocalDate(e.expense_date)
@@ -712,16 +712,16 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                     return (
                       <div key={e.id} className="flex items-center justify-between py-2 px-1">
                         <div className="min-w-0">
-                          <div className="text-base text-slate-900 dark:text-slate-200 truncate">
+                          <div className="text-lg text-slate-900 dark:text-slate-200 truncate">
                             {e.description || e.vendor || catLabels[e.category] || 'Expense'}
                           </div>
-                          <div className="text-sm text-slate-600 dark:text-slate-400">
+                          <div className="text-base text-slate-600 dark:text-slate-400">
                             {d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
                             {' · '}
                             <span className="text-slate-500">{catLabels[e.category] || e.category}</span>
                           </div>
                         </div>
-                        <div className="text-sm font-medium text-slate-800 dark:text-slate-100 flex-shrink-0">
+                        <div className="text-base font-medium text-slate-800 dark:text-slate-100 flex-shrink-0">
                           {fmtMoney(Number(e.amount) || 0)}
                         </div>
                       </div>
@@ -729,8 +729,8 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                   })}
                 </div>
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                  <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Total</span>
-                  <span className="text-base font-bold text-slate-900 dark:text-slate-100">{fmtMoney(nonMedTotal)}</span>
+                  <span className="text-base font-medium text-slate-600 dark:text-slate-400">Total</span>
+                  <span className="text-lg font-bold text-slate-900 dark:text-slate-100">{fmtMoney(nonMedTotal)}</span>
                 </div>
               </>
             )}
@@ -742,32 +742,32 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
             icon={<TrendingUp size={18} />}
             delay={300}
           >
-            <div className="text-sm text-slate-600 dark:text-slate-400 mb-4 uppercase tracking-wider">Cost of Ownership</div>
+            <div className="text-base text-slate-600 dark:text-slate-400 mb-4 uppercase tracking-wider">Cost of Ownership</div>
             <div className="space-y-3">
               {premiumsPaidTotal > 0 && (
                 <div className="flex items-center justify-between">
-                  <span className="text-base text-slate-700 dark:text-slate-400">Insurance Premiums</span>
-                  <span className="text-base font-semibold text-slate-900 dark:text-slate-100">{fmtMoney(premiumsPaidTotal)}</span>
+                  <span className="text-lg text-slate-700 dark:text-slate-400">Insurance Premiums</span>
+                  <span className="text-lg font-semibold text-slate-900 dark:text-slate-100">{fmtMoney(premiumsPaidTotal)}</span>
                 </div>
               )}
               <div className="flex items-center justify-between">
-                <span className="text-base text-slate-700 dark:text-slate-400">Total Vet Bills</span>
-                <span className="text-base font-semibold text-slate-900 dark:text-slate-100">{fmtMoney(totalBilled)}</span>
+                <span className="text-lg text-slate-700 dark:text-slate-400">Total Vet Bills</span>
+                <span className="text-lg font-semibold text-slate-900 dark:text-slate-100">{fmtMoney(totalBilled)}</span>
               </div>
               {totalReimbursed > 0 && (
                 <div className="flex items-center justify-between">
-                  <span className="text-base text-slate-700 dark:text-slate-400">Reimbursements Received</span>
-                  <span className="text-base font-semibold text-emerald-600 dark:text-emerald-400">−{fmtMoney(totalReimbursed)}</span>
+                  <span className="text-lg text-slate-700 dark:text-slate-400">Reimbursements Received</span>
+                  <span className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">−{fmtMoney(totalReimbursed)}</span>
                 </div>
               )}
               <div className="flex items-center justify-between">
-                <span className="text-base text-slate-700 dark:text-slate-400">Non-Medical Expenses</span>
-                <span className="text-base font-semibold text-slate-900 dark:text-slate-100">{fmtMoney(nonMedTotal)}</span>
+                <span className="text-lg text-slate-700 dark:text-slate-400">Non-Medical Expenses</span>
+                <span className="text-lg font-semibold text-slate-900 dark:text-slate-100">{fmtMoney(nonMedTotal)}</span>
               </div>
               <div className="border-t border-slate-200 dark:border-slate-700 pt-3 mt-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-base font-bold text-slate-900 dark:text-slate-100">Net Out-of-Pocket</span>
-                  <span className="text-lg font-bold text-slate-900 dark:text-white">
+                  <span className="text-lg font-bold text-slate-900 dark:text-slate-100">Net Out-of-Pocket</span>
+                  <span className="text-2xl font-bold text-slate-900 dark:text-white">
                     {fmtMoney(premiumsPaidTotal + totalBilled - totalReimbursed + nonMedTotal)}
                   </span>
                 </div>
@@ -843,13 +843,13 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
                     key={med.id}
                     className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800"
                   >
-                    <div className="text-base font-medium text-slate-900 dark:text-slate-100">{med.medication_name}</div>
+                    <div className="text-lg font-medium text-slate-900 dark:text-slate-100">{med.medication_name}</div>
                     <div className="flex items-center gap-2 mt-1">
                       {med.dosage && (
-                        <span className="text-sm text-slate-600 dark:text-slate-400">{med.dosage}</span>
+                        <span className="text-base text-slate-600 dark:text-slate-400">{med.dosage}</span>
                       )}
                       {med.dosage && <span className="text-slate-300 dark:text-slate-600">·</span>}
-                      <span className="text-sm text-slate-600 dark:text-slate-400">{med.frequency}</span>
+                      <span className="text-base text-slate-600 dark:text-slate-400">{med.frequency}</span>
                     </div>
                   </div>
                 ))}
@@ -870,8 +870,8 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets }: 
 function DetailRow({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex items-center justify-between py-1">
-      <span className="text-base text-slate-600 dark:text-slate-400">{label}</span>
-      <span className={`text-base font-medium text-slate-900 dark:text-slate-200 ${mono ? 'font-mono text-xs' : ''}`}>{value}</span>
+      <span className="text-lg text-slate-600 dark:text-slate-400">{label}</span>
+      <span className={`font-medium text-slate-900 dark:text-slate-200 ${mono ? 'font-mono text-sm' : 'text-lg'}`}>{value}</span>
     </div>
   )
 }
