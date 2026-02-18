@@ -68,6 +68,7 @@ const DEMO_ACCOUNTS = [
 const PET_PAGE_WHITELIST = [
   'larry@uglydogadventures.com',
   'larry@dogstrainedright.com',
+  'larrysecrets@gmail.com',
 ]
 
 // Route wrapper: Detect /dose/:code and render standalone page
