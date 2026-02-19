@@ -5,7 +5,7 @@ import type { OdiePolicy } from '../lib/odieApi'
 import type { PetProfile } from '../types'
 import { getDeadlineDays } from '../lib/insuranceOptions'
 import OdieConnectButton from './OdieConnectButton'
-import { ChevronDown, ChevronLeft, Clock, AlertTriangle, FileText, Stethoscope, ShoppingBag, TrendingUp, Shield, Pill, Upload, Pencil } from 'lucide-react'
+import { ChevronDown, ChevronLeft, Clock, AlertTriangle, FileText, Stethoscope, TrendingUp, Shield, Pill, Upload, Pencil } from 'lucide-react'
 import EditClaimModal from './EditClaimModal'
 
 // ---------------------------------------------------------------------------
@@ -260,22 +260,6 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets, on
       })
   }, [pet.id, userId])
 
-  // Non-medical expenses (user-level, no pet_id available)
-  const [nonMedExpenses, setNonMedExpenses] = useState<any[]>([])
-  useEffect(() => {
-    const currentYear = new Date().getFullYear()
-    supabase
-      .from('pet_expenses')
-      .select('*')
-      .eq('user_id', userId)
-      .neq('category', 'vet_medical')
-      .gte('expense_date', `${currentYear}-01-01`)
-      .order('expense_date', { ascending: false })
-      .limit(20)
-      .then(({ data }) => {
-        if (data) setNonMedExpenses(data)
-      })
-  }, [userId])
 
   // Expanded claim inline detail
   const [expandedClaimId, setExpandedClaimId] = useState<string | null>(null)
@@ -335,8 +319,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets, on
     return Math.max(0, months)
   })()
   const premiumsPaidTotal = (pet.monthly_premium || 0) * premiumMonths
-  const nonMedTotal = nonMedExpenses.reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0)
-  const grandTotal = premiumsPaidTotal + totalBilled - totalReimbursed + nonMedTotal
+  const grandTotal = premiumsPaidTotal + totalBilled - totalReimbursed
 
   // Insurance badge colors (same as App.tsx)
   const insuranceBadge = useMemo(() => {
@@ -610,8 +593,8 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets, on
             ================================================================ */}
         <div className="space-y-4 pb-8">
 
-          {/* Section 1: Recent Claims — with status-colored left borders */}
-          <AccordionSection
+          {/* Section 1: Recent Claims — only shown for insured pets */}
+          {isInsured && <AccordionSection
             title="Recent Claims"
             icon={<FileText size={18} />}
             defaultOpen={true}
@@ -705,7 +688,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets, on
                 )}
               </div>
             )}
-          </AccordionSection>
+          </AccordionSection>}
 
           {/* Section 2: Vet Visits — with VET pill badges and tinted cards */}
           <AccordionSection
@@ -758,58 +741,7 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets, on
             )}
           </AccordionSection>
 
-          {/* Section 3: Expenses (non-medical) — with category color dots */}
-          <AccordionSection
-            title="Expenses"
-            icon={<ShoppingBag size={18} />}
-            count={nonMedExpenses.length}
-            delay={250}
-          >
-            <div className="text-base text-slate-500 dark:text-slate-400 mb-3">All pets</div>
-            {nonMedExpenses.length === 0 ? (
-              <div className="text-center py-6">
-                <div className="text-slate-500 dark:text-slate-500 text-base">No non-medical expenses this year</div>
-              </div>
-            ) : (
-              <>
-                <div className="text-base text-slate-600 dark:text-slate-400 mb-3 uppercase tracking-wider">All pets · Non-medical</div>
-                <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {nonMedExpenses.slice(0, 10).map((e: any) => {
-                    const d = parseLocalDate(e.expense_date)
-                    const catColor = CATEGORY_COLORS[e.category] || CATEGORY_COLORS.other
-                    return (
-                      <div key={e.id} className="flex items-center gap-3 py-3 px-1 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors rounded-lg">
-                        {/* Category color dot */}
-                        <div
-                          className="flex-shrink-0 w-3 h-3 rounded-full shadow-sm"
-                          style={{ backgroundColor: catColor }}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-lg text-slate-900 dark:text-slate-200 truncate">
-                            {e.description || e.vendor || CATEGORY_LABELS[e.category] || 'Expense'}
-                          </div>
-                          <div className="text-base text-slate-500 dark:text-slate-400">
-                            {d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
-                            {' · '}
-                            <span style={{ color: catColor }}>{CATEGORY_LABELS[e.category] || e.category}</span>
-                          </div>
-                        </div>
-                        <div className="text-base font-semibold text-slate-800 dark:text-slate-100 flex-shrink-0">
-                          {fmtMoney(Number(e.amount) || 0)}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                  <span className="text-base font-medium text-slate-600 dark:text-slate-400">Total</span>
-                  <span className="text-lg font-bold text-slate-900 dark:text-slate-100">{fmtMoney(nonMedTotal)}</span>
-                </div>
-              </>
-            )}
-          </AccordionSection>
-
-          {/* Section 4: Financial Summary — gradient banner + large total */}
+          {/* Section 3: Financial Summary — gradient banner + large total */}
           <AccordionSection
             title="Financial Summary"
             icon={<TrendingUp size={18} />}
@@ -855,13 +787,6 @@ export default function PetPage({ pet, claims, userId, onBack, onRefreshPets, on
                   <span className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">−{fmtMoney(totalReimbursed)}</span>
                 </div>
               )}
-              <div className="flex items-center justify-between py-3 px-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className="w-2.5 h-2.5 rounded-full bg-orange-500 flex-shrink-0" />
-                  <span className="text-lg text-slate-700 dark:text-slate-300">Non-Medical Expenses</span>
-                </div>
-                <span className="text-lg font-semibold text-slate-900 dark:text-slate-100">{fmtMoney(nonMedTotal)}</span>
-              </div>
             </div>
           </AccordionSection>
 
