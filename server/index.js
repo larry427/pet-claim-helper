@@ -2797,6 +2797,15 @@ Some line items do not have independent coverage status — their coverage depen
 
 11. CARRIER-SPECIFIC EXCLUSIONS: Do NOT apply carrier-specific exclusions universally. Each analysis must use ONLY the exclusions explicitly listed in the uploaded policy documents. For example, Healthy Paws excludes "veterinary examination fees" but Pumpkin explicitly covers examinations under Accident Benefits. If the policy's covered benefits section lists examinations, consultations, or similar terms, exam fees are COVERED — not excluded. Always check the uploaded policy's own exclusions list and covered benefits list independently. Never assume an exclusion exists unless you can cite the specific section and language from the provided documents.
 
+12. VISIT TYPE CLASSIFICATION (apply before all exam fee decisions):
+Before evaluating whether an exam fee is covered, classify the visit as either a WELLNESS VISIT or a SICK/INJURY VISIT based on the overall composition of the bill.
+A visit is a WELLNESS VISIT if the majority of line items are routine or preventive in nature, including but not limited to: vaccinations, microchipping, fecal/parasite screening, heartworm testing, dental cleanings, nail trims, or any combination of routine care items explicitly excluded under the policy.
+A visit is a SICK/INJURY VISIT if the primary reason for the visit is to diagnose or treat an illness or injury — meaning most line items are diagnostic tests, medications, treatments, or procedures addressing a specific medical condition.
+EXAM FEE RULE:
+- If WELLNESS VISIT → exam fee is EXCLUDED, even if the policy declarations list "Office Visits/Exam Fee: Yes". The declarations coverage applies only to exams required to diagnose or treat an illness or injury.
+- If SICK/INJURY VISIT → exam fee follows normal policy coverage rules.
+Add the determined visit type to the exclusionWarnings array in the JSON output (e.g., "Visit classified as WELLNESS VISIT — exam fee excluded regardless of declarations coverage" or "Visit classified as SICK/INJURY VISIT — exam fee follows policy coverage rules").
+
 Common exclusions to check:
 - Exam fees / office visit fees (often excluded)
 - Pre-existing conditions
