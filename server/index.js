@@ -641,55 +641,22 @@ if (error) {
   })
   // eslint-disable-next-line no-console
   console.log('Deadline reminders route registered')
+  // HIDDEN - medication reminders disabled, re-enable when ready
   // SMS medication reminders endpoint
-  app.options('/api/send-medication-reminders', (req, res) => {
-    res.set('Access-Control-Allow-Origin', '*')
-    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    res.set('Access-Control-Allow-Headers', 'Content-Type')
-    return res.sendStatus(204)
-  })
-  app.post('/api/send-medication-reminders', async (req, res) => {
-    res.set('Access-Control-Allow-Origin', '*')
-    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-    try {
-      // AUTHENTICATION: Server-only endpoint (deprecated - use cron job)
-      const authHeader = req.headers.authorization
-      if (!process.env.SERVER_SECRET) {
-        console.error('[Send Medication Reminders] SERVER_SECRET not configured')
-        return res.status(500).json({ success: false, error: 'Server misconfigured' })
-      }
-      if (authHeader !== `Bearer ${process.env.SERVER_SECRET}`) {
-        console.error('[Send Medication Reminders] Unauthorized access attempt')
-        return res.status(401).json({ success: false, error: 'Unauthorized' })
-      }
-
-      const result = await sendMedicationReminders()
-      return res.json(result)
-    } catch (err) {
-      console.error('[/api/send-medication-reminders] error', err)
-      return res.status(500).json({ success: false, error: String(err?.message || err) })
-    }
-  })
+  // app.options('/api/send-medication-reminders', (req, res) => { ... })
+  // app.post('/api/send-medication-reminders', async (req, res) => { ... })
 
   const port = process.env.PORT || 8787
+  // HIDDEN - medication reminders disabled, re-enable when ready
   // Cron: medication reminders every minute (using PST timezone)
-  try {
-    schedule.scheduleJob('* * * * *', async () => {
-      // eslint-disable-next-line no-console
-      console.log('[Cron] Medication reminders check at', new Date())
-      try {
-        const result = await runMedicationReminders({ supabase })
-        console.log('[Cron] Medication reminders result:', { sent: result.sent, skipped: result.skipped })
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.error('[Cron] Medication reminders failed:', error?.message || error)
-      }
-    })
-  } catch (cronErr) {
-    // eslint-disable-next-line no-console
-    console.error('[Cron] schedule init failed:', cronErr)
-  }
+  // try {
+  //   schedule.scheduleJob('* * * * *', async () => {
+  //     const result = await runMedicationReminders({ supabase })
+  //     console.log('[Cron] Medication reminders result:', { sent: result.sent, skipped: result.skipped })
+  //   })
+  // } catch (cronErr) {
+  //   console.error('[Cron] schedule init failed:', cronErr)
+  // }
 
   // Cron: deadline reminders daily at 9 AM Pacific Time (5 PM UTC / 17:00 UTC)
   try {

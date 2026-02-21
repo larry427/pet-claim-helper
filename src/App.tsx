@@ -599,9 +599,13 @@ function MainApp() {
       })
   }, [userId])
 
+  // HIDDEN - medication reminders disabled, re-enable when ready
   // Fetch today's medication alerts for Home tab
   // NEW SIMPLIFIED: Calculate due/overdue from medication schedules, not dose records
   useEffect(() => {
+    setMedicationAlerts([])
+    return
+    // eslint-disable-next-line no-unreachable
     if (!userId) {
       setMedicationAlerts([])
       return
@@ -2387,8 +2391,9 @@ function MainApp() {
         )}
 
 
+        {/* HIDDEN - medication reminders disabled, re-enable when ready */}
         {/* Medications Section - MEDS TAB for whitelisted users, always visible for non-whitelisted */}
-        {authView === 'app' && activeView === 'app' && ((showTabNav && activeTab === 'meds') || !showTabNav) && (
+        {/* {authView === 'app' && activeView === 'app' && ((showTabNav && activeTab === 'meds') || !showTabNav) && (
           <MedicationsSection
             userId={userId}
             pets={pets}
@@ -2396,7 +2401,7 @@ function MainApp() {
             onManage={() => setActiveView('medications')}
             refreshKey={medicationsRefreshKey}
           />
-        )}
+        )} */}
 
         {/* Upload section - VET BILLS TAB for whitelisted users, always visible for non-whitelisted */}
         {authView === 'app' && activeView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && (
@@ -4457,8 +4462,9 @@ function MainApp() {
         }}
       /> */}
 
+      {/* HIDDEN - medication reminders disabled, re-enable when ready */}
       {/* SMS Intro Modal (first time clicking Medication tab) */}
-      {showSmsIntroModal && (
+      {/* {showSmsIntroModal && (
         <SmsIntroModal
           userId={userId}
           onClose={() => setShowSmsIntroModal(false)}
@@ -4467,7 +4473,7 @@ function MainApp() {
             setShowSmsIntroModal(false)
           }}
         />
-      )}
+      )} */}
 
       {successModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setSuccessModal(null)}>

@@ -18,7 +18,8 @@ const TABS: TabConfig[] = [
   { id: 'home', label: 'Home', icon: Home },
   { id: 'expenses', label: 'Expenses', icon: Wallet },
   { id: 'vetbills', label: 'Vet Bills', icon: ClipboardList },
-  { id: 'meds', label: 'Meds', icon: Pill },
+  // HIDDEN - medication reminders disabled, re-enable when ready
+  // { id: 'meds', label: 'Meds', icon: Pill },
 ]
 
 export default function BottomTabBar({ activeTab, onTabChange }: Props) {
