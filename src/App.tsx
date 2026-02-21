@@ -2043,11 +2043,6 @@ function MainApp() {
             className="mx-auto max-w-lg px-4 pb-10 pt-2 flex flex-col gap-6"
             style={{ minHeight: '100dvh', background: '#F3F8F7' }}
           >
-            {/* LOGO */}
-            <div className="flex justify-center pt-2">
-              <img src="/pch-logo.png" alt="Pet Claim Helper" className="h-10 w-auto object-contain" />
-            </div>
-
             {/* GREETING */}
             <div>
               <div className="text-2xl font-bold text-[#1A1A1A]">
@@ -2104,15 +2099,15 @@ function MainApp() {
               <button
                 type="button"
                 onClick={() => { setActiveTab('expenses'); setActiveView('app') }}
-                className="w-full flex items-center gap-4 bg-white rounded-[18px] shadow-sm px-4 py-4 text-left active:scale-[0.98] transition-all duration-150"
-                style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
+                className="w-full flex items-center gap-4 bg-white rounded-[20px] px-5 py-5 text-left active:scale-[0.98] transition-all duration-150"
+                style={{ border: '1.5px solid rgba(42,157,143,0.13)', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}
               >
-                <div className="flex-shrink-0 w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-2xl" style={{ background: '#E8923A' }}>
+                <div className="flex-shrink-0 w-[58px] h-[58px] rounded-[16px] flex items-center justify-center text-2xl" style={{ background: '#E8923A' }}>
                   💰
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-[#1A1A1A] text-base leading-tight">Track Our Expenses</div>
-                  <div className="text-sm text-[#6B7280] mt-0.5 leading-tight">
+                  <div className="font-bold text-[#1A1A1A] leading-tight" style={{ fontSize: 17 }}>Track Our Expenses</div>
+                  <div className="text-[#6B7280] mt-1 leading-tight" style={{ fontSize: 13 }}>
                     {pets.length === 1 ? `Everything we spend on ${pets[0].name}` : 'Everything we spend on all our pets'}
                   </div>
                 </div>
@@ -2123,15 +2118,15 @@ function MainApp() {
               <button
                 type="button"
                 onClick={() => { setActiveTab('vetbills'); setActiveView('app') }}
-                className="w-full flex items-center gap-4 bg-white rounded-[18px] shadow-sm px-4 py-4 text-left active:scale-[0.98] transition-all duration-150"
-                style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
+                className="w-full flex items-center gap-4 bg-white rounded-[20px] px-5 py-5 text-left active:scale-[0.98] transition-all duration-150"
+                style={{ border: '1.5px solid rgba(42,157,143,0.13)', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}
               >
-                <div className="flex-shrink-0 w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-2xl" style={{ background: 'linear-gradient(135deg, #2A9D8F, #21867a)' }}>
+                <div className="flex-shrink-0 w-[58px] h-[58px] rounded-[16px] flex items-center justify-center text-2xl" style={{ background: 'linear-gradient(135deg, #2A9D8F, #21867a)' }}>
                   📋
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-[#1A1A1A] text-base leading-tight">Upload a Vet Bill</div>
-                  <div className="text-sm text-[#6B7280] mt-0.5 leading-tight">
+                  <div className="font-bold text-[#1A1A1A] leading-tight" style={{ fontSize: 17 }}>Upload a Vet Bill</div>
+                  <div className="text-[#6B7280] mt-1 leading-tight" style={{ fontSize: 13 }}>
                     {(() => {
                       const insuredPet = pets.find((p: any) => p.insuranceCompany || (p as any).insurance_company)
                       const carrier = insuredPet ? (insuredPet.insuranceCompany || (insuredPet as any).insurance_company) : null
@@ -2146,15 +2141,15 @@ function MainApp() {
               <button
                 type="button"
                 onClick={() => { setActiveTab('vetbills'); setActiveView('app') }}
-                className="w-full flex items-center gap-4 bg-white rounded-[18px] shadow-sm px-4 py-4 text-left active:scale-[0.98] transition-all duration-150"
-                style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
+                className="w-full flex items-center gap-4 bg-white rounded-[20px] px-5 py-5 text-left active:scale-[0.98] transition-all duration-150"
+                style={{ border: '1.5px solid rgba(42,157,143,0.13)', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}
               >
-                <div className="flex-shrink-0 w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-2xl" style={{ background: '#E5F0EE' }}>
+                <div className="flex-shrink-0 w-[58px] h-[58px] rounded-[16px] flex items-center justify-center text-2xl" style={{ background: '#E5F0EE' }}>
                   🏥
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-[#1A1A1A] text-base leading-tight">Vet Visits</div>
-                  <div className="text-sm text-[#6B7280] mt-0.5 leading-tight">When did we go &amp; what did we spend?</div>
+                  <div className="font-bold text-[#1A1A1A] leading-tight" style={{ fontSize: 17 }}>Vet Visits</div>
+                  <div className="text-[#6B7280] mt-1 leading-tight" style={{ fontSize: 13 }}>When did we go &amp; what did we spend?</div>
                 </div>
                 <span className="text-[#2A9D8F] text-xl font-light flex-shrink-0">›</span>
               </button>
