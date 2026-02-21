@@ -2037,350 +2037,146 @@ function MainApp() {
           />
         )}
 
-        {/* HOME TAB - Dashboard overview (whitelisted users only) */}
+        {/* HOME TAB - Simplified navigation home screen */}
         {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'home' && !currentPetPageId && (
-          <section className="mx-auto max-w-4xl space-y-8">
-            {/* PERSONALIZED GREETING */}
-            <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-              {userFirstName ? (
-                <span>{getTimeGreeting()}, {userFirstName}!</span>
-              ) : (
-                <span>{getTimeGreeting()}!</span>
-              )}
+          <section
+            className="mx-auto max-w-lg px-4 pb-10 pt-2 flex flex-col gap-6"
+            style={{ minHeight: '100dvh', background: '#F3F8F7' }}
+          >
+            {/* LOGO */}
+            <div className="flex justify-center pt-2">
+              <img src="/pch-logo.png" alt="Pet Claim Helper" className="h-10 w-auto object-contain" />
             </div>
 
-            {/* YOUR PETS — tappable cards (feature-flagged, PRIMARY navigation) */}
-            {showPetPage && pets.length > 0 && (
-              <div className="space-y-3">
-                <h2 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Your Pets</h2>
-                <div className="flex gap-5 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
+            {/* GREETING */}
+            <div>
+              <div className="text-2xl font-bold text-[#1A1A1A]">
+                {userFirstName ? `Good ${getTimeGreeting().toLowerCase().replace('good ', '')}, ${userFirstName}! 👋` : 'Welcome back! 👋'}
+              </div>
+              <div className="text-sm text-[#6B7280] mt-1">Your pets are counting on you today.</div>
+            </div>
+
+            {/* YOUR PETS */}
+            {pets.length > 0 && (
+              <div>
+                <div className="text-xs font-bold text-[#6B7280] uppercase tracking-widest mb-3">Your Pets</div>
+                <div className="flex gap-4 flex-wrap">
                   {pets.map((p) => {
-                    // Compute status dot color
-                    const pClaims = claims.filter((c: any) => c.pet_id === p.id)
-                    const hasOverdue = pClaims.some((c: any) => {
-                      const st = (c.filing_status || 'not_submitted').toLowerCase()
-                      if (['submitted', 'filed', 'approved', 'paid', 'denied'].includes(st)) return false
-                      const svc = c.service_date ? (() => { const m = String(c.service_date).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null })() : null
-                      if (!svc) return false
-                      const ins = c.pets?.insurance_company || ''
-                      const days = getDeadlineDays(ins) || c.pets?.filing_deadline_days || 90
-                      const deadline = new Date(svc.getTime()); deadline.setDate(deadline.getDate() + days)
-                      return (deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24) < 0
-                    })
-                    const hasPending = pClaims.some((c: any) => ['submitted', 'filed'].includes((c.filing_status || '').toLowerCase()))
-                    const hasExpiring = !hasOverdue && pClaims.some((c: any) => {
-                      const st = (c.filing_status || 'not_submitted').toLowerCase()
-                      if (['submitted', 'filed', 'approved', 'paid', 'denied'].includes(st)) return false
-                      const svc = c.service_date ? (() => { const m = String(c.service_date).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null })() : null
-                      if (!svc) return false
-                      const ins = c.pets?.insurance_company || ''
-                      const days = getDeadlineDays(ins) || c.pets?.filing_deadline_days || 90
-                      const deadline = new Date(svc.getTime()); deadline.setDate(deadline.getDate() + days)
-                      const rem = (deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-                      return rem >= 1 && rem <= 14
-                    })
-                    let dotColor = 'bg-emerald-400' // green = all good
-                    if (hasOverdue) dotColor = 'bg-red-500'
-                    else if (hasExpiring) dotColor = 'bg-amber-500'
-                    else if (hasPending) dotColor = 'bg-blue-500'
-
-                    const petColor = p.color || (p.species === 'dog' ? '#3B82F6' : p.species === 'cat' ? '#F97316' : '#6B7280')
-
+                    const isInsuredPet = !!(p.insuranceCompany || (p as any).insurance_company)
+                    const dotColor = isInsuredPet ? '#22C55E' : '#F59E0B'
+                    const circleSize = Math.max(54, Math.min(72, Math.floor(280 / Math.max(pets.length, 1))))
                     return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => setCurrentPetPageId(p.id)}
-                        className="flex flex-col items-center gap-2.5 min-w-[88px] py-3 px-3 rounded-2xl hover:bg-white/60 dark:hover:bg-slate-800/40 transition-all duration-200 active:scale-95"
-                      >
-                        <div className="relative">
+                      <div key={p.id} className="flex flex-col items-center gap-1.5">
+                        <div className="relative" style={{ width: circleSize, height: circleSize }}>
                           {p.photo_url ? (
                             <img
                               src={p.photo_url}
                               alt={p.name}
-                              className="w-16 h-16 rounded-full object-cover ring-2 ring-white dark:ring-slate-800 shadow-lg"
+                              className="rounded-full object-cover w-full h-full ring-2 ring-white shadow-md"
                             />
                           ) : (
                             <div
-                              className="w-16 h-16 rounded-full flex items-center justify-center ring-2 ring-white dark:ring-slate-800 shadow-lg text-white text-2xl"
-                              style={{ backgroundColor: petColor }}
+                              className="rounded-full w-full h-full flex items-center justify-center ring-2 ring-white shadow-md text-2xl"
+                              style={{ background: '#E5F0EE' }}
                             >
-                              {p.species === 'dog' ? '🐕' : p.species === 'cat' ? '🐱' : '🐾'}
+                              🐾
                             </div>
                           )}
-                          <span className={`absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 ${dotColor}`} />
+                          <span
+                            className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white"
+                            style={{ background: dotColor }}
+                          />
                         </div>
-                        <span className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate max-w-[80px]">{p.name}</span>
-                      </button>
+                        <span className="text-xs font-medium text-[#1A1A1A] truncate max-w-[72px] text-center">{p.name}</span>
+                      </div>
                     )
                   })}
                 </div>
               </div>
             )}
 
-            {/* ALERTS SECTION */}
-            {(() => {
-              const overdueMeds = medicationAlerts.filter(a => a.isOverdue)
-              const upcomingMeds = medicationAlerts.filter(a => !a.isOverdue)
-              const hasAlerts = claimsSummary.overdue > 0 || claimsSummary.expiringSoon > 0 || claimsSummary.approaching > 0 || claimsSummary.notFiledCount > 0 || medicationAlerts.length > 0
+            {/* DIVIDER */}
+            <hr className="border-[#2A9D8F]/20" />
 
-              return hasAlerts ? (
-                <div className="space-y-4">
-                  <h2 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Needs Attention</h2>
-
-                  {/* Overdue Claims Alert */}
-                  {claimsSummary.overdue > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('vetbills')}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-red-200/60 dark:border-red-800 bg-red-50/80 dark:bg-red-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
-                    >
-                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-red-100 to-red-200 dark:from-red-800 dark:to-red-900 flex items-center justify-center shadow-sm">
-                        <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-red-900 dark:text-red-200">
-                          {claimsSummary.overdue} Overdue Claim{claimsSummary.overdue > 1 ? 's' : ''}
-                        </div>
-                        <div className="text-base text-red-700 dark:text-red-400">
-                          Past filing deadline - submit ASAP
-                        </div>
-                      </div>
-                      <div className="text-red-400 text-lg">→</div>
-                    </button>
-                  )}
-
-                  {/* Overdue Medication Alerts */}
-                  {overdueMeds.map((alert) => (
-                    <button
-                      key={alert.id}
-                      type="button"
-                      onClick={() => setActiveView('medications')}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-red-200/60 dark:border-red-800 bg-red-50/80 dark:bg-red-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
-                    >
-                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-red-100 to-red-200 dark:from-red-800 dark:to-red-900 flex items-center justify-center shadow-sm">
-                        <Pill className="w-6 h-6 text-red-600 dark:text-red-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-red-900 dark:text-red-200">
-                          {alert.petName}'s {alert.medicationName}
-                        </div>
-                        <div className="text-base text-red-700 dark:text-red-400">
-                          Was due at {alert.scheduledTime} - mark as given
-                        </div>
-                      </div>
-                      <div className="text-red-400 text-lg">→</div>
-                    </button>
-                  ))}
-
-                  {/* Expiring Soon Alert */}
-                  {claimsSummary.expiringSoon > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('vetbills')}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-amber-200/60 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
-                    >
-                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-800 dark:to-amber-900 flex items-center justify-center shadow-sm">
-                        <Clock className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-amber-900 dark:text-amber-200">
-                          {claimsSummary.expiringSoon} Claim{claimsSummary.expiringSoon > 1 ? 's' : ''} Expiring Soon
-                        </div>
-                        <div className="text-base text-amber-700 dark:text-amber-400">
-                          Due within 14 days - don't miss out
-                        </div>
-                      </div>
-                      <div className="text-amber-400 text-lg">→</div>
-                    </button>
-                  )}
-
-                  {/* Upcoming Medication Alerts */}
-                  {upcomingMeds.map((alert) => (
-                    <button
-                      key={alert.id}
-                      type="button"
-                      onClick={() => setActiveView('medications')}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-amber-200/60 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
-                    >
-                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-800 dark:to-amber-900 flex items-center justify-center shadow-sm">
-                        <Pill className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-amber-900 dark:text-amber-200">
-                          {alert.petName}'s {alert.medicationName}
-                        </div>
-                        <div className="text-base text-amber-700 dark:text-amber-400">
-                          Due at {alert.scheduledTime}
-                        </div>
-                      </div>
-                      <div className="text-amber-400 text-lg">→</div>
-                    </button>
-                  ))}
-
-                  {/* Approaching Deadline Alert (15-30 days) */}
-                  {claimsSummary.approaching > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('vetbills')}
-                      className="w-full flex items-center gap-4 p-4 rounded-xl border border-blue-200/60 dark:border-blue-800 bg-blue-50/80 dark:bg-blue-900/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
-                    >
-                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-800 dark:to-blue-900 flex items-center justify-center shadow-sm">
-                        <Clock className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-blue-900 dark:text-blue-200">
-                          {claimsSummary.approaching} Claim{claimsSummary.approaching > 1 ? 's' : ''} Due Within 30 Days
-                        </div>
-                        <div className="text-base text-blue-700 dark:text-blue-400">
-                          File soon to avoid missing deadlines
-                        </div>
-                      </div>
-                      <div className="text-blue-400 text-lg">→</div>
-                    </button>
-                  )}
-
-                  {/* Pending Unfiled Claims (not overdue, not expiring, but still unfiled) */}
-                  {(() => {
-                    const otherUnfiled = claimsSummary.notFiledCount - claimsSummary.overdue - claimsSummary.expiringSoon - claimsSummary.approaching
-                    if (otherUnfiled <= 0) return null
-                    return (
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('vetbills')}
-                        className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200/60 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 backdrop-blur-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 text-left"
-                      >
-                        <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center shadow-sm">
-                          <FileText className="w-6 h-6 text-slate-600 dark:text-slate-400" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-slate-800 dark:text-slate-200">
-                            {otherUnfiled} Pending Claim{otherUnfiled > 1 ? 's' : ''}
-                          </div>
-                          <div className="text-base text-slate-600 dark:text-slate-400">
-                            Ready to submit to insurance
-                          </div>
-                        </div>
-                        <div className="text-slate-400 text-lg">→</div>
-                      </button>
-                    )
-                  })()}
+            {/* THREE MAIN ACTION BUTTONS */}
+            <div className="flex flex-col gap-3">
+              {/* Track Our Expenses */}
+              <button
+                type="button"
+                onClick={() => { setActiveTab('expenses'); setActiveView('app') }}
+                className="w-full flex items-center gap-4 bg-white rounded-[18px] shadow-sm px-4 py-4 text-left active:scale-[0.98] transition-all duration-150"
+                style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
+              >
+                <div className="flex-shrink-0 w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-2xl" style={{ background: '#E8923A' }}>
+                  💰
                 </div>
-              ) : (
-                /* All Caught Up Message */
-                <div className="flex items-center gap-4 p-5 rounded-xl border border-emerald-200/60 dark:border-emerald-800 bg-gradient-to-r from-emerald-50/90 to-teal-50/90 dark:from-emerald-900/20 dark:to-teal-900/20 backdrop-blur-sm shadow-md">
-                  <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg">
-                    <CheckCircle2 className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <div className="font-bold text-emerald-800 dark:text-emerald-200 text-lg">All caught up!</div>
-                    <div className="text-base text-emerald-700 dark:text-emerald-400">No urgent claims or reminders</div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-[#1A1A1A] text-base leading-tight">Track Our Expenses</div>
+                  <div className="text-sm text-[#6B7280] mt-0.5 leading-tight">
+                    {pets.length === 1 ? `Everything we spend on ${pets[0].name}` : 'Everything we spend on all our pets'}
                   </div>
                 </div>
-              )
-            })()}
+                <span className="text-[#2A9D8F] text-xl font-light flex-shrink-0">›</span>
+              </button>
 
-            {/* QUICK STATS CARDS */}
-            <div className="space-y-4">
-              <h2 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">At a Glance</h2>
-              <div className="grid grid-cols-2 gap-4">
-                {/* This Month Spending */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('expenses')}
-                  className="p-5 rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 text-left group"
-                >
-                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-sm font-medium mb-2">
-                    <div className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 group-hover:bg-emerald-200 dark:group-hover:bg-emerald-800/50 transition-colors">
-                      <Wallet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    </div>
-                    <span>This Month</span>
+              {/* Upload a Vet Bill */}
+              <button
+                type="button"
+                onClick={() => { setActiveTab('vetbills'); setActiveView('app') }}
+                className="w-full flex items-center gap-4 bg-white rounded-[18px] shadow-sm px-4 py-4 text-left active:scale-[0.98] transition-all duration-150"
+                style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
+              >
+                <div className="flex-shrink-0 w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-2xl" style={{ background: 'linear-gradient(135deg, #2A9D8F, #21867a)' }}>
+                  📋
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-[#1A1A1A] text-base leading-tight">Upload a Vet Bill</div>
+                  <div className="text-sm text-[#6B7280] mt-0.5 leading-tight">
+                    {(() => {
+                      const insuredPet = pets.find((p: any) => p.insuranceCompany || (p as any).insurance_company)
+                      const carrier = insuredPet ? (insuredPet.insuranceCompany || (insuredPet as any).insurance_company) : null
+                      return carrier ? `See what ${carrier} owes you` : 'See what your insurer owes you'
+                    })()}
                   </div>
-                  <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                    ${expensesSummary.thisMonth.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </div>
-                </button>
+                </div>
+                <span className="text-[#2A9D8F] text-xl font-light flex-shrink-0">›</span>
+              </button>
 
-                {/* Pending Claims */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('vetbills')}
-                  className="p-5 rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 text-left group"
-                >
-                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-sm font-medium mb-2">
-                    <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/50 group-hover:bg-blue-200 dark:group-hover:bg-blue-800/50 transition-colors">
-                      <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <span>Pending Claims</span>
-                  </div>
-                  <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                    {claimsSummary.notFiledCount}
-                  </div>
-                </button>
-
-                {/* Year to Date Spending */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('expenses')}
-                  className="p-5 rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 text-left group"
-                >
-                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-sm font-medium mb-2">
-                    <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-900/50 group-hover:bg-purple-200 dark:group-hover:bg-purple-800/50 transition-colors">
-                      <Wallet className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <span>Year to Date</span>
-                  </div>
-                  <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                    ${expensesSummary.yearToDate.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </div>
-                </button>
-
-                {/* Total Pets */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('vetbills')
-                    // Scroll to pets section after tab renders
-                    setTimeout(() => {
-                      petsSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
-                    }, 100)
-                  }}
-                  className="p-5 rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/60 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-200 text-left group"
-                >
-                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-sm font-medium mb-2">
-                    <div className="p-1.5 rounded-lg bg-teal-100 dark:bg-teal-900/50 group-hover:bg-teal-200 dark:group-hover:bg-teal-800/50 transition-colors">
-                      <Pill className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-                    </div>
-                    <span>Your Pets</span>
-                  </div>
-                  <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                    {pets.length}
-                  </div>
-                </button>
-              </div>
+              {/* Vet Visits */}
+              <button
+                type="button"
+                onClick={() => { setActiveTab('vetbills'); setActiveView('app') }}
+                className="w-full flex items-center gap-4 bg-white rounded-[18px] shadow-sm px-4 py-4 text-left active:scale-[0.98] transition-all duration-150"
+                style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
+              >
+                <div className="flex-shrink-0 w-[50px] h-[50px] rounded-[14px] flex items-center justify-center text-2xl" style={{ background: '#E5F0EE' }}>
+                  🏥
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-[#1A1A1A] text-base leading-tight">Vet Visits</div>
+                  <div className="text-sm text-[#6B7280] mt-0.5 leading-tight">When did we go &amp; what did we spend?</div>
+                </div>
+                <span className="text-[#2A9D8F] text-xl font-light flex-shrink-0">›</span>
+              </button>
             </div>
 
-            {/* QUICK ACTIONS */}
-            <div className="space-y-4">
-              <h2 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Quick Actions</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('vetbills')}
-                  className="flex items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold shadow-lg shadow-emerald-500/25 hover:shadow-xl hover:shadow-emerald-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
-                >
-                  <Upload className="w-5 h-5" />
-                  Upload Vet Bill
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAddExpenseModal(true)}
-                  className="flex items-center justify-center gap-2 p-4 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white font-semibold shadow-lg shadow-teal-500/25 hover:shadow-xl hover:shadow-teal-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
-                >
-                  <PlusCircle className="w-5 h-5" />
-                  Add Expense
-                </button>
-              </div>
+            {/* BOTTOM ROW — Settings + Support */}
+            <div className="flex gap-3 mt-auto">
+              <button
+                type="button"
+                onClick={() => setActiveView('settings')}
+                className="flex-1 flex items-center justify-center gap-2 bg-white rounded-[14px] py-3 text-sm font-medium text-[#1A1A1A] shadow-sm active:scale-[0.98] transition-all duration-150"
+                style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
+              >
+                ⚙️ Settings
+              </button>
+              <a
+                href={`mailto:support@petclaimhelper.com?subject=Pet Claim Helper Support Request&body=Hi Pet Claim Helper Team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0A----%0D%0AUser: ${userEmail || 'Not logged in'}%0D%0AUser ID: ${userId || 'N/A'}`}
+                className="flex-1 flex items-center justify-center gap-2 bg-white rounded-[14px] py-3 text-sm font-medium text-[#1A1A1A] shadow-sm active:scale-[0.98] transition-all duration-150"
+                style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
+              >
+                💬 Support
+              </a>
             </div>
           </section>
         )}
@@ -4557,14 +4353,14 @@ function MainApp() {
         </p>
       </footer>
 
-      {/* Bottom Tab Navigation (only for whitelisted users, hidden when modals are open) */}
-      {authView === 'app' && showTabNav && !isAnyModalOpen && !currentPetPageId && (
+      {/* Bottom Tab Navigation — hidden, navigation handled by home screen buttons */}
+      {/* {authView === 'app' && showTabNav && !isAnyModalOpen && !currentPetPageId && (
         <BottomTabBar activeTab={activeTab} onTabChange={(tab) => {
           setActiveTab(tab)
           setActiveView('app') // Reset view to app when switching tabs
           window.scrollTo({ top: 0, behavior: 'smooth' })
         }} />
-      )}
+      )} */}
     </div>
   )
 }
