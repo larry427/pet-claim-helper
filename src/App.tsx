@@ -38,7 +38,7 @@ import { createClaim, listClaims, updateClaim, deleteClaim as dbDeleteClaim } fr
 import { formatPhoneOnChange, formatPhoneForStorage, formatPhoneForDisplay } from './utils/phoneUtils'
 import { INSURANCE_OPTIONS, getInsuranceValue, getInsuranceDisplay, getDeadlineDays } from './lib/insuranceOptions'
 import React from 'react'
-import { AlertTriangle, Clock, CheckCircle2, Wallet, Pill, FileText, Upload, PlusCircle, Settings, LogOut, Mail, ChevronDown, X } from 'lucide-react'
+import { AlertTriangle, Clock, CheckCircle2, Wallet, Pill, FileText, Upload, PlusCircle, Settings, LogOut, Mail, ChevronDown, ChevronLeft, X } from 'lucide-react'
 
 type SelectedFile = {
   file: File
@@ -1872,13 +1872,24 @@ function MainApp() {
 
       <main className="px-6 pb-24">
         {authView === 'app' && activeView === 'settings' && (
-          <SettingsPage
-            userId={userId}
-            userEmail={userEmail}
-            onClose={() => setActiveView('app')}
-            onDefaultExpenseChange={(cat) => setExpenseCategory(cat)}
-            onDefaultPeriodChange={(p) => setFinPeriod(p as any)}
-          />
+          <>
+            <button
+              type="button"
+              onClick={() => { setActiveView('app'); setActiveTab('home'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+              className="flex items-center gap-1 font-medium hover:opacity-70 transition-opacity pt-3 pb-1"
+              style={{ color: '#2A9D8F', fontSize: 15 }}
+            >
+              <ChevronLeft size={18} strokeWidth={2.5} />
+              Home
+            </button>
+            <SettingsPage
+              userId={userId}
+              userEmail={userEmail}
+              onClose={() => setActiveView('app')}
+              onDefaultExpenseChange={(cat) => setExpenseCategory(cat)}
+              onDefaultPeriodChange={(p) => setFinPeriod(p as any)}
+            />
+          </>
         )}
         {authView === 'app' && activeView === 'medications' && (
           <section className="mx-auto mt-8 max-w-6xl px-2">
@@ -2178,7 +2189,18 @@ function MainApp() {
 
         {/* EXPENSES TAB - Full expenses view (whitelisted users only) */}
         {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'expenses' && (
-          <ExpensesPage userId={userId} onClose={() => setActiveTab('home')} onModalStateChange={setExpensesPageModalOpen} refreshKey={expensesRefreshKey} />
+          <>
+            <button
+              type="button"
+              onClick={() => { setActiveTab('home'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+              className="flex items-center gap-1 font-medium hover:opacity-70 transition-opacity pt-3 pb-1"
+              style={{ color: '#2A9D8F', fontSize: 15 }}
+            >
+              <ChevronLeft size={18} strokeWidth={2.5} />
+              Home
+            </button>
+            <ExpensesPage userId={userId} onClose={() => setActiveTab('home')} onModalStateChange={setExpensesPageModalOpen} refreshKey={expensesRefreshKey} />
+          </>
         )}
 
 
@@ -2193,6 +2215,19 @@ function MainApp() {
             refreshKey={medicationsRefreshKey}
           />
         )} */}
+
+        {/* Back button - VET BILLS TAB */}
+        {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'vetbills' && (
+          <button
+            type="button"
+            onClick={() => { setActiveTab('home'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+            className="flex items-center gap-1 font-medium hover:opacity-70 transition-opacity pt-3 pb-1"
+            style={{ color: '#2A9D8F', fontSize: 15 }}
+          >
+            <ChevronLeft size={18} strokeWidth={2.5} />
+            Home
+          </button>
+        )}
 
         {/* Upload section - VET BILLS TAB for whitelisted users, always visible for non-whitelisted */}
         {authView === 'app' && activeView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && (
