@@ -2247,6 +2247,21 @@ function MainApp() {
               onDrop={onDrop}
             >
               <div className="flex flex-col items-center">
+                {/* Pet selector — which pet is this for? */}
+                <div className="mb-5 text-left" style={{ width: '60%' }}>
+                  <label className="block text-sm text-slate-500 dark:text-slate-400 mb-1.5 font-medium">
+                    Which pet is this for?
+                  </label>
+                  <select
+                    defaultValue=""
+                    className="w-full rounded-lg border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-slate-900 dark:text-white focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 outline-none transition-colors text-sm font-medium"
+                  >
+                    <option value="" disabled>Select a pet...</option>
+                    {pets.map((pet) => (
+                      <option key={pet.id} value={pet.id}>{pet.name}</option>
+                    ))}
+                  </select>
+                </div>
                 <button
                   type="button"
                   onClick={handlePick}
@@ -3345,8 +3360,8 @@ function MainApp() {
           </section>
         )}
 
-        {/* Your Pets section - VET BILLS TAB for whitelisted users, always visible for non-whitelisted */}
-        {authView === 'app' && activeView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && (
+        {/* HIDDEN - pet selection moved to upload flow */}
+        {false && authView === 'app' && activeView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && (
         <section className="mx-auto max-w-4xl" ref={petsSectionRef}>
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Your Pets</h2>
@@ -3847,8 +3862,8 @@ function MainApp() {
         </section>
         )}
 
-        {/* Financial Summary - VET BILLS TAB for whitelisted users, always visible for non-whitelisted */}
-        {authView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && (
+        {/* HIDDEN - moved to Expenses page only */}
+        {false && authView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && (
           <section className="mx-auto mt-10 max-w-5xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">Financial Summary</h2>
