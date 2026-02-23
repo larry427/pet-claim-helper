@@ -2635,41 +2635,45 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
           }
         }
 
-        // Process all files - send PDFs directly, images via image_url
-        const documentContents = []
-        const fileContents = [] // PDFs and images for OpenAI
+        // Process files — split into vet bill only (Stage 1) and policy docs only (Stage 2)
+        const vetBillTextBackup = []
+        const policyTextBackup = []
+        const vetBillFileContents = [] // Stage 1: vet bill only
+        const policyFileContents = []  // Stage 2: policy docs only
 
-        // Process vet bill
+        // Process vet bill (Stage 1 only)
         if (isPdf(vetBillFile)) {
-          fileContents.push(pdfToFileInput(vetBillFile.buffer, vetBillFile.originalname))
-          console.log(`[analyze-claim] Added PDF: ${vetBillFile.originalname}`)
-          // Keep text extraction as supplementary context
+          vetBillFileContents.push(pdfToFileInput(vetBillFile.buffer, vetBillFile.originalname))
+          console.log(`[analyze-claim] Added vet bill PDF: ${vetBillFile.originalname}`)
           const text = await extractPdfText(vetBillFile.buffer, vetBillFile.originalname)
-          documentContents.push(`=== VET BILL (text backup) ===\n${text}`)
+          vetBillTextBackup.push(`=== VET BILL (text backup) ===\n${text}`)
         } else {
-          fileContents.push({
+          vetBillFileContents.push({
             type: 'image_url',
             image_url: { url: toDataUrl(vetBillFile), detail: 'high' }
           })
         }
 
-        // Process insurance documents
+        // Process insurance documents (Stage 2 only)
         for (let i = 0; i < insuranceDocsFiles.length; i++) {
           const docFile = insuranceDocsFiles[i]
           if (isPdf(docFile)) {
-            fileContents.push(pdfToFileInput(docFile.buffer, docFile.originalname))
-            console.log(`[analyze-claim] Added PDF: ${docFile.originalname}`)
-            // Keep text extraction as supplementary context
+            policyFileContents.push(pdfToFileInput(docFile.buffer, docFile.originalname))
+            console.log(`[analyze-claim] Added policy PDF: ${docFile.originalname}`)
             const text = await extractPdfText(docFile.buffer, docFile.originalname)
-            documentContents.push(`=== INSURANCE DOC ${i + 1} (text backup) ===\n${text}`)
+            policyTextBackup.push(`=== INSURANCE DOC ${i + 1} (text backup) ===\n${text}`)
           } else {
-            fileContents.push({
+            policyFileContents.push({
               type: 'image_url',
               image_url: { url: toDataUrl(docFile), detail: 'high' }
             })
           }
         }
 
+        // ============================================================
+        // ORIGINAL SINGLE-STAGE PROMPT — KEPT FOR REFERENCE
+        // Replaced by two-stage pipeline below: extractionPrompt + coveragePrompt
+        // ============================================================
         // Build the analysis prompt
         const analysisPrompt = `You are an expert pet insurance claim analyst. Analyze the provided vet bill against any insurance policy documents and provide a detailed coverage analysis.
 
@@ -2863,80 +2867,405 @@ IMPORTANT:
 - Double-check line item amounts match the invoice exactly
 - Return ONLY the JSON object`
 
-        // Build message content
-        const messageContent = [
-          { type: 'text', text: analysisPrompt },
-          ...fileContents
-        ]
+        // ============================================================
+        // STAGE 1 — EXTRACTION AND VISIT CLASSIFICATION
+        // Input: vet bill only. Output: line items, visit type, pet/clinic info.
+        // ============================================================
 
-        console.log('[analyze-claim] Sending to OpenAI...', {
-          textLength: analysisPrompt.length,
-          fileCount: fileContents.length
+        const extractionPrompt = `You are a veterinary invoice parser. Your ONLY job is to extract data from the attached vet bill and classify the visit type. Do not perform any insurance coverage analysis.
+
+EXTRACTION RULES:
+1. Use ONLY the TOTAL column (rightmost dollar amount) for each line item — never the Quantity or Unit Price columns.
+2. Vet bill columns are typically: Description | Quantity | Total. The dollar amount is always the last column.
+3. VALIDATION: Your line item amounts must sum to the invoice total shown on the bill. If they do not match, re-read and correct.
+4. Items with $0.00 totals should still be listed with amount: 0.
+5. Watch for quantity values that look like prices (e.g., Quantity: 100.00 with Total: $0.00 — the amount is 0, not 100).
+6. Watch for quantities with decimals (e.g., 1.18) — this is a quantity multiplied by unit price, NOT a dollar amount.
+
+VET BILL TEXT BACKUP (may be incomplete — always prefer the attached document):
+${vetBillTextBackup.join('\n\n') || '(No text backup available)'}
+
+VISIT TYPE CLASSIFICATION:
+Classify the visit as WELLNESS_VISIT or SICK_INJURY_VISIT based on the PRIMARY purpose of the visit.
+
+WELLNESS_VISIT — majority of items are routine or preventive:
+- Vaccinations (DHPP, rabies, bordetella, leptospirosis, etc.)
+- Annual wellness exam with no illness noted
+- Microchipping
+- Fecal/parasite screening
+- Heartworm testing
+- Dental cleaning (routine, not accident-related)
+- Nail trim, ear cleaning, anal gland expression
+
+SICK_INJURY_VISIT — primary purpose is diagnosing or treating illness or injury:
+- Diagnostic tests for specific symptoms (bloodwork, x-rays, urinalysis for a condition)
+- Medications prescribed for a condition
+- Treatments (IV fluids, wound care, sutures)
+- Surgery for illness or injury
+- Emergency care
+- Follow-up for ongoing condition
+
+MIXED VISITS: Classify by PRIMARY purpose. If a sick pet also gets a vaccine during the visit, it is still a SICK_INJURY_VISIT if the main reason was illness treatment.
+
+LINE ITEM CATEGORIES — assign one per item:
+- "vaccination" — any vaccine
+- "exam" — office visit fee, exam fee, consultation fee
+- "diagnostic" — bloodwork, urinalysis, x-ray, ultrasound, lab tests, cultures
+- "medication" — prescriptions, injections, topicals
+- "surgery" — surgical procedures, anesthesia, surgery supplies
+- "preventive" — heartworm test, fecal, microchip, dental cleaning, nail trim
+- "cosmetic" — elective cosmetic procedures
+- "other" — anything that does not fit above
+
+Return ONLY this JSON object:
+{
+  "visitType": "WELLNESS_VISIT" | "SICK_INJURY_VISIT",
+  "visitTypeReason": "brief explanation of classification",
+  "petInfo": {
+    "name": string | null,
+    "species": string | null,
+    "breed": string | null
+  },
+  "clinicInfo": {
+    "name": string | null,
+    "date": string | null
+  },
+  "totalBill": number,
+  "lineItems": [
+    {
+      "description": string,
+      "amount": number,
+      "category": "vaccination" | "exam" | "diagnostic" | "medication" | "surgery" | "preventive" | "cosmetic" | "other"
+    }
+  ]
+}`
+
+        console.log('[analyze-claim] Stage 1: Extracting vet bill + classifying visit type...', {
+          vetBillFiles: vetBillFileContents.length
         })
 
-        // Call OpenAI
-        const completion = await openai.chat.completions.create({
+        const stage1Completion = await openai.chat.completions.create({
           model: 'gpt-4o',
           messages: [
             {
               role: 'system',
-              content: 'You are an expert pet insurance claim analyst. Provide accurate, conservative analysis. Always return valid JSON.'
+              content: 'You are a veterinary invoice parser. Extract data accurately and return valid JSON only.'
             },
             {
               role: 'user',
-              content: messageContent
+              content: [
+                { type: 'text', text: extractionPrompt },
+                ...vetBillFileContents
+              ]
             }
           ],
-          temperature: 0.1, // Low temperature for consistent, accurate analysis
+          temperature: 0.1,
+          max_tokens: 2000,
+          response_format: { type: 'json_object' }
+        })
+
+        const stage1Content = stage1Completion.choices?.[0]?.message?.content ?? ''
+
+        // Parse Stage 1 response
+        let stage1Result = null
+        try {
+          let cleaned = stage1Content.trim()
+          if (cleaned.startsWith('```')) {
+            cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```\s*$/, '')
+          }
+          stage1Result = JSON.parse(cleaned)
+        } catch {
+          const match = stage1Content.match(/\{[\s\S]*\}/)
+          if (match) {
+            try { stage1Result = JSON.parse(match[0]) } catch {}
+          }
+        }
+
+        if (!stage1Result) {
+          console.error('[analyze-claim] Stage 1 failed to parse:', stage1Content.substring(0, 500))
+          return res.status(422).json({
+            ok: false,
+            error: 'Failed to extract vet bill data. Please try again.',
+            raw: stage1Content.substring(0, 1000)
+          })
+        }
+
+        console.log('[analyze-claim] Stage 1 complete:', {
+          visitType: stage1Result.visitType,
+          visitTypeReason: stage1Result.visitTypeReason,
+          petName: stage1Result.petInfo?.name,
+          lineItemCount: stage1Result.lineItems?.length,
+          totalBill: stage1Result.totalBill
+        })
+
+        // ============================================================
+        // STAGE 2 — COVERAGE ANALYSIS
+        // Input: Stage 1 JSON (visit type is immutable) + policy docs.
+        // Output: coverage decisions, reimbursement, filing recommendation.
+        // ============================================================
+
+        const coveragePrompt = `You are a pet insurance coverage analyst. A structured extraction of the vet bill has already been completed in Stage 1. Your job is ONLY to determine coverage and calculate reimbursement. Do not re-extract line items or re-classify the visit type.
+
+STAGE 1 EXTRACTION (treat as ground truth — do not modify):
+${JSON.stringify(stage1Result, null, 2)}
+
+THE VISIT TYPE IS: ${stage1Result.visitType}
+This is FINAL and IMMUTABLE. Do not reconsider it under any circumstances.
+
+Policy documents are attached. Examine each one carefully.
+
+POLICY TEXT BACKUP (may be incomplete — always prefer attached documents):
+${policyTextBackup.join('\n\n') || '(No policy documents uploaded)'}
+
+DOCUMENT IDENTIFICATION:
+- Declarations page (usually 1 page): reimbursement rate, deductible, annual limit, pet schedule
+- Policy documents: coverage details, exclusions, terms
+- Endorsements/changes: may OVERRIDE declarations for a specific pet — match pet name, use most recent/specific document
+
+UNDERWRITER-TO-BRAND MAPPINGS (always use the brand name, never the underwriter):
+- "Westchester Fire Insurance Company" = "Healthy Paws"
+- "United States Fire Insurance Company" = "Pumpkin"
+- "American Pet Insurance Company" = "Fetch"
+- "Independence American Insurance Company" = "Figo"
+- "National Casualty Company" = "Nationwide Pet Insurance"
+
+STEP A — ASSESS COMPLETENESS:
+- "full": vet bill + enough policy info for complete analysis
+- "partial": vet bill + some policy info but missing key details
+- "bill_only": no usable policy documents uploaded
+If partial, populate missingInfo[] with user-friendly descriptions:
+- "Your reimbursement rate (the percentage your insurer pays back, usually 70%, 80%, or 90%)"
+- "Your annual deductible amount"
+- "Your policy's exclusion list (to determine which charges are covered)"
+Include missingDocumentHint: e.g., "Look for an email from Healthy Paws with your 'declarations page' — it shows your deductible, reimbursement rate, and limits."
+
+STEP B — EXTRACT POLICY PARAMETERS:
+- Carrier brand name (not underwriter)
+- Reimbursement rate as an integer (80 not 0.80)
+- Annual deductible
+- Annual limit
+- mathOrder: Read the policy definition of "deductible":
+  If deductible is applied AFTER coinsurance (e.g., Healthy Paws: "the amount you must first pay after your pet's coinsurance portion has been applied") → "coinsurance-first"
+  Otherwise → "deductible-first"
+  Formulas: coinsurance-first: (covered × rate) − deductible | deductible-first: (covered − deductible) × rate
+- Filing deadline
+
+STEP C — DETERMINE COVERAGE FOR EACH LINE ITEM:
+Apply these rules in ORDER. Do not skip any rule.
+
+RULE 1 — EXAM FEE RULE (apply FIRST, before anything else):
+The visit type from Stage 1 is "${stage1Result.visitType}".
+- WELLNESS_VISIT → any exam fee, office visit fee, or consultation fee is EXCLUDED regardless of what the policy declarations say. Reason: "Excluded — Wellness visit: exam fees are only covered for sick/injury visits, not routine checkups"
+- SICK_INJURY_VISIT → exam fee follows carrier-specific rules (RULE 3)
+
+RULE 2 — WELLNESS/PREVENTIVE EXCLUSION:
+Items categorized as "vaccination" or "preventive" in the Stage 1 lineItems are EXCLUDED. These are not covered by accident/illness policies regardless of carrier.
+
+RULE 3 — CARRIER-SPECIFIC RULES (uploaded policy documents only — never assume):
+Use ONLY the exclusions explicitly listed in the attached policy. Read both the covered benefits section AND the exclusions list.
+- If you see Healthy Paws policy: exam fees are excluded (look for "veterinary examination fees" in exclusions)
+- If you see Pumpkin policy: exam fees ARE covered for sick/injury visits (look for examinations in covered benefits)
+- Apply all other carrier-specific exclusions found in the uploaded documents
+
+RULE 4 — PRE-OP/POST-OP INHERITANCE:
+Pre-op items (bloodwork, exams, prep described as "pre-op", "pre-surgical", "pre-anesthetic"):
+- If the surgery is for a covered condition (illness/injury) → COVERED
+- If the surgery is excluded (spay/neuter, elective, cosmetic) → EXCLUDED
+- If surgery type is unknown but 2+ contextual clues suggest spay/neuter (pet under 1-2 years, "pre-op blood panel" as only item, no illness noted) → EXCLUDED with explanation
+- If surgery type genuinely unknown → UNKNOWN: "Pre-op work is only covered if the associated surgery is for a covered illness or accident. Surgery type cannot be determined from this bill."
+Post-op items (medications, follow-ups, rechecks) inherit coverage from the original procedure.
+
+RULE 5 — RADIOLOGY/SPECIALIST READS:
+Radiologist reads, radiologist consultations, and specialist interpretation of diagnostic images (x-ray, ultrasound, MRI, CT) are DIAGNOSTIC TESTS — not exam fees. Mark as COVERED citing diagnostic test coverage. Do not confuse specialist reads with veterinary exam fees.
+
+RULE 6 — DEFAULT RULE:
+Pet insurance covers on an EXCLUSION basis. Everything medically necessary IS covered unless explicitly excluded.
+Diagnostics, medications, surgery, hospitalization, lab tests, x-rays, supplies, nursing care → COVERED by default.
+Default to COVERED, not UNKNOWN, for legitimate illness/injury treatment items.
+
+For each line item from Stage 1, provide:
+- "covered": true (covered) | false (excluded) | null (unknown/no policy)
+- "reason": "Covered — [category/section]" or "Excluded — [specific reason]" or "Uncertain — [reason]"
+- "sourceQuote": verbatim or near-verbatim policy text supporting the decision, or null if unavailable
+- "section": policy section reference (e.g., "Section V.31.b") or null
+
+STEP D — CALCULATE REIMBURSEMENT:
+- totalCovered = sum of all covered line item amounts
+- totalExcluded = sum of all excluded line item amounts
+- maxReimbursement = totalCovered × (reimbursementRate / 100)
+- maxReimbursement must ALWAYS be a positive number when totalCovered > 0. Never return 0 when covered charges exist.
+
+STEP E — FILING RECOMMENDATION:
+Almost always shouldFile: true. Even sub-deductible claims build annual deductible progress.
+- shouldFile: true if totalCovered > 0
+- shouldFile: false ONLY if totalCovered === 0
+- shouldFileReason if true: "Yes — filing this claim applies $[totalCovered formatted as dollar amount] toward your annual deductible, bringing you closer to the point where you start receiving reimbursement. Never skip a claim."
+- shouldFileReason if false: "This bill consists entirely of excluded charges, so there is nothing eligible to file."
+
+STEP F — CONFIDENCE LEVEL:
+- "High": full policy documents with clear exclusions list and declarations page
+- "Medium": partial policy info or declarations page only
+- "Low": bill only or very limited policy info
+
+Return ONLY this JSON object:
+{
+  "completeness": "full" | "partial" | "bill_only",
+  "missingInfo": [],
+  "missingDocumentHint": null,
+  "policyInfo": {
+    "carrier": string | null,
+    "reimbursementRate": number | null,
+    "deductible": number | null,
+    "annualLimit": number | null,
+    "mathOrder": "coinsurance-first" | "deductible-first" | null,
+    "filingDeadline": string | null
+  },
+  "analysis": {
+    "visitType": string,
+    "visitTypeReason": string,
+    "lineItems": [
+      {
+        "description": string,
+        "amount": number,
+        "covered": true | false | null,
+        "reason": string,
+        "sourceQuote": string | null,
+        "section": string | null
+      }
+    ],
+    "totalBill": number,
+    "totalCovered": number,
+    "totalExcluded": number,
+    "maxReimbursement": number,
+    "shouldFile": boolean,
+    "shouldFileReason": string,
+    "exclusionWarnings": [],
+    "confidenceLevel": "High" | "Medium" | "Low"
+  }
+}
+
+IMPORTANT:
+- Use numbers not strings for amounts (150.00 not "$150.00")
+- reimbursementRate must be an integer (80 not 0.80)
+- NEVER use the underwriter name as the carrier
+- Return ONLY the JSON object`
+
+        console.log('[analyze-claim] Stage 2: Running coverage analysis...', {
+          policyFiles: policyFileContents.length,
+          visitType: stage1Result.visitType
+        })
+
+        const stage2Completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a pet insurance coverage analyst. Provide accurate, conservative analysis. Always return valid JSON.'
+            },
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: coveragePrompt },
+                ...policyFileContents
+              ]
+            }
+          ],
+          temperature: 0.1,
           max_tokens: 4000,
           response_format: { type: 'json_object' }
         })
 
-        const content = completion.choices?.[0]?.message?.content ?? ''
+        const stage2Content = stage2Completion.choices?.[0]?.message?.content ?? ''
 
-        // Parse response
-        let analysis = null
+        // Parse Stage 2 response
+        let stage2Result = null
         try {
-          let cleaned = content.trim()
+          let cleaned = stage2Content.trim()
           if (cleaned.startsWith('```')) {
-            cleaned = cleaned.replace(/^```json\s*/i, '')
-            cleaned = cleaned.replace(/^```\s*/i, '')
-            cleaned = cleaned.replace(/\s*```\s*$/, '')
+            cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```\s*$/, '')
           }
-          analysis = JSON.parse(cleaned)
+          stage2Result = JSON.parse(cleaned)
         } catch {
-          const match = content.match(/\{[\s\S]*\}/)
+          const match = stage2Content.match(/\{[\s\S]*\}/)
           if (match) {
-            try { analysis = JSON.parse(match[0]) } catch {}
+            try { stage2Result = JSON.parse(match[0]) } catch {}
           }
         }
 
-        if (!analysis) {
-          console.error('[analyze-claim] Failed to parse OpenAI response:', content.substring(0, 500))
+        if (!stage2Result) {
+          console.error('[analyze-claim] Stage 2 failed to parse:', stage2Content.substring(0, 500))
           return res.status(422).json({
             ok: false,
-            error: 'Failed to analyze documents. Please try again.',
-            raw: content.substring(0, 1000)
+            error: 'Failed to analyze coverage. Please try again.',
+            raw: stage2Content.substring(0, 1000)
           })
         }
 
+        console.log('[analyze-claim] Stage 2 complete:', {
+          completeness: stage2Result.completeness,
+          carrier: stage2Result.policyInfo?.carrier,
+          totalCovered: stage2Result.analysis?.totalCovered,
+          lineItemCount: stage2Result.analysis?.lineItems?.length
+        })
+
+        // ============================================================
+        // MERGE STAGE 1 + STAGE 2 INTO FINAL RESPONSE
+        // Shape must match the original single-stage response exactly so
+        // no frontend changes are needed.
+        // ============================================================
+
+        const s2analysis = stage2Result.analysis || {}
+        const s2policy = stage2Result.policyInfo || {}
+
+        const analysis = {
+          completeness: stage2Result.completeness,
+          missingInfo: stage2Result.missingInfo || [],
+          missingDocumentHint: stage2Result.missingDocumentHint || null,
+          // petInfo and billInfo come from Stage 1
+          petInfo: stage1Result.petInfo || { name: null, species: null, breed: null },
+          billInfo: {
+            clinic: stage1Result.clinicInfo?.name || null,
+            date: stage1Result.clinicInfo?.date || null,
+            lineItems: s2analysis.lineItems || [],
+            total: stage1Result.totalBill || 0
+          },
+          // policyInfo from Stage 2 — map field names to original shape
+          policyInfo: {
+            insurer: s2policy.carrier || null,
+            reimbursementRate: s2policy.reimbursementRate || null,
+            annualDeductible: s2policy.deductible || null,
+            annualLimit: s2policy.annualLimit || null,
+            examFeesCovered: null, // determined by Stage 2 logic, not surfaced separately
+            mathOrder: s2policy.mathOrder || null,
+            filingDeadline: s2policy.filingDeadline || null
+          },
+          analysis: {
+            totalBill: s2analysis.totalBill || stage1Result.totalBill || 0,
+            totalExcluded: s2analysis.totalExcluded || 0,
+            totalCovered: s2analysis.totalCovered || 0,
+            maxReimbursement: s2analysis.maxReimbursement || 0,
+            shouldFile: s2analysis.shouldFile ?? false,
+            shouldFileReason: s2analysis.shouldFileReason || '',
+            exclusionWarnings: s2analysis.exclusionWarnings || []
+          }
+        }
+
         // Safety check: ensure maxReimbursement is never negative
-        if (analysis.analysis && analysis.analysis.maxReimbursement < 0) {
+        if (analysis.analysis.maxReimbursement < 0) {
           analysis.analysis.maxReimbursement = 0
         }
 
-        // Fix: calculate maxReimbursement if it's 0 or negative but there are covered charges
-        if (analysis.analysis && analysis.analysis.totalCovered > 0 && analysis.analysis.maxReimbursement <= 0) {
-          const rate = (analysis.policyInfo?.reimbursementRate || 80) / 100
+        // Fix: calculate maxReimbursement if 0 but there are covered charges
+        if (analysis.analysis.totalCovered > 0 && analysis.analysis.maxReimbursement <= 0) {
+          const rate = (analysis.policyInfo.reimbursementRate || 80) / 100
           analysis.analysis.maxReimbursement = Math.round(analysis.analysis.totalCovered * rate * 100) / 100
         }
 
         // Backwards compatibility: add old field name for older frontends
-        if (analysis.analysis) {
-          analysis.analysis.reimbursementBeforeDeductible = analysis.analysis.maxReimbursement
-        }
+        analysis.analysis.reimbursementBeforeDeductible = analysis.analysis.maxReimbursement
 
-        console.log('[analyze-claim] ✅ Analysis complete:', {
+        console.log('[analyze-claim] ✅ Two-stage analysis complete:', {
+          visitType: stage1Result.visitType,
           insurer: analysis.policyInfo?.insurer,
           totalBill: analysis.billInfo?.total,
           totalCovered: analysis.analysis?.totalCovered,
