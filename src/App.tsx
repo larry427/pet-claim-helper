@@ -4298,14 +4298,14 @@ function MainApp() {
         </p>
       </footer>
 
-      {/* Bottom Tab Navigation — hidden, navigation handled by home screen buttons */}
-      {/* {authView === 'app' && showTabNav && !isAnyModalOpen && !currentPetPageId && (
+      {/* Bottom Tab Navigation */}
+      {authView === 'app' && showTabNav && !isAnyModalOpen && !currentPetPageId && (
         <BottomTabBar activeTab={activeTab} onTabChange={(tab) => {
           setActiveTab(tab)
           setActiveView('app') // Reset view to app when switching tabs
           window.scrollTo({ top: 0, behavior: 'smooth' })
         }} />
-      )} */}
+      )}
     </div>
   )
 }
