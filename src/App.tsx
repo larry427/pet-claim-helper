@@ -1413,6 +1413,7 @@ function MainApp() {
         // Auto-suggest matches by name similarity
         const suggestions = getSuggestedMatches(maybeMulti.pets, pets)
         setPetMatches(suggestions)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
         return
       }
 
@@ -1423,6 +1424,7 @@ function MainApp() {
       }
       setExtracted(normalized)
       setMultiExtracted(null)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err: any) {
       // Classify error for clearer UX
       const message = String(err?.message || '')
@@ -1451,6 +1453,7 @@ function MainApp() {
       }
       setExtracted(blank)
       setMultiExtracted(null)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } finally {
       setIsProcessing(false)
     }
@@ -2243,8 +2246,8 @@ function MainApp() {
           </button>
         )}
 
-        {/* Upload section - VET BILLS TAB for whitelisted users, always visible for non-whitelisted */}
-        {authView === 'app' && activeView === 'app' && ((showTabNav && activeTab === 'upload') || !showTabNav) && (
+        {/* Upload section - hidden once extraction succeeds (extracted or multiExtracted is set) */}
+        {authView === 'app' && activeView === 'app' && !extracted && !multiExtracted && ((showTabNav && activeTab === 'upload') || !showTabNav) && (
         <section key="upload-section" className="mx-auto max-w-3xl text-center mt-8 px-4">
           <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Upload Vet Bill</h2>
           <div className="mt-4">
@@ -2347,7 +2350,7 @@ function MainApp() {
 
         {/* Multi-pet matching UI */}
         {authView === 'app' && multiExtracted && (!showTabNav || activeTab === 'upload') && (
-          <section className="mx-auto mt-8 max-w-3xl">
+          <section className="mx-auto mt-4 max-w-3xl">
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-sm p-5 sm:p-8">
               <h2 className="text-lg font-semibold">Multiple Pets Detected</h2>
               <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">We found charges for multiple pets on this bill:</p>
@@ -2495,7 +2498,7 @@ function MainApp() {
         )}
 
         {extracted && (!showTabNav || activeTab === 'upload') && (
-          <section key="extracted-details" className="mx-auto mt-8 max-w-3xl">
+          <section key="extracted-details" className="mx-auto mt-4 max-w-3xl">
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-sm p-5 sm:p-8">
               <div className="flex items-center justify-between">
                 <button
