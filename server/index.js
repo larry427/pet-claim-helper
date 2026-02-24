@@ -3039,16 +3039,39 @@ If partial, populate missingInfo[] with user-friendly descriptions:
 - "Your policy's exclusion list (to determine which charges are covered)"
 Include missingDocumentHint: e.g., "Look for an email from Healthy Paws with your 'declarations page' — it shows your deductible, reimbursement rate, and limits."
 
-STEP B — EXTRACT POLICY PARAMETERS:
-- Carrier brand name (not underwriter)
-- Reimbursement rate as an integer (80 not 0.80)
-- Annual deductible
-- Annual limit
-- mathOrder: Read the policy definition of "deductible":
+STEP B — EXTRACT POLICY PARAMETERS FROM THE DECLARATIONS PAGE:
+The declarations page is typically a 1-page summary with a header block or table containing specific labeled fields. Find and extract each one exactly as written — do NOT guess or invent values. If a field is not clearly present, return null.
+
+REIMBURSEMENT RATE (the percentage the insurer pays you back):
+- Look for a field labeled: "Co-Insurance", "Coinsurance", "Coinsurance %", "Reimbursement Rate", "Insurer Pays", or "Reimbursement %"
+- CRITICAL TERMINOLOGY: When the declarations page uses "Co-Insurance" and shows a percentage (e.g., "Co-Insurance: 70%"), that percentage IS the amount the insurer reimburses to you. Return 70, not 30. Co-Insurance on a declarations page represents the insurer's share of covered costs, not the policyholder's out-of-pocket share.
+- Return as a plain integer: 70 means 70% reimbursement. Do NOT return 0.70.
+- If you cannot find this field with confidence, return null. Do NOT default to 80 or any other value.
+
+ANNUAL DEDUCTIBLE:
+- Look for a field labeled: "Annual Deductible", "Deductible", "Per Policy Period Deductible", or "Yearly Deductible"
+- This is the dollar amount the policyholder pays per year BEFORE insurance starts reimbursing
+- Do NOT confuse with per-incident deductibles, per-condition deductibles, waiting periods, or copay amounts
+- Return as a plain number: 500 means $500 deductible
+- If you cannot find this field with confidence, return null. Do NOT default to 100 or any other value.
+
+ANNUAL LIMIT:
+- Look for a field labeled: "Annual Limit", "Policy Maximum", "Annual Maximum", "Annual Benefit Limit", or "Maximum Annual Benefit"
+- Return as a plain number: 10000 means $10,000 annual limit
+- If you cannot find this field, return null.
+
+CARRIER BRAND NAME:
+- Use consumer-facing brand name, not underwriter (see mappings above)
+
+MATH ORDER:
+- Read the policy's definition of "deductible":
   If deductible is applied AFTER coinsurance (e.g., Healthy Paws: "the amount you must first pay after your pet's coinsurance portion has been applied") → "coinsurance-first"
   Otherwise → "deductible-first"
   Formulas: coinsurance-first: (covered × rate) − deductible | deductible-first: (covered − deductible) × rate
-- Filing deadline
+
+FILING DEADLINE:
+- Look for "filing deadline", "claim submission deadline", or "days to file a claim"
+- Return as a string (e.g., "90 days from date of service") or null if not found
 
 STEP C — DETERMINE COVERAGE FOR EACH LINE ITEM:
 Apply these rules in ORDER. Do not skip any rule.
@@ -3255,9 +3278,11 @@ IMPORTANT:
           analysis.analysis.maxReimbursement = 0
         }
 
-        // Fix: calculate maxReimbursement if 0 but there are covered charges
-        if (analysis.analysis.totalCovered > 0 && analysis.analysis.maxReimbursement <= 0) {
-          const rate = (analysis.policyInfo.reimbursementRate || 80) / 100
+        // If maxReimbursement is 0/missing but there are covered charges AND we have a real rate, recalculate.
+        // Do NOT fall back to a default rate — if reimbursementRate is null, leave maxReimbursement as 0
+        // so the frontend knows extraction failed rather than silently showing a wrong number.
+        if (analysis.analysis.totalCovered > 0 && analysis.analysis.maxReimbursement <= 0 && analysis.policyInfo.reimbursementRate) {
+          const rate = analysis.policyInfo.reimbursementRate / 100
           analysis.analysis.maxReimbursement = Math.round(analysis.analysis.totalCovered * rate * 100) / 100
         }
 
