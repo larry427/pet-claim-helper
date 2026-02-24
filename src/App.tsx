@@ -2270,7 +2270,8 @@ function MainApp() {
                     Which pet is this for?
                   </label>
                   <select
-                    defaultValue=""
+                    value={selectedPetId || ''}
+                    onChange={(e) => setSelectedPetId(e.target.value || null)}
                     className="w-full rounded-lg border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-slate-900 dark:text-white focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 outline-none transition-colors text-sm font-medium"
                   >
                     <option value="" disabled>Select a pet...</option>
