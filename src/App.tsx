@@ -71,6 +71,52 @@ const PET_PAGE_WHITELIST = [
   'larrysecrets@gmail.com',
 ]
 
+// Educational slides shown during bill processing
+const UPLOAD_SLIDES = [
+  {
+    icon: '📊',
+    type: 'MECHANICS',
+    typeClass: 'mechanics',
+    title: 'How Your Reimbursement Works',
+    body: "Your insurer pays a percentage of covered charges — typically 70%, 80%, or 90%. On a $1,000 covered bill at 80%, that's $800 back in your pocket.",
+  },
+  {
+    icon: '🛡️',
+    type: 'PHILOSOPHY',
+    typeClass: 'philosophy',
+    title: 'Insurance Is Your Financial Bodyguard',
+    body: "Pet insurance isn't an investment — it's protection. One emergency surgery can cost $5,000 or more. Insurance means you never have to choose between your pet and your finances.",
+  },
+  {
+    icon: '💰',
+    type: 'MECHANICS',
+    typeClass: 'mechanics',
+    title: 'Understanding Your Deductible',
+    body: "Your annual deductible is the amount you pay first before reimbursement kicks in. Once it's met, every future covered claim gets reimbursed for the rest of the year.",
+  },
+  {
+    icon: '❤️',
+    type: 'PHILOSOPHY',
+    typeClass: 'philosophy',
+    title: 'Every Claim Matters',
+    body: "Even if you don't get a check this visit, filing moves you closer to meeting your deductible. Pet owners who file every claim get the most from their policy.",
+  },
+  {
+    icon: '📋',
+    type: 'MECHANICS',
+    typeClass: 'mechanics',
+    title: 'What Gets Excluded?',
+    body: "Most policies exclude routine wellness care — vaccines, flea prevention, annual exams. But accidents and illnesses? That's exactly what insurance is designed for.",
+  },
+  {
+    icon: '⏰',
+    type: 'PHILOSOPHY',
+    typeClass: 'philosophy',
+    title: "Don't Miss Your Filing Deadline",
+    body: "Most insurers require claims within 90–180 days of treatment. Missing the deadline means losing money you're entitled to. That's exactly why Pet Claim Helper exists.",
+  },
+] as const
+
 // Route wrapper: Detect /dose/:code and render standalone page
 // Otherwise render the full app
 export default function App() {
@@ -165,6 +211,8 @@ function MainApp() {
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [uploadSlideIdx, setUploadSlideIdx] = useState(0)
+  const [uploadSlideVisible, setUploadSlideVisible] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [extracted, setExtracted] = useState<ExtractedBill | null>(null)
@@ -339,7 +387,7 @@ function MainApp() {
   const isAnyModalOpen = showAddExpenseModal || expensesPageModalOpen || showAddMedication || showAddFood || showAddTreat ||
     editingClaim !== null || paidModalClaim !== null || successModal !== null ||
     medSelectOpen || submittingClaim !== null || showOnboarding || showSmsIntroModal ||
-    petSelectError || showSettingsDropdown || editingPetId !== null || addingPet
+    petSelectError || showSettingsDropdown || editingPetId !== null || addingPet || isProcessing
 
   // DISABLED: Using add-to-homescreen library in index.html instead
   // useEffect(() => {
@@ -862,6 +910,25 @@ function MainApp() {
     setEditItems(Array.isArray(editingClaim.line_items) ? editingClaim.line_items : [])
     setEditExpenseCat((editingClaim.expense_category as any) || 'insured')
   }, [editingClaim])
+
+  // Slideshow lifecycle: start rotating slides when isProcessing turns on, stop + reset when it turns off
+  useEffect(() => {
+    if (!isProcessing) {
+      setUploadSlideIdx(0)
+      setUploadSlideVisible(true)
+      return
+    }
+    setUploadSlideIdx(0)
+    setUploadSlideVisible(true)
+    const interval = setInterval(() => {
+      setUploadSlideVisible(false)
+      setTimeout(() => {
+        setUploadSlideIdx(prev => (prev + 1) % UPLOAD_SLIDES.length)
+        setUploadSlideVisible(true)
+      }, 420)
+    }, 7000)
+    return () => clearInterval(interval)
+  }, [isProcessing])
 
   const addPet = () => {
     const trimmedName = newPet.name.trim()
@@ -2269,15 +2336,6 @@ function MainApp() {
                         )}
                         Process Bill
                       </button>
-                      {isProcessing && (
-                        <div className="mt-4 flex flex-col items-center text-sm text-slate-700 dark:text-slate-300">
-                          <svg className="h-6 w-6 animate-spin mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="10" className="opacity-25" />
-                            <path d="M4 12a8 8 0 018-8" className="opacity-75" />
-                          </svg>
-                          <div>📄 Extracting bill data...</div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
@@ -4264,6 +4322,71 @@ function MainApp() {
           </div>
         </div>
       )}
+      {/* Bill Processing Overlay — educational slides shown while AI extracts the bill */}
+      {isProcessing && (
+        <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-gradient-to-b from-green-50 to-white dark:from-slate-900 dark:to-slate-800 px-5 py-10">
+          {/* Status bar */}
+          <div className="flex items-center gap-2.5 mb-8">
+            <span
+              className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0"
+              style={{ animation: 'pulseDot 1.5s ease-in-out infinite' }}
+            />
+            <span className="text-[15px] font-semibold text-slate-600 dark:text-slate-300">
+              Analyzing your bill…
+            </span>
+          </div>
+
+          {/* Slide card */}
+          <div className="w-full max-w-md">
+            <div
+              className="bg-white dark:bg-slate-900 rounded-[20px] shadow-2xl border border-black/5 dark:border-white/5 overflow-hidden px-8 py-10 text-center relative"
+              style={{
+                transition: 'opacity 0.4s ease',
+                opacity: uploadSlideVisible ? 1 : 0,
+                minHeight: 260,
+              }}
+            >
+              {/* Gradient top stripe */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-emerald-400 to-orange-400" />
+
+              <div className="text-[44px] leading-none mb-3.5">{UPLOAD_SLIDES[uploadSlideIdx].icon}</div>
+
+              <div className={[
+                'inline-block text-[11px] font-bold uppercase tracking-[0.1em] px-2.5 py-0.5 rounded-full mb-3',
+                UPLOAD_SLIDES[uploadSlideIdx].typeClass === 'mechanics'
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800'
+                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800',
+              ].join(' ')}>
+                {UPLOAD_SLIDES[uploadSlideIdx].type}
+              </div>
+
+              <div className="text-[22px] font-bold text-slate-900 dark:text-slate-100 leading-tight mb-3.5">
+                {UPLOAD_SLIDES[uploadSlideIdx].title}
+              </div>
+
+              <div className="text-[15px] text-slate-500 dark:text-slate-400 leading-relaxed max-w-[360px] mx-auto">
+                {UPLOAD_SLIDES[uploadSlideIdx].body}
+              </div>
+            </div>
+
+            {/* Dot indicators */}
+            <div className="flex items-center justify-center gap-2 mt-6">
+              {UPLOAD_SLIDES.map((_, i) => (
+                <div
+                  key={i}
+                  className={[
+                    'w-2 h-2 rounded-full transition-all duration-300',
+                    i === uploadSlideIdx
+                      ? 'bg-emerald-500 scale-125'
+                      : 'bg-slate-300 dark:bg-slate-600',
+                  ].join(' ')}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Medications prescribed question */}
       {/* Medication selection modal (removed - users add medications separately) */}
       {medSelectOpen && (
