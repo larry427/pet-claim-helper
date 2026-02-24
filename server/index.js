@@ -2683,7 +2683,7 @@ IMPORTANT: PDF documents and images are attached directly. Carefully examine EAC
 - Policy documents contain coverage details, exclusions, and terms
 
 TEXT BACKUP (may be incomplete - always prefer examining the actual documents):
-${documentContents.join('\n\n')}
+[kept for reference — variable renamed to vetBillTextBackup / policyTextBackup in two-stage pipeline]
 
 STEP 1 — ASSESS DOCUMENT COMPLETENESS:
 First, determine what documents you received and what information you can extract:
