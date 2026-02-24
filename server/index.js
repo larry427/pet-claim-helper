@@ -2843,7 +2843,7 @@ Return valid JSON matching this schema:
     "annualDeductible": number | null,
     "annualLimit": number | null,
     "examFeesCovered": boolean | null,
-    "mathOrder": "coinsurance-first" | "deductible-first" | null,
+    "mathOrder": "reimbursement-first" | "deductible-first" | null,
     "filingDeadline": string | null
   },
   "analysis": {
@@ -3064,10 +3064,14 @@ CARRIER BRAND NAME:
 - Use consumer-facing brand name, not underwriter (see mappings above)
 
 MATH ORDER:
-- Read the policy's definition of "deductible":
-  If deductible is applied AFTER coinsurance (e.g., Healthy Paws: "the amount you must first pay after your pet's coinsurance portion has been applied") → "coinsurance-first"
-  Otherwise → "deductible-first"
-  Formulas: coinsurance-first: (covered × rate) − deductible | deductible-first: (covered − deductible) × rate
+- Look for a WORKED EXAMPLE in the policy — a section showing how reimbursement is calculated step-by-step.
+  Example of what to look for: "We pay [90%] of your approved claim ($2,000 x [90%] = [$1,800]). We deduct [$100] from your payment..."
+- Read the ORDER OF OPERATIONS in that example:
+  → If the percentage is applied FIRST (multiply covered amount by rate), then the deductible is subtracted → return "reimbursement-first"
+  → If the deductible is subtracted FIRST, then the percentage is applied → return "deductible-first"
+- Also check the policy's definition of "deductible":
+  → If it says the deductible applies AFTER your coinsurance/percentage share (e.g., "the amount you must first pay after your pet's coinsurance portion has been applied") → return "reimbursement-first"
+- Do NOT guess. If you cannot find a worked example or a clear definition → return null.
 
 FILING DEADLINE:
 - Look for "filing deadline", "claim submission deadline", or "days to file a claim"
@@ -3140,7 +3144,7 @@ Return ONLY this JSON object:
     "reimbursementRate": number | null,
     "deductible": number | null,
     "annualLimit": number | null,
-    "mathOrder": "coinsurance-first" | "deductible-first" | null,
+    "mathOrder": "reimbursement-first" | "deductible-first" | null,
     "filingDeadline": string | null
   },
   "analysis": {
@@ -3273,17 +3277,27 @@ IMPORTANT:
           }
         }
 
-        // Safety check: ensure maxReimbursement is never negative
-        if (analysis.analysis.maxReimbursement < 0) {
-          analysis.analysis.maxReimbursement = 0
-        }
-
-        // If maxReimbursement is 0/missing but there are covered charges AND we have a real rate, recalculate.
-        // Do NOT fall back to a default rate — if reimbursementRate is null, leave maxReimbursement as 0
-        // so the frontend knows extraction failed rather than silently showing a wrong number.
-        if (analysis.analysis.totalCovered > 0 && analysis.analysis.maxReimbursement <= 0 && analysis.policyInfo.reimbursementRate) {
+        // Server-side reimbursement recalculation using mathOrder.
+        // We always recalculate here so the correct formula is enforced regardless of what the AI computed.
+        // Only runs when we have covered charges AND a real reimbursement rate — never silently defaults.
+        if (analysis.analysis.totalCovered > 0 && analysis.policyInfo.reimbursementRate) {
+          const covered = analysis.analysis.totalCovered
           const rate = analysis.policyInfo.reimbursementRate / 100
-          analysis.analysis.maxReimbursement = Math.round(analysis.analysis.totalCovered * rate * 100) / 100
+          const deductible = analysis.policyInfo.annualDeductible || 0
+          // Default to "reimbursement-first" when mathOrder is null — this is the modern standard
+          // (e.g., Odie Section 4A: multiply by rate first, then subtract deductible)
+          const order = analysis.policyInfo.mathOrder || 'reimbursement-first'
+
+          let reimbursement
+          if (order === 'deductible-first') {
+            // (covered − deductible) × rate
+            reimbursement = (covered - deductible) * rate
+          } else {
+            // reimbursement-first: (covered × rate) − deductible
+            reimbursement = (covered * rate) - deductible
+          }
+
+          analysis.analysis.maxReimbursement = Math.round(Math.max(0, reimbursement) * 100) / 100
         }
 
         // Backwards compatibility: add old field name for older frontends
