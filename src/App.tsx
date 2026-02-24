@@ -3016,8 +3016,9 @@ function MainApp() {
                   const text = insuranceCompany ? `Maybe Insured • ${insuranceCompany}` : 'Maybe Insured'
                   return { text, cls: 'bg-amber-50 text-amber-700 border border-amber-200' }
                 })()
+                const isNewlyCreated = c.id === createdClaimId
                 return (
-                  <div key={c.id} className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 shadow-sm min-h-[180px] w-full" style={{ border: `2px solid ${petColor}`, touchAction: 'pan-y', overscrollBehaviorX: 'none' }}>
+                  <div key={c.id} className={`rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 shadow-sm min-h-[180px] w-full transition-shadow duration-300 ${isNewlyCreated ? 'ring-2 ring-emerald-500 ring-offset-1 shadow-lg shadow-emerald-500/20' : ''}`} style={{ border: `2px solid ${petColor}`, touchAction: 'pan-y', overscrollBehaviorX: 'none' }}>
                     <div className="space-y-2">
                       <div className="flex items-start gap-2">
                         <div className="h-8 w-8 rounded-full flex items-center justify-center" style={{ backgroundColor: petColor + '20' }}>
@@ -4578,7 +4579,21 @@ function MainApp() {
       )} */}
 
       {successModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setSuccessModal(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={async () => {
+          const newId = createdClaimId
+          setSuccessModal(null)
+          setExtracted(null)
+          setMultiExtracted(null)
+          setSelectedFile(null)
+          setErrorMessage(null)
+          setVisitNotes('')
+          setVisitTitle('')
+          setExpenseCategory('insured')
+          try { if (userId) { const updated = await listClaims(userId); setClaims(updated) } } catch {}
+          setActiveTab('visits')
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+          if (newId) { setTimeout(() => setCreatedClaimId(null), 4000) }
+        }}>
           <div className="relative mx-4 w-full max-w-md rounded-2xl border border-emerald-200 bg-white p-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800 flex flex-col items-center text-center">
               <div className="h-14 w-14 rounded-full bg-emerald-600 text-white flex items-center justify-center text-2xl shadow animate-pulse">✓</div>
@@ -4610,7 +4625,9 @@ function MainApp() {
                   type="button"
                       className="inline-flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 text-sm font-medium w-full sm:w-auto"
                   onClick={async () => {
-                    // Close modal and clear form; return to dashboard
+                    // Capture the new claim ID before clearing modal
+                    const newId = createdClaimId
+                    // Close modal and clear upload form state
                     setSuccessModal(null)
                     setExtracted(null)
                     setMultiExtracted(null)
@@ -4619,17 +4636,23 @@ function MainApp() {
                     setVisitNotes('')
                     setVisitTitle('')
                     setExpenseCategory('insured')
-                    // Refresh claims so the new claim appears immediately
+                    // Refresh claims so the new card appears immediately in Vet Visits
                     try {
                       if (userId) {
                         const updated = await listClaims(userId)
                         setClaims(updated)
                       }
                     } catch {}
-                    setShowClaims(false)
+                    // Navigate to Vet Visits tab so user can see the new bill
+                    setActiveTab('visits')
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                    // Auto-clear the highlight ring after 4 seconds
+                    if (newId) {
+                      setTimeout(() => setCreatedClaimId(null), 4000)
+                    }
                   }}
                 >
-                  Done
+                  View Bill
                 </button>
               </div>
             </div>
