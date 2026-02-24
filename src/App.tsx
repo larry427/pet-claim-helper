@@ -232,11 +232,11 @@ function MainApp() {
   const [billsSortBy, setBillsSortBy] = useState<'date-desc' | 'amount-desc' | 'amount-asc' | 'pet-asc'>('date-desc')
 
   // Collapsible sections state for Vet Bills page
-  const [financialSummaryCollapsed, setFinancialSummaryCollapsed] = useState(true)
+  const [financialSummaryCollapsed, setFinancialSummaryCollapsed] = useState(false)
   const [outOfPocketCollapsed, setOutOfPocketCollapsed] = useState(true)
   const [perPetCollapsed, setPerPetCollapsed] = useState(true)
   const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications' | 'food' | 'admin' | 'med-admin' | 'expenses'>('app')
-  const [activeTab, setActiveTab] = useState<TabId>('home')
+  const [activeTab, setActiveTab] = useState<TabId>('expenses')
   const [isAdmin, setIsAdmin] = useState(false)
 
   // Pet Page state (feature-flagged)
@@ -1875,12 +1875,12 @@ function MainApp() {
           <>
             <button
               type="button"
-              onClick={() => { setActiveView('app'); setActiveTab('home'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+              onClick={() => { setActiveView('app'); setActiveTab('expenses'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
               className="flex items-center gap-1 font-medium hover:opacity-70 transition-opacity pt-3 pb-1"
               style={{ color: '#2A9D8F', fontSize: 15 }}
             >
               <ChevronLeft size={18} strokeWidth={2.5} />
-              Home
+              Expenses
             </button>
             <SettingsPage
               userId={userId}
@@ -2043,164 +2043,97 @@ function MainApp() {
             onUploadForPet={(petId: string) => {
               setSelectedPetId(petId)
               setCurrentPetPageId(null)
-              setActiveTab('vetbills')
+              setActiveTab('upload')
             }}
           />
         )}
 
-        {/* HOME TAB - Simplified navigation home screen */}
-        {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'home' && !currentPetPageId && (
-          <section
-            className="mx-auto max-w-lg px-4 pb-10 pt-2 flex flex-col gap-6"
-            style={{ minHeight: '100dvh', background: '#F3F8F7' }}
-          >
-            {/* GREETING */}
-            <div>
-              <div className="text-2xl font-bold text-[#1A1A1A]">
-                {userFirstName ? `Good ${getTimeGreeting().toLowerCase().replace('good ', '')}, ${userFirstName}! 👋` : 'Welcome back! 👋'}
-              </div>
-              <div className="text-sm text-[#6B7280] mt-1">Your pets are counting on you today.</div>
-            </div>
 
-            {/* YOUR PETS */}
-            {pets.length > 0 && (
-              <div>
-                <div className="text-xs font-bold text-[#6B7280] uppercase tracking-widest mb-3">Your Pets</div>
-                <div className="flex gap-4 flex-wrap">
-                  {pets.map((p) => {
-                    const isInsuredPet = !!(p.insuranceCompany || (p as any).insurance_company)
-                    const dotColor = isInsuredPet ? '#22C55E' : '#F59E0B'
-                    const circleSize = Math.max(54, Math.min(72, Math.floor(280 / Math.max(pets.length, 1))))
-                    return (
-                      <div key={p.id} className="flex flex-col items-center gap-1.5">
-                        <div className="relative" style={{ width: circleSize, height: circleSize }}>
-                          {p.photo_url ? (
-                            <img
-                              src={p.photo_url}
-                              alt={p.name}
-                              className="rounded-full object-cover w-full h-full ring-2 ring-white shadow-md"
-                            />
-                          ) : (
-                            <div
-                              className="rounded-full w-full h-full flex items-center justify-center ring-2 ring-white shadow-md text-2xl"
-                              style={{ background: '#E5F0EE' }}
-                            >
-                              🐾
-                            </div>
-                          )}
-                          <span
-                            className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white"
-                            style={{ background: dotColor }}
-                          />
-                        </div>
-                        <span className="text-xs font-medium text-[#1A1A1A] truncate max-w-[72px] text-center">{p.name}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* DIVIDER */}
-            <hr className="border-[#2A9D8F]/20" />
-
-            {/* THREE MAIN ACTION BUTTONS */}
-            <div className="flex flex-col gap-3">
-              {/* Track Our Expenses */}
-              <button
-                type="button"
-                onClick={() => { setActiveTab('expenses'); setActiveView('app') }}
-                className="w-full flex items-center gap-4 bg-white rounded-[20px] px-5 py-5 text-left active:scale-[0.98] transition-all duration-150"
-                style={{ border: '1.5px solid rgba(42,157,143,0.13)', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}
-              >
-                <div className="flex-shrink-0 w-[58px] h-[58px] rounded-[16px] flex items-center justify-center text-2xl" style={{ background: '#E8923A' }}>
-                  💰
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-[#1A1A1A] leading-tight" style={{ fontSize: 17 }}>Track Our Expenses</div>
-                  <div className="text-[#6B7280] mt-1 leading-tight" style={{ fontSize: 13 }}>
-                    {pets.length === 1 ? `Everything we spend on ${pets[0].name}` : 'Everything we spend on all our pets'}
-                  </div>
-                </div>
-                <span className="text-[#2A9D8F] text-xl font-light flex-shrink-0">›</span>
-              </button>
-
-              {/* Upload a Vet Bill */}
-              <button
-                type="button"
-                onClick={() => { setActiveTab('vetbills'); setActiveView('app') }}
-                className="w-full flex items-center gap-4 bg-white rounded-[20px] px-5 py-5 text-left active:scale-[0.98] transition-all duration-150"
-                style={{ border: '1.5px solid rgba(42,157,143,0.13)', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}
-              >
-                <div className="flex-shrink-0 w-[58px] h-[58px] rounded-[16px] flex items-center justify-center text-2xl" style={{ background: 'linear-gradient(135deg, #2A9D8F, #21867a)' }}>
-                  📋
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-[#1A1A1A] leading-tight" style={{ fontSize: 17 }}>Upload a Vet Bill</div>
-                  <div className="text-[#6B7280] mt-1 leading-tight" style={{ fontSize: 13 }}>
-                    {(() => {
-                      const insuredPet = pets.find((p: any) => p.insuranceCompany || (p as any).insurance_company)
-                      const carrier = insuredPet ? (insuredPet.insuranceCompany || (insuredPet as any).insurance_company) : null
-                      return carrier ? `See what ${carrier} owes you` : 'See what your insurer owes you'
-                    })()}
-                  </div>
-                </div>
-                <span className="text-[#2A9D8F] text-xl font-light flex-shrink-0">›</span>
-              </button>
-
-              {/* Vet Visits */}
-              <button
-                type="button"
-                onClick={() => { setActiveTab('vetbills'); setActiveView('app') }}
-                className="w-full flex items-center gap-4 bg-white rounded-[20px] px-5 py-5 text-left active:scale-[0.98] transition-all duration-150"
-                style={{ border: '1.5px solid rgba(42,157,143,0.13)', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}
-              >
-                <div className="flex-shrink-0 w-[58px] h-[58px] rounded-[16px] flex items-center justify-center text-2xl" style={{ background: '#E5F0EE' }}>
-                  🏥
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-[#1A1A1A] leading-tight" style={{ fontSize: 17 }}>Vet Visits</div>
-                  <div className="text-[#6B7280] mt-1 leading-tight" style={{ fontSize: 13 }}>When did we go &amp; what did we spend?</div>
-                </div>
-                <span className="text-[#2A9D8F] text-xl font-light flex-shrink-0">›</span>
-              </button>
-            </div>
-
-            {/* BOTTOM ROW — Settings + Support */}
-            <div className="flex gap-3 mt-auto">
-              <button
-                type="button"
-                onClick={() => setActiveView('settings')}
-                className="flex-1 flex items-center justify-center gap-2 bg-white rounded-[14px] py-3 text-sm font-medium text-[#1A1A1A] shadow-sm active:scale-[0.98] transition-all duration-150"
-                style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
-              >
-                ⚙️ Settings
-              </button>
-              <a
-                href={`mailto:support@petclaimhelper.com?subject=Pet Claim Helper Support Request&body=Hi Pet Claim Helper Team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0A----%0D%0AUser: ${userEmail || 'Not logged in'}%0D%0AUser ID: ${userId || 'N/A'}`}
-                className="flex-1 flex items-center justify-center gap-2 bg-white rounded-[14px] py-3 text-sm font-medium text-[#1A1A1A] shadow-sm active:scale-[0.98] transition-all duration-150"
-                style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
-              >
-                💬 Support
-              </a>
-            </div>
-          </section>
-        )}
-
-        {/* EXPENSES TAB - Full expenses view (whitelisted users only) */}
+        {/* EXPENSES TAB */}
         {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'expenses' && (
-          <>
-            <button
-              type="button"
-              onClick={() => { setActiveTab('home'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-              className="flex items-center gap-1 font-medium hover:opacity-70 transition-opacity pt-3 pb-1"
-              style={{ color: '#2A9D8F', fontSize: 15 }}
-            >
-              <ChevronLeft size={18} strokeWidth={2.5} />
-              Home
-            </button>
-            <ExpensesPage userId={userId} onClose={() => setActiveTab('home')} onModalStateChange={setExpensesPageModalOpen} refreshKey={expensesRefreshKey} />
-          </>
+          <div className="pb-10">
+            {/* Lightweight header: pet owner name + pet circles + settings/support */}
+            <div className="mx-auto max-w-3xl pt-4 pb-3 flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xl font-bold text-slate-900 dark:text-slate-100">
+                  {userFirstName ? `${userFirstName}'s pets` : 'Your pets'}
+                </div>
+                {pets.length > 0 && (
+                  <div className="flex gap-3 mt-2 flex-wrap">
+                    {pets.map((p) => {
+                      const isInsuredPet = !!(p.insuranceCompany || (p as any).insurance_company)
+                      const dotColor = isInsuredPet ? '#22C55E' : '#F59E0B'
+                      return (
+                        <div key={p.id} className="flex flex-col items-center gap-1">
+                          <div className="relative w-10 h-10">
+                            {p.photo_url ? (
+                              <img src={p.photo_url} alt={p.name} className="rounded-full object-cover w-full h-full ring-2 ring-white shadow-md" />
+                            ) : (
+                              <div className="rounded-full w-full h-full flex items-center justify-center ring-2 ring-white shadow-md text-lg" style={{ background: '#E5F0EE' }}>🐾</div>
+                            )}
+                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white" style={{ background: dotColor }} />
+                          </div>
+                          <span className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate max-w-[48px] text-center">{p.name}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2 flex-shrink-0 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveView('settings')}
+                  className="flex items-center gap-1.5 bg-white dark:bg-slate-900 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 shadow-sm"
+                  style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
+                >
+                  ⚙️ Settings
+                </button>
+                <a
+                  href={`mailto:support@petclaimhelper.com?subject=Pet Claim Helper Support Request&body=Hi Pet Claim Helper Team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0A----%0D%0AUser: ${userEmail || 'Not logged in'}%0D%0AUser ID: ${userId || 'N/A'}`}
+                  className="flex items-center gap-1.5 bg-white dark:bg-slate-900 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 shadow-sm"
+                  style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
+                >
+                  💬 Support
+                </a>
+              </div>
+            </div>
+
+            {/* Financial Summary */}
+            <section className="mx-auto mt-4 max-w-5xl">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold">Financial Summary</h2>
+                <div className="text-sm">
+                  <label className="mr-2 text-slate-600">Show expenses for:</label>
+                  <select
+                    value={finPeriod}
+                    onChange={(e) => setFinPeriod(e.target.value as any)}
+                    className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-sm"
+                  >
+                    <option value="all">All Time</option>
+                    <option value="2026">2026</option>
+                    <option value="2025">2025</option>
+                    <option value="2024">2024</option>
+                    <option value="last12">Last 12 Months</option>
+                  </select>
+                </div>
+              </div>
+              <FinancialSummary
+                userId={userId}
+                refreshToken={dataRefreshToken}
+                period={finPeriod}
+                summaryCollapsed={financialSummaryCollapsed}
+                onSummaryToggle={() => setFinancialSummaryCollapsed(!financialSummaryCollapsed)}
+                outOfPocketCollapsed={outOfPocketCollapsed}
+                onOutOfPocketToggle={() => setOutOfPocketCollapsed(!outOfPocketCollapsed)}
+                perPetCollapsed={perPetCollapsed}
+                onPerPetToggle={() => setPerPetCollapsed(!perPetCollapsed)}
+              />
+            </section>
+
+            {/* Non-insurance expenses */}
+            <ExpensesPage userId={userId} onClose={() => {}} onModalStateChange={setExpensesPageModalOpen} refreshKey={expensesRefreshKey} />
+          </div>
         )}
 
 
@@ -2216,21 +2149,21 @@ function MainApp() {
           />
         )} */}
 
-        {/* Back button - VET BILLS TAB */}
-        {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'vetbills' && (
+        {/* Back button - UPLOAD TAB */}
+        {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'upload' && (
           <button
             type="button"
-            onClick={() => { setActiveTab('home'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+            onClick={() => { setActiveTab('expenses'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
             className="flex items-center gap-1 font-medium hover:opacity-70 transition-opacity pt-3 pb-1"
             style={{ color: '#2A9D8F', fontSize: 15 }}
           >
             <ChevronLeft size={18} strokeWidth={2.5} />
-            Home
+            Expenses
           </button>
         )}
 
         {/* Upload section - VET BILLS TAB for whitelisted users, always visible for non-whitelisted */}
-        {authView === 'app' && activeView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && (
+        {authView === 'app' && activeView === 'app' && ((showTabNav && activeTab === 'upload') || !showTabNav) && (
         <section key="upload-section" className="mx-auto max-w-3xl text-center mt-8 px-4">
           <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Upload Vet Bill</h2>
           <div className="mt-4">
@@ -2341,7 +2274,7 @@ function MainApp() {
         )}
 
         {/* Multi-pet matching UI */}
-        {authView === 'app' && multiExtracted && (
+        {authView === 'app' && multiExtracted && (!showTabNav || activeTab === 'upload') && (
           <section className="mx-auto mt-8 max-w-3xl">
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-sm p-5 sm:p-8">
               <h2 className="text-lg font-semibold">Multiple Pets Detected</h2>
@@ -2489,7 +2422,7 @@ function MainApp() {
           </section>
         )}
 
-        {extracted && (
+        {extracted && (!showTabNav || activeTab === 'upload') && (
           <section key="extracted-details" className="mx-auto mt-8 max-w-3xl">
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-sm p-5 sm:p-8">
               <div className="flex items-center justify-between">
@@ -2904,8 +2837,8 @@ function MainApp() {
           </section>
         )}
 
-        {/* Claims History - VET BILLS TAB for whitelisted users, always visible for non-whitelisted */}
-        {authView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && claims.length > 0 && (
+        {/* Claims History - VET VISITS TAB for whitelisted users, always visible for non-whitelisted */}
+        {authView === 'app' && ((showTabNav && activeTab === 'visits') || !showTabNav) && claims.length > 0 && (
           <section className="mx-auto mt-10 max-w-5xl" ref={claimsSectionRef}>
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">Vet Bills</h2>
@@ -3361,7 +3294,7 @@ function MainApp() {
         )}
 
         {/* HIDDEN - pet selection moved to upload flow */}
-        {false && authView === 'app' && activeView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && (
+        {false && authView === 'app' && activeView === 'app' && ((showTabNav && activeTab === 'visits') || !showTabNav) && (
         <section className="mx-auto max-w-4xl" ref={petsSectionRef}>
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Your Pets</h2>
@@ -3862,39 +3795,6 @@ function MainApp() {
         </section>
         )}
 
-        {/* HIDDEN - moved to Expenses page only */}
-        {false && authView === 'app' && ((showTabNav && activeTab === 'vetbills') || !showTabNav) && (
-          <section className="mx-auto mt-10 max-w-5xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Financial Summary</h2>
-              <div className="text-sm">
-                <label className="mr-2 text-slate-600">Show expenses for:</label>
-                <select
-                  value={finPeriod}
-                  onChange={(e) => setFinPeriod(e.target.value as any)}
-                  className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-sm"
-                >
-                  <option value="all">All Time</option>
-                  <option value="2026">2026</option>
-                  <option value="2025">2025</option>
-                  <option value="2024">2024</option>
-                  <option value="last12">Last 12 Months</option>
-                </select>
-              </div>
-            </div>
-            <FinancialSummary
-              userId={userId}
-              refreshToken={dataRefreshToken}
-              period={finPeriod}
-              summaryCollapsed={financialSummaryCollapsed}
-              onSummaryToggle={() => setFinancialSummaryCollapsed(!financialSummaryCollapsed)}
-              outOfPocketCollapsed={outOfPocketCollapsed}
-              onOutOfPocketToggle={() => setOutOfPocketCollapsed(!outOfPocketCollapsed)}
-              perPetCollapsed={perPetCollapsed}
-              onPerPetToggle={() => setPerPetCollapsed(!perPetCollapsed)}
-            />
-          </section>
-        )}
 
         {authView === 'app' && (
           <footer className="mx-auto max-w-3xl text-center py-10 text-xs text-slate-500 dark:text-slate-400">

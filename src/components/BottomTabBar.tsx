@@ -1,7 +1,7 @@
 import React from 'react'
-import { Home, Wallet, ClipboardList, Pill } from 'lucide-react'
+import { Wallet, Upload, ClipboardList } from 'lucide-react'
 
-type TabId = 'home' | 'expenses' | 'vetbills' | 'meds'
+type TabId = 'expenses' | 'upload' | 'visits'
 
 type Props = {
   activeTab: TabId
@@ -15,11 +15,9 @@ type TabConfig = {
 }
 
 const TABS: TabConfig[] = [
-  { id: 'home', label: 'Home', icon: Home },
   { id: 'expenses', label: 'Expenses', icon: Wallet },
-  { id: 'vetbills', label: 'Vet Bills', icon: ClipboardList },
-  // HIDDEN - medication reminders disabled, re-enable when ready
-  // { id: 'meds', label: 'Meds', icon: Pill },
+  { id: 'upload', label: 'Upload Bill', icon: Upload },
+  { id: 'visits', label: 'Vet Visits', icon: ClipboardList },
 ]
 
 export default function BottomTabBar({ activeTab, onTabChange }: Props) {
