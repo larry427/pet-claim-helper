@@ -126,15 +126,11 @@ export function useExpenses(userId: string | null) {
     setError(null)
 
     try {
-      // Fetch YTD expenses for summary
-      const currentYear = new Date().getFullYear()
-      const startOfYear = `${currentYear}-01-01`
-
+      // Fetch ALL expenses (no date cap) so historical months remain navigable
       const { data, error: fetchError } = await supabase
         .from('pet_expenses')
         .select('*')
         .eq('user_id', userId)
-        .gte('expense_date', startOfYear)
         .order('expense_date', { ascending: false })
 
       if (fetchError) throw fetchError

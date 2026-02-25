@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "server": "node server/index.js",
     "create-demo": "node scripts/create-demo-account.js",
+    "seed:rainydaypal": "node scripts/seed-rainydaypal-demo.js",
     "test": "playwright test tests/",
     "test:headed": "playwright test tests/ --headed",
     "test:ui": "playwright test tests/ --ui",
