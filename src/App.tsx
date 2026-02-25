@@ -930,15 +930,32 @@ function MainApp() {
     return () => clearInterval(interval)
   }, [isProcessing])
 
-  // Scroll the newly-created claim card into view after navigating to Vet Visits
+  // Scroll the newly-created claim card into view after navigating to Vet Visits.
+  // Polls every 100ms (up to 2s) so we don't rely on a fixed timeout that may
+  // fire before React has committed the card to the DOM on slower mobile devices.
+  // Uses window.scrollTo() instead of scrollIntoView() so we can account for the
+  // fixed bottom tab bar and centre the card in the actual visible area.
   useEffect(() => {
-    if (activeTab === 'visits' && createdClaimId) {
-      const timer = setTimeout(() => {
-        const el = document.querySelector('[data-newly-created="true"]')
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }, 200)
-      return () => clearTimeout(timer)
-    }
+    if (activeTab !== 'visits' || !createdClaimId) return
+    let attempts = 0
+    const poll = setInterval(() => {
+      attempts++
+      const el = document.querySelector<HTMLElement>('[data-newly-created="true"]')
+      if (el) {
+        clearInterval(poll)
+        // Get real tab-bar height (includes safe-area-inset-bottom padding on iPhone)
+        const tabBar = document.querySelector<HTMLElement>('nav[class*="fixed"]')
+        const tabBarH = tabBar?.offsetHeight ?? 72
+        const rect = el.getBoundingClientRect()
+        // Centre the card in the viewport area above the tab bar
+        const visibleMidY = (window.innerHeight - tabBarH) / 2
+        const targetY = window.scrollY + rect.top - visibleMidY + rect.height / 2
+        window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' })
+      } else if (attempts >= 20) {
+        clearInterval(poll) // give up after ~2 seconds
+      }
+    }, 100)
+    return () => clearInterval(poll)
   }, [activeTab, createdClaimId])
 
   const addPet = () => {
