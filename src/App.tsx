@@ -931,10 +931,8 @@ function MainApp() {
   }, [isProcessing])
 
   // Scroll the newly-created claim card into view after navigating to Vet Visits.
-  // Polls every 100ms (up to 2s) so we don't rely on a fixed timeout that may
-  // fire before React has committed the card to the DOM on slower mobile devices.
-  // Uses window.scrollTo() instead of scrollIntoView() so we can account for the
-  // fixed bottom tab bar and centre the card in the actual visible area.
+  // Polls every 100ms (up to 2s) so the card has time to appear in the DOM on
+  // slower mobile devices before we measure.
   useEffect(() => {
     if (activeTab !== 'visits' || !createdClaimId) return
     let attempts = 0
@@ -943,17 +941,24 @@ function MainApp() {
       const el = document.querySelector<HTMLElement>('[data-newly-created="true"]')
       if (el) {
         clearInterval(poll)
-        // rAF defers measurement until the browser has committed the instant
-        // scroll-to-top and finished layout — prevents stale rect values on mobile
         requestAnimationFrame(() => {
+          // Walk offsetParent chain to get the card's position in DOCUMENT coordinates.
+          // This is scroll-state-independent — getBoundingClientRect().top is
+          // viewport-relative and can be stale/wrong if any scroll animation is
+          // still in flight or a background setClaims() re-render just occurred.
+          let docTop = 0
+          let node: HTMLElement | null = el
+          while (node) {
+            docTop += node.offsetTop
+            node = node.offsetParent as HTMLElement | null
+          }
           // Get real tab-bar height (includes safe-area-inset-bottom on iPhone)
           const tabBar = document.querySelector<HTMLElement>('nav[class*="fixed"]')
           const tabBarH = tabBar?.offsetHeight ?? 72
-          const rect = el.getBoundingClientRect()
-          // Centre the card in the visible area above the tab bar
+          // Centre the card in the visible viewport area above the tab bar
           const visibleMidY = (window.innerHeight - tabBarH) / 2
-          const targetY = window.scrollY + rect.top - visibleMidY + rect.height / 2
-          window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' })
+          const targetY = Math.max(0, docTop - visibleMidY + el.offsetHeight / 2)
+          window.scrollTo({ top: targetY, behavior: 'smooth' })
         })
       } else if (attempts >= 20) {
         clearInterval(poll) // give up after ~2 seconds
