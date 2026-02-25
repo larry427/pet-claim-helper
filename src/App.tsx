@@ -930,6 +930,17 @@ function MainApp() {
     return () => clearInterval(interval)
   }, [isProcessing])
 
+  // Scroll the newly-created claim card into view after navigating to Vet Visits
+  useEffect(() => {
+    if (activeTab === 'visits' && createdClaimId) {
+      const timer = setTimeout(() => {
+        const el = document.querySelector('[data-newly-created="true"]')
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 200)
+      return () => clearTimeout(timer)
+    }
+  }, [activeTab, createdClaimId])
+
   const addPet = () => {
     const trimmedName = newPet.name.trim()
     if (!trimmedName) return
@@ -2872,6 +2883,12 @@ function MainApp() {
                           }, totalNum || 0)
                         }
 
+                        // Pre-load claims now so the new bill is already in Vet Visits
+                        // when the user clicks View Bill — avoids async wait on navigation
+                        if (row?.id && userId) {
+                          try { const fresh = await listClaims(userId); setClaims(fresh) } catch {}
+                        }
+
                         } catch (e) { console.error('[createClaim single] error', e) }
                       }
                       // Show success modal directly
@@ -3018,7 +3035,7 @@ function MainApp() {
                 })()
                 const isNewlyCreated = c.id === createdClaimId
                 return (
-                  <div key={c.id} className={`rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 shadow-sm min-h-[180px] w-full transition-shadow duration-300 ${isNewlyCreated ? 'ring-2 ring-emerald-500 ring-offset-1 shadow-lg shadow-emerald-500/20' : ''}`} style={{ border: `2px solid ${petColor}`, touchAction: 'pan-y', overscrollBehaviorX: 'none' }}>
+                  <div key={c.id} data-newly-created={isNewlyCreated ? 'true' : undefined} className={`rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 shadow-sm min-h-[180px] w-full transition-shadow duration-300 ${isNewlyCreated ? 'ring-2 ring-emerald-500 ring-offset-1 shadow-lg shadow-emerald-500/20' : ''}`} style={{ border: `2px solid ${petColor}`, touchAction: 'pan-y', overscrollBehaviorX: 'none' }}>
                     <div className="space-y-2">
                       <div className="flex items-start gap-2">
                         <div className="h-8 w-8 rounded-full flex items-center justify-center" style={{ backgroundColor: petColor + '20' }}>
@@ -4579,8 +4596,10 @@ function MainApp() {
       )} */}
 
       {successModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={async () => {
-          const newId = createdClaimId
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => {
+          const newId = successModal?.claimId
+          // Re-set so it's definitely current when Vet Visits renders
+          if (newId) setCreatedClaimId(newId)
           setSuccessModal(null)
           setExtracted(null)
           setMultiExtracted(null)
@@ -4589,9 +4608,10 @@ function MainApp() {
           setVisitNotes('')
           setVisitTitle('')
           setExpenseCategory('insured')
-          try { if (userId) { const updated = await listClaims(userId); setClaims(updated) } } catch {}
           setActiveTab('visits')
           window.scrollTo({ top: 0, behavior: 'smooth' })
+          // Background refresh (claims already pre-loaded after createClaim)
+          if (userId) listClaims(userId).then(d => d && setClaims(d)).catch(() => {})
           if (newId) { setTimeout(() => setCreatedClaimId(null), 4000) }
         }}>
           <div className="relative mx-4 w-full max-w-md rounded-2xl border border-emerald-200 bg-white p-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
@@ -4624,9 +4644,11 @@ function MainApp() {
                 <button
                   type="button"
                       className="inline-flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 text-sm font-medium w-full sm:w-auto"
-                  onClick={async () => {
-                    // Capture the new claim ID before clearing modal
-                    const newId = createdClaimId
+                  onClick={() => {
+                    // Use successModal.claimId directly — more reliable than createdClaimId state
+                    const newId = successModal?.claimId
+                    // Re-set explicitly so it's definitely current when Vet Visits renders
+                    if (newId) setCreatedClaimId(newId)
                     // Close modal and clear upload form state
                     setSuccessModal(null)
                     setExtracted(null)
@@ -4636,16 +4658,11 @@ function MainApp() {
                     setVisitNotes('')
                     setVisitTitle('')
                     setExpenseCategory('insured')
-                    // Refresh claims so the new card appears immediately in Vet Visits
-                    try {
-                      if (userId) {
-                        const updated = await listClaims(userId)
-                        setClaims(updated)
-                      }
-                    } catch {}
-                    // Navigate to Vet Visits tab so user can see the new bill
+                    // Navigate immediately — claims already pre-loaded after createClaim
                     setActiveTab('visits')
                     window.scrollTo({ top: 0, behavior: 'smooth' })
+                    // Background refresh (secondary; pre-load already happened)
+                    if (userId) listClaims(userId).then(d => d && setClaims(d)).catch(() => {})
                     // Auto-clear the highlight ring after 4 seconds
                     if (newId) {
                       setTimeout(() => setCreatedClaimId(null), 4000)
