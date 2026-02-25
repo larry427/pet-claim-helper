@@ -32,8 +32,6 @@ type FinancialSummaryProps = {
   userId: string | null
   refreshToken?: number
   period?: string
-  // Pet filter — when set, claims are filtered to this pet_id
-  petId?: string | null
   // Callback with hero-level totals so parent can render them
   onTotalsReady?: (t: HeroTotals) => void
   // Collapsible section controls (Summary card removed — hero is now in parent)
@@ -47,7 +45,6 @@ export default function FinancialSummary({
   userId,
   refreshToken,
   period,
-  petId,
   onTotalsReady,
   outOfPocketCollapsed = false,
   onOutOfPocketToggle,
@@ -302,10 +299,7 @@ export default function FinancialSummary({
     let insuredBillsTotal = 0
     let pendingTotal = 0
 
-    // Optionally filter by pet
-    const claimsToUse = petId ? claims.filter(c => c.pet_id === petId) : claims
-
-    for (const c of claimsToUse) {
+    for (const c of claims) {
       const svc = c.service_date ? (parseYmdLocal(c.service_date) || new Date(c.service_date as any)) : null
       if (!svc || isNaN(svc.getTime())) continue
       if (!inPeriod(svc)) continue
@@ -328,7 +322,6 @@ export default function FinancialSummary({
     }
 
     // Non-vet expenses for hero total (food, grooming, supplies, boarding)
-    // Not filtered by petId since pet_expenses has no pet_id
     let nonVetTotal = 0
     for (const e of nonVetExpenses) {
       const d = parseYmdLocal(e.expense_date)
@@ -347,7 +340,7 @@ export default function FinancialSummary({
       heroTotal, heroNetCost, nonVetTotal,
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [claims, pets, nonVetExpenses, period, petId])
+  }, [claims, pets, nonVetExpenses, period])
 
   // Notify parent with hero totals whenever they change
   useEffect(() => {
@@ -376,8 +369,7 @@ export default function FinancialSummary({
       pendingBills: number
       filedClaims: number
     }> = {}
-    const petsToShow = petId ? pets.filter(p => p.id === petId) : pets
-    for (const p of petsToShow) {
+    for (const p of pets) {
       let premiums = 0
       if (viewMonthYear) {
         const start = parseYmdLocal(p.coverage_start_date || null)

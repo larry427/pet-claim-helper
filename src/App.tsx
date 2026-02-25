@@ -288,9 +288,8 @@ function MainApp() {
   const [outOfPocketCollapsed, setOutOfPocketCollapsed] = useState(true)
   const [perPetCollapsed, setPerPetCollapsed] = useState(true)
 
-  // Expenses tab: hero totals (populated by FinancialSummary callback) + pet filter
+  // Expenses tab: hero totals (populated by FinancialSummary callback)
   const [heroTotals, setHeroTotals] = useState<{ total: number; reimbursed: number; netCost: number } | null>(null)
-  const [activePetFilter, setActivePetFilter] = useState<string | null>(null)
   const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications' | 'food' | 'admin' | 'med-admin' | 'expenses'>('app')
   const [activeTab, setActiveTab] = useState<TabId>('expenses')
   const [isAdmin, setIsAdmin] = useState(false)
@@ -2269,73 +2268,51 @@ function MainApp() {
                           : '—'}
                       </span>
                     </span>
-                    {activePetFilter && (
-                      <>
-                        <span className="text-slate-200 dark:text-slate-700 select-none">|</span>
-                        <span className="text-xs text-slate-400">
-                          {(() => {
-                            const pet = pets.find(p => p.id === activePetFilter)
-                            return pet ? `Filtered: ${pet.name}` : null
-                          })()}
-                        </span>
-                      </>
-                    )}
                   </div>
 
-                  {/* Pet filter chips + Add Expense */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {/* "All" chip */}
-                    <button
-                      type="button"
-                      onClick={() => setActivePetFilter(null)}
-                      className={`flex flex-col items-center gap-1 transition-opacity ${activePetFilter === null ? 'opacity-100' : 'opacity-50 hover:opacity-75'}`}
-                    >
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
-                        activePetFilter === null
-                          ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 ring-2 ring-emerald-500'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
-                      }`}>All</div>
-                      <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">All</span>
-                    </button>
-
-                    {/* Pet chips */}
+                  {/* Pet circles (tap to edit) + Add Expense */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {/* Pet circles — 72px, tap opens Edit Pet modal */}
                     {pets.map((p) => {
                       const isInsuredPet = !!(p.insuranceCompany || (p as any).insurance_company)
                       const dotColor = isInsuredPet ? '#22C55E' : '#F59E0B'
-                      const isActive = activePetFilter === p.id
                       return (
                         <button
                           key={p.id}
                           type="button"
-                          onClick={() => setActivePetFilter(isActive ? null : p.id)}
-                          className={`flex flex-col items-center gap-1 transition-opacity ${isActive ? 'opacity-100' : 'opacity-60 hover:opacity-85'}`}
-                          aria-label={isActive ? `Remove filter: ${p.name}` : `Filter by ${p.name}`}
+                          onClick={() => startEditPet(p)}
+                          className="flex flex-col items-center gap-1.5 hover:opacity-85 active:scale-95 transition-all"
+                          aria-label={`Edit ${p.name}`}
                         >
-                          <div className={`relative w-12 h-12 ${isActive ? 'ring-2 ring-emerald-500 rounded-full' : ''}`}>
-                            {p.photo_url ? (
-                              <img src={p.photo_url} alt={p.name} className="rounded-full object-cover w-full h-full ring-2 ring-white shadow-sm" />
+                          <div className="relative w-[72px] h-[72px]">
+                            {uploadingPhotoForPetId === p.id ? (
+                              <div className="rounded-full w-full h-full flex items-center justify-center ring-2 ring-white shadow-md" style={{ background: '#E5F0EE' }}>
+                                <div className="w-6 h-6 border-[3px] border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                              </div>
+                            ) : (p as any).photo_url ? (
+                              <img src={(p as any).photo_url} alt={p.name} className="rounded-full object-cover w-full h-full ring-2 ring-white shadow-md" />
                             ) : (
-                              <div className="rounded-full w-full h-full flex items-center justify-center ring-2 ring-white shadow-sm text-xl" style={{ background: '#E5F0EE' }}>🐾</div>
+                              <div className="rounded-full w-full h-full flex items-center justify-center ring-2 ring-white shadow-md text-3xl" style={{ background: '#E5F0EE' }}>🐾</div>
                             )}
-                            <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white" style={{ background: dotColor }} />
+                            <span className="absolute bottom-0.5 right-0.5 w-4 h-4 rounded-full border-2 border-white" style={{ background: dotColor }} />
                           </div>
-                          <span className="text-[10px] font-medium text-slate-700 dark:text-slate-300 truncate max-w-[52px] text-center">{p.name}</span>
+                          <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300 truncate max-w-[76px] text-center">{p.name}</span>
                         </button>
                       )
                     })}
 
-                    {/* Add pet — smaller, muted */}
+                    {/* Add pet — muted dashed circle */}
                     <button
                       type="button"
                       onClick={() => setAddingPet(true)}
-                      className="flex flex-col items-center gap-1 opacity-50 hover:opacity-75 transition-opacity"
+                      className="flex flex-col items-center gap-1.5 opacity-50 hover:opacity-75 transition-opacity"
                       aria-label="Add new pet"
                     >
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center ring-1 ring-dashed ring-slate-400 dark:ring-slate-600 text-slate-400 text-lg bg-transparent">+</div>
-                      <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">Add</span>
+                      <div className="w-[72px] h-[72px] rounded-full flex items-center justify-center ring-2 ring-dashed ring-slate-400 dark:ring-slate-600 text-slate-400 text-2xl bg-transparent">+</div>
+                      <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">Add Pet</span>
                     </button>
 
-                    {/* Add Expense — right-aligned on desktop, full row on mobile */}
+                    {/* Add Expense — right-aligned */}
                     <div className="ml-auto">
                       <button
                         type="button"
@@ -2356,7 +2333,6 @@ function MainApp() {
                 userId={userId}
                 refreshToken={dataRefreshToken}
                 period={finPeriod}
-                petId={activePetFilter}
                 onTotalsReady={setHeroTotals}
                 outOfPocketCollapsed={outOfPocketCollapsed}
                 onOutOfPocketToggle={() => setOutOfPocketCollapsed(!outOfPocketCollapsed)}
