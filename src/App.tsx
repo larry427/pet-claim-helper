@@ -305,6 +305,11 @@ function MainApp() {
 
   // Settings dropdown state
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false)
+  // Manage Pets modal state
+  const [showManagePetsModal, setShowManagePetsModal] = useState(false)
+  // Pending photo for newly added pet (uploaded after pet is saved)
+  const [newPetPendingPhoto, setNewPetPendingPhoto] = useState<File | null>(null)
+  const [newPetPhotoPreview, setNewPetPhotoPreview] = useState<string | null>(null)
 
   // Expenses data for Home tab
   const { summary: expensesSummary, addExpense } = useExpenses(userId)
@@ -1027,6 +1032,36 @@ function MainApp() {
     setNewPetInsurer('')
     setCustomInsurerNameNew('')
     setCustomDeadlineNew('')
+
+    // Upload photo in background if one was selected
+    const pendingPhoto = newPetPendingPhoto
+    setNewPetPendingPhoto(null)
+    setNewPetPhotoPreview(null)
+    if (userId && pendingPhoto) {
+      ;(async () => {
+        setUploadingPhotoForPetId(id)
+        try {
+          const maxSize = 5 * 1024 * 1024
+          if (pendingPhoto.size > maxSize) throw new Error('Photo must be smaller than 5MB')
+          const fileExt = pendingPhoto.name.split('.').pop() || 'jpg'
+          const path = `${userId}/${id}-${Date.now()}.${fileExt}`
+          const { error: uploadError } = await supabase.storage
+            .from('pet-photos')
+            .upload(path, pendingPhoto, { upsert: true, contentType: pendingPhoto.type })
+          if (uploadError) throw uploadError
+          const { data: urlData } = supabase.storage.from('pet-photos').getPublicUrl(path)
+          if (!urlData?.publicUrl) throw new Error('Failed to get photo URL')
+          await dbUpsertPet(userId, { ...created, photo_url: urlData.publicUrl })
+          const refreshedPets = await dbLoadPets(userId)
+          setPets(refreshedPets)
+          showToast('Photo uploaded successfully!')
+        } catch (e: any) {
+          setPhotoUploadError(e?.message || 'Failed to upload photo')
+        } finally {
+          setUploadingPhotoForPetId(null)
+        }
+      })()
+    }
   }
 
   const startEditPet = (pet: PetProfile) => {
@@ -1831,6 +1866,17 @@ function MainApp() {
                           >
                             <Settings className="w-4 h-4 text-slate-400" />
                             Settings
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowSettingsDropdown(false)
+                              setShowManagePetsModal(true)
+                            }}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                          >
+                            <span className="w-4 h-4 text-base leading-none flex items-center justify-center">🐾</span>
+                            Manage Pets
                           </button>
                           <a
                             href={`mailto:support@petclaimhelper.com?subject=Pet Claim Helper Support Request&body=Hi Pet Claim Helper Team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0A----%0D%0AUser: ${userEmail || 'Not logged in'}%0D%0AUser ID: ${userId || 'N/A'}`}
@@ -4395,15 +4441,143 @@ function MainApp() {
         </div>
       )}
       {/* Add New Pet Modal */}
+      {/* ── MANAGE PETS MODAL ───────────────────────────────────────── */}
+      {showManagePetsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowManagePetsModal(false)}>
+          <div className="relative mx-4 w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0 flex flex-col max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-800">
+              <h3 className="text-lg font-semibold">Manage Pets</h3>
+              <button type="button" className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 text-lg leading-none" onClick={() => setShowManagePetsModal(false)}>✕</button>
+            </div>
+            {/* Pet list */}
+            <div className="overflow-y-auto flex-1 p-4">
+              {pets.length === 0 ? (
+                <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-8">No pets yet. Add your first pet below.</p>
+              ) : (
+                <div className="space-y-2">
+                  {pets.map((pet) => (
+                    <button
+                      key={pet.id}
+                      type="button"
+                      onClick={() => {
+                        setShowManagePetsModal(false)
+                        startEditPet(pet)
+                      }}
+                      className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border border-slate-100 dark:border-slate-800 text-left"
+                    >
+                      {/* Avatar */}
+                      <div className="relative flex-shrink-0 w-14 h-14">
+                        {uploadingPhotoForPetId === pet.id ? (
+                          <div className="rounded-full w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-800 ring-2 ring-white shadow">
+                            <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                          </div>
+                        ) : (pet as any).photo_url ? (
+                          <img src={(pet as any).photo_url} alt={pet.name} className="rounded-full object-cover w-full h-full ring-2 ring-white shadow" />
+                        ) : (
+                          <div className="rounded-full w-full h-full flex items-center justify-center ring-2 ring-white shadow text-2xl" style={{ background: '#E5F0EE' }}>🐾</div>
+                        )}
+                        {/* Insurance dot */}
+                        {pet.insuranceCompany && (
+                          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
+                        )}
+                      </div>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-slate-800 dark:text-slate-100 truncate">{pet.name}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400 capitalize mt-0.5">{pet.species}</div>
+                        {pet.insuranceCompany ? (
+                          <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5 truncate">{pet.insuranceCompany}</div>
+                        ) : (
+                          <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">No insurance</div>
+                        )}
+                      </div>
+                      {/* Chevron */}
+                      <ChevronDown className="w-4 h-4 text-slate-300 dark:text-slate-600 rotate-[-90deg] flex-shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Add Pet button */}
+            <div className="p-4 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowManagePetsModal(false)
+                  setAddingPet(true)
+                }}
+                className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 py-3 text-sm font-medium text-slate-600 dark:text-slate-400 hover:border-emerald-400 hover:text-emerald-600 dark:hover:border-emerald-500 dark:hover:text-emerald-400 transition-colors"
+              >
+                <span className="text-base">+</span> Add New Pet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {addingPet && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setAddingPet(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => { setAddingPet(false); setNewPetPendingPhoto(null); setNewPetPhotoPreview(null) }}>
           <div className="relative mx-4 w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0 flex flex-col max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-800">
               <h3 className="text-lg font-semibold">Add New Pet</h3>
-              <button type="button" className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 text-lg leading-none" onClick={() => setAddingPet(false)}>✕</button>
+              <button type="button" className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 text-lg leading-none" onClick={() => { setAddingPet(false); setNewPetPendingPhoto(null); setNewPetPhotoPreview(null) }}>✕</button>
             </div>
             <div className="p-5 overflow-y-auto">
               <div className="space-y-3">
+                {/* Pet photo upload */}
+                <div className="flex flex-col items-center gap-3 pb-4 mb-1 border-b border-slate-200 dark:border-slate-800">
+                  <div className="relative w-24 h-24">
+                    {newPetPhotoPreview ? (
+                      <img src={newPetPhotoPreview} alt="New pet" className="rounded-full object-cover w-full h-full ring-2 ring-white shadow-md" />
+                    ) : (
+                      <div className="rounded-full w-full h-full flex items-center justify-center ring-2 ring-white shadow-md text-4xl" style={{ background: '#E5F0EE' }}>🐾</div>
+                    )}
+                  </div>
+                  {photoUploadError && (
+                    <p className="text-xs text-red-500 text-center max-w-xs">{photoUploadError}</p>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <label
+                      htmlFor="new-pet-photo-input"
+                      className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      📷 {newPetPhotoPreview ? 'Change Photo' : 'Add Photo'} <span className="text-slate-400 font-normal">(optional)</span>
+                    </label>
+                    <input
+                      id="new-pet-photo-input"
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/heic,image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        // Validate size (5 MB)
+                        if (file.size > 5 * 1024 * 1024) {
+                          setPhotoUploadError('Photo must be smaller than 5MB')
+                          return
+                        }
+                        setPhotoUploadError(null)
+                        setNewPetPendingPhoto(file)
+                        const preview = URL.createObjectURL(file)
+                        setNewPetPhotoPreview(preview)
+                        e.target.value = ''
+                      }}
+                    />
+                    {newPetPhotoPreview && (
+                      <button
+                        type="button"
+                        className="text-xs text-slate-500 hover:text-red-500 transition-colors"
+                        onClick={() => {
+                          setNewPetPendingPhoto(null)
+                          setNewPetPhotoPreview(null)
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
                 <div>
                   <label htmlFor="modal-new-pet-name" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Pet Name <span className="text-red-500">*</span></label>
                   <input id="modal-new-pet-name" value={newPet.name} onChange={(e) => setNewPet({ ...newPet, name: e.target.value })} className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white/90 dark:bg-slate-900 px-3 py-2 text-sm" />
@@ -4489,7 +4663,7 @@ function MainApp() {
               </div>
             </div>
             <div className="p-5 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-3">
-              <button type="button" onClick={() => setAddingPet(false)} className="text-sm text-slate-600 dark:text-slate-300">Cancel</button>
+              <button type="button" onClick={() => { setAddingPet(false); setNewPetPendingPhoto(null); setNewPetPhotoPreview(null) }} className="text-sm text-slate-600 dark:text-slate-300">Cancel</button>
               <button type="button" onClick={addPet} className="inline-flex items-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 text-sm">Save Pet</button>
             </div>
           </div>
