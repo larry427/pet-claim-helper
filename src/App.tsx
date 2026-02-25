@@ -943,14 +943,18 @@ function MainApp() {
       const el = document.querySelector<HTMLElement>('[data-newly-created="true"]')
       if (el) {
         clearInterval(poll)
-        // Get real tab-bar height (includes safe-area-inset-bottom padding on iPhone)
-        const tabBar = document.querySelector<HTMLElement>('nav[class*="fixed"]')
-        const tabBarH = tabBar?.offsetHeight ?? 72
-        const rect = el.getBoundingClientRect()
-        // Centre the card in the viewport area above the tab bar
-        const visibleMidY = (window.innerHeight - tabBarH) / 2
-        const targetY = window.scrollY + rect.top - visibleMidY + rect.height / 2
-        window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' })
+        // rAF defers measurement until the browser has committed the instant
+        // scroll-to-top and finished layout — prevents stale rect values on mobile
+        requestAnimationFrame(() => {
+          // Get real tab-bar height (includes safe-area-inset-bottom on iPhone)
+          const tabBar = document.querySelector<HTMLElement>('nav[class*="fixed"]')
+          const tabBarH = tabBar?.offsetHeight ?? 72
+          const rect = el.getBoundingClientRect()
+          // Centre the card in the visible area above the tab bar
+          const visibleMidY = (window.innerHeight - tabBarH) / 2
+          const targetY = window.scrollY + rect.top - visibleMidY + rect.height / 2
+          window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' })
+        })
       } else if (attempts >= 20) {
         clearInterval(poll) // give up after ~2 seconds
       }
@@ -4626,7 +4630,7 @@ function MainApp() {
           setVisitTitle('')
           setExpenseCategory('insured')
           setActiveTab('visits')
-          window.scrollTo({ top: 0, behavior: 'smooth' })
+          window.scrollTo(0, 0) // instant — poll will smooth-scroll to the card
           // Background refresh (claims already pre-loaded after createClaim)
           if (userId) listClaims(userId).then(d => d && setClaims(d)).catch(() => {})
           if (newId) { setTimeout(() => setCreatedClaimId(null), 4000) }
@@ -4677,7 +4681,7 @@ function MainApp() {
                     setExpenseCategory('insured')
                     // Navigate immediately — claims already pre-loaded after createClaim
                     setActiveTab('visits')
-                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                    window.scrollTo(0, 0) // instant — poll will smooth-scroll to the card
                     // Background refresh (secondary; pre-load already happened)
                     if (userId) listClaims(userId).then(d => d && setClaims(d)).catch(() => {})
                     // Auto-clear the highlight ring after 4 seconds
