@@ -26,13 +26,17 @@ type PetRow = {
   annual_coverage_limit?: number | null
 }
 
+type HeroTotals = { total: number; reimbursed: number; netCost: number }
+
 type FinancialSummaryProps = {
   userId: string | null
   refreshToken?: number
   period?: string
-  // Collapsible section controls
-  summaryCollapsed?: boolean
-  onSummaryToggle?: () => void
+  // Pet filter — when set, claims are filtered to this pet_id
+  petId?: string | null
+  // Callback with hero-level totals so parent can render them
+  onTotalsReady?: (t: HeroTotals) => void
+  // Collapsible section controls (Summary card removed — hero is now in parent)
   outOfPocketCollapsed?: boolean
   onOutOfPocketToggle?: () => void
   perPetCollapsed?: boolean
@@ -43,8 +47,8 @@ export default function FinancialSummary({
   userId,
   refreshToken,
   period,
-  summaryCollapsed = false,
-  onSummaryToggle,
+  petId,
+  onTotalsReady,
   outOfPocketCollapsed = false,
   onOutOfPocketToggle,
   perPetCollapsed = false,
@@ -54,6 +58,8 @@ export default function FinancialSummary({
   const [error, setError] = useState<string | null>(null)
   const [claims, setClaims] = useState<ClaimRow[]>([])
   const [pets, setPets] = useState<PetRow[]>([])
+  // Non-vet expenses (food, grooming, supplies, training/boarding) for hero total
+  const [nonVetExpenses, setNonVetExpenses] = useState<{ amount: number; expense_date: string }[]>([])
 
   useEffect(() => {
     if (!userId) return
@@ -67,13 +73,21 @@ export default function FinancialSummary({
       supabase
         .from('pets')
         .select('id, name, species, monthly_premium, deductible_per_claim, coverage_start_date, insurance_pays_percentage, annual_coverage_limit')
+        .eq('user_id', userId),
+      // Non-vet expenses (food, grooming, supplies, training/boarding) for hero total
+      supabase
+        .from('pet_expenses')
+        .select('amount, expense_date')
         .eq('user_id', userId)
+        .neq('category', 'vet_medical')
     ])
-      .then(([cl, pe]) => {
+      .then(([cl, pe, nv]) => {
         if (cl.error) throw cl.error
         if (pe.error) throw pe.error
+        if (nv.error) throw nv.error
         setClaims((cl.data || []) as any)
         setPets((pe.data || []) as any)
+        setNonVetExpenses((nv.data || []) as any)
       })
       .catch((e: any) => setError(e?.message || 'Failed to load financial data'))
       .finally(() => setLoading(false))
@@ -229,39 +243,72 @@ export default function FinancialSummary({
     return { total, monthsCount: months, context }
   }
 
+  // ─── Period helpers ────────────────────────────────────────────────────────
+  // Parses 'YYYY-MM' period string
+  const isMonthPeriod = /^\d{4}-\d{2}$/.test(period || '')
+  const viewMonthYear = isMonthPeriod
+    ? { year: Number((period || '').slice(0, 4)), month: Number((period || '').slice(5, 7)) - 1 }
+    : null
+  const isLast12 = String(period || '').toLowerCase() === 'last12'
+
+  // Returns true if a date falls within the selected period
+  const inPeriod = (svc: Date): boolean => {
+    const today = new Date()
+    if (svc > today) return false
+    if (viewMonthYear) {
+      return svc.getFullYear() === viewMonthYear.year && svc.getMonth() === viewMonthYear.month
+    }
+    if (isLast12) {
+      const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 365)
+      return svc >= cutoff
+    }
+    const p = String(period || '').toLowerCase()
+    if (p === 'all') return true
+    if (/^\d{4}$/.test(p)) return svc.getFullYear() === Number(p)
+    return svc.getFullYear() === new Date().getFullYear() // default: current year
+  }
+
   const overall = useMemo(() => {
     const nowYear = new Date().getFullYear()
     const viewYear = (() => {
+      if (isMonthPeriod || isLast12) return null
       const p = String(period || '').toLowerCase()
       if (p === '2024' || p === '2025' || p === '2026') return Number(p)
       if (p === 'all') return null
       return nowYear
     })()
-    const today = new Date()
 
-    // CRITICAL FIX: Calculate premiums using the SAME function as the breakdown
-    // This ensures the total always matches the sum of individual pet premiums shown below
     const premiumsYTD = pets.reduce((sum, p) => {
+      // For month period: 1 month if coverage was active that month
+      if (viewMonthYear) {
+        const start = parseYmdLocal(p.coverage_start_date || null)
+        if (!start) return sum
+        const monthly = Number(p.monthly_premium) || 0
+        if (monthly === 0) return sum
+        const targetMonth = new Date(viewMonthYear.year, viewMonthYear.month, 1)
+        if (start > targetMonth) return sum // coverage not started yet
+        const futureMonth = viewMonthYear.year > new Date().getFullYear() ||
+          (viewMonthYear.year === new Date().getFullYear() && viewMonthYear.month > new Date().getMonth())
+        if (futureMonth) return sum
+        return sum + monthly
+      }
       const calc = calculatePremiumsForPet(p, viewYear)
       return sum + calc.total
     }, 0)
 
-    // Non-insured visits up to today (current year)
     let nonInsuredTotal = 0
-    // Insurance reimbursed (paid only) up to today (current year)
     let insurancePaidBack = 0
-    // User share for insured claims (bill - reimbursed) regardless of status
     let userShareCoveredClaims = 0
-    // Total insured bills amount regardless of status
     let insuredBillsTotal = 0
-    // Pending claims (submitted only) totals
     let pendingTotal = 0
 
-    for (const c of claims) {
+    // Optionally filter by pet
+    const claimsToUse = petId ? claims.filter(c => c.pet_id === petId) : claims
+
+    for (const c of claimsToUse) {
       const svc = c.service_date ? (parseYmdLocal(c.service_date) || new Date(c.service_date as any)) : null
       if (!svc || isNaN(svc.getTime())) continue
-      if (viewYear !== null && svc.getFullYear() !== viewYear) continue
-      if (svc > today) continue
+      if (!inPeriod(svc)) continue
       const category = String(c.expense_category || '').toLowerCase()
       const status = String(c.filing_status || '').toLowerCase()
       const amount = Number(c.total_amount) || 0
@@ -274,28 +321,53 @@ export default function FinancialSummary({
         insuredBillsTotal += amount
         userShareCoveredClaims += Math.max(0, amount - reimb)
       } else if (category === 'insured') {
-        // insured but not paid yet - still count as vet bill and user share (reimbursed=0 or current value)
         insuredBillsTotal += amount
         userShareCoveredClaims += Math.max(0, amount - reimb)
       }
-      if (status === 'submitted') {
-        pendingTotal += amount
-      }
+      if (status === 'submitted') pendingTotal += amount
     }
 
+    // Non-vet expenses for hero total (food, grooming, supplies, boarding)
+    // Not filtered by petId since pet_expenses has no pet_id
+    let nonVetTotal = 0
+    for (const e of nonVetExpenses) {
+      const d = parseYmdLocal(e.expense_date)
+      if (!d || !inPeriod(d)) continue
+      nonVetTotal += Number(e.amount) || 0
+    }
+
+    // Hero totals: all spending (vet bills + non-vet), no premiums in total
+    const heroTotal = insuredBillsTotal + nonInsuredTotal + nonVetTotal
+    const heroNetCost = heroTotal - insurancePaidBack
+
     const definiteTotal = premiumsYTD + nonInsuredTotal + userShareCoveredClaims
-    return { premiumsYTD, nonInsuredTotal, insurancePaidBack, userShareCoveredClaims, insuredBillsTotal, definiteTotal, pendingTotal }
-  }, [claims, pets, period])
+    return {
+      premiumsYTD, nonInsuredTotal, insurancePaidBack, userShareCoveredClaims,
+      insuredBillsTotal, definiteTotal, pendingTotal,
+      heroTotal, heroNetCost, nonVetTotal,
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claims, pets, nonVetExpenses, period, petId])
+
+  // Notify parent with hero totals whenever they change
+  useEffect(() => {
+    onTotalsReady?.({
+      total: overall.heroTotal,
+      reimbursed: overall.insurancePaidBack,
+      netCost: overall.heroNetCost,
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overall.heroTotal, overall.insurancePaidBack, overall.heroNetCost])
 
   const perPet = useMemo(() => {
     const nowYear = new Date().getFullYear()
     const viewYear = (() => {
+      if (isMonthPeriod || isLast12) return null
       const p = String(period || '').toLowerCase()
       if (p === '2024' || p === '2025' || p === '2026') return Number(p)
       if (p === 'all') return null
       return nowYear
     })()
-    const today = new Date()
     const byPet: Record<string, {
       claimed: number
       reimbursed: number
@@ -304,22 +376,24 @@ export default function FinancialSummary({
       pendingBills: number
       filedClaims: number
     }> = {}
-    // Prime with premiums per pet - use same calculation as breakdown for consistency
-    for (const p of pets) {
-      const calc = calculatePremiumsForPet(p, viewYear)
-      byPet[p.id] = {
-        claimed: 0,
-        reimbursed: 0,
-        premiums: calc.total,
-        nonInsured: 0,
-        pendingBills: 0,
-        filedClaims: 0,
+    const petsToShow = petId ? pets.filter(p => p.id === petId) : pets
+    for (const p of petsToShow) {
+      let premiums = 0
+      if (viewMonthYear) {
+        const start = parseYmdLocal(p.coverage_start_date || null)
+        const monthly = Number(p.monthly_premium) || 0
+        if (start && monthly > 0) {
+          const targetMonth = new Date(viewMonthYear.year, viewMonthYear.month, 1)
+          const futureMonth = viewMonthYear.year > new Date().getFullYear() ||
+            (viewMonthYear.year === new Date().getFullYear() && viewMonthYear.month > new Date().getMonth())
+          if (start <= targetMonth && !futureMonth) premiums = monthly
+        }
+      } else {
+        premiums = calculatePremiumsForPet(p, viewYear).total
       }
+      byPet[p.id] = { claimed: 0, reimbursed: 0, premiums, nonInsured: 0, pendingBills: 0, filedClaims: 0 }
     }
 
-    // No limit tracking needed for this per-pet summary
-
-    // Process claims sorted by service_date
     const sorted = [...claims].sort((a, b) => {
       const da = a.service_date ? (parseYmdLocal(a.service_date)?.getTime() || new Date(a.service_date as any).getTime() || 0) : 0
       const db = b.service_date ? (parseYmdLocal(b.service_date)?.getTime() || new Date(b.service_date as any).getTime() || 0) : 0
@@ -334,9 +408,8 @@ export default function FinancialSummary({
       if (bill <= 0) continue
       const svcDate = c.service_date ? (parseYmdLocal(c.service_date) || new Date(c.service_date as any)) : null
       if (!svcDate || isNaN(svcDate.getTime())) continue
-      if (viewYear !== null && svcDate.getFullYear() !== viewYear) continue
+      if (!inPeriod(svcDate)) continue
 
-      // Count bills/claims (insured submission vs not)
       if (category === 'insured') {
         const stRaw = String(c.filing_status || 'not_submitted').toLowerCase()
         const st = stRaw === 'filed' ? 'submitted' : stRaw
@@ -345,17 +418,16 @@ export default function FinancialSummary({
       }
 
       if (category === 'not_insured' || category === 'not insured') {
-        if (svcDate <= today) byPet[pid].nonInsured += bill
+        byPet[pid].nonInsured += bill
       } else {
-        // Insured vet bills always count toward claimed amount
         byPet[pid].claimed += bill
-        // Reimbursement only the paid portion
         const reimb = Math.max(0, Number(c.reimbursed_amount) || 0)
         byPet[pid].reimbursed += reimb
       }
     }
     return byPet
-  }, [claims, pets, petById, period])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claims, pets, petById, period, petId])
 
   if (!userId) return null
 
@@ -396,53 +468,29 @@ export default function FinancialSummary({
     </button>
   )
 
+  // Human-readable label for the current period
+  const periodLabel = (() => {
+    const p = String(period || '')
+    if (isMonthPeriod) {
+      const [y, m] = p.split('-')
+      return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    }
+    if (p.toLowerCase() === 'all') return 'All Time'
+    if (p.toLowerCase() === 'last12') return 'Last 12 Months'
+    return p
+  })()
+
   return (
-    <section className="space-y-4">
-      {/* Financial Summary Section - Collapsible */}
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] overflow-hidden">
-        <CollapsibleHeader
-          title="Financial Summary"
-          subtitle={!loading && !error ? `Net Cost: $${overall.definiteTotal.toFixed(2)}` : undefined}
-          collapsed={summaryCollapsed}
-          onToggle={onSummaryToggle}
-          icon="📊"
-        />
-        <div
-          className={`transition-all duration-300 ease-in-out overflow-hidden ${
-            summaryCollapsed ? 'max-h-0 opacity-0' : 'max-h-[500px] opacity-100'
-          }`}
-        >
-          <div className="px-5 pb-5">
-            {loading && <div className="text-sm text-slate-500">Loading…</div>}
-            {error && <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-800 text-sm">{error}</div>}
-            {!loading && !error && (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-4">
-                <div className="text-sm font-semibold text-slate-600 dark:text-slate-400">{`${String(period || '').toLowerCase() === 'all' ? 'ALL TIME' : (String(period || new Date().getFullYear()))} TOTAL`}</div>
-                <div className="mt-3 text-sm space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="text-slate-600 dark:text-slate-400">Spent on all pets (including premiums)</div>
-                    <div className="text-lg font-bold text-slate-800 dark:text-slate-100">${(overall.premiumsYTD + overall.nonInsuredTotal + overall.insuredBillsTotal).toFixed(2)}</div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="text-slate-600 dark:text-slate-400">- Insurance Reimbursed</div>
-                    <div className="text-lg font-bold text-emerald-600">${overall.insurancePaidBack.toFixed(2)}</div>
-                  </div>
-                  <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                    <div className="text-slate-800 dark:text-slate-100 font-semibold">= Your Net Cost</div>
-                    <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">${overall.definiteTotal.toFixed(2)}</div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+    <section className="space-y-3">
+      {error && (
+        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-800 text-sm mx-1">{error}</div>
+      )}
 
       {/* Out-of-Pocket Breakdown - Collapsible */}
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] overflow-hidden">
         <CollapsibleHeader
           title="Out-of-Pocket Breakdown"
-          subtitle={!loading && !error ? `Total: $${overall.definiteTotal.toFixed(2)}` : undefined}
+          subtitle={!loading && !error ? `${periodLabel} · $${overall.definiteTotal.toFixed(2)}` : undefined}
           collapsed={outOfPocketCollapsed}
           onToggle={onOutOfPocketToggle}
           icon="💰"
@@ -462,6 +510,7 @@ export default function FinancialSummary({
               {(() => {
                 const nowYear = new Date().getFullYear()
                 const viewYear = (() => {
+                  if (isMonthPeriod || isLast12) return null
                   const p = String(period || '').toLowerCase()
                   if (p === '2024' || p === '2025' || p === '2026') return Number(p)
                   if (p === 'all') return null
@@ -470,8 +519,21 @@ export default function FinancialSummary({
 
                 // Calculate premiums for each pet
                 const petPremiums = pets.map(p => {
-                  const calc = calculatePremiumsForPet(p, viewYear)
-                  return { pet: p, ...calc }
+                  let total = 0, monthsCount = 0, context = ''
+                  if (viewMonthYear) {
+                    const start = parseYmdLocal(p.coverage_start_date || null)
+                    const monthly = Number(p.monthly_premium) || 0
+                    if (start && monthly > 0) {
+                      const targetMonth = new Date(viewMonthYear.year, viewMonthYear.month, 1)
+                      const futureMonth = viewMonthYear.year > new Date().getFullYear() ||
+                        (viewMonthYear.year === new Date().getFullYear() && viewMonthYear.month > new Date().getMonth())
+                      if (start <= targetMonth && !futureMonth) { total = monthly; monthsCount = 1; context = periodLabel }
+                    }
+                  } else {
+                    const calc = calculatePremiumsForPet(p, viewYear)
+                    total = calc.total; monthsCount = calc.monthsCount; context = calc.context
+                  }
+                  return { pet: p, total, monthsCount, context }
                 }).filter(p => p.total > 0 || Number(p.pet.monthly_premium) > 0)
 
                 if (petPremiums.length === 0) return null
@@ -527,7 +589,7 @@ export default function FinancialSummary({
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] overflow-hidden">
         <CollapsibleHeader
           title="Per-Pet Breakdown"
-          subtitle={`${pets.length} pet${pets.length !== 1 ? 's' : ''} • ${String(period || '').toLowerCase() === 'all' ? 'All Time' : String(period || new Date().getFullYear())}`}
+          subtitle={`${petId ? '1 pet' : `${pets.length} pet${pets.length !== 1 ? 's' : ''}`} · ${periodLabel}`}
           collapsed={perPetCollapsed}
           onToggle={onPerPetToggle}
           icon="🐕"

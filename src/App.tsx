@@ -277,13 +277,20 @@ function MainApp() {
   const [dataRefreshToken, setDataRefreshToken] = useState(0)
   const [showClaims, setShowClaims] = useState(false)
   
-  const [finPeriod, setFinPeriod] = useState<'all' | '2026' | '2025' | '2024' | 'last12'>('all')
+  // Period selector — default to current month (e.g. '2026-02')
+  const _nowForPeriod = new Date()
+  const _defaultPeriod = `${_nowForPeriod.getFullYear()}-${String(_nowForPeriod.getMonth() + 1).padStart(2, '0')}`
+  const [finPeriod, setFinPeriod] = useState<string>(_defaultPeriod)
   const [billsSortBy, setBillsSortBy] = useState<'date-desc' | 'amount-desc' | 'amount-asc' | 'pet-asc'>('date-desc')
 
   // Collapsible sections state for Vet Bills page
   const [financialSummaryCollapsed, setFinancialSummaryCollapsed] = useState(false)
   const [outOfPocketCollapsed, setOutOfPocketCollapsed] = useState(true)
   const [perPetCollapsed, setPerPetCollapsed] = useState(true)
+
+  // Expenses tab: hero totals (populated by FinancialSummary callback) + pet filter
+  const [heroTotals, setHeroTotals] = useState<{ total: number; reimbursed: number; netCost: number } | null>(null)
+  const [activePetFilter, setActivePetFilter] = useState<string | null>(null)
   const [activeView, setActiveView] = useState<'app' | 'settings' | 'medications' | 'food' | 'admin' | 'med-admin' | 'expenses'>('app')
   const [activeTab, setActiveTab] = useState<TabId>('expenses')
   const [isAdmin, setIsAdmin] = useState(false)
@@ -1644,30 +1651,19 @@ function MainApp() {
       const start = parseYmdLocal(startIso)
       if (!start) return 0
       const now = new Date()
-      if (finPeriod === '2026') {
-        const year = 2026
+      // Year-based period
+      const yearMatch = finPeriod.match(/^(\d{4})$/)
+      if (yearMatch) {
+        const year = Number(yearMatch[1])
         if (start.getFullYear() > year) return 0
         const startMonth = start.getFullYear() < year ? 0 : start.getMonth()
         const endMonth = (now.getFullYear() === year) ? now.getMonth() : 11
         return Math.max(0, endMonth - startMonth + 1)
       }
-      if (finPeriod === '2025') {
-        const year = 2025
-        if (start.getFullYear() > year) return 0
-        const startMonth = start.getFullYear() < year ? 0 : start.getMonth()
-        const endMonth = (now.getFullYear() === year) ? now.getMonth() : 11
-        return Math.max(0, endMonth - startMonth + 1)
-      }
-      if (finPeriod === '2024') {
-        const year = 2024
-        if (start.getFullYear() > year) return 0
-        const startMonth = start.getFullYear() < year ? 0 : start.getMonth()
-        const endMonth = 11
-        return Math.max(0, endMonth - startMonth + 1)
-      }
+      // Month-based period
+      if (/^\d{4}-\d{2}$/.test(finPeriod)) return 1
       // last12 or all -> months from start to now inclusive
-      const end = now
-      const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1
+      const months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth()) + 1
       return Math.max(0, months)
     }
     // Filter claims by selected period
@@ -1675,9 +1671,13 @@ function MainApp() {
       const d = c.service_date ? parseYmdLocal(c.service_date) : null
       if (!d || Number.isNaN(d.getTime())) return false
       if (finPeriod === 'all') return true
-      if (finPeriod === '2026') return d.getFullYear() === 2026
-      if (finPeriod === '2025') return d.getFullYear() === 2025
-      if (finPeriod === '2024') return d.getFullYear() === 2024
+      // Month period: YYYY-MM
+      if (/^\d{4}-\d{2}$/.test(finPeriod)) {
+        const [py, pm] = finPeriod.split('-').map(Number)
+        return d.getFullYear() === py && d.getMonth() === pm - 1
+      }
+      // Year period
+      if (/^\d{4}$/.test(finPeriod)) return d.getFullYear() === Number(finPeriod)
       if (finPeriod === 'last12') {
         const now = new Date()
         const cutoff = new Date(now.getTime())
@@ -2153,101 +2153,165 @@ function MainApp() {
         {/* EXPENSES TAB */}
         {authView === 'app' && activeView === 'app' && showTabNav && activeTab === 'expenses' && (
           <div className="pb-10">
-            {/* Lightweight header: pet owner name + pet circles + settings/support */}
-            <div className="mx-auto max-w-3xl pt-4 pb-3 flex items-start justify-between gap-4">
-              <div>
-                <div className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                  {userFirstName ? `${userFirstName}'s pets` : 'Your pets'}
-                </div>
-                <div className="flex gap-4 mt-2 flex-wrap">
-                  {pets.map((p) => {
-                    const isInsuredPet = !!(p.insuranceCompany || (p as any).insurance_company)
-                    const dotColor = isInsuredPet ? '#22C55E' : '#F59E0B'
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => startEditPet(p)}
-                        className="flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity"
-                        aria-label={`Edit ${p.name}`}
-                      >
-                        <div className="relative w-16 h-16">
-                          {p.photo_url ? (
-                            <img src={p.photo_url} alt={p.name} className="rounded-full object-cover w-full h-full ring-2 ring-white shadow-md" />
-                          ) : (
-                            <div className="rounded-full w-full h-full flex items-center justify-center ring-2 ring-white shadow-md text-2xl" style={{ background: '#E5F0EE' }}>🐾</div>
-                          )}
-                          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white" style={{ background: dotColor }} />
-                        </div>
-                        <span className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate max-w-[72px] text-center">{p.name}</span>
-                      </button>
-                    )
-                  })}
-                  {/* Add new pet circle */}
-                  <button
-                    type="button"
-                    onClick={() => setAddingPet(true)}
-                    className="flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity"
-                    aria-label="Add new pet"
-                  >
-                    <div className="w-16 h-16 rounded-full flex items-center justify-center ring-2 ring-dashed ring-slate-300 dark:ring-slate-600 text-slate-400 text-2xl bg-slate-50 dark:bg-slate-800">+</div>
-                    <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Add</span>
-                  </button>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2 flex-shrink-0 pt-1 items-end">
-                <button
-                  type="button"
-                  onClick={() => setShowAddExpenseModal(true)}
-                  className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl px-3 py-2 text-sm font-semibold shadow-sm transition-colors"
-                >
-                  + Add Expense
-                </button>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setActiveView('settings')}
-                    className="flex items-center gap-1.5 bg-white dark:bg-slate-900 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 shadow-sm"
-                    style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
-                  >
-                    ⚙️ Settings
-                  </button>
-                  <a
-                    href={`mailto:support@petclaimhelper.com?subject=Pet Claim Helper Support Request&body=Hi Pet Claim Helper Team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0A----%0D%0AUser: ${userEmail || 'Not logged in'}%0D%0AUser ID: ${userId || 'N/A'}`}
-                    className="flex items-center gap-1.5 bg-white dark:bg-slate-900 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 shadow-sm"
-                    style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
-                  >
-                    💬 Support
-                  </a>
-                </div>
-              </div>
-            </div>
+                {/* ── EXPENSES HERO ─────────────────────────────────────────── */}
+            {(() => {
+              const now = new Date()
+              const currentMonthPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+              const periodLabel = (() => {
+                if (/^\d{4}-\d{2}$/.test(finPeriod)) {
+                  const [y, m] = finPeriod.split('-')
+                  return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                }
+                if (finPeriod === 'all') return 'All Time'
+                if (finPeriod === 'last12') return 'Last 12 Months'
+                return finPeriod
+              })()
+              // Build month options: current + 5 previous months, then year/range options
+              const monthOptions: { value: string; label: string }[] = []
+              for (let i = 0; i < 6; i++) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+                const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+                monthOptions.push({ value: v, label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) })
+              }
+              return (
+                <div className="mx-auto max-w-3xl px-4 pt-5 pb-4">
+                  {/* Top row: label + period selector */}
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                      Total Pet Expenses
+                    </span>
+                    <select
+                      value={finPeriod}
+                      onChange={(e) => setFinPeriod(e.target.value)}
+                      className="text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      {monthOptions.map(o => (
+                        <option key={o.value} value={o.value}>{o.label}{o.value === currentMonthPeriod ? ' (this month)' : ''}</option>
+                      ))}
+                      <optgroup label="────────">
+                        <option value={String(now.getFullYear())}>{now.getFullYear()} (this year)</option>
+                        <option value="last12">Last 12 Months</option>
+                        <option value="all">All Time</option>
+                      </optgroup>
+                    </select>
+                  </div>
 
-            {/* Financial Summary */}
-            <section className="mx-auto mt-4 max-w-5xl">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">Financial Summary</h2>
-                <div className="text-sm">
-                  <label className="mr-2 text-slate-600">Show expenses for:</label>
-                  <select
-                    value={finPeriod}
-                    onChange={(e) => setFinPeriod(e.target.value as any)}
-                    className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-sm"
-                  >
-                    <option value="all">All Time</option>
-                    <option value="2026">2026</option>
-                    <option value="2025">2025</option>
-                    <option value="2024">2024</option>
-                    <option value="last12">Last 12 Months</option>
-                  </select>
+                  {/* Hero number */}
+                  <div className="text-[3.25rem] leading-none font-bold text-slate-900 dark:text-slate-100 tabular-nums tracking-tight mb-3">
+                    {heroTotals != null
+                      ? `$${heroTotals.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : <span className="text-slate-300 dark:text-slate-600">—</span>
+                    }
+                  </div>
+
+                  {/* Reimbursed + Net Cost sub-row */}
+                  <div className="flex items-center gap-3 text-sm mb-5 flex-wrap">
+                    <span className="text-slate-500 dark:text-slate-400">
+                      Reimbursed{' '}
+                      <span className="font-semibold text-emerald-600">
+                        {heroTotals != null
+                          ? `$${heroTotals.reimbursed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : '—'}
+                      </span>
+                    </span>
+                    <span className="text-slate-200 dark:text-slate-700 select-none">|</span>
+                    <span className="text-slate-500 dark:text-slate-400">
+                      Net Cost{' '}
+                      <span className="font-semibold text-slate-800 dark:text-slate-100">
+                        {heroTotals != null
+                          ? `$${heroTotals.netCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : '—'}
+                      </span>
+                    </span>
+                    {activePetFilter && (
+                      <>
+                        <span className="text-slate-200 dark:text-slate-700 select-none">|</span>
+                        <span className="text-xs text-slate-400">
+                          {(() => {
+                            const pet = pets.find(p => p.id === activePetFilter)
+                            return pet ? `Filtered: ${pet.name}` : null
+                          })()}
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Pet filter chips + Add Expense */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* "All" chip */}
+                    <button
+                      type="button"
+                      onClick={() => setActivePetFilter(null)}
+                      className={`flex flex-col items-center gap-1 transition-opacity ${activePetFilter === null ? 'opacity-100' : 'opacity-50 hover:opacity-75'}`}
+                    >
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
+                        activePetFilter === null
+                          ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 ring-2 ring-emerald-500'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                      }`}>All</div>
+                      <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">All</span>
+                    </button>
+
+                    {/* Pet chips */}
+                    {pets.map((p) => {
+                      const isInsuredPet = !!(p.insuranceCompany || (p as any).insurance_company)
+                      const dotColor = isInsuredPet ? '#22C55E' : '#F59E0B'
+                      const isActive = activePetFilter === p.id
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setActivePetFilter(isActive ? null : p.id)}
+                          className={`flex flex-col items-center gap-1 transition-opacity ${isActive ? 'opacity-100' : 'opacity-60 hover:opacity-85'}`}
+                          aria-label={isActive ? `Remove filter: ${p.name}` : `Filter by ${p.name}`}
+                        >
+                          <div className={`relative w-12 h-12 ${isActive ? 'ring-2 ring-emerald-500 rounded-full' : ''}`}>
+                            {p.photo_url ? (
+                              <img src={p.photo_url} alt={p.name} className="rounded-full object-cover w-full h-full ring-2 ring-white shadow-sm" />
+                            ) : (
+                              <div className="rounded-full w-full h-full flex items-center justify-center ring-2 ring-white shadow-sm text-xl" style={{ background: '#E5F0EE' }}>🐾</div>
+                            )}
+                            <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white" style={{ background: dotColor }} />
+                          </div>
+                          <span className="text-[10px] font-medium text-slate-700 dark:text-slate-300 truncate max-w-[52px] text-center">{p.name}</span>
+                        </button>
+                      )
+                    })}
+
+                    {/* Add pet — smaller, muted */}
+                    <button
+                      type="button"
+                      onClick={() => setAddingPet(true)}
+                      className="flex flex-col items-center gap-1 opacity-50 hover:opacity-75 transition-opacity"
+                      aria-label="Add new pet"
+                    >
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center ring-1 ring-dashed ring-slate-400 dark:ring-slate-600 text-slate-400 text-lg bg-transparent">+</div>
+                      <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">Add</span>
+                    </button>
+
+                    {/* Add Expense — right-aligned on desktop, full row on mobile */}
+                    <div className="ml-auto">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddExpenseModal(true)}
+                        className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition-colors"
+                      >
+                        + Add Expense
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )
+            })()}
+
+            {/* Financial Summary accordions (Out-of-Pocket + Per-Pet) */}
+            <section className="mx-auto max-w-3xl px-4 pb-2">
               <FinancialSummary
                 userId={userId}
                 refreshToken={dataRefreshToken}
                 period={finPeriod}
-                summaryCollapsed={financialSummaryCollapsed}
-                onSummaryToggle={() => setFinancialSummaryCollapsed(!financialSummaryCollapsed)}
+                petId={activePetFilter}
+                onTotalsReady={setHeroTotals}
                 outOfPocketCollapsed={outOfPocketCollapsed}
                 onOutOfPocketToggle={() => setOutOfPocketCollapsed(!outOfPocketCollapsed)}
                 perPetCollapsed={perPetCollapsed}
