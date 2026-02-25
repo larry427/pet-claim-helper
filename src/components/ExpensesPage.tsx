@@ -8,6 +8,7 @@ type Props = {
   onClose: () => void
   onModalStateChange?: (isOpen: boolean) => void
   refreshKey?: number
+  period?: string
 }
 
 // Helper to get month key from date string (YYYY-MM)
@@ -30,7 +31,7 @@ const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
   other: '#64748b'             // slate-500
 }
 
-export default function ExpensesPage({ userId, onClose, onModalStateChange, refreshKey }: Props) {
+export default function ExpensesPage({ userId, onClose, onModalStateChange, refreshKey, period }: Props) {
   // Disable browser scroll restoration to prevent mobile scroll position issues
   if (typeof window !== 'undefined') {
     window.history.scrollRestoration = 'manual'
@@ -50,31 +51,47 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
 
-  // Month selector state - default to current month
-  const now = new Date()
-  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey)
-
   // Selected pie chart category
   const [selectedCategory, setSelectedCategory] = useState<ExpenseCategory | null>(null)
 
-  // Get available months from expenses
-  const availableMonths = useMemo(() => {
-    const months = new Set<string>()
-    expenses.forEach(exp => {
-      const monthKey = getMonthKey(exp.expense_date)
-      months.add(monthKey)
-    })
-    // Always include current month
-    months.add(currentMonthKey)
-    // Sort descending (newest first)
-    return Array.from(months).sort((a, b) => b.localeCompare(a))
-  }, [expenses, currentMonthKey])
+  // Reset category selection whenever the period changes
+  useEffect(() => {
+    setSelectedCategory(null)
+  }, [period])
 
-  // Filter expenses by selected month
+  // Filter expenses based on the period prop (YYYY-MM | YYYY | last12 | all)
   const filteredExpenses = useMemo(() => {
-    return expenses.filter(exp => getMonthKey(exp.expense_date) === selectedMonth)
-  }, [expenses, selectedMonth])
+    const now = new Date()
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const p = period || currentMonthKey
+    if (/^\d{4}-\d{2}$/.test(p)) {
+      // Month period: "YYYY-MM"
+      return expenses.filter(exp => exp.expense_date.startsWith(p))
+    }
+    if (/^\d{4}$/.test(p)) {
+      // Year period: "YYYY"
+      return expenses.filter(exp => exp.expense_date.startsWith(p))
+    }
+    if (p === 'last12') {
+      const cutoff = new Date(now)
+      cutoff.setDate(cutoff.getDate() - 365)
+      return expenses.filter(exp => new Date(exp.expense_date + 'T00:00:00') >= cutoff)
+    }
+    // 'all' or unknown
+    return expenses.slice()
+  }, [expenses, period])
+
+  // Human-readable label for the active period
+  const periodLabel = useMemo(() => {
+    const now = new Date()
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const p = period || currentMonthKey
+    if (/^\d{4}-\d{2}$/.test(p)) return formatMonthLabel(p)
+    if (/^\d{4}$/.test(p)) return p
+    if (p === 'last12') return 'Last 12 Months'
+    if (p === 'all') return 'All Time'
+    return p
+  }, [period])
 
   // Calculate summary for selected month
   const monthSummary = useMemo(() => {
@@ -270,25 +287,6 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
         {/* Content */}
         {!loading && !error && expenses.length > 0 && (
           <div className="space-y-4">
-            {/* Month Selector */}
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-sm font-medium text-slate-600 dark:text-slate-400">View:</span>
-              <select
-                value={selectedMonth}
-                onChange={(e) => {
-                  setSelectedMonth(e.target.value)
-                  setSelectedCategory(null) // Reset pie selection when changing month
-                }}
-                className="px-4 py-2 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all cursor-pointer"
-              >
-                {availableMonths.map(monthKey => (
-                  <option key={monthKey} value={monthKey}>
-                    {formatMonthLabel(monthKey)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             {/* Summary Card */}
             <div className="rounded-3xl bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 p-6 sm:p-8 text-white shadow-2xl shadow-emerald-600/30 relative overflow-hidden">
               {/* Decorative elements */}
@@ -297,7 +295,7 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
 
               <div className="relative">
                 <p className="text-emerald-100 text-sm font-semibold uppercase tracking-wider mb-2">
-                  {formatMonthLabel(selectedMonth)} Spending
+                  {periodLabel} Spending
                 </p>
                 <p className="text-5xl sm:text-6xl font-bold tracking-tight">{fmtMoney(monthSummary.total)}</p>
 
@@ -308,7 +306,7 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
                       <p className="text-2xl font-bold mt-1">{fmtMoney(summary.yearToDate)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-emerald-200 text-xs font-medium uppercase tracking-wider">Expenses This Month</p>
+                      <p className="text-emerald-200 text-xs font-medium uppercase tracking-wider">Expenses</p>
                       <p className="text-2xl font-bold mt-1">{monthSummary.count}</p>
                     </div>
                   </div>
@@ -451,11 +449,11 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
             <div className="rounded-3xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-white/60 dark:border-slate-800 overflow-hidden shadow-xl shadow-slate-200/50 dark:shadow-none">
               <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                  {formatMonthLabel(selectedMonth)} Expenses
+                  {periodLabel} Expenses
                 </h2>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                   {filteredExpenses.length === 0
-                    ? 'No expenses this month'
+                    ? 'No expenses yet'
                     : 'Tap to edit, swipe to delete'
                   }
                 </p>

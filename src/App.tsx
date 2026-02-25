@@ -2099,6 +2099,7 @@ function MainApp() {
             onClose={() => setActiveView('app')}
             onModalStateChange={setExpensesPageModalOpen}
             refreshKey={expensesRefreshKey}
+            period={finPeriod}
           />
         )}
         {authView !== 'app' && (
@@ -2235,6 +2236,7 @@ function MainApp() {
                       ))}
                       <optgroup label="────────">
                         <option value={String(now.getFullYear())}>{now.getFullYear()} (this year)</option>
+                        <option value={String(now.getFullYear() - 1)}>{now.getFullYear() - 1}</option>
                         <option value="last12">Last 12 Months</option>
                         <option value="all">All Time</option>
                       </optgroup>
@@ -2342,7 +2344,7 @@ function MainApp() {
             </section>
 
             {/* Non-insurance expenses */}
-            <ExpensesPage userId={userId} onClose={() => {}} onModalStateChange={setExpensesPageModalOpen} refreshKey={expensesRefreshKey} />
+            <ExpensesPage userId={userId} onClose={() => {}} onModalStateChange={setExpensesPageModalOpen} refreshKey={expensesRefreshKey} period={finPeriod} />
           </div>
         )}
 
