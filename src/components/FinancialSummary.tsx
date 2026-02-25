@@ -419,7 +419,7 @@ export default function FinancialSummary({
     }
     return byPet
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [claims, pets, petById, period, petId])
+  }, [claims, pets, petById, period])
 
   if (!userId) return null
 
@@ -581,7 +581,7 @@ export default function FinancialSummary({
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.08)] overflow-hidden">
         <CollapsibleHeader
           title="Per-Pet Breakdown"
-          subtitle={`${petId ? '1 pet' : `${pets.length} pet${pets.length !== 1 ? 's' : ''}`} · ${periodLabel}`}
+          subtitle={`${pets.length} pet${pets.length !== 1 ? 's' : ''} · ${periodLabel}`}
           collapsed={perPetCollapsed}
           onToggle={onPerPetToggle}
           icon="🐕"
