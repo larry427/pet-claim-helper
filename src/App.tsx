@@ -254,6 +254,7 @@ function MainApp() {
     spot_account_number?: string;
     pumpkin_account_number?: string;
     figo_policy_number?: string;
+    photo_url?: string | null;
   } | null>(null)
   const [newPetInsurer, setNewPetInsurer] = useState<string>('')
   const [editPetInsurer, setEditPetInsurer] = useState<string>('')
@@ -1036,7 +1037,8 @@ function MainApp() {
       healthy_paws_pet_id: (pet as any).healthy_paws_pet_id || '',
       spot_account_number: (pet as any).spot_account_number || '',
       pumpkin_account_number: (pet as any).pumpkin_account_number || '',
-      figo_policy_number: (pet as any).figo_policy_number || ''
+      figo_policy_number: (pet as any).figo_policy_number || '',
+      photo_url: pet.photo_url ?? null
     })
     // Set dropdown to display value
     if (!pet.insuranceCompany || pet.insuranceCompany === '') {
@@ -2157,7 +2159,7 @@ function MainApp() {
                 <div className="text-xl font-bold text-slate-900 dark:text-slate-100">
                   {userFirstName ? `${userFirstName}'s pets` : 'Your pets'}
                 </div>
-                <div className="flex gap-3 mt-2 flex-wrap">
+                <div className="flex gap-4 mt-2 flex-wrap">
                   {pets.map((p) => {
                     const isInsuredPet = !!(p.insuranceCompany || (p as any).insurance_company)
                     const dotColor = isInsuredPet ? '#22C55E' : '#F59E0B'
@@ -2166,18 +2168,18 @@ function MainApp() {
                         key={p.id}
                         type="button"
                         onClick={() => startEditPet(p)}
-                        className="flex flex-col items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
+                        className="flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity"
                         aria-label={`Edit ${p.name}`}
                       >
-                        <div className="relative w-10 h-10">
+                        <div className="relative w-16 h-16">
                           {p.photo_url ? (
                             <img src={p.photo_url} alt={p.name} className="rounded-full object-cover w-full h-full ring-2 ring-white shadow-md" />
                           ) : (
-                            <div className="rounded-full w-full h-full flex items-center justify-center ring-2 ring-white shadow-md text-lg" style={{ background: '#E5F0EE' }}>🐾</div>
+                            <div className="rounded-full w-full h-full flex items-center justify-center ring-2 ring-white shadow-md text-2xl" style={{ background: '#E5F0EE' }}>🐾</div>
                           )}
-                          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white" style={{ background: dotColor }} />
+                          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white" style={{ background: dotColor }} />
                         </div>
-                        <span className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate max-w-[48px] text-center">{p.name}</span>
+                        <span className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate max-w-[72px] text-center">{p.name}</span>
                       </button>
                     )
                   })}
@@ -2185,30 +2187,39 @@ function MainApp() {
                   <button
                     type="button"
                     onClick={() => setAddingPet(true)}
-                    className="flex flex-col items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
+                    className="flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity"
                     aria-label="Add new pet"
                   >
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center ring-2 ring-dashed ring-slate-300 dark:ring-slate-600 text-slate-400 text-xl bg-slate-50 dark:bg-slate-800">+</div>
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center ring-2 ring-dashed ring-slate-300 dark:ring-slate-600 text-slate-400 text-2xl bg-slate-50 dark:bg-slate-800">+</div>
                     <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Add</span>
                   </button>
                 </div>
               </div>
-              <div className="flex gap-2 flex-shrink-0 pt-1">
+              <div className="flex flex-col gap-2 flex-shrink-0 pt-1 items-end">
                 <button
                   type="button"
-                  onClick={() => setActiveView('settings')}
-                  className="flex items-center gap-1.5 bg-white dark:bg-slate-900 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 shadow-sm"
-                  style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
+                  onClick={() => setShowAddExpenseModal(true)}
+                  className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl px-3 py-2 text-sm font-semibold shadow-sm transition-colors"
                 >
-                  ⚙️ Settings
+                  + Add Expense
                 </button>
-                <a
-                  href={`mailto:support@petclaimhelper.com?subject=Pet Claim Helper Support Request&body=Hi Pet Claim Helper Team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0A----%0D%0AUser: ${userEmail || 'Not logged in'}%0D%0AUser ID: ${userId || 'N/A'}`}
-                  className="flex items-center gap-1.5 bg-white dark:bg-slate-900 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 shadow-sm"
-                  style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
-                >
-                  💬 Support
-                </a>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveView('settings')}
+                    className="flex items-center gap-1.5 bg-white dark:bg-slate-900 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 shadow-sm"
+                    style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
+                  >
+                    ⚙️ Settings
+                  </button>
+                  <a
+                    href={`mailto:support@petclaimhelper.com?subject=Pet Claim Helper Support Request&body=Hi Pet Claim Helper Team,%0D%0A%0D%0AI need help with:%0D%0A%0D%0A----%0D%0AUser: ${userEmail || 'Not logged in'}%0D%0AUser ID: ${userId || 'N/A'}`}
+                    className="flex items-center gap-1.5 bg-white dark:bg-slate-900 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 shadow-sm"
+                    style={{ border: '1.5px solid rgba(42,157,143,0.13)' }}
+                  >
+                    💬 Support
+                  </a>
+                </div>
               </div>
             </div>
 
@@ -4151,6 +4162,64 @@ function MainApp() {
               <button type="button" className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 text-lg leading-none" onClick={() => { setEditingPetId(null); setEditPet(null) }}>✕</button>
             </div>
             <div className="p-5 overflow-y-auto">
+              {/* Pet photo upload */}
+              <div className="flex flex-col items-center gap-3 pb-5 mb-4 border-b border-slate-200 dark:border-slate-800">
+                <div className="relative w-24 h-24">
+                  {uploadingPhotoForPetId === editingPetId ? (
+                    <div className="rounded-full w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-800 ring-2 ring-white shadow-md">
+                      <div className="w-7 h-7 border-[3px] border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : editPet.photo_url ? (
+                    <img src={editPet.photo_url} alt={editPet.name} className="rounded-full object-cover w-full h-full ring-2 ring-white shadow-md" />
+                  ) : (
+                    <div className="rounded-full w-full h-full flex items-center justify-center ring-2 ring-white shadow-md text-4xl" style={{ background: '#E5F0EE' }}>🐾</div>
+                  )}
+                </div>
+                {photoUploadError && (
+                  <p className="text-xs text-red-500 text-center max-w-xs">{photoUploadError}</p>
+                )}
+                <div className="flex items-center gap-3">
+                  <label
+                    htmlFor="edit-pet-photo-input"
+                    className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    📷 {editPet.photo_url ? 'Change Photo' : 'Add Photo'}
+                  </label>
+                  <input
+                    id="edit-pet-photo-input"
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/heic,image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (editingPetId) handlePetPhotoSelect(editingPetId, e)
+                    }}
+                  />
+                  {editPet.photo_url && (
+                    <button
+                      type="button"
+                      className="text-xs text-slate-500 hover:text-red-500 transition-colors"
+                      onClick={async () => {
+                        if (!editingPetId || !userId) return
+                        const pet = pets.find(p => p.id === editingPetId)
+                        if (!pet) return
+                        setUploadingPhotoForPetId(editingPetId)
+                        try {
+                          await dbUpsertPet(userId, { ...pet, photo_url: null })
+                          const refreshedPets = await dbLoadPets(userId)
+                          setPets(refreshedPets)
+                          setEditPet(prev => prev ? { ...prev, photo_url: null } : prev)
+                        } catch (e: any) {
+                          setPhotoUploadError(e?.message || 'Failed to remove photo')
+                        } finally {
+                          setUploadingPhotoForPetId(null)
+                        }
+                      }}
+                    >
+                      Remove Photo
+                    </button>
+                  )}
+                </div>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label htmlFor="modal-edit-pet-name" className="block text-sm font-medium text-slate-700 dark:text-slate-200">Pet Name</label>
