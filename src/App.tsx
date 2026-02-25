@@ -942,23 +942,15 @@ function MainApp() {
       if (el) {
         clearInterval(poll)
         requestAnimationFrame(() => {
-          // Walk offsetParent chain to get the card's position in DOCUMENT coordinates.
-          // This is scroll-state-independent — getBoundingClientRect().top is
-          // viewport-relative and can be stale/wrong if any scroll animation is
-          // still in flight or a background setClaims() re-render just occurred.
-          let docTop = 0
-          let node: HTMLElement | null = el
-          while (node) {
-            docTop += node.offsetTop
-            node = node.offsetParent as HTMLElement | null
-          }
-          // Get real tab-bar height (includes safe-area-inset-bottom on iPhone)
-          const tabBar = document.querySelector<HTMLElement>('nav[class*="fixed"]')
-          const tabBarH = tabBar?.offsetHeight ?? 72
-          // Centre the card in the visible viewport area above the tab bar
-          const visibleMidY = (window.innerHeight - tabBarH) / 2
-          const targetY = Math.max(0, docTop - visibleMidY + el.offsetHeight / 2)
-          window.scrollTo({ top: targetY, behavior: 'smooth' })
+          // Simple, robust approach: compute the card's document-absolute top
+          // (scrollY + viewport-relative top works at any scroll position),
+          // then place the card 120px below the viewport top.
+          // No tab-bar height math, no centering formula — just a fixed offset
+          // that keeps the card in the upper-middle of every phone screen and
+          // always well above the fixed tab bar (~750px on iPhone).
+          const rect = el.getBoundingClientRect()
+          const docTop = window.scrollY + rect.top
+          window.scrollTo({ top: Math.max(0, docTop - 120), behavior: 'smooth' })
         })
       } else if (attempts >= 20) {
         clearInterval(poll) // give up after ~2 seconds
