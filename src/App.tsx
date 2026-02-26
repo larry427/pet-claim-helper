@@ -163,20 +163,10 @@ async function createOrUpdateVetExpense(claim: any, netCost: number) {
     .eq('claim_id', claim.id)
     .single()
 
-  // If service date is more than 30 days old, use today's date
+  // Always use the actual service date; fall back to today only if none provided
   const serviceDate = claim.service_date
   const today = new Date().toISOString().split('T')[0]
-  let expenseDate = today
-
-  if (serviceDate) {
-    const serviceDateObj = new Date(serviceDate + 'T00:00:00')
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-
-    if (serviceDateObj >= thirtyDaysAgo) {
-      expenseDate = serviceDate
-    }
-  }
+  const expenseDate = serviceDate || today
 
   const expenseData = {
     user_id: user.user.id,
