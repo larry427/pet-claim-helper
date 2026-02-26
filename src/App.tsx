@@ -3073,7 +3073,7 @@ function MainApp() {
             )}
 
             {/* Claims list */}
-            <div ref={claimsSectionRef} className="mt-5 bg-gray-100 dark:bg-slate-950 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full overflow-x-hidden" style={{ overscrollBehaviorX: 'none' }}>
+            <div ref={claimsSectionRef} className="mt-5 bg-gray-100 dark:bg-slate-950 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch w-full overflow-x-hidden" style={{ overscrollBehaviorX: 'none' }}>
               {orderedClaims.map((c) => {
                 const pet = c.pets || {}
                 const petColor = pet?.color || (pet?.species === 'cat' ? '#F97316' : pet?.species === 'dog' ? '#3B82F6' : '#6B7280')
@@ -3185,7 +3185,7 @@ function MainApp() {
                     style={{ touchAction: 'pan-y', overscrollBehaviorX: 'none' }}
                   >
                     {/* Card body */}
-                    <div className="p-5 space-y-3 flex-1">
+                    <div className="p-5 flex flex-col gap-3 flex-1">
                       {/* Row 1: Icon + "Pet · Visit Type" + Amount */}
                       <div className="flex items-center gap-3">
                         <div
@@ -3209,22 +3209,22 @@ function MainApp() {
                         {[c.clinic_name, serviceDateStr].filter(Boolean).join(' · ') || '—'}
                       </div>
 
-                      {/* Row 3: Status pill + deadline/reimbursement */}
-                      <div className="flex items-center gap-2 flex-wrap pl-[52px]">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium whitespace-nowrap ${statusPill.cls}`}>
+                      {/* Row 3: Status pill + deadline/reimbursement — single line, no wrap */}
+                      <div className="flex items-center gap-2 pl-[52px] overflow-hidden">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium whitespace-nowrap shrink-0 ${statusPill.cls}`}>
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusPill.dot}`} />
                           {statusPill.text}
                         </span>
                         {!isNotInsured && isNotSubmitted && deadline && (
-                          <span className={`text-xs font-medium ${rem !== null && rem < 0 ? 'text-rose-600 dark:text-rose-400' : rem !== null && rem <= 14 ? 'text-orange-500 dark:text-orange-400' : 'text-slate-600'}`}>
+                          <span className={`text-xs font-medium whitespace-nowrap truncate ${rem !== null && rem < 0 ? 'text-rose-600 dark:text-rose-400' : rem !== null && rem <= 14 ? 'text-orange-500 dark:text-orange-400' : 'text-slate-600'}`}>
                             {dlBadge.text}
                           </span>
                         )}
                         {isSubmitted && filedDateStr && (
-                          <span className="text-xs text-slate-600 dark:text-slate-400">Filed {filedDateStr}</span>
+                          <span className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap truncate">Filed {filedDateStr}</span>
                         )}
                         {isPaid && (
-                          <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                          <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium whitespace-nowrap truncate">
                             Got back {fmtMoney(reimb)} ({reimbPct}%){paidDateStr && ` · ${paidDateStr}`}
                           </span>
                         )}
