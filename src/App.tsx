@@ -3139,7 +3139,15 @@ function MainApp() {
                 const isSubmitted = st === 'submitted'
                 const isPaid = st === 'paid'
                 const visitTitle = ((c.visit_title && String(c.visit_title)) || (c.diagnosis && String(c.diagnosis)) || '').trim()
-                const serviceDateStr = c.service_date ? (getServiceDate(c)?.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) || '') : ''
+                const serviceDateStr = (() => {
+                  const d = getServiceDate(c)
+                  if (d) return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                  if (c.service_date) {
+                    const fallback = new Date(c.service_date)
+                    if (!Number.isNaN(fallback.getTime())) return fallback.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                  }
+                  return ''
+                })()
                 const reimb = Number((c as any).reimbursed_amount || 0)
                 const claimedAmt = Number(c.total_amount || 0)
                 const reimbPct = claimedAmt > 0 ? Math.round((reimb / claimedAmt) * 100) : 0
@@ -3209,26 +3217,28 @@ function MainApp() {
                         {[c.clinic_name, serviceDateStr].filter(Boolean).join(' · ') || '—'}
                       </div>
 
-                      {/* Row 3: Status pill + deadline/reimbursement — single line, no wrap */}
+                      {/* Row 3: Status pill + deadline/filed — single line */}
                       <div className="flex items-center gap-2 pl-[52px] overflow-hidden">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium whitespace-nowrap shrink-0 ${statusPill.cls}`}>
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusPill.dot}`} />
                           {statusPill.text}
                         </span>
                         {!isNotInsured && isNotSubmitted && deadline && (
-                          <span className={`text-xs font-medium whitespace-nowrap truncate ${rem !== null && rem < 0 ? 'text-rose-600 dark:text-rose-400' : rem !== null && rem <= 14 ? 'text-orange-500 dark:text-orange-400' : 'text-slate-600'}`}>
+                          <span className={`text-xs font-medium whitespace-nowrap ${rem !== null && rem < 0 ? 'text-rose-600 dark:text-rose-400' : rem !== null && rem <= 14 ? 'text-orange-500 dark:text-orange-400' : 'text-slate-600'}`}>
                             {dlBadge.text}
                           </span>
                         )}
                         {isSubmitted && filedDateStr && (
-                          <span className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap truncate">Filed {filedDateStr}</span>
-                        )}
-                        {isPaid && (
-                          <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium whitespace-nowrap truncate">
-                            Got back {fmtMoney(reimb)} ({reimbPct}%){paidDateStr && ` · ${paidDateStr}`}
-                          </span>
+                          <span className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">Filed {filedDateStr}</span>
                         )}
                       </div>
+
+                      {/* Row 4 (paid only): Reimbursement — full text, no truncation */}
+                      {isPaid && (
+                        <div className="pl-[52px] text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                          Got back {fmtMoney(reimb)} ({reimbPct}%){paidDateStr && ` · ${paidDateStr}`}
+                        </div>
+                      )}
                     </div>
 
                     {/* Divider */}
