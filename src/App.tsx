@@ -3177,7 +3177,7 @@ function MainApp() {
                     data-claim-id={c.id}
                     className={[
                       'relative rounded-lg bg-white dark:bg-slate-900',
-                      'border border-gray-200 dark:border-slate-800',
+                      'border-2 border-emerald-400 dark:border-emerald-600',
                       'shadow-lg hover:shadow-xl transition-shadow duration-200',
                       'overflow-hidden w-full',
                       isNewlyCreated ? 'ring-2 ring-emerald-500 ring-offset-2' : '',
@@ -3197,7 +3197,7 @@ function MainApp() {
                           </div>
                           <div className="min-w-0">
                             <div className="font-semibold text-slate-900 dark:text-slate-100 leading-snug line-clamp-2">
-                              {pet.name || 'Pet'}{visitTitle && ` · ${visitTitle}`}
+                              {pet.name || 'Pet'}{visitTitle && ` · ${visitTitle}`}{serviceDateStr && ` · ${serviceDateStr}`}
                             </div>
                             <div className="text-sm text-slate-400 dark:text-slate-500 truncate mt-0.5">
                               {c.clinic_name || '—'}
@@ -3211,10 +3211,9 @@ function MainApp() {
                         </div>
                       </div>
 
-                      {/* Row 2: Date + status pill + deadline */}
+                      {/* Row 2: Status pill + deadline */}
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm text-slate-500 dark:text-slate-400">{serviceDateStr || '—'}</span>
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium whitespace-nowrap ${statusPill.cls}`}>
                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusPill.dot}`} />
                             {statusPill.text}
