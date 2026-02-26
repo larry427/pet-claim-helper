@@ -330,7 +330,7 @@ export default function FinancialSummary({
 
     // Hero totals: pet_expenses is the source of truth for all spending.
     // Claims are already mirrored in pet_expenses, so don't add them again.
-    const heroTotal = petExpensesTotal
+    const heroTotal = petExpensesTotal + premiumsYTD
     const heroNetCost = Math.max(0, heroTotal - insurancePaidBack)
 
     const definiteTotal = premiumsYTD + nonInsuredTotal + userShareCoveredClaims
