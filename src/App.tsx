@@ -3219,10 +3219,12 @@ function MainApp() {
                         </div>
                       )}
 
-                      {/* Line 3: Date */}
+                      {/* Line 3: Date pill */}
                       {serviceDateStr && (
-                        <div className="text-sm text-slate-600 dark:text-slate-400 pl-[52px]">
-                          {serviceDateStr}
+                        <div className="pl-[52px]">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded border border-gray-300 dark:border-slate-600 text-sm font-medium text-slate-700 dark:text-slate-300">
+                            {serviceDateStr}
+                          </span>
                         </div>
                       )}
 
