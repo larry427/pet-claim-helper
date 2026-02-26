@@ -3160,13 +3160,6 @@ function MainApp() {
                   if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                   return c.filed_date ? new Date(c.filed_date as any).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null
                 })()
-                // Left-border accent by status
-                const accentCls = isNotInsured ? ''
-                  : isNotSubmitted ? 'border-l-[3px] border-amber-400'
-                  : isSubmitted ? 'border-l-[3px] border-blue-400'
-                  : isPaid ? 'border-l-[3px] border-emerald-400'
-                  : st === 'denied' ? 'border-l-[3px] border-rose-400'
-                  : ''
                 // Status pill
                 const statusPill = isPaid
                   ? { text: '✓ Paid', cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' }
@@ -3191,10 +3184,9 @@ function MainApp() {
                     key={c.id}
                     data-claim-id={c.id}
                     className={[
-                      'relative rounded-2xl bg-white dark:bg-slate-900',
-                      'shadow-md hover:shadow-lg transition-shadow duration-200',
+                      'relative rounded-xl bg-white dark:bg-slate-900',
+                      'shadow-sm hover:shadow-md transition-shadow duration-200',
                       'overflow-hidden w-full',
-                      accentCls,
                       isNewlyCreated ? 'ring-2 ring-emerald-500 ring-offset-2 shadow-emerald-200/50 dark:shadow-emerald-900/30' : '',
                     ].join(' ')}
                     style={{ touchAction: 'pan-y', overscrollBehaviorX: 'none' }}
