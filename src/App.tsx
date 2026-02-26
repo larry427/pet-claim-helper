@@ -2223,7 +2223,7 @@ function MainApp() {
                 <div className="mx-auto max-w-3xl px-4 pt-5 pb-4">
                   {/* Top row: label + period selector */}
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                    <span className="text-lg font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">
                       Net Pet Costs
                     </span>
                     <select
@@ -2274,7 +2274,7 @@ function MainApp() {
 
                   {/* Pet circles (tap to edit) + Add Expense */}
                   <div className="flex items-center gap-3 flex-wrap">
-                    {/* Pet circles — 72px, tap opens Edit Pet modal */}
+                    {/* Pet circles — 80px, tap opens Edit Pet modal */}
                     {pets.map((p) => {
                       const isInsuredPet = !!(p.insuranceCompany || (p as any).insurance_company)
                       const dotColor = isInsuredPet ? '#22C55E' : '#F59E0B'
@@ -2286,7 +2286,7 @@ function MainApp() {
                           className="flex flex-col items-center gap-1.5 hover:opacity-85 active:scale-95 transition-all"
                           aria-label={`Edit ${p.name}`}
                         >
-                          <div className="relative w-[72px] h-[72px]">
+                          <div className="relative w-[80px] h-[80px]">
                             {uploadingPhotoForPetId === p.id ? (
                               <div className="rounded-full w-full h-full flex items-center justify-center ring-2 ring-white shadow-md" style={{ background: '#E5F0EE' }}>
                                 <div className="w-6 h-6 border-[3px] border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -2310,7 +2310,7 @@ function MainApp() {
                       className="flex flex-col items-center gap-1.5 opacity-50 hover:opacity-75 transition-opacity"
                       aria-label="Add new pet"
                     >
-                      <div className="w-[72px] h-[72px] rounded-full flex items-center justify-center ring-2 ring-dashed ring-slate-400 dark:ring-slate-600 text-slate-400 text-2xl bg-transparent">+</div>
+                      <div className="w-[80px] h-[80px] rounded-full flex items-center justify-center ring-2 ring-dashed ring-slate-400 dark:ring-slate-600 text-slate-400 text-2xl bg-transparent">+</div>
                       <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">Add Pet</span>
                     </button>
 
