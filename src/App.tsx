@@ -3041,25 +3041,17 @@ function MainApp() {
               <h2 className="text-xl font-semibold">Vet Bills</h2>
             </div>
 
-            {/* Summary pills */}
-            <div className="mt-3 flex items-center gap-2 flex-wrap text-sm">
-              <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
-                {claimsSummary.total} bill{claimsSummary.total !== 1 ? 's' : ''}
-              </span>
+            {/* Summary line */}
+            <div className="mt-2 flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 flex-wrap">
+              <span>{claimsSummary.total} bill{claimsSummary.total !== 1 ? 's' : ''}</span>
               {claimsSummary.notFiledCount > 0 && (
-                <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800 font-medium">
-                  {claimsSummary.notFiledCount} pending · {fmtMoney(claimsSummary.notFiledSum)}
-                </span>
+                <><span className="text-slate-300 dark:text-slate-600">·</span><span>{claimsSummary.notFiledCount} pending · {fmtMoney(claimsSummary.notFiledSum)}</span></>
               )}
               {claimsSummary.filedPending > 0 && (
-                <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800 font-medium">
-                  {claimsSummary.filedPending} filed
-                </span>
+                <><span className="text-slate-300 dark:text-slate-600">·</span><span>{claimsSummary.filedPending} filed</span></>
               )}
               {claimsSummary.expiringSoon > 0 && (
-                <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800 font-medium">
-                  ⚠️ {claimsSummary.expiringSoon} expiring soon
-                </span>
+                <><span className="text-slate-300 dark:text-slate-600">·</span><span className="text-rose-500 dark:text-rose-400">{claimsSummary.expiringSoon} expiring soon</span></>
               )}
             </div>
 
@@ -3081,7 +3073,7 @@ function MainApp() {
             )}
 
             {/* Claims list */}
-            <div ref={claimsSectionRef} className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full overflow-x-hidden" style={{ overscrollBehaviorX: 'none' }}>
+            <div ref={claimsSectionRef} className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 w-full overflow-x-hidden" style={{ overscrollBehaviorX: 'none' }}>
               {orderedClaims.map((c) => {
                 const pet = c.pets || {}
                 const petColor = pet?.color || (pet?.species === 'cat' ? '#F97316' : pet?.species === 'dog' ? '#3B82F6' : '#6B7280')
@@ -3162,14 +3154,14 @@ function MainApp() {
                 })()
                 // Status pill
                 const statusPill = isPaid
-                  ? { text: '✓ Paid', cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' }
+                  ? { text: 'Paid', cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' }
                   : st === 'denied'
-                    ? { text: '✗ Denied', cls: 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' }
+                    ? { text: 'Denied', cls: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' }
                     : isSubmitted
-                      ? { text: '📤 Filed', cls: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' }
+                      ? { text: 'Filed', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' }
                       : isNotInsured
                         ? { text: 'Self-Pay', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' }
-                        : { text: '⏳ Needs Filing', cls: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' }
+                        : { text: 'Needs Filing', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' }
                 // Auto-submit eligibility
                 const showAutoSubmit = (() => {
                   if (!userEmail) return false
@@ -3185,17 +3177,18 @@ function MainApp() {
                     data-claim-id={c.id}
                     className={[
                       'relative rounded-xl bg-white dark:bg-slate-900',
-                      'shadow-sm hover:shadow-md transition-shadow duration-200',
+                      'border border-gray-200 dark:border-slate-800',
+                      'hover:shadow-md transition-shadow duration-200',
                       'overflow-hidden w-full',
-                      isNewlyCreated ? 'ring-2 ring-emerald-500 ring-offset-2 shadow-emerald-200/50 dark:shadow-emerald-900/30' : '',
+                      isNewlyCreated ? 'ring-2 ring-emerald-500 ring-offset-2' : '',
                     ].join(' ')}
                     style={{ touchAction: 'pan-y', overscrollBehaviorX: 'none' }}
                   >
                     {/* Card body */}
-                    <div className="px-4 pt-4 pb-3 space-y-3">
-                      {/* Row 1: Pet avatar + name/title + amount/status */}
+                    <div className="p-5 space-y-4">
+                      {/* Row 1: Pet avatar + name/title + amount */}
                       <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex items-center gap-3 min-w-0">
                           <div
                             className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-xl leading-none"
                             style={{ background: petColor + '1a' }}
@@ -3215,38 +3208,40 @@ function MainApp() {
                           <div className="text-lg font-bold font-mono text-slate-900 dark:text-slate-100 leading-none">
                             {fmtMoney(c.total_amount)}
                           </div>
-                          <div className={`mt-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${statusPill.cls}`}>
-                            {statusPill.text}
-                          </div>
                         </div>
                       </div>
 
-                      {/* Row 2: Date + deadline / filed date */}
-                      <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center justify-between flex-wrap gap-x-3 gap-y-1">
-                        <span>{serviceDateStr || '—'}</span>
+                      {/* Row 2: Date + status pill + deadline */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm text-slate-500 dark:text-slate-400">{serviceDateStr || '—'}</span>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium whitespace-nowrap ${statusPill.cls}`}>
+                            {statusPill.text}
+                          </span>
+                        </div>
                         {!isNotInsured && isNotSubmitted && deadline && (
-                          <span className={`text-xs font-medium ${rem !== null && rem < 0 ? 'text-rose-600 dark:text-rose-400' : rem !== null && rem <= 14 ? 'text-orange-600 dark:text-orange-400' : 'text-slate-400'}`}>
+                          <span className={`text-xs font-medium ${rem !== null && rem < 0 ? 'text-rose-600 dark:text-rose-400' : rem !== null && rem <= 14 ? 'text-orange-500 dark:text-orange-400' : 'text-slate-400'}`}>
                             {dlBadge.text}
                           </span>
                         )}
                         {isSubmitted && filedDateStr && (
-                          <span className="text-xs text-slate-400 flex items-center gap-1">
-                            <span>📤</span>Filed {filedDateStr}
-                          </span>
+                          <span className="text-xs text-slate-400">Filed {filedDateStr}</span>
                         )}
                       </div>
 
                       {/* Reimbursement row (paid only) */}
                       {isPaid && (
-                        <div className="inline-flex items-center gap-1.5 text-xs bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-full px-3 py-1 font-medium">
-                          <span>✓</span>
-                          <span>Got back {fmtMoney(reimb)} ({reimbPct}%){paidDateStr && ` · ${paidDateStr}`}</span>
+                        <div className="text-sm text-emerald-700 dark:text-emerald-400 font-medium">
+                          Got back {fmtMoney(reimb)} ({reimbPct}%){paidDateStr && ` · ${paidDateStr}`}
                         </div>
                       )}
                     </div>
 
+                    {/* Divider */}
+                    <div className="mx-5 border-t border-gray-100 dark:border-slate-800" />
+
                     {/* Card footer: primary CTA + secondary controls */}
-                    <div className="px-4 pb-4 flex items-center gap-2">
+                    <div className="px-5 py-3 flex items-center gap-2">
                       {/* Primary CTA */}
                       {isNotSubmitted && !isNotInsured && showAutoSubmit && (
                         <button
@@ -3275,7 +3270,7 @@ function MainApp() {
                               <span className="animate-pulse">Preparing…</span>
                             </>
                           ) : (
-                            <><span>🚀</span> Auto-Submit</>
+                            <>Auto-Submit</>
                           )}
                         </button>
                       )}
