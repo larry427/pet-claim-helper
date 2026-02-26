@@ -323,8 +323,8 @@ export default function FinancialSummary({
     // All pet_expenses for hero total (food, grooming, supplies, boarding, vet_medical, other)
     let petExpensesTotal = 0
     for (const e of allPetExpenses) {
-      const d = parseYmdLocal(e.expense_date)
-      if (!d || !inPeriod(d)) continue
+      const d = parseYmdLocal(e.expense_date) || (e.expense_date ? new Date(e.expense_date) : null)
+      if (!d || isNaN(d.getTime()) || !inPeriod(d)) continue
       petExpensesTotal += Number(e.amount) || 0
     }
 
