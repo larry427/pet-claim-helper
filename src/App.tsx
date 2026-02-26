@@ -3073,7 +3073,7 @@ function MainApp() {
             )}
 
             {/* Claims list */}
-            <div ref={claimsSectionRef} className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 w-full overflow-x-hidden" style={{ overscrollBehaviorX: 'none' }}>
+            <div ref={claimsSectionRef} className="mt-5 bg-slate-50 dark:bg-slate-950 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 w-full overflow-x-hidden" style={{ overscrollBehaviorX: 'none' }}>
               {orderedClaims.map((c) => {
                 const pet = c.pets || {}
                 const petColor = pet?.color || (pet?.species === 'cat' ? '#F97316' : pet?.species === 'dog' ? '#3B82F6' : '#6B7280')
@@ -3176,12 +3176,13 @@ function MainApp() {
                     key={c.id}
                     data-claim-id={c.id}
                     className={[
-                      'relative rounded-xl bg-white dark:bg-slate-900',
-                      'border border-gray-200 dark:border-slate-800',
-                      'hover:shadow-md transition-shadow duration-200',
+                      'relative rounded-xl',
+                      'border border-gray-100 dark:border-slate-800',
+                      'shadow-md hover:shadow-lg transition-shadow duration-200',
                       'overflow-hidden w-full',
                       isNewlyCreated ? 'ring-2 ring-emerald-500 ring-offset-2' : '',
                     ].join(' ')}
+                    style={{ background: 'linear-gradient(to bottom, #ffffff 0%, #fafafa 100%)' }}
                     style={{ touchAction: 'pan-y', overscrollBehaviorX: 'none' }}
                   >
                     {/* Card body */}
