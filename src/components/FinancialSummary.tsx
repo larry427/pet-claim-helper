@@ -269,7 +269,7 @@ export default function FinancialSummary({
     const viewYear = (() => {
       if (isMonthPeriod || isLast12) return null
       const p = String(period || '').toLowerCase()
-      if (p === '2024' || p === '2025' || p === '2026') return Number(p)
+      if (/^\d{4}$/.test(p)) return Number(p)
       if (p === 'all') return null
       return nowYear
     })()
@@ -331,7 +331,7 @@ export default function FinancialSummary({
     // Hero totals: pet_expenses is the source of truth for all spending.
     // Claims are already mirrored in pet_expenses, so don't add them again.
     const heroTotal = petExpensesTotal
-    const heroNetCost = heroTotal - insurancePaidBack
+    const heroNetCost = Math.max(0, heroTotal - insurancePaidBack)
 
     const definiteTotal = premiumsYTD + nonInsuredTotal + userShareCoveredClaims
     return {
@@ -357,7 +357,7 @@ export default function FinancialSummary({
     const viewYear = (() => {
       if (isMonthPeriod || isLast12) return null
       const p = String(period || '').toLowerCase()
-      if (p === '2024' || p === '2025' || p === '2026') return Number(p)
+      if (/^\d{4}$/.test(p)) return Number(p)
       if (p === 'all') return null
       return nowYear
     })()
@@ -504,7 +504,7 @@ export default function FinancialSummary({
                 const viewYear = (() => {
                   if (isMonthPeriod || isLast12) return null
                   const p = String(period || '').toLowerCase()
-                  if (p === '2024' || p === '2025' || p === '2026') return Number(p)
+                  if (/^\d{4}$/.test(p)) return Number(p)
                   if (p === 'all') return null
                   return nowYear
                 })()

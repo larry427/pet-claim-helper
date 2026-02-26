@@ -93,6 +93,25 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
     return p
   }, [period])
 
+  // Year-to-Date total for the year containing the selected period.
+  // This correctly follows the period selector (e.g. selecting "2025" shows 2025 YTD, not 2026).
+  const ytdForPeriod = useMemo(() => {
+    const now = new Date()
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const p = period || currentMonthKey
+    // Derive the year to sum for
+    let ytdYear: string
+    if (/^\d{4}-\d{2}$/.test(p)) {
+      ytdYear = p.slice(0, 4)
+    } else if (/^\d{4}$/.test(p)) {
+      ytdYear = p
+    } else {
+      // last12 / all → use current calendar year
+      ytdYear = String(now.getFullYear())
+    }
+    return expenses.filter(e => e.expense_date.startsWith(ytdYear)).reduce((s, e) => s + e.amount, 0)
+  }, [expenses, period])
+
   // Calculate summary for selected month
   const monthSummary = useMemo(() => {
     const byCategory: Record<ExpenseCategory, number> = {
@@ -303,7 +322,7 @@ export default function ExpensesPage({ userId, onClose, onModalStateChange, refr
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-emerald-200 text-xs font-medium uppercase tracking-wider">Year to Date</p>
-                      <p className="text-2xl font-bold mt-1">{fmtMoney(summary.yearToDate)}</p>
+                      <p className="text-2xl font-bold mt-1">{fmtMoney(ytdForPeriod)}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-emerald-200 text-xs font-medium uppercase tracking-wider">Expenses</p>
