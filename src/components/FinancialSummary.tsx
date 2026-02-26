@@ -55,8 +55,7 @@ export default function FinancialSummary({
   const [error, setError] = useState<string | null>(null)
   const [claims, setClaims] = useState<ClaimRow[]>([])
   const [pets, setPets] = useState<PetRow[]>([])
-  // Non-vet expenses (food, grooming, supplies, training/boarding) for hero total
-  // All pet_expenses rows (food, grooming, supplies, boarding, vet_medical, other)
+  // All pet_expenses rows — source of truth for hero total (vet_medical, food, grooming, etc.)
   const [allPetExpenses, setAllPetExpenses] = useState<{ amount: number; expense_date: string }[]>([])
 
   useEffect(() => {
@@ -329,8 +328,9 @@ export default function FinancialSummary({
       petExpensesTotal += Number(e.amount) || 0
     }
 
-    // Hero totals: all spending (claims + pet_expenses), no premiums in total
-    const heroTotal = insuredBillsTotal + nonInsuredTotal + petExpensesTotal
+    // Hero totals: pet_expenses is the source of truth for all spending.
+    // Claims are already mirrored in pet_expenses, so don't add them again.
+    const heroTotal = petExpensesTotal
     const heroNetCost = heroTotal - insurancePaidBack
 
     const definiteTotal = premiumsYTD + nonInsuredTotal + userShareCoveredClaims
