@@ -144,7 +144,7 @@ export default function FinancialSummary({
   }
 
   // Calculate premiums for a specific pet for the current filter period
-  const calculatePremiumsForPet = (pet: PetRow, filterYear: number | null): { total: number; monthsCount: number; context: string } => {
+  const calculatePremiumsForPet = (pet: PetRow, filterYear: number | null, isLast12Period = false): { total: number; monthsCount: number; context: string } => {
     const monthly = Number(pet.monthly_premium) || 0
     if (monthly === 0) {
       return { total: 0, monthsCount: 0, context: 'No insurance' }
@@ -158,6 +158,23 @@ export default function FinancialSummary({
     const today = new Date()
     const currentYear = today.getFullYear()
     const currentMonth = today.getMonth() // 0-11
+
+    // "Last 12 months" — cap at 12 billing cycles; fewer if coverage started recently
+    if (isLast12Period) {
+      if (coverageStart > today) return { total: 0, monthsCount: 0, context: 'No coverage' }
+      const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 365)
+      // Coverage predates the 12-month window → exactly 12 billing cycles
+      if (coverageStart <= cutoff) {
+        return { total: monthly * 12, monthsCount: 12, context: 'Last 12 months' }
+      }
+      // Coverage started within the last 12 months → partial period
+      const monthsDiff = (today.getFullYear() - coverageStart.getFullYear()) * 12
+        + (today.getMonth() - coverageStart.getMonth())
+      const additionalMonth = today.getDate() >= coverageStart.getDate() ? 1 : 0
+      const months = Math.max(0, monthsDiff + additionalMonth)
+      const startLabel = coverageStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+      return { total: monthly * months, monthsCount: months, context: `${startLabel} – now` }
+    }
 
     // Determine the year we're calculating for
     const targetYear = filterYear !== null ? filterYear : null // null means "All Time"
@@ -288,7 +305,7 @@ export default function FinancialSummary({
         if (futureMonth) return sum
         return sum + monthly
       }
-      const calc = calculatePremiumsForPet(p, viewYear)
+      const calc = calculatePremiumsForPet(p, viewYear, isLast12)
       return sum + calc.total
     }, 0)
 
@@ -333,7 +350,9 @@ export default function FinancialSummary({
     const heroTotal = petExpensesTotal + premiumsYTD
     const heroNetCost = Math.max(0, heroTotal - insurancePaidBack)
 
-    const definiteTotal = premiumsYTD + nonInsuredTotal + userShareCoveredClaims
+    // Round each component to cents before summing so displayed line items always add up exactly.
+    const rc = (n: number) => Math.round(n * 100) / 100
+    const definiteTotal = rc(premiumsYTD) + rc(nonInsuredTotal) + rc(userShareCoveredClaims)
     return {
       premiumsYTD, nonInsuredTotal, insurancePaidBack, userShareCoveredClaims,
       insuredBillsTotal, definiteTotal, pendingTotal,
@@ -381,7 +400,7 @@ export default function FinancialSummary({
           if (start <= targetMonth && !futureMonth) premiums = monthly
         }
       } else {
-        premiums = calculatePremiumsForPet(p, viewYear).total
+        premiums = calculatePremiumsForPet(p, viewYear, isLast12).total
       }
       byPet[p.id] = { claimed: 0, reimbursed: 0, premiums, nonInsured: 0, pendingBills: 0, filedClaims: 0 }
     }
@@ -522,7 +541,7 @@ export default function FinancialSummary({
                       if (start <= targetMonth && !futureMonth) { total = monthly; monthsCount = 1; context = periodLabel }
                     }
                   } else {
-                    const calc = calculatePremiumsForPet(p, viewYear)
+                    const calc = calculatePremiumsForPet(p, viewYear, isLast12)
                     total = calc.total; monthsCount = calc.monthsCount; context = calc.context
                   }
                   return { pet: p, total, monthsCount, context }
