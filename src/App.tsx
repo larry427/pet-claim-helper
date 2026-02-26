@@ -3193,49 +3193,62 @@ function MainApp() {
                     style={{ touchAction: 'pan-y', overscrollBehaviorX: 'none' }}
                   >
                     {/* Card body */}
-                    <div className="p-5 flex flex-col gap-3 flex-1">
-                      {/* Row 1: Icon + "Pet · Visit Type" + Amount */}
-                      <div className="flex items-center gap-3">
+                    <div className="p-5 flex flex-col gap-2.5 flex-1">
+                      {/* Line 1: Icon + Pet · Visit Type + Amount */}
+                      <div className="flex items-start gap-3">
                         <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-xl leading-none"
+                          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-xl leading-none mt-0.5"
                           style={{ background: petColor + '22' }}
                         >
                           {pet.species === 'cat' ? '🐱' : '🐶'}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-slate-900 dark:text-slate-100 truncate">
+                          <div className="font-semibold text-slate-900 dark:text-slate-100 leading-snug">
                             {pet.name || 'Pet'}{visitTitle && ` · ${visitTitle}`}
                           </div>
                         </div>
-                        <div className="shrink-0 text-2xl font-bold font-mono text-slate-900 dark:text-slate-100 tracking-tight">
+                        <div className="shrink-0 text-2xl font-bold font-mono text-slate-900 dark:text-slate-100 tracking-tight leading-none mt-0.5">
                           {fmtMoney(c.total_amount)}
                         </div>
                       </div>
 
-                      {/* Row 2: Clinic · Date */}
-                      <div className="text-sm text-slate-600 dark:text-slate-400 truncate pl-[52px]">
-                        {[c.clinic_name, serviceDateStr].filter(Boolean).join(' · ') || '—'}
-                      </div>
+                      {/* Line 2: Clinic name */}
+                      {c.clinic_name && (
+                        <div className="text-sm text-slate-600 dark:text-slate-400 pl-[52px]">
+                          {c.clinic_name}
+                        </div>
+                      )}
 
-                      {/* Row 3: Status pill + deadline/filed — single line */}
-                      <div className="flex items-center gap-2 pl-[52px] overflow-hidden">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium whitespace-nowrap shrink-0 ${statusPill.cls}`}>
+                      {/* Line 3: Date */}
+                      {serviceDateStr && (
+                        <div className="text-sm text-slate-600 dark:text-slate-400 pl-[52px]">
+                          {serviceDateStr}
+                        </div>
+                      )}
+
+                      {/* Line 4: Status pill */}
+                      <div className="pl-[52px]">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium ${statusPill.cls}`}>
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusPill.dot}`} />
                           {statusPill.text}
                         </span>
-                        {!isNotInsured && isNotSubmitted && deadline && (
-                          <span className={`text-xs font-medium whitespace-nowrap ${rem !== null && rem < 0 ? 'text-rose-600 dark:text-rose-400' : rem !== null && rem <= 14 ? 'text-orange-500 dark:text-orange-400' : 'text-slate-600'}`}>
-                            {dlBadge.text}
-                          </span>
-                        )}
-                        {isSubmitted && filedDateStr && (
-                          <span className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">Filed {filedDateStr}</span>
-                        )}
                       </div>
 
-                      {/* Row 4 (paid only): Reimbursement — full text, no truncation */}
+                      {/* Line 5: Deadline (if applicable) */}
+                      {!isNotInsured && isNotSubmitted && deadline && (
+                        <div className={`text-sm pl-[52px] ${rem !== null && rem < 0 ? 'text-rose-600 dark:text-rose-400 font-medium' : rem !== null && rem <= 14 ? 'text-orange-500 dark:text-orange-400 font-medium' : 'text-slate-600 dark:text-slate-400'}`}>
+                          {dlBadge.text}
+                        </div>
+                      )}
+                      {isSubmitted && filedDateStr && (
+                        <div className="text-sm text-slate-600 dark:text-slate-400 pl-[52px]">
+                          Filed {filedDateStr}
+                        </div>
+                      )}
+
+                      {/* Line 6: Reimbursement (paid only) */}
                       {isPaid && (
-                        <div className="pl-[52px] text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                        <div className="text-sm font-medium text-emerald-700 dark:text-emerald-400 pl-[52px]">
                           Got back {fmtMoney(reimb)} ({reimbPct}%){paidDateStr && ` · ${paidDateStr}`}
                         </div>
                       )}
