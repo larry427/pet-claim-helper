@@ -247,10 +247,10 @@ export default function FinancialSummary({
     : null
   const isLast12 = String(period || '').toLowerCase() === 'last12'
 
-  // Returns true if a date falls within the selected period
+  // Returns true if a date falls within the selected period.
+  // No future-date gate — if a record is in the DB it should count,
+  // so this stays in sync with ExpensesPage which does simple string prefix matching.
   const inPeriod = (svc: Date): boolean => {
-    const today = new Date()
-    if (svc > today) return false
     if (viewMonthYear) {
       return svc.getFullYear() === viewMonthYear.year && svc.getMonth() === viewMonthYear.month
     }
