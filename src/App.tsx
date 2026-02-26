@@ -282,6 +282,7 @@ function MainApp() {
   const _defaultPeriod = `${_nowForPeriod.getFullYear()}-${String(_nowForPeriod.getMonth() + 1).padStart(2, '0')}`
   const [finPeriod, setFinPeriod] = useState<string>(_defaultPeriod)
   const [billsSortBy, setBillsSortBy] = useState<'date-desc' | 'amount-desc' | 'amount-asc' | 'pet-asc'>('date-desc')
+  const [openMenuClaimId, setOpenMenuClaimId] = useState<string | null>(null)
 
   // Collapsible sections state for Vet Bills page
   const [financialSummaryCollapsed, setFinancialSummaryCollapsed] = useState(false)
@@ -335,16 +336,6 @@ function MainApp() {
   const [paidDate, setPaidDate] = useState<string>(getLocalTodayYYYYMMDD())
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null) // null = not loaded yet
-  const [successModal, setSuccessModal] = useState<null | {
-    claimId: string | null
-    petName: string
-    species: string
-    amount: number | null
-    serviceDate: string | null
-    insurance: string
-    deadlineDate: string | null
-    deadlineDays: number
-  }>(null)
   // Medication linking state
   const [medSelectOpen, setMedSelectOpen] = useState(false)
   const [medicationsForPet, setMedicationsForPet] = useState<any[]>([])
@@ -397,7 +388,7 @@ function MainApp() {
   // Check if any modal is open (used to hide BottomTabBar on mobile)
   // This prevents the tab bar from blocking Save buttons in modals
   const isAnyModalOpen = showAddExpenseModal || expensesPageModalOpen || showAddMedication || showAddFood || showAddTreat ||
-    editingClaim !== null || paidModalClaim !== null || successModal !== null ||
+    editingClaim !== null || paidModalClaim !== null ||
     medSelectOpen || submittingClaim !== null || showOnboarding || showSmsIntroModal ||
     petSelectError || showSettingsDropdown || editingPetId !== null || addingPet || isProcessing
 
@@ -943,33 +934,31 @@ function MainApp() {
   }, [isProcessing])
 
   // Scroll the newly-created claim card into view after navigating to Vet Visits.
-  // Polls every 100ms (up to 2s) so the card has time to appear in the DOM on
-  // slower mobile devices before we measure.
+  // We wait until `claims` state actually contains the new claim — that guarantees
+  // React has committed the card to the DOM — then give the browser 200ms to paint
+  // before calling scrollIntoView. This is reliable on iOS Safari and Android Chrome
+  // without any polling loops.
   useEffect(() => {
     if (activeTab !== 'visits' || !createdClaimId) return
-    let attempts = 0
-    const poll = setInterval(() => {
-      attempts++
-      const el = document.querySelector<HTMLElement>('[data-newly-created="true"]')
-      if (el) {
-        clearInterval(poll)
-        requestAnimationFrame(() => {
-          // Simple, robust approach: compute the card's document-absolute top
-          // (scrollY + viewport-relative top works at any scroll position),
-          // then place the card 120px below the viewport top.
-          // No tab-bar height math, no centering formula — just a fixed offset
-          // that keeps the card in the upper-middle of every phone screen and
-          // always well above the fixed tab bar (~750px on iPhone).
-          const rect = el.getBoundingClientRect()
-          const docTop = window.scrollY + rect.top
-          window.scrollTo({ top: Math.max(0, docTop - 120), behavior: 'smooth' })
-        })
-      } else if (attempts >= 20) {
-        clearInterval(poll) // give up after ~2 seconds
-      }
-    }, 100)
-    return () => clearInterval(poll)
-  }, [activeTab, createdClaimId])
+    // Don't attempt scroll until the claim is present in the rendered list
+    const hasClaim = claims.some(c => c.id === createdClaimId)
+    if (!hasClaim) return
+    const timer = setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(`[data-claim-id="${createdClaimId}"]`)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [activeTab, createdClaimId, claims])
+
+  // Close ••• menu when clicking outside any [data-claim-menu] element
+  useEffect(() => {
+    if (!openMenuClaimId) return
+    const handler = (e: MouseEvent) => {
+      if (!(e.target as Element).closest('[data-claim-menu]')) setOpenMenuClaimId(null)
+    }
+    document.addEventListener('click', handler, true)
+    return () => document.removeEventListener('click', handler, true)
+  }, [openMenuClaimId])
 
   const addPet = () => {
     const trimmedName = newPet.name.trim()
@@ -3008,21 +2997,19 @@ function MainApp() {
 
                         } catch (e) { console.error('[createClaim single] error', e) }
                       }
-                      // Show success modal directly
-                      const success = {
-                        claimId: row?.id || null,
-                        petName: selectedPet?.name || 'Unknown',
-                        species: selectedPet?.species || '',
-                        amount: parseAmountToNumber(String(extracted.totalAmount || '')),
-                        serviceDate: extracted.dateOfService || null,
-                        insurance: selectedPet?.insuranceCompany || '',
-                        deadlineDate: (computedDeadlineDate ? computedDeadlineDate.toISOString().slice(0,10) : null),
-                        deadlineDays: filingDaysToUse,
-                      } as typeof successModal
-                      setSuccessModal(success)
-                      setCreatedClaimId(row?.id || null)
-                      // Clear the bill review form
+                      // Navigate directly to Vet Visits — no success modal
+                      const newId = row?.id || null
+                      setCreatedClaimId(newId)
                       setExtracted(null)
+                      setMultiExtracted(null)
+                      setSelectedFile(null)
+                      setErrorMessage(null)
+                      setVisitNotes('')
+                      setVisitTitle('')
+                      setExpenseCategory('insured')
+                      setActiveTab('visits')
+                      window.scrollTo(0, 0)
+                      if (newId) setTimeout(() => setCreatedClaimId(null), 4000)
                     } finally {
                       // Always reset saving state
                       setIsSaving(false)
@@ -3054,24 +3041,26 @@ function MainApp() {
               <h2 className="text-xl font-semibold">Vet Bills</h2>
             </div>
 
-            {/* Summary */}
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-                <div className="text-sm text-slate-600">Total bills</div>
-                <div className="text-lg font-semibold">{claimsSummary.total}</div>
-              </div>
-              <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-                <div className="text-sm text-slate-600">Bills pending submission</div>
-                <div className="text-lg font-semibold">{claimsSummary.notFiledCount} <span className="text-sm text-slate-500">({fmtMoney(claimsSummary.notFiledSum)})</span></div>
-              </div>
-              <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-                <div className="text-sm text-slate-600">Claims filed</div>
-                <div className="text-lg font-semibold">{claimsSummary.filedPending}</div>
-              </div>
-              <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-                <div className="text-sm text-slate-600">Claims expiring soon (&lt; 15 days)</div>
-                <div className="text-lg font-semibold">{claimsSummary.expiringSoon}</div>
-              </div>
+            {/* Summary pills */}
+            <div className="mt-3 flex items-center gap-2 flex-wrap text-sm">
+              <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
+                {claimsSummary.total} bill{claimsSummary.total !== 1 ? 's' : ''}
+              </span>
+              {claimsSummary.notFiledCount > 0 && (
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800 font-medium">
+                  {claimsSummary.notFiledCount} pending · {fmtMoney(claimsSummary.notFiledSum)}
+                </span>
+              )}
+              {claimsSummary.filedPending > 0 && (
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800 font-medium">
+                  {claimsSummary.filedPending} filed
+                </span>
+              )}
+              {claimsSummary.expiringSoon > 0 && (
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800 font-medium">
+                  ⚠️ {claimsSummary.expiringSoon} expiring soon
+                </span>
+              )}
             </div>
 
             {/* Sort dropdown */}
@@ -3150,344 +3139,253 @@ function MainApp() {
                   const text = insuranceCompany ? `Maybe Insured • ${insuranceCompany}` : 'Maybe Insured'
                   return { text, cls: 'bg-amber-50 text-amber-700 border border-amber-200' }
                 })()
+                // ── Derived card values ──────────────────────────────────────────
                 const isNewlyCreated = c.id === createdClaimId
-                return (
-                  <div key={c.id} data-newly-created={isNewlyCreated ? 'true' : undefined} className={`rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 shadow-sm min-h-[180px] w-full transition-shadow duration-300 ${isNewlyCreated ? 'ring-2 ring-emerald-500 ring-offset-1 shadow-lg shadow-emerald-500/20' : ''}`} style={{ border: `2px solid ${petColor}`, touchAction: 'pan-y', overscrollBehaviorX: 'none' }}>
-                    <div className="space-y-2">
-                      <div className="flex items-start gap-2">
-                        <div className="h-8 w-8 rounded-full flex items-center justify-center" style={{ backgroundColor: petColor + '20' }}>
-                          <span className="text-slate-700">{pet.species === 'cat' ? '🐱' : '🐶'}</span>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-lg font-semibold text-slate-900 dark:text-slate-100 break-words line-clamp-2">
-                            {(() => {
-                              const title = ((c.visit_title && String(c.visit_title)) || (c.diagnosis && String(c.diagnosis)) || '').trim()
-                              return title ? `${pet.name || 'Pet'} • ${title}` : (pet.name || 'Pet')
-                            })()}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-base text-slate-600 dark:text-slate-400 truncate">
-                        <span className="mr-1">🏥</span>{c.clinic_name || '—'}
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className={`px-2 py-1 rounded-full text-xs whitespace-nowrap ${catBadge.cls}`}>{catBadge.text}</div>
-                        {!isNotInsured && (
-                          <div className={`px-2 py-1 rounded-full text-xs whitespace-nowrap ${stBadge.cls}`}>{stBadge.text}</div>
-                        )}
-                      </div>
-                    </div>
+                const stRaw = String(c.filing_status || 'not_submitted').toLowerCase()
+                const st = stRaw === 'filed' ? 'submitted' : stRaw === 'not_filed' ? 'not_submitted' : stRaw
+                const isNotSubmitted = st === 'not_submitted'
+                const isSubmitted = st === 'submitted'
+                const isPaid = st === 'paid'
+                const visitTitle = ((c.visit_title && String(c.visit_title)) || (c.diagnosis && String(c.diagnosis)) || '').trim()
+                const serviceDateStr = c.service_date ? (getServiceDate(c)?.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) || '') : ''
+                const reimb = Number((c as any).reimbursed_amount || 0)
+                const claimedAmt = Number(c.total_amount || 0)
+                const reimbPct = claimedAmt > 0 ? Math.round((reimb / claimedAmt) * 100) : 0
+                const paidDateStr = c.paid_date
+                  ? new Date(c.paid_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  : null
+                const filedDateStr = (() => {
+                  const ymd = String(c.filed_date || '')
+                  const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+                  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  return c.filed_date ? new Date(c.filed_date as any).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null
+                })()
+                // Left-border accent by status
+                const accentCls = isNotInsured ? ''
+                  : isNotSubmitted ? 'border-l-[3px] border-amber-400'
+                  : isSubmitted ? 'border-l-[3px] border-blue-400'
+                  : isPaid ? 'border-l-[3px] border-emerald-400'
+                  : st === 'denied' ? 'border-l-[3px] border-rose-400'
+                  : ''
+                // Status pill
+                const statusPill = isPaid
+                  ? { text: '✓ Paid', cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' }
+                  : st === 'denied'
+                    ? { text: '✗ Denied', cls: 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' }
+                    : isSubmitted
+                      ? { text: '📤 Filed', cls: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' }
+                      : isNotInsured
+                        ? { text: 'Self-Pay', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' }
+                        : { text: '⏳ Needs Filing', cls: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' }
+                // Auto-submit eligibility
+                const showAutoSubmit = (() => {
+                  if (!userEmail) return false
+                  const normalizedEmail = userEmail.toLowerCase()
+                  const insurer = c.pets?.insurance_company?.toLowerCase() || ''
+                  if (DEMO_ACCOUNTS.includes(normalizedEmail)) return true
+                  return PRODUCTION_INSURERS.some(prod => insurer.includes(prod))
+                })()
 
-                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <div className="text-slate-600">Service Date</div>
-                        <div className="font-medium">{c.service_date ? (getServiceDate(c)?.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) || '—') : '—'}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-slate-600">Amount</div>
-                        <div className="font-mono font-semibold">{fmtMoney(c.total_amount)}</div>
-                        {String(c.filing_status || '').toLowerCase() === 'paid' && (
-                          <>
-                            <div className="mt-1 text-xs">
-                              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">
-                                {(() => {
-                                  const claimed = Number(c.total_amount || 0)
-                                  const reimb = Number((c as any).reimbursed_amount || 0)
-                                  const pct = claimed > 0 ? Math.round((reimb / claimed) * 100) : 0
-                                  return `Claimed: ${fmtMoney(claimed)} → Received: ${fmtMoney(reimb)} (${pct}%)`
-                                })()}
-                              </span>
+                return (
+                  <div
+                    key={c.id}
+                    data-claim-id={c.id}
+                    className={[
+                      'relative rounded-2xl bg-white dark:bg-slate-900',
+                      'shadow-md hover:shadow-lg transition-shadow duration-200',
+                      'overflow-hidden w-full',
+                      accentCls,
+                      isNewlyCreated ? 'ring-2 ring-emerald-500 ring-offset-2 shadow-emerald-200/50 dark:shadow-emerald-900/30' : '',
+                    ].join(' ')}
+                    style={{ touchAction: 'pan-y', overscrollBehaviorX: 'none' }}
+                  >
+                    {/* Card body */}
+                    <div className="px-4 pt-4 pb-3 space-y-3">
+                      {/* Row 1: Pet avatar + name/title + amount/status */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-xl leading-none"
+                            style={{ background: petColor + '1a' }}
+                          >
+                            {pet.species === 'cat' ? '🐱' : '🐶'}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-slate-900 dark:text-slate-100 leading-snug line-clamp-2">
+                              {pet.name || 'Pet'}{visitTitle && ` · ${visitTitle}`}
                             </div>
-                            {c.paid_date && (
-                              <div className="mt-1 text-xs">
-                                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">
-                                  {`Date Paid: ${new Date(c.paid_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}`}
-                                </span>
-                              </div>
-                            )}
-                          </>
+                            <div className="text-sm text-slate-400 dark:text-slate-500 truncate mt-0.5">
+                              {c.clinic_name || '—'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <div className="text-lg font-bold font-mono text-slate-900 dark:text-slate-100 leading-none">
+                            {fmtMoney(c.total_amount)}
+                          </div>
+                          <div className={`mt-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${statusPill.cls}`}>
+                            {statusPill.text}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Row 2: Date + deadline / filed date */}
+                      <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center justify-between flex-wrap gap-x-3 gap-y-1">
+                        <span>{serviceDateStr || '—'}</span>
+                        {!isNotInsured && isNotSubmitted && deadline && (
+                          <span className={`text-xs font-medium ${rem !== null && rem < 0 ? 'text-rose-600 dark:text-rose-400' : rem !== null && rem <= 14 ? 'text-orange-600 dark:text-orange-400' : 'text-slate-400'}`}>
+                            {dlBadge.text}
+                          </span>
+                        )}
+                        {isSubmitted && filedDateStr && (
+                          <span className="text-xs text-slate-400 flex items-center gap-1">
+                            <span>📤</span>Filed {filedDateStr}
+                          </span>
                         )}
                       </div>
-                      {(() => {
-                        const statusLower = String(c.filing_status || '').toLowerCase()
-                        const shouldShow = Boolean(c.filed_date) && (statusLower === 'filed' || statusLower === 'paid')
-                        if (!shouldShow) return null
-                        const label = (() => {
-                          const ymd = String(c.filed_date || '')
-                          const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-                          if (m) {
-                            const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
-                            return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-                          }
-                          const d = c.filed_date ? new Date(c.filed_date as any) : null
-                          return d ? d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'
-                        })()
-                        return (
-                          <div className="col-span-2 mt-1 text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                            <span>📤</span>
-                            <span>
-                              Filed: {label}
-                            </span>
-                          </div>
-                        )
-                      })()}
-                      {!isNotInsured ? (
-                        <>
-                          <div>
-                          <div className="text-slate-600">Filing Deadline</div>
-                            <div className="font-medium whitespace-nowrap overflow-hidden">{deadline ? deadline.toISOString().slice(0,10) : '—'}</div>
-                          </div>
-                          <div className="text-right">
-                            <span className={`inline-flex items-center px-2 py-1 rounded-full ${dlBadge.cls}`}>{dlBadge.text}</span>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div>
-                            <div className="text-slate-600">Info</div>
-                            <div className="font-medium whitespace-nowrap overflow-hidden">💰 Self-paid vet bill</div>
-                          </div>
-                        </>
+
+                      {/* Reimbursement row (paid only) */}
+                      {isPaid && (
+                        <div className="inline-flex items-center gap-1.5 text-xs bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded-full px-3 py-1 font-medium">
+                          <span>✓</span>
+                          <span>Got back {fmtMoney(reimb)} ({reimbPct}%){paidDateStr && ` · ${paidDateStr}`}</span>
+                        </div>
                       )}
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-start sm:items-center justify-between gap-2">
-                      {(() => {
-                        const stRaw = String(c.filing_status || 'not_submitted').toLowerCase()
-                        const st = (stRaw === 'filed') ? 'submitted' : (stRaw === 'not_filed' ? 'not_submitted' : stRaw)
-                        if (isNotInsured) {
-                          return (
-                            <div className="flex items-center gap-2">
-                              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-600">⭕ Not insured - No filing required</span>
-                            </div>
-                          )
-                        }
-                        if (st === 'not_submitted') {
-                          // Check if user can auto-submit for this claim
-                          const showAutoSubmit = (() => {
-                            if (!userEmail) return false
-
-                            const normalizedEmail = userEmail.toLowerCase()
-                            const insurer = c.pets?.insurance_company?.toLowerCase() || ''
-
-                            // Demo accounts can auto-submit for ANY insurer
-                            if (DEMO_ACCOUNTS.includes(normalizedEmail)) {
-                              return true
-                            }
-
-                            // Real users can only auto-submit for production insurers
-                            return PRODUCTION_INSURERS.some(prod => insurer.includes(prod))
-                          })()
-
-                          return (
+                    {/* Card footer: primary CTA + secondary controls */}
+                    <div className="px-4 pb-4 flex items-center gap-2">
+                      {/* Primary CTA */}
+                      {isNotSubmitted && !isNotInsured && showAutoSubmit && (
+                        <button
+                          type="button"
+                          className={`px-4 py-2 rounded-xl text-sm font-semibold text-white flex items-center gap-1.5 transition-all duration-200 ${
+                            autoSubmitAnimating === c.id
+                              ? 'scale-95 bg-gradient-to-r from-teal-600 via-teal-500 to-teal-600 bg-[length:200%_100%] animate-[shimmer_1.5s_ease-in-out_infinite]'
+                              : 'bg-emerald-600 hover:bg-emerald-700 active:scale-95'
+                          }`}
+                          onClick={async () => {
+                            if (navigator.vibrate) navigator.vibrate(10)
+                            setAutoSubmitAnimating(c.id)
+                            await new Promise(resolve => setTimeout(resolve, 1000))
+                            setSubmittingClaim(c)
+                            await new Promise(resolve => setTimeout(resolve, 200))
+                            setAutoSubmitAnimating(null)
+                          }}
+                          title="Automatically generate PDF and email to insurance"
+                        >
+                          {autoSubmitAnimating === c.id ? (
                             <>
-                              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                                {/* Auto-Submit Button - Whitelisted Users Only */}
-                                {showAutoSubmit && (
-                                  <button
-                                    type="button"
-                                    className={`
-                                      text-xs px-2 py-1 rounded font-semibold whitespace-nowrap flex items-center gap-1.5
-                                      transition-all duration-200 ease-out
-                                      ${autoSubmitAnimating === c.id
-                                        ? 'scale-95 bg-gradient-to-r from-teal-600 via-teal-500 to-teal-600 bg-[length:200%_100%] animate-[shimmer_1.5s_ease-in-out_infinite]'
-                                        : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
-                                      }
-                                      text-white
-                                    `}
-                                    onClick={async () => {
-                                      // Haptic feedback (if supported)
-                                      if (navigator.vibrate) {
-                                        navigator.vibrate(10) // Light impact
-                                      }
+                              <svg className="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                              <span className="animate-pulse">Preparing…</span>
+                            </>
+                          ) : (
+                            <><span>🚀</span> Auto-Submit</>
+                          )}
+                        </button>
+                      )}
+                      {isSubmitted && (
+                        <button
+                          type="button"
+                          className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white transition-all"
+                          onClick={() => {
+                            setPaidModalClaim(c)
+                            const preset = (c.total_amount && Number.isFinite(Number(c.total_amount))) ? String(Number(c.total_amount).toFixed(2)) : ''
+                            setPaidAmount(preset)
+                            setPaidDate(getLocalTodayYYYYMMDD())
+                          }}
+                        >
+                          Mark as Paid
+                        </button>
+                      )}
 
-                                      // Step 1: Button press animation (0-300ms)
-                                      setAutoSubmitAnimating(c.id)
-
-                                      // Step 2: Loading state with shimmer (300-1000ms = 700ms visible)
-                                      // Let users see the gradient shimmer, spinner, and "Preparing..." text
-                                      await new Promise(resolve => setTimeout(resolve, 1000))
-
-                                      // Step 3: Modal transition (1000-1200ms)
-                                      setSubmittingClaim(c)
-
-                                      // Keep animation state briefly for smooth modal transition
-                                      await new Promise(resolve => setTimeout(resolve, 200))
-                                      setAutoSubmitAnimating(null)
-                                    }}
-                                    title="Automatically generate PDF and email to insurance company"
-                                  >
-                                    {autoSubmitAnimating === c.id ? (
-                                      <>
-                                        <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        <span className="animate-pulse">Preparing...</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <span>🚀</span>
-                                        Auto-Submit
-                                      </>
-                                    )}
-                                  </button>
-                                )}
-
-                                {/* Manual Submit Button - Existing */}
+                      {/* Secondary: PDF link + ••• kebab menu */}
+                      <div className="ml-auto flex items-center gap-2">
+                        {c.pdf_path && (
+                          <button
+                            type="button"
+                            className="text-xs text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors hover:underline underline-offset-2 whitespace-nowrap"
+                            onClick={async () => {
+                              try {
+                                const { data } = await supabase.storage.from('claim-pdfs').createSignedUrl(c.pdf_path, 60)
+                                if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+                              } catch (err) { console.error('[view pdf] error', err) }
+                            }}
+                          >
+                            View PDF
+                          </button>
+                        )}
+                        <div className="relative" data-claim-menu>
+                          <button
+                            type="button"
+                            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors text-base font-bold tracking-widest"
+                            onClick={(e) => { e.stopPropagation(); setOpenMenuClaimId(openMenuClaimId === c.id ? null : c.id) }}
+                            aria-label="More options"
+                          >
+                            ···
+                          </button>
+                          {openMenuClaimId === c.id && (
+                            <div className="absolute right-0 bottom-full mb-1 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 w-44 overflow-hidden z-20">
+                              <button
+                                type="button"
+                                className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                onClick={() => { setEditingClaim(c); setOpenMenuClaimId(null) }}
+                              >
+                                Edit
+                              </button>
+                              {isNotSubmitted && !isNotInsured && (
                                 <button
                                   type="button"
-                                  className="text-xs px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white whitespace-nowrap"
+                                  className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                                   onClick={async () => {
+                                    setOpenMenuClaimId(null)
                                     try {
                                       const today = getLocalTodayYYYYMMDD()
-                                      const input = prompt('Enter filed date (YYYY-MM-DD):', today) || today
-                                      const filedDate = input
-                                      await updateClaim(c.id, { filing_status: 'filed', filed_date: filedDate })
-                                      setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: 'filed', filed_date: filedDate } : cl))
-                                      try { alert('✓ Claim marked as submitted') } catch {}
-                                      await new Promise((r) => setTimeout(r, 500))
-                                      if (userId) {
-                                        const updated = await listClaims(userId)
-                                        setClaims(updated)
-                                      }
+                                      await updateClaim(c.id, { filing_status: 'filed', filed_date: today })
+                                      setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: 'filed', filed_date: today } : cl))
+                                      if (userId) listClaims(userId).then(setClaims)
                                     } catch (e) { console.error('[mark filed] error', e) }
                                   }}
-                                  title="Manually mark as submitted (if you filed yourself)"
                                 >
-                                  Mark Submitted
+                                  Mark as Filed
                                 </button>
-                              </div>
-                              {/* Change Status Dropdown - Separate Row */}
-                              {(['insured','maybe'].includes(String(c.expense_category || 'insured').toLowerCase())) && (
-                                <div className="flex items-center gap-2 mt-2">
-                                  <span className="text-xs text-slate-500 whitespace-nowrap">Change Status:</span>
-                                  <select
-                                    className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-                                    value="not_submitted"
-                                    onChange={async (e) => {
-                                      try {
-                                        const next = e.target.value
-                                        const newStatus = next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next)
-                                        await updateClaim(c.id, { filing_status: newStatus })
-                                        // Optimistically update local UI to reflect new status immediately
-                                        setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: newStatus } : cl))
-                                        try { alert('✓ Status updated') } catch {}
-                                        await new Promise((r) => setTimeout(r, 400))
-                                        if (userId) listClaims(userId).then(setClaims)
-                                      } catch (er) { console.error('[edit status] error', er) }
-                                    }}
-                                  >
-                                    <option value="not_submitted">Not Submitted</option>
-                                    <option value="submitted">Submitted</option>
-                                    <option value="denied">Denied</option>
-                                  </select>
-                                </div>
                               )}
-                            </>
-                          )
-                        }
-                        if (st === 'submitted') {
-                          return (
-                            <div className="flex flex-col gap-2">
-                              <div className="text-xs text-slate-600">What happened with this claim?</div>
-                              <div className="flex items-center gap-2">
+                              {isSubmitted && (
                                 <button
                                   type="button"
-                                  className="text-xs px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white"
-                                  onClick={() => {
-                                    setPaidModalClaim(c)
-                                    const preset = (c.total_amount && Number.isFinite(Number(c.total_amount))) ? String(Number(c.total_amount).toFixed(2)) : ''
-                                    setPaidAmount(preset)
-                                    setPaidDate(getLocalTodayYYYYMMDD())
-                                  }}
-                                >
-                                  Payment Received? Mark as Paid
-                                </button>
-                                <button
-                                  type="button"
-                                  className="text-xs px-3 py-1.5 rounded border border-rose-200 text-rose-700 hover:bg-rose-50 dark:border-rose-800"
+                                  className="w-full text-left px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                                   onClick={async () => {
+                                    setOpenMenuClaimId(null)
                                     try {
                                       await updateClaim(c.id, { filing_status: 'denied' })
                                       setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: 'denied' } : cl))
-                                      try { alert('✓ Claim marked as denied') } catch {}
                                       if (userId) listClaims(userId).then(setClaims)
                                     } catch (er) { console.error('[deny claim] error', er) }
                                   }}
                                 >
                                   Deny Claim
                                 </button>
-                              </div>
-                              {/* Change Status Dropdown - Separate Row */}
-                              {(['insured','maybe'].includes(String(c.expense_category || 'insured').toLowerCase())) && (
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-slate-500 whitespace-nowrap">Change Status:</span>
-                                  <select
-                                    className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-                                    value="submitted"
-                                    onChange={async (e) => {
-                                      try {
-                                        const next = e.target.value
-                                        const newStatus = next === 'submitted' ? 'filed' : (next === 'not_submitted' ? 'not_filed' : next)
-                                        await updateClaim(c.id, { filing_status: newStatus })
-                                        // Optimistically update local UI to reflect new status immediately
-                                        setClaims(prev => prev.map(cl => cl.id === c.id ? { ...cl, filing_status: newStatus } : cl))
-                                        try { alert('✓ Status updated') } catch {}
-                                        if (userId) listClaims(userId).then(setClaims)
-                                      } catch (er) { console.error('[edit status] error', er) }
-                                    }}
-                                  >
-                                    <option value="submitted">Submitted</option>
-                                    <option value="not_submitted">Not Submitted</option>
-                                    <option value="denied">Denied</option>
-                                  </select>
-                                </div>
                               )}
+                              <button
+                                type="button"
+                                className="w-full text-left px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
+                                onClick={async () => {
+                                  setOpenMenuClaimId(null)
+                                  if (!confirm('Delete this bill?')) return
+                                  try {
+                                    await dbDeleteClaim(c.id)
+                                    if (userId) listClaims(userId).then(setClaims)
+                                  } catch (e) { console.error('[delete claim] error', e) }
+                                }}
+                              >
+                                Delete
+                              </button>
                             </div>
-                          )
-                        }
-                        // paid or denied
-                        return null
-                      })()}
-                      <div className="flex items-center gap-2 flex-wrap justify-end">
-                        <button
-                          type="button"
-                          className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0 whitespace-nowrap"
-                          onClick={() => setEditingClaim(c)}
-                        >
-                          Edit
-                        </button>
-                        {c.pdf_path && (
-                          <a
-                            href="#"
-                            onClick={async (e) => {
-                              e.preventDefault()
-                              try {
-                                const { data } = await supabase.storage.from('claim-pdfs').createSignedUrl(c.pdf_path, 60)
-                                if (data?.signedUrl) window.open(data.signedUrl, '_blank')
-                              } catch (err) { console.error('[view pdf] error', err) }
-                            }}
-                            className="text-xs px-2 py-1 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0 whitespace-nowrap"
-                          >
-                            View PDF
-                          </a>
-                        )}
-                        <button
-                          type="button"
-                          className="text-xs px-2 py-1 rounded border border-rose-200 text-rose-700 hover:bg-rose-50 dark:border-rose-800 shrink-0 whitespace-nowrap"
-                          onClick={async () => {
-                            if (!confirm('Delete this bill?')) return
-                            try {
-                              await dbDeleteClaim(c.id)
-                              if (userId) listClaims(userId).then(setClaims)
-                            } catch (e) {
-                              console.error('[delete claim] error', e)
-                            }
-                          }}
-                        >
-                          Delete
-                        </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -4898,87 +4796,7 @@ function MainApp() {
         />
       )} */}
 
-      {successModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => {
-          const newId = successModal?.claimId
-          // Re-set so it's definitely current when Vet Visits renders
-          if (newId) setCreatedClaimId(newId)
-          setSuccessModal(null)
-          setExtracted(null)
-          setMultiExtracted(null)
-          setSelectedFile(null)
-          setErrorMessage(null)
-          setVisitNotes('')
-          setVisitTitle('')
-          setExpenseCategory('insured')
-          setActiveTab('visits')
-          window.scrollTo(0, 0) // instant — poll will smooth-scroll to the card
-          // Background refresh (claims already pre-loaded after createClaim)
-          if (userId) listClaims(userId).then(d => d && setClaims(d)).catch(() => {})
-          if (newId) { setTimeout(() => setCreatedClaimId(null), 4000) }
-        }}>
-          <div className="relative mx-4 w-full max-w-md rounded-2xl border border-emerald-200 bg-white p-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-200 dark:border-emerald-800 flex flex-col items-center text-center">
-              <div className="h-14 w-14 rounded-full bg-emerald-600 text-white flex items-center justify-center text-2xl shadow animate-pulse">✓</div>
-              <div className="mt-3 text-lg font-semibold text-emerald-800 dark:text-emerald-200">Vet Bill Saved Successfully!</div>
-              <div className="mt-1 text-xs text-emerald-900/80 dark:text-emerald-300/80">Your vet bill was saved. You can submit it to insurance when ready.</div>
-            </div>
-            <div className="p-6 text-sm">
-              <div className="space-y-1">
-                <div><span className="text-slate-500 dark:text-slate-400">Pet:</span> <span className="text-slate-900 dark:text-slate-100 font-semibold">{successModal.petName} ({successModal.species})</span></div>
-                <div><span className="text-slate-500 dark:text-slate-400">Amount:</span> <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">{fmtMoney(successModal.amount || 0)}</span></div>
-                <div><span className="text-slate-500 dark:text-slate-400">Service Date:</span> <span className="text-slate-900 dark:text-slate-100">{successModal.serviceDate || '—'}</span></div>
-                <div><span className="text-slate-500 dark:text-slate-400">Insurance:</span> <span className="text-slate-900 dark:text-slate-100">{successModal.insurance || 'Not Insured'}</span></div>
-                {/* Only show Filing Deadline if pet has insurance */}
-                {successModal.insurance && successModal.insurance.trim() !== '' && (
-                  <div><span className="text-slate-500 dark:text-slate-400">Filing Deadline:</span> <span className="text-slate-900 dark:text-slate-100">{successModal.deadlineDate || '—'} ({(() => {
-                    if (!successModal.deadlineDate) return '—'
-                    const today = new Date()
-                    today.setHours(0, 0, 0, 0)
-                    const deadline = new Date(successModal.deadlineDate)
-                    deadline.setHours(0, 0, 0, 0)
-                    const diffTime = deadline.getTime() - today.getTime()
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-                    return diffDays > 0 ? `${diffDays} days remaining` : 'overdue'
-                  })()})</span></div>
-                )}
-              </div>
-                  <div className="mt-5 flex justify-center">
-                <button
-                  type="button"
-                      className="inline-flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 text-sm font-medium w-full sm:w-auto"
-                  onClick={() => {
-                    // Use successModal.claimId directly — more reliable than createdClaimId state
-                    const newId = successModal?.claimId
-                    // Re-set explicitly so it's definitely current when Vet Visits renders
-                    if (newId) setCreatedClaimId(newId)
-                    // Close modal and clear upload form state
-                    setSuccessModal(null)
-                    setExtracted(null)
-                    setMultiExtracted(null)
-                    setSelectedFile(null)
-                    setErrorMessage(null)
-                    setVisitNotes('')
-                    setVisitTitle('')
-                    setExpenseCategory('insured')
-                    // Navigate immediately — claims already pre-loaded after createClaim
-                    setActiveTab('visits')
-                    window.scrollTo(0, 0) // instant — poll will smooth-scroll to the card
-                    // Background refresh (secondary; pre-load already happened)
-                    if (userId) listClaims(userId).then(d => d && setClaims(d)).catch(() => {})
-                    // Auto-clear the highlight ring after 4 seconds
-                    if (newId) {
-                      setTimeout(() => setCreatedClaimId(null), 4000)
-                    }
-                  }}
-                >
-                  View Bill
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Success modal removed — "Looks Good" navigates directly to Vet Visits */}
 
       {/* Add Expense Modal (QuickBooks for Dogs) */}
       {showAddExpenseModal && (
