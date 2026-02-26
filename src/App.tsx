@@ -3214,7 +3214,7 @@ function MainApp() {
 
                       {/* Line 2: Clinic name */}
                       {c.clinic_name && (
-                        <div className="text-sm text-slate-600 dark:text-slate-400 pl-[52px]">
+                        <div className="text-sm font-medium text-orange-500 dark:text-orange-400 pl-[52px]">
                           {c.clinic_name}
                         </div>
                       )}
