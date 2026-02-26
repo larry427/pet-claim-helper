@@ -3073,7 +3073,7 @@ function MainApp() {
             )}
 
             {/* Claims list */}
-            <div ref={claimsSectionRef} className="mt-5 bg-slate-50 dark:bg-slate-950 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 w-full overflow-x-hidden" style={{ overscrollBehaviorX: 'none' }}>
+            <div ref={claimsSectionRef} className="mt-5 bg-gray-100 dark:bg-slate-950 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full overflow-x-hidden" style={{ overscrollBehaviorX: 'none' }}>
               {orderedClaims.map((c) => {
                 const pet = c.pets || {}
                 const petColor = pet?.color || (pet?.species === 'cat' ? '#F97316' : pet?.species === 'dog' ? '#3B82F6' : '#6B7280')
@@ -3154,14 +3154,14 @@ function MainApp() {
                 })()
                 // Status pill
                 const statusPill = isPaid
-                  ? { text: 'Paid', cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' }
+                  ? { dot: 'bg-emerald-500', text: 'Paid', cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' }
                   : st === 'denied'
-                    ? { text: 'Denied', cls: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' }
+                    ? { dot: 'bg-rose-500', text: 'Denied', cls: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' }
                     : isSubmitted
-                      ? { text: 'Filed', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' }
+                      ? { dot: 'bg-blue-400', text: 'Filed', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' }
                       : isNotInsured
-                        ? { text: 'Self-Pay', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' }
-                        : { text: 'Needs Filing', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' }
+                        ? { dot: 'bg-slate-400', text: 'Self-Pay', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' }
+                        : { dot: 'bg-amber-400', text: 'Needs Filing', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' }
                 // Auto-submit eligibility
                 const showAutoSubmit = (() => {
                   if (!userEmail) return false
@@ -3176,23 +3176,22 @@ function MainApp() {
                     key={c.id}
                     data-claim-id={c.id}
                     className={[
-                      'relative rounded-xl',
-                      'border border-gray-100 dark:border-slate-800',
-                      'shadow-md hover:shadow-lg transition-shadow duration-200',
+                      'relative rounded-lg bg-white dark:bg-slate-900',
+                      'border border-gray-200 dark:border-slate-800',
+                      'shadow-lg hover:shadow-xl transition-shadow duration-200',
                       'overflow-hidden w-full',
                       isNewlyCreated ? 'ring-2 ring-emerald-500 ring-offset-2' : '',
                     ].join(' ')}
-                    style={{ background: 'linear-gradient(to bottom, #ffffff 0%, #fafafa 100%)' }}
                     style={{ touchAction: 'pan-y', overscrollBehaviorX: 'none' }}
                   >
                     {/* Card body */}
-                    <div className="p-5 space-y-4">
-                      {/* Row 1: Pet avatar + name/title + amount */}
-                      <div className="flex items-start justify-between gap-3">
+                    <div className="p-6 space-y-4">
+                      {/* Row 1: Pet avatar (left anchor) + name/title + amount (right) */}
+                      <div className="flex items-start justify-between gap-4">
                         <div className="flex items-center gap-3 min-w-0">
                           <div
-                            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-xl leading-none"
-                            style={{ background: petColor + '1a' }}
+                            className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 text-2xl leading-none"
+                            style={{ background: petColor + '22' }}
                           >
                             {pet.species === 'cat' ? '🐱' : '🐶'}
                           </div>
@@ -3206,7 +3205,7 @@ function MainApp() {
                           </div>
                         </div>
                         <div className="shrink-0 text-right">
-                          <div className="text-lg font-bold font-mono text-slate-900 dark:text-slate-100 leading-none">
+                          <div className="text-2xl font-bold font-mono text-slate-900 dark:text-slate-100 leading-none tracking-tight">
                             {fmtMoney(c.total_amount)}
                           </div>
                         </div>
@@ -3216,7 +3215,8 @@ function MainApp() {
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm text-slate-500 dark:text-slate-400">{serviceDateStr || '—'}</span>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium whitespace-nowrap ${statusPill.cls}`}>
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium whitespace-nowrap ${statusPill.cls}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusPill.dot}`} />
                             {statusPill.text}
                           </span>
                         </div>
@@ -3239,10 +3239,10 @@ function MainApp() {
                     </div>
 
                     {/* Divider */}
-                    <div className="mx-5 border-t border-gray-100 dark:border-slate-800" />
+                    <div className="mx-6 border-t border-gray-100 dark:border-slate-800" />
 
                     {/* Card footer: primary CTA + secondary controls */}
-                    <div className="px-5 py-3 flex items-center gap-2">
+                    <div className="px-6 py-3 flex items-center gap-2">
                       {/* Primary CTA */}
                       {isNotSubmitted && !isNotInsured && showAutoSubmit && (
                         <button
