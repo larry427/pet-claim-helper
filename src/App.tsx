@@ -3196,10 +3196,10 @@ function MainApp() {
                             {pet.species === 'cat' ? '🐱' : '🐶'}
                           </div>
                           <div className="min-w-0">
-                            <div className="font-semibold text-slate-900 dark:text-slate-100 leading-snug line-clamp-2">
+                            <div className="font-semibold text-slate-900 dark:text-slate-100 leading-snug">
                               {pet.name || 'Pet'}{visitTitle && ` · ${visitTitle}`}{serviceDateStr && ` · ${serviceDateStr}`}
                             </div>
-                            <div className="text-sm text-slate-400 dark:text-slate-500 truncate mt-0.5">
+                            <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
                               {c.clinic_name || '—'}
                             </div>
                           </div>
@@ -3220,12 +3220,12 @@ function MainApp() {
                           </span>
                         </div>
                         {!isNotInsured && isNotSubmitted && deadline && (
-                          <span className={`text-xs font-medium ${rem !== null && rem < 0 ? 'text-rose-600 dark:text-rose-400' : rem !== null && rem <= 14 ? 'text-orange-500 dark:text-orange-400' : 'text-slate-400'}`}>
+                          <span className={`text-xs font-medium ${rem !== null && rem < 0 ? 'text-rose-600 dark:text-rose-400' : rem !== null && rem <= 14 ? 'text-orange-500 dark:text-orange-400' : 'text-slate-500'}`}>
                             {dlBadge.text}
                           </span>
                         )}
                         {isSubmitted && filedDateStr && (
-                          <span className="text-xs text-slate-400">Filed {filedDateStr}</span>
+                          <span className="text-xs text-slate-500">Filed {filedDateStr}</span>
                         )}
                       </div>
 
