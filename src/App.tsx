@@ -3179,13 +3179,13 @@ function MainApp() {
                       'relative rounded-lg bg-white dark:bg-slate-900',
                       'border-2 border-emerald-400 dark:border-emerald-600',
                       'shadow-lg hover:shadow-xl transition-shadow duration-200',
-                      'overflow-hidden w-full',
+                      'overflow-hidden w-full flex flex-col h-full',
                       isNewlyCreated ? 'ring-2 ring-emerald-500 ring-offset-2' : '',
                     ].join(' ')}
                     style={{ touchAction: 'pan-y', overscrollBehaviorX: 'none' }}
                   >
                     {/* Card body */}
-                    <div className="p-5 space-y-3">
+                    <div className="p-5 space-y-3 flex-1">
                       {/* Row 1: Icon + "Pet · Visit Type" + Amount */}
                       <div className="flex items-center gap-3">
                         <div
@@ -3205,7 +3205,7 @@ function MainApp() {
                       </div>
 
                       {/* Row 2: Clinic · Date */}
-                      <div className="text-sm text-slate-500 dark:text-slate-400 truncate pl-[52px]">
+                      <div className="text-sm text-slate-600 dark:text-slate-400 truncate pl-[52px]">
                         {[c.clinic_name, serviceDateStr].filter(Boolean).join(' · ') || '—'}
                       </div>
 
@@ -3216,12 +3216,12 @@ function MainApp() {
                           {statusPill.text}
                         </span>
                         {!isNotInsured && isNotSubmitted && deadline && (
-                          <span className={`text-xs font-medium ${rem !== null && rem < 0 ? 'text-rose-600 dark:text-rose-400' : rem !== null && rem <= 14 ? 'text-orange-500 dark:text-orange-400' : 'text-slate-500'}`}>
+                          <span className={`text-xs font-medium ${rem !== null && rem < 0 ? 'text-rose-600 dark:text-rose-400' : rem !== null && rem <= 14 ? 'text-orange-500 dark:text-orange-400' : 'text-slate-600'}`}>
                             {dlBadge.text}
                           </span>
                         )}
                         {isSubmitted && filedDateStr && (
-                          <span className="text-xs text-slate-500">Filed {filedDateStr}</span>
+                          <span className="text-xs text-slate-600 dark:text-slate-400">Filed {filedDateStr}</span>
                         )}
                         {isPaid && (
                           <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
@@ -3288,7 +3288,7 @@ function MainApp() {
                         {c.pdf_path && (
                           <button
                             type="button"
-                            className="text-xs text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors hover:underline underline-offset-2 whitespace-nowrap"
+                            className="text-xs text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors hover:underline underline-offset-2 whitespace-nowrap"
                             onClick={async () => {
                               try {
                                 const { data } = await supabase.storage.from('claim-pdfs').createSignedUrl(c.pdf_path, 60)
@@ -3302,7 +3302,7 @@ function MainApp() {
                         <div className="relative" data-claim-menu>
                           <button
                             type="button"
-                            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors text-base font-bold tracking-widest"
+                            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 transition-colors text-base font-bold tracking-widest"
                             onClick={(e) => { e.stopPropagation(); setOpenMenuClaimId(openMenuClaimId === c.id ? null : c.id) }}
                             aria-label="More options"
                           >
