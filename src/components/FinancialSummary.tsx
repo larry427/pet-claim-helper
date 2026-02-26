@@ -56,7 +56,8 @@ export default function FinancialSummary({
   const [claims, setClaims] = useState<ClaimRow[]>([])
   const [pets, setPets] = useState<PetRow[]>([])
   // Non-vet expenses (food, grooming, supplies, training/boarding) for hero total
-  const [nonVetExpenses, setNonVetExpenses] = useState<{ amount: number; expense_date: string }[]>([])
+  // All pet_expenses rows (food, grooming, supplies, boarding, vet_medical, other)
+  const [allPetExpenses, setAllPetExpenses] = useState<{ amount: number; expense_date: string }[]>([])
 
   useEffect(() => {
     if (!userId) return
@@ -71,12 +72,11 @@ export default function FinancialSummary({
         .from('pets')
         .select('id, name, species, monthly_premium, deductible_per_claim, coverage_start_date, insurance_pays_percentage, annual_coverage_limit')
         .eq('user_id', userId),
-      // Non-vet expenses (food, grooming, supplies, training/boarding) for hero total
+      // All pet_expenses for hero total (includes vet_medical, food, grooming, etc.)
       supabase
         .from('pet_expenses')
         .select('amount, expense_date')
         .eq('user_id', userId)
-        .neq('category', 'vet_medical')
     ])
       .then(([cl, pe, nv]) => {
         if (cl.error) throw cl.error
@@ -84,7 +84,7 @@ export default function FinancialSummary({
         if (nv.error) throw nv.error
         setClaims((cl.data || []) as any)
         setPets((pe.data || []) as any)
-        setNonVetExpenses((nv.data || []) as any)
+        setAllPetExpenses((nv.data || []) as any)
       })
       .catch((e: any) => setError(e?.message || 'Failed to load financial data'))
       .finally(() => setLoading(false))
@@ -321,26 +321,26 @@ export default function FinancialSummary({
       if (status === 'submitted') pendingTotal += amount
     }
 
-    // Non-vet expenses for hero total (food, grooming, supplies, boarding)
-    let nonVetTotal = 0
-    for (const e of nonVetExpenses) {
+    // All pet_expenses for hero total (food, grooming, supplies, boarding, vet_medical, other)
+    let petExpensesTotal = 0
+    for (const e of allPetExpenses) {
       const d = parseYmdLocal(e.expense_date)
       if (!d || !inPeriod(d)) continue
-      nonVetTotal += Number(e.amount) || 0
+      petExpensesTotal += Number(e.amount) || 0
     }
 
-    // Hero totals: all spending (vet bills + non-vet), no premiums in total
-    const heroTotal = insuredBillsTotal + nonInsuredTotal + nonVetTotal
+    // Hero totals: all spending (claims + pet_expenses), no premiums in total
+    const heroTotal = insuredBillsTotal + nonInsuredTotal + petExpensesTotal
     const heroNetCost = heroTotal - insurancePaidBack
 
     const definiteTotal = premiumsYTD + nonInsuredTotal + userShareCoveredClaims
     return {
       premiumsYTD, nonInsuredTotal, insurancePaidBack, userShareCoveredClaims,
       insuredBillsTotal, definiteTotal, pendingTotal,
-      heroTotal, heroNetCost, nonVetTotal,
+      heroTotal, heroNetCost, petExpensesTotal,
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [claims, pets, nonVetExpenses, period])
+  }, [claims, pets, allPetExpenses, period])
 
   // Notify parent with hero totals whenever they change
   useEffect(() => {
