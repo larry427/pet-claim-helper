@@ -2224,7 +2224,7 @@ function MainApp() {
                   {/* Top row: label + period selector */}
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                      Total Pet Expenses
+                      Net Pet Costs
                     </span>
                     <select
                       value={finPeriod}
@@ -2246,27 +2246,27 @@ function MainApp() {
                   {/* Hero number */}
                   <div className="text-[3.25rem] leading-none font-bold text-slate-900 dark:text-slate-100 tabular-nums tracking-tight mb-3">
                     {heroTotals != null
-                      ? `$${heroTotals.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      ? `$${heroTotals.netCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                       : <span className="text-slate-300 dark:text-slate-600">—</span>
                     }
                   </div>
 
-                  {/* Reimbursed + Net Cost sub-row */}
+                  {/* Total Spent + Got Back sub-row */}
                   <div className="flex items-center gap-3 text-sm mb-5 flex-wrap">
                     <span className="text-slate-500 dark:text-slate-400">
-                      Reimbursed{' '}
-                      <span className="font-semibold text-emerald-600">
+                      Total Spent{' '}
+                      <span className="font-semibold text-slate-800 dark:text-slate-100">
                         {heroTotals != null
-                          ? `$${heroTotals.reimbursed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          ? `$${heroTotals.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                           : '—'}
                       </span>
                     </span>
                     <span className="text-slate-200 dark:text-slate-700 select-none">|</span>
                     <span className="text-slate-500 dark:text-slate-400">
-                      Net Cost{' '}
-                      <span className="font-semibold text-slate-800 dark:text-slate-100">
+                      Got Back{' '}
+                      <span className="font-semibold text-emerald-600">
                         {heroTotals != null
-                          ? `$${heroTotals.netCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          ? `$${heroTotals.reimbursed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                           : '—'}
                       </span>
                     </span>
