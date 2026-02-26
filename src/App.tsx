@@ -3185,40 +3185,36 @@ function MainApp() {
                     style={{ touchAction: 'pan-y', overscrollBehaviorX: 'none' }}
                   >
                     {/* Card body */}
-                    <div className="p-6 space-y-4">
-                      {/* Row 1: Pet avatar (left anchor) + name/title + amount (right) */}
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 text-2xl leading-none"
-                            style={{ background: petColor + '22' }}
-                          >
-                            {pet.species === 'cat' ? '🐱' : '🐶'}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-semibold text-slate-900 dark:text-slate-100 leading-snug">
-                              {pet.name || 'Pet'}{visitTitle && ` · ${visitTitle}`}{serviceDateStr && ` · ${serviceDateStr}`}
-                            </div>
-                            <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
-                              {c.clinic_name || '—'}
-                            </div>
+                    <div className="p-5 space-y-3">
+                      {/* Row 1: Icon + "Pet · Visit Type" + Amount */}
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-xl leading-none"
+                          style={{ background: petColor + '22' }}
+                        >
+                          {pet.species === 'cat' ? '🐱' : '🐶'}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-slate-900 dark:text-slate-100 truncate">
+                            {pet.name || 'Pet'}{visitTitle && ` · ${visitTitle}`}
                           </div>
                         </div>
-                        <div className="shrink-0 text-right">
-                          <div className="text-2xl font-bold font-mono text-slate-900 dark:text-slate-100 leading-none tracking-tight">
-                            {fmtMoney(c.total_amount)}
-                          </div>
+                        <div className="shrink-0 text-2xl font-bold font-mono text-slate-900 dark:text-slate-100 tracking-tight">
+                          {fmtMoney(c.total_amount)}
                         </div>
                       </div>
 
-                      {/* Row 2: Status pill + deadline */}
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium whitespace-nowrap ${statusPill.cls}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusPill.dot}`} />
-                            {statusPill.text}
-                          </span>
-                        </div>
+                      {/* Row 2: Clinic · Date */}
+                      <div className="text-sm text-slate-500 dark:text-slate-400 truncate pl-[52px]">
+                        {[c.clinic_name, serviceDateStr].filter(Boolean).join(' · ') || '—'}
+                      </div>
+
+                      {/* Row 3: Status pill + deadline/reimbursement */}
+                      <div className="flex items-center gap-2 flex-wrap pl-[52px]">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium whitespace-nowrap ${statusPill.cls}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusPill.dot}`} />
+                          {statusPill.text}
+                        </span>
                         {!isNotInsured && isNotSubmitted && deadline && (
                           <span className={`text-xs font-medium ${rem !== null && rem < 0 ? 'text-rose-600 dark:text-rose-400' : rem !== null && rem <= 14 ? 'text-orange-500 dark:text-orange-400' : 'text-slate-500'}`}>
                             {dlBadge.text}
@@ -3227,14 +3223,12 @@ function MainApp() {
                         {isSubmitted && filedDateStr && (
                           <span className="text-xs text-slate-500">Filed {filedDateStr}</span>
                         )}
+                        {isPaid && (
+                          <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                            Got back {fmtMoney(reimb)} ({reimbPct}%){paidDateStr && ` · ${paidDateStr}`}
+                          </span>
+                        )}
                       </div>
-
-                      {/* Reimbursement row (paid only) */}
-                      {isPaid && (
-                        <div className="text-sm text-emerald-700 dark:text-emerald-400 font-medium">
-                          Got back {fmtMoney(reimb)} ({reimbPct}%){paidDateStr && ` · ${paidDateStr}`}
-                        </div>
-                      )}
                     </div>
 
                     {/* Divider */}
