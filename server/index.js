@@ -3120,6 +3120,12 @@ Pet insurance covers on an EXCLUSION basis. Everything medically necessary IS co
 Diagnostics, medications, surgery, hospitalization, lab tests, x-rays, supplies, nursing care → COVERED by default.
 Default to COVERED, not UNKNOWN, for legitimate illness/injury treatment items.
 
+RULE 7 — PRESCRIPTION DIET FOR COVERED CONDITIONS:
+If a prescription diet or prescription pet food is prescribed by a veterinarian to treat a specific COVERED condition (e.g., post-surgical GI recovery diet after intestinal surgery, renal diet for diagnosed kidney disease), it IS covered. Only exclude prescription diets when they are for general health maintenance, weight loss, prevention, or when there is no underlying covered condition being treated. When a prescription diet appears on a bill alongside a covered surgery or covered illness treatment, default to COVERED unless the policy explicitly excludes ALL prescription foods with no exception for covered conditions. Pumpkin policy explicitly covers "Prescription pet food to treat a covered condition." Odie and most carriers follow similar logic.
+
+RULE 8 — E-COLLAR / ELIZABETHAN COLLAR:
+An Elizabethan collar (e-collar, cone) provided as part of post-surgical care or to prevent a pet from interfering with treatment of a covered condition is a MEDICAL SUPPLY, not a non-medical supply. It is functionally equivalent to bandages, casts, and splints — it protects a surgical site or wound. Mark as COVERED when prescribed or provided in connection with a covered procedure. Only exclude if the e-collar is sold as a standalone retail item unrelated to any covered treatment.
+
 For each line item from Stage 1, provide:
 - "covered": true (covered) | false (excluded) | null (unknown/no policy)
 - "reason": "Covered — [category/section]" or "Excluded — [specific reason]" or "Uncertain — [reason]"
