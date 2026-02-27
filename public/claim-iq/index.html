@@ -114,11 +114,13 @@
         reimbursement: 80,
         deductible: 500,
         policyStart: '',
-        deductibleMet: 0
+        deductibleMet: 0,
+        policyPetName: ''
       });
 
       const [results, setResults] = useState(null);
       const [isAnalyzing, setIsAnalyzing] = useState(false);
+      const [crossTestingMode, setCrossTestingMode] = useState(false);
 
       const handleVetBillUpload = (e) => {
         const file = e.target.files[0];
@@ -158,6 +160,8 @@
 
         setIsAnalyzing(true);
 
+        // Simulate API call — crossTestingMode would be passed as a field in
+        // the real multipart/form-data request to POST /api/analyze-claim
         setTimeout(() => {
           const rules = INSURANCE_RULES[policyData.insurance];
           const policyStartDate = new Date(policyData.policyStart);
@@ -165,6 +169,31 @@
 
           const daysSincePolicyStart = Math.floor((billDate - policyStartDate) / (1000 * 60 * 60 * 24));
           const pastWaitingPeriod = daysSincePolicyStart >= rules.waitingPeriods.illness;
+
+          // --- Eligibility checks (bypassed when Cross-Testing Mode is on) ---
+          let eligibilityWarnings = null;
+          if (!crossTestingMode) {
+            const warnings = [];
+
+            // Check 1: Pet name mismatch between vet bill and policy
+            if (policyData.policyPetName && policyData.policyPetName.trim()) {
+              const billPet = billData.petName.trim().toLowerCase();
+              const policyPet = policyData.policyPetName.trim().toLowerCase();
+              if (billPet !== policyPet) {
+                warnings.push(`Pet name mismatch: the vet bill is for "${billData.petName}" but the policy is for "${policyData.policyPetName}".`);
+              }
+            }
+
+            // Check 2: Service date before policy effective date or within waiting period
+            if (daysSincePolicyStart < 0) {
+              warnings.push(`Service date (${billData.date}) is before the policy effective date (${policyData.policyStart}). This visit is not eligible for coverage.`);
+            } else if (!pastWaitingPeriod) {
+              warnings.push(`Service date is within the ${rules.waitingPeriods.illness}-day waiting period (${daysSincePolicyStart} day${daysSincePolicyStart === 1 ? '' : 's'} after policy start). Illness claims may not be covered.`);
+            }
+
+            if (warnings.length > 0) eligibilityWarnings = warnings;
+          }
+          // -------------------------------------------------------------------
 
           const analyzedItems = billData.lineItems.map(item => {
             let covered = true;
@@ -191,6 +220,8 @@
 
           setResults({
             pastWaitingPeriod,
+            eligibilityWarnings,
+            crossTestingMode,
             analyzedItems,
             totalCovered,
             totalNotCovered,
@@ -350,6 +381,17 @@
                           placeholder="$0"
                         />
                       </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">Pet Name on Policy <span className="text-gray-400 font-normal">(optional)</span></label>
+                        <input
+                          type="text"
+                          value={policyData.policyPetName}
+                          onChange={(e) => setPolicyData(prev => ({ ...prev, policyPetName: e.target.value }))}
+                          className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-200 focus:border-pch-teal focus:outline-none text-sm"
+                          placeholder="e.g. Trinity"
+                        />
+                      </div>
                     </div>
                   ) : (
                     <label>
@@ -475,6 +517,24 @@
                   Analyze Coverage →
                 </button>
               </div>
+
+              {/* Cross-Testing Mode */}
+              <div className="text-center mt-6">
+                <label className="inline-flex items-center gap-2 cursor-pointer select-none group">
+                  <input
+                    type="checkbox"
+                    checked={crossTestingMode}
+                    onChange={(e) => setCrossTestingMode(e.target.checked)}
+                    className="w-3.5 h-3.5 cursor-pointer accent-gray-400"
+                  />
+                  <span className="text-sm text-gray-400 group-hover:text-gray-500 transition-colors">
+                    ⚗️ Cross-Testing Mode
+                  </span>
+                </label>
+                <p className="text-xs text-gray-400 mt-1.5 max-w-xs mx-auto leading-relaxed">
+                  Bypasses pet name and policy date checks. For testing coverage logic across different pets and policies. Processes faster than the average claims adjudicator.
+                </p>
+              </div>
             </div>
           </div>
         );
@@ -490,6 +550,26 @@
             <div className="max-w-4xl mx-auto px-6 py-12">
               <h2 className="text-3xl font-bold text-center mb-2 text-gray-900">Coverage Analysis</h2>
               <p className="text-center text-gray-600 mb-8">{billData.petName}'s Claim • {new Date(billData.date).toLocaleDateString()}</p>
+
+              {/* Eligibility Warning */}
+              {results.eligibilityWarnings && (
+                <div className="bg-amber-50 border-2 border-amber-400 rounded-2xl p-6 mb-8">
+                  <div className="flex items-start gap-4">
+                    <div className="text-2xl flex-shrink-0">⚠️</div>
+                    <div>
+                      <h3 className="text-lg font-bold text-amber-900 mb-2">Eligibility Warning</h3>
+                      <ul className="space-y-1">
+                        {results.eligibilityWarnings.map((w, i) => (
+                          <li key={i} className="text-amber-800 text-sm">{w}</li>
+                        ))}
+                      </ul>
+                      <p className="text-xs text-amber-700 mt-3">
+                        This analysis may not reflect actual coverage. Enable <strong>Cross-Testing Mode</strong> on the previous screen to bypass these checks.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Recommendation */}
               <div className={`rounded-2xl p-6 mb-8 ${shouldSubmit ? 'bg-pch-teal/10 border-2 border-pch-teal' : 'bg-red-50 border-2 border-red-500'}`}>
