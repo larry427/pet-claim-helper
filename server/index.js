@@ -3100,7 +3100,7 @@ Items categorized as "vaccination" or "preventive" in the Stage 1 lineItems are 
 
 RULE 3 — CARRIER-SPECIFIC RULES (uploaded policy documents only — never assume):
 Use ONLY the exclusions explicitly listed in the attached policy. Read both the covered benefits section AND the exclusions list.
-- If you see Healthy Paws policy: exam fees are excluded (look for "veterinary examination fees" in exclusions)
+- If you see Healthy Paws policy: exam fees are ALWAYS EXCLUDED. Cite the policy's blanket exclusion as the reason — use: "Excluded — Healthy Paws policy: veterinary examination fees are explicitly excluded under the policy's blanket exclusion." Do NOT cite RULE 1 wellness visit classification as the reason; the exclusion applies regardless of visit type.
 - If you see Pumpkin policy: exam fees ARE covered for sick/injury visits (look for examinations in covered benefits)
 - Apply all other carrier-specific exclusions found in the uploaded documents
 
@@ -3144,6 +3144,13 @@ STEP F — CONFIDENCE LEVEL:
 - "Medium": partial policy info or declarations page only
 - "Low": bill only or very limited policy info
 
+STEP G — ELIGIBILITY FLAGS:
+Review both documents for any eligibility concerns and populate eligibilityWarnings accordingly:
+- If the vet bill service date is BEFORE the policy effective date: add "Service date ([date]) predates policy effective date ([date]) — this visit may not be covered."
+- If the service date is within the carrier's standard waiting period (typically 14–15 days) after the policy start date: add "Service date is within the initial waiting period ([N] days after policy start on [date]) — illness claims may not be covered."
+- If a pet name appears on the policy and it does NOT match the pet name on the vet bill: add "Pet name mismatch: bill is for '[billName]' but the policy covers '[policyName]'."
+- If no concerns exist, return an empty array.
+
 Return ONLY this JSON object:
 {
   "completeness": "full" | "partial" | "bill_only",
@@ -3179,7 +3186,8 @@ Return ONLY this JSON object:
     "shouldFile": boolean,
     "shouldFileReason": string,
     "exclusionWarnings": [],
-    "confidenceLevel": "High" | "Medium" | "Low"
+    "confidenceLevel": "High" | "Medium" | "Low",
+    "eligibilityWarnings": []
   }
 }
 
@@ -3322,7 +3330,8 @@ IMPORTANT:
         //   - policyPetName: from Stage 2 policy document parsing
         //   - serviceDate / policyEffectiveDate: same sources
         // ============================================================
-        const eligibilityWarnings = []
+        // Seed with any warnings the AI detected in STEP G, then append programmatic checks
+        const eligibilityWarnings = Array.isArray(s2analysis.eligibilityWarnings) ? [...s2analysis.eligibilityWarnings] : []
         if (!crossTestingMode) {
           const billPetName = stage1Result.petInfo?.name
           const policyPetName = s2policy.policyPetName
