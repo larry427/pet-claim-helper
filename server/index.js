@@ -2580,6 +2580,8 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
         const files = req.files || {}
         const vetBillFile = files.vetBill?.[0]
         const insuranceDocsFiles = files.insuranceDocs || []
+        const crossTestingMode = req.body?.crossTestingMode === 'true'
+        console.log('[analyze-claim] Cross-Testing Mode:', crossTestingMode)
 
         // Validate required files
         if (!vetBillFile) {
@@ -3077,6 +3079,14 @@ FILING DEADLINE:
 - Look for "filing deadline", "claim submission deadline", or "days to file a claim"
 - Return as a string (e.g., "90 days from date of service") or null if not found
 
+POLICY PET NAME:
+- Look for the insured pet's name on the declarations page (fields like "Pet Schedule", "Covered Pet", "Insured Pet", "Pet Name", or a pet schedule table)
+- Return the name exactly as written, or null if not found
+
+POLICY EFFECTIVE DATE:
+- Look for "Effective Date", "Policy Start Date", "Coverage Begins", "Policy Period From", or "Inception Date"
+- Return in YYYY-MM-DD format, or null if not found
+
 STEP C — DETERMINE COVERAGE FOR EACH LINE ITEM:
 Apply these rules in ORDER. Do not skip any rule.
 
@@ -3145,7 +3155,9 @@ Return ONLY this JSON object:
     "deductible": number | null,
     "annualLimit": number | null,
     "mathOrder": "reimbursement-first" | "deductible-first" | null,
-    "filingDeadline": string | null
+    "filingDeadline": string | null,
+    "policyPetName": string | null,
+    "policyEffectiveDate": string | null
   },
   "analysis": {
     "visitType": string,
@@ -3302,6 +3314,39 @@ IMPORTANT:
 
         // Backwards compatibility: add old field name for older frontends
         analysis.analysis.reimbursementBeforeDeductible = analysis.analysis.maxReimbursement
+
+        // ============================================================
+        // ELIGIBILITY PRE-CHECKS (skipped when crossTestingMode=true)
+        // Uses data extracted from both uploaded documents:
+        //   - billPetName: from Stage 1 vet bill parsing
+        //   - policyPetName: from Stage 2 policy document parsing
+        //   - serviceDate / policyEffectiveDate: same sources
+        // ============================================================
+        const eligibilityWarnings = []
+        if (!crossTestingMode) {
+          const billPetName = stage1Result.petInfo?.name
+          const policyPetName = s2policy.policyPetName
+          if (billPetName && policyPetName) {
+            if (billPetName.trim().toLowerCase() !== policyPetName.trim().toLowerCase()) {
+              eligibilityWarnings.push(`Pet name mismatch: the vet bill is for "${billPetName}" but the policy is for "${policyPetName}".`)
+            }
+          }
+
+          const serviceDate = stage1Result.clinicInfo?.date       // YYYY-MM-DD from Stage 1
+          const effectiveDate = s2policy.policyEffectiveDate       // YYYY-MM-DD from Stage 2
+          if (serviceDate && effectiveDate) {
+            // Use noon UTC to avoid any date-boundary DST shifts
+            const svcMs = new Date(serviceDate + 'T12:00:00Z').getTime()
+            const effMs = new Date(effectiveDate + 'T12:00:00Z').getTime()
+            const daysDiff = Math.floor((svcMs - effMs) / (1000 * 60 * 60 * 24))
+            if (daysDiff < 0) {
+              eligibilityWarnings.push(`Service date (${serviceDate}) is before the policy effective date (${effectiveDate}). This visit may not be eligible for coverage.`)
+            } else if (daysDiff < 15) {
+              eligibilityWarnings.push(`Service date is within the 15-day waiting period (${daysDiff} day${daysDiff === 1 ? '' : 's'} after policy start on ${effectiveDate}). Illness claims may not be covered.`)
+            }
+          }
+        }
+        analysis.eligibilityWarnings = eligibilityWarnings.length ? eligibilityWarnings : null
 
         console.log('[analyze-claim] ✅ Two-stage analysis complete:', {
           visitType: stage1Result.visitType,
