@@ -3940,20 +3940,22 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
       console.log(`${tag} Downloaded:`, { fileName, bytes: fileBuffer.length })
 
       // Build file content for gpt-4o
+      // PDFs: extract text and send as text block (gpt-4o doesn't support PDF file inputs)
+      // Images: send as image_url
       let fileContents = []
-      let textBackup = ''
+      let policyText = ''
       if (isPdf) {
-        fileContents.push(pciqPdfToFileInput(fileBuffer, fileName))
-        textBackup = await pciqExtractPdfText(fileBuffer, fileName)
+        policyText = await pciqExtractPdfText(fileBuffer, fileName)
+        console.log(`${tag} Extracted ${policyText.length} chars of text from PDF`)
       } else {
         const mimeType = /\.(jpe?g)$/i.test(fileName) ? 'image/jpeg' : 'image/png'
         fileContents.push({ type: 'image_url', image_url: { url: pciqToDataUrl(fileBuffer, mimeType), detail: 'high' } })
       }
 
-      const extractionPrompt = `You are a pet insurance policy expert. Extract all structured fields from the attached policy documents (declarations page + policy booklet).
+      const extractionPrompt = `You are a pet insurance policy expert. Extract all structured fields from the policy document text below.
 
-TEXT BACKUP (may be incomplete — always prefer attached documents):
-${textBackup || '(No text backup available)'}
+POLICY DOCUMENT TEXT:
+${policyText || '(No text extracted — see attached image)'}
 
 EXTRACTION RULES:
 1. REIMBURSEMENT RATE: Look for "Co-Insurance", "Coinsurance %", "Reimbursement Rate", "Insurer Pays". Return as plain integer (80 means 80%). Do NOT return 0.80.
