@@ -3938,6 +3938,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
       const isPdf = /\.pdf$/i.test(fileName)
 
       console.log(`${tag} Downloaded:`, { fileName, bytes: fileBuffer.length })
+      console.log('EXTRACT-POLICY: file downloaded, size:', fileBuffer.length)
 
       // Build file content for gpt-4o
       // PDFs: extract text and send as text block (gpt-4o doesn't support PDF file inputs)
@@ -3947,6 +3948,8 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
       if (isPdf) {
         policyText = await pciqExtractPdfText(fileBuffer, fileName)
         console.log(`${tag} Extracted ${policyText.length} chars of text from PDF`)
+        console.log('EXTRACT-POLICY: text extracted, length:', policyText.length)
+        console.log('EXTRACT-POLICY: text preview:', policyText.substring(0, 200))
       } else {
         const mimeType = /\.(jpe?g)$/i.test(fileName) ? 'image/jpeg' : 'image/png'
         fileContents.push({ type: 'image_url', image_url: { url: pciqToDataUrl(fileBuffer, mimeType), detail: 'high' } })
@@ -4011,6 +4014,7 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
       })
 
       const rawContent = completion.choices?.[0]?.message?.content ?? ''
+      console.log('EXTRACT-POLICY: raw OpenAI response:', rawContent)
       let extracted = null
       try {
         let c = rawContent.trim()
@@ -4020,6 +4024,8 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
         const m = rawContent.match(/\{[\s\S]*\}/)
         if (m) { try { extracted = JSON.parse(m[0]) } catch {} }
       }
+
+      console.log('EXTRACT-POLICY: parsed result:', JSON.stringify(extracted))
 
       if (!extracted) {
         console.error(`${tag} Failed to parse response:`, rawContent.substring(0, 500))
@@ -4042,6 +4048,7 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
 
     } catch (error) {
       console.error(`${tag} Error:`, error)
+      console.log('EXTRACT-POLICY ERROR:', error.message, error.stack)
       return res.status(500).json({ error: error.message || 'An unexpected error occurred.' })
     }
   })

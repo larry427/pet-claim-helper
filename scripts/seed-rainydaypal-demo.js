@@ -48,23 +48,34 @@ async function seedRainyDayPalDemo() {
   console.log('\n🐾  Creating RainyDayPal demo account…\n')
 
   // ── 1. Auth user ──────────────────────────────────────────────────────────────
+  // IMPORTANT: we NEVER delete the auth user — that would change the user ID and
+  // orphan all uploaded pet photos in storage. Instead we reuse the existing user
+  // and wipe + re-create only the data rows.
   const DEMO_EMAIL    = 'demo-rainydaypal@petclaimhelper.com'
   const DEMO_PASSWORD = 'RainyDay2026!'
 
   const { data: existingUsers } = await supabase.auth.admin.listUsers()
   const existing = existingUsers?.users?.find(u => u.email === DEMO_EMAIL)
-  if (existing) {
-    console.log('⚠️  Account already exists — deleting and recreating…')
-    await supabase.auth.admin.deleteUser(existing.id)
-  }
 
-  const { data: authData } = await must('createUser', await supabase.auth.admin.createUser({
-    email:         DEMO_EMAIL,
-    password:      DEMO_PASSWORD,
-    email_confirm: true,
-  }))
-  const userId = authData.user.id
-  console.log('✅  Auth user created:', userId)
+  let userId
+  if (existing) {
+    userId = existing.id
+    console.log('♻️  Reusing existing auth user:', userId)
+
+    // Wipe data in dependency order (expenses → claims → pets)
+    await supabase.from('pet_expenses').delete().eq('user_id', userId)
+    await supabase.from('claims').delete().eq('user_id', userId)
+    await supabase.from('pets').delete().eq('user_id', userId)
+    console.log('🗑️  Cleared existing pets / claims / expenses')
+  } else {
+    const { data: authData } = await must('createUser', await supabase.auth.admin.createUser({
+      email:         DEMO_EMAIL,
+      password:      DEMO_PASSWORD,
+      email_confirm: true,
+    }))
+    userId = authData.user.id
+    console.log('✅  Auth user created:', userId)
+  }
 
   // ── 2. Profile ────────────────────────────────────────────────────────────────
   await must('profile', await supabase.from('profiles').upsert({
