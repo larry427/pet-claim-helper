@@ -3445,7 +3445,7 @@ IMPORTANT:
   app.post('/api/pciq/analyze', async (req, res) => {
     const tag = '[pciq/analyze]'
     try {
-      const { user_id, storage_path, doc_type } = req.body || {}
+      const { user_id, storage_path, doc_type, policy_id } = req.body || {}
 
       if (!storage_path || !doc_type) {
         return res.status(400).json({ error: 'storage_path and doc_type are required' })
@@ -3457,7 +3457,30 @@ IMPORTANT:
         return res.status(500).json({ error: 'OpenAI API key not configured' })
       }
 
-      console.log(`${tag} Request:`, { user_id, storage_path, doc_type })
+      console.log(`${tag} Request:`, { user_id, storage_path, doc_type, policy_id })
+
+      // STEP 0 — Fetch saved policy from DB (if provided)
+      let savedPolicy = null
+      if (policy_id) {
+        const { data: policyRow, error: policyErr } = await supabase
+          .from('pciq_policies')
+          .select('*')
+          .eq('id', policy_id)
+          .single()
+        if (policyErr) {
+          console.warn(`${tag} Policy lookup failed:`, policyErr.message)
+        } else {
+          savedPolicy = policyRow
+          console.log(`${tag} Policy loaded:`, {
+            carrier: savedPolicy.carrier,
+            pet_name: savedPolicy.pet_name,
+            deductible: savedPolicy.deductible,
+            reimbursement_rate: savedPolicy.reimbursement_rate,
+            math_order: savedPolicy.math_order,
+            has_storage_path: !!savedPolicy.storage_path
+          })
+        }
+      }
 
       // STEP 1 — Download from Supabase Storage
       const { data: blob, error: downloadError } = await supabase.storage
@@ -3496,11 +3519,32 @@ IMPORTANT:
         }
       }
 
-      // 'bill'  → vet bill only, no policy docs
+      // 'bill'  → vet bill only; inject saved policy PDF if available
       // 'eob'   → EOB used as bill (for extraction) + policy doc (for coverage determination)
       // 'both'  → combined doc used as both vet bill and policy doc
       if (doc_type === 'bill') {
         await addFile(vetBillFileContents, vetBillTextBackup, 'VET BILL')
+        // Inject saved policy PDF if the user's policy has one stored
+        if (savedPolicy?.storage_path) {
+          const { data: policyBlob, error: policyDlErr } = await supabase.storage
+            .from('pciq-policies')
+            .download(savedPolicy.storage_path)
+          if (policyDlErr) {
+            console.warn(`${tag} Policy PDF download failed:`, policyDlErr.message)
+          } else {
+            const policyBuf = Buffer.from(await policyBlob.arrayBuffer())
+            const policyFileName = savedPolicy.storage_path.split('/').pop() || 'policy.pdf'
+            const isPolicyPdf = /\.pdf$/i.test(policyFileName)
+            if (isPolicyPdf) {
+              policyFileContents.push(pciqPdfToFileInput(policyBuf, policyFileName))
+              const policyText = await pciqExtractPdfText(policyBuf, policyFileName)
+              policyTextBackup.push(`=== SAVED POLICY DOCUMENT ===\n${policyText}`)
+            } else {
+              policyFileContents.push({ type: 'image_url', image_url: { url: pciqToDataUrl(policyBuf, 'image/jpeg'), detail: 'high' } })
+            }
+            console.log(`${tag} Injected saved policy PDF:`, policyFileName)
+          }
+        }
       } else if (doc_type === 'eob') {
         await addFile(vetBillFileContents, vetBillTextBackup, 'EOB (bill extraction)')
         await addFile(policyFileContents, policyTextBackup, 'EOB (coverage determination)')
@@ -3613,7 +3657,27 @@ Return ONLY this JSON object:
         totalBill: stage1Result.totalBill
       })
 
-      // STEP 4 — Stage 2: Coverage analysis
+      // STEP 4 — Build saved-policy context string for Stage 2 prompt
+      let savedPolicyContext = ''
+      if (savedPolicy) {
+        savedPolicyContext = `
+SAVED POLICY PARAMETERS (from user's account — use these as ground truth when policy documents are absent or incomplete):
+  Carrier: ${savedPolicy.carrier || 'Unknown'}
+  Pet Name: ${savedPolicy.pet_name || 'Unknown'}
+  Species: ${savedPolicy.species || 'Unknown'}
+  Deductible: $${savedPolicy.deductible ?? 'Unknown'}
+  Reimbursement Rate: ${savedPolicy.reimbursement_rate != null ? savedPolicy.reimbursement_rate + '%' : 'Unknown'}
+  Annual Limit: ${savedPolicy.annual_limit != null ? '$' + savedPolicy.annual_limit : 'Unknown'}
+  Math Order: ${savedPolicy.math_order || 'Unknown'}
+  Effective Date: ${savedPolicy.effective_date || 'Unknown'}
+  Exclusions: ${(savedPolicy.exclusions || []).join(', ') || 'None listed'}
+  Policy Notes: ${savedPolicy.policy_text || 'None'}
+
+When saved policy parameters conflict with policy documents, prefer the attached documents but fall back to these saved values if the document is missing or unclear.
+`
+      }
+
+      // STEP 5 — Stage 2: Coverage analysis
       const coveragePrompt = `You are a pet insurance coverage analyst. A structured extraction of the vet bill has already been completed in Stage 1. Your job is ONLY to determine coverage and calculate reimbursement. Do not re-extract line items or re-classify the visit type.
 
 STAGE 1 EXTRACTION (treat as ground truth — do not modify):
@@ -3621,7 +3685,7 @@ ${JSON.stringify(stage1Result, null, 2)}
 
 THE VISIT TYPE IS: ${stage1Result.visitType}
 This is FINAL and IMMUTABLE. Do not reconsider it under any circumstances.
-
+${savedPolicyContext}
 Policy documents are attached. Examine each one carefully.
 
 POLICY TEXT BACKUP (may be incomplete — always prefer attached documents):
@@ -3781,14 +3845,15 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         lineItems: stage2Result.analysis?.lineItems?.length
       })
 
-      // STEP 5 — Recalculate reimbursement server-side (same logic as /api/analyze-claim)
+      // STEP 6 — Recalculate reimbursement server-side (same logic as /api/analyze-claim)
+      // Prefer saved policy parameters over AI-extracted values (AI can misread policy docs)
       const s2a = stage2Result.analysis || {}
       const s2p = stage2Result.policyInfo || {}
 
       const totalCovered = s2a.totalCovered || 0
-      const rateRaw = s2p.reimbursementRate || null
-      const deductible = s2p.deductible || 0
-      const mathOrder = s2p.mathOrder || 'reimbursement-first'
+      const rateRaw = (savedPolicy?.reimbursement_rate ?? s2p.reimbursementRate) || null
+      const deductible = (savedPolicy?.deductible ?? s2p.deductible) || 0
+      const mathOrder = (savedPolicy?.math_order ?? s2p.mathOrder) || 'reimbursement-first'
 
       let maxReimbursement = s2a.maxReimbursement || 0
       if (totalCovered > 0 && rateRaw) {
@@ -3799,7 +3864,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         maxReimbursement = Math.round(Math.max(0, maxReimbursement) * 100) / 100
       }
 
-      // STEP 6 — Map to mobile response shape
+      // STEP 7 — Map to mobile response shape
       const shouldFile = s2a.shouldFile ?? false
       const recommendation = shouldFile ? 'file' : 'skip'
 
@@ -3834,6 +3899,147 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
       if (error.status === 429) {
         return res.status(429).json({ error: 'Service is busy. Please try again in a moment.' })
       }
+      return res.status(500).json({ error: error.message || 'An unexpected error occurred.' })
+    }
+  })
+
+  // ========================================
+  // POST /api/pciq/extract-policy
+  // Accepts a Supabase storage path to a policy PDF,
+  // runs gpt-4o to extract structured policy fields,
+  // and returns them for saving to pciq_policies.
+  // ========================================
+  app.post('/api/pciq/extract-policy', async (req, res) => {
+    const tag = '[pciq/extract-policy]'
+    try {
+      const { user_id, storage_path } = req.body || {}
+
+      if (!storage_path) {
+        return res.status(400).json({ error: 'storage_path is required' })
+      }
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(500).json({ error: 'OpenAI API key not configured' })
+      }
+
+      console.log(`${tag} Request:`, { user_id, storage_path })
+
+      // Download policy PDF from Supabase Storage
+      const { data: blob, error: downloadError } = await supabase.storage
+        .from('pciq-policies')
+        .download(storage_path)
+
+      if (downloadError) {
+        console.error(`${tag} Download error:`, downloadError.message)
+        return res.status(500).json({ error: downloadError.message })
+      }
+
+      const fileBuffer = Buffer.from(await blob.arrayBuffer())
+      const fileName = storage_path.split('/').pop() || 'policy.pdf'
+      const isPdf = /\.pdf$/i.test(fileName)
+
+      console.log(`${tag} Downloaded:`, { fileName, bytes: fileBuffer.length })
+
+      // Build file content for gpt-4o
+      let fileContents = []
+      let textBackup = ''
+      if (isPdf) {
+        fileContents.push(pciqPdfToFileInput(fileBuffer, fileName))
+        textBackup = await pciqExtractPdfText(fileBuffer, fileName)
+      } else {
+        const mimeType = /\.(jpe?g)$/i.test(fileName) ? 'image/jpeg' : 'image/png'
+        fileContents.push({ type: 'image_url', image_url: { url: pciqToDataUrl(fileBuffer, mimeType), detail: 'high' } })
+      }
+
+      const extractionPrompt = `You are a pet insurance policy expert. Extract all structured fields from the attached policy documents (declarations page + policy booklet).
+
+TEXT BACKUP (may be incomplete — always prefer attached documents):
+${textBackup || '(No text backup available)'}
+
+EXTRACTION RULES:
+1. REIMBURSEMENT RATE: Look for "Co-Insurance", "Coinsurance %", "Reimbursement Rate", "Insurer Pays". Return as plain integer (80 means 80%). Do NOT return 0.80.
+2. ANNUAL DEDUCTIBLE: Look for "Annual Deductible", "Deductible", "Per Policy Period Deductible". Return as plain number (no $ sign).
+3. ANNUAL LIMIT: Look for "Annual Limit", "Policy Maximum", "Annual Maximum". Return as plain number or null if unlimited.
+4. CARRIER: Use consumer-facing brand name (e.g., "Healthy Paws" not "Westchester Fire Insurance Company"). Brand mappings:
+   - "Westchester Fire Insurance Company" = "Healthy Paws"
+   - "United States Fire Insurance Company" = "Pumpkin"
+   - "American Pet Insurance Company" = "Fetch"
+   - "Independence American Insurance Company" = "Figo"
+   - "National Casualty Company" = "Nationwide Pet Insurance"
+5. PET NAME: from declarations page.
+6. SPECIES: "dog" or "cat" (lowercase).
+7. BREED: from declarations page or null.
+8. MATH ORDER:
+   - "reimbursement_first" = percentage applied first, then deductible subtracted
+   - "deductible_first" = deductible subtracted first, then percentage applied
+   - null if you cannot determine from a worked example or explicit statement
+9. EFFECTIVE DATE: policy start date in YYYY-MM-DD format or null.
+10. EXPIRATION DATE: policy end date in YYYY-MM-DD format or null.
+11. FILING DEADLINE DAYS: number of days from service date to file a claim (e.g., 90), or null.
+12. EXCLUSIONS: array of key exclusion categories as short strings (e.g., ["pre-existing conditions", "wellness", "elective procedures"]).
+13. POLICY TEXT: a 1-3 sentence plain-English summary of what this policy covers.
+
+Return ONLY this JSON object:
+{
+  "carrier": string | null,
+  "pet_name": string | null,
+  "species": "dog" | "cat" | null,
+  "breed": string | null,
+  "deductible": number | null,
+  "reimbursement_rate": number | null,
+  "annual_limit": number | null,
+  "math_order": "reimbursement_first" | "deductible_first" | null,
+  "effective_date": string | null,
+  "expiration_date": string | null,
+  "filing_deadline_days": number | null,
+  "exclusions": string[],
+  "policy_text": string | null
+}
+
+IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: 'You are a pet insurance policy extraction specialist. Extract data accurately and return valid JSON only.' },
+          { role: 'user', content: [{ type: 'text', text: extractionPrompt }, ...fileContents] }
+        ],
+        temperature: 0.1,
+        max_tokens: 1500,
+        response_format: { type: 'json_object' }
+      })
+
+      const rawContent = completion.choices?.[0]?.message?.content ?? ''
+      let extracted = null
+      try {
+        let c = rawContent.trim()
+        if (c.startsWith('```')) c = c.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```\s*$/, '')
+        extracted = JSON.parse(c)
+      } catch {
+        const m = rawContent.match(/\{[\s\S]*\}/)
+        if (m) { try { extracted = JSON.parse(m[0]) } catch {} }
+      }
+
+      if (!extracted) {
+        console.error(`${tag} Failed to parse response:`, rawContent.substring(0, 500))
+        return res.status(422).json({ error: 'Failed to extract policy data. Please try again.' })
+      }
+
+      console.log(`${tag} ✅ Extracted:`, {
+        carrier: extracted.carrier,
+        pet_name: extracted.pet_name,
+        deductible: extracted.deductible,
+        reimbursement_rate: extracted.reimbursement_rate,
+        math_order: extracted.math_order
+      })
+
+      // Normalize math_order to match DB enum (reimbursement_first → reimbursement_first)
+      if (extracted.math_order === 'reimbursement-first') extracted.math_order = 'reimbursement_first'
+      if (extracted.math_order === 'deductible-first') extracted.math_order = 'deductible_first'
+
+      return res.json({ ...extracted, storage_path })
+
+    } catch (error) {
+      console.error(`${tag} Error:`, error)
       return res.status(500).json({ error: error.message || 'An unexpected error occurred.' })
     }
   })
