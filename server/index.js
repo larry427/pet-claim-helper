@@ -3466,12 +3466,14 @@ IMPORTANT:
           .from('pciq_policies')
           .select('*')
           .eq('id', policy_id)
-          .single()
+          .maybeSingle()
         if (policyErr) {
-          console.warn(`${tag} Policy lookup failed:`, policyErr.message)
+          console.log(`${tag} Policy lookup error:`, policyErr.message)
+        } else if (!policyRow) {
+          console.log(`${tag} Policy not found for id:`, policy_id)
         } else {
           savedPolicy = policyRow
-          console.log(`${tag} Policy loaded:`, {
+          console.log(`${tag} Policy found:`, {
             carrier: savedPolicy.carrier,
             pet_name: savedPolicy.pet_name,
             deductible: savedPolicy.deductible,
