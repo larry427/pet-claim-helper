@@ -3406,6 +3406,438 @@ IMPORTANT:
     })
   })
 
+  // ========================================
+  // POST /api/pciq/analyze
+  // Mobile app (Pet ClaimIQ) bridge route.
+  // Accepts a Supabase storage path, downloads the file,
+  // runs the same two-stage analysis engine as /api/analyze-claim,
+  // and returns the mobile response shape.
+  // Does NOT modify /api/analyze-claim.
+  // ========================================
+
+  // --- helpers (mirrors /api/analyze-claim internals) ---
+
+  const pciqExtractPdfText = async (buffer, filename) => {
+    try {
+      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise
+      const pieces = []
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i)
+        const content = await page.getTextContent()
+        pieces.push((content.items || []).map(it => it.str || '').join(' '))
+      }
+      console.log(`[pciq/analyze] Extracted ${pieces.length} pages from ${filename}`)
+      return pieces.join('\n\n')
+    } catch (err) {
+      console.error(`[pciq/analyze] PDF extraction failed for ${filename}:`, err.message)
+      throw new Error(`Failed to read PDF: ${filename}`)
+    }
+  }
+
+  const pciqPdfToFileInput = (buffer, filename) => ({
+    type: 'file',
+    file: { filename, file_data: `data:application/pdf;base64,${buffer.toString('base64')}` }
+  })
+
+  const pciqToDataUrl = (buffer, mime) =>
+    `data:${mime};base64,${buffer.toString('base64')}`
+
+  app.post('/api/pciq/analyze', async (req, res) => {
+    const tag = '[pciq/analyze]'
+    try {
+      const { user_id, storage_path, doc_type } = req.body || {}
+
+      if (!storage_path || !doc_type) {
+        return res.status(400).json({ error: 'storage_path and doc_type are required' })
+      }
+      if (!['bill', 'eob', 'both'].includes(doc_type)) {
+        return res.status(400).json({ error: 'doc_type must be "bill", "eob", or "both"' })
+      }
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(500).json({ error: 'OpenAI API key not configured' })
+      }
+
+      console.log(`${tag} Request:`, { user_id, storage_path, doc_type })
+
+      // STEP 1 — Download from Supabase Storage
+      const { data: blob, error: downloadError } = await supabase.storage
+        .from('pciq-policies')
+        .download(storage_path)
+
+      if (downloadError) {
+        console.error(`${tag} Download error:`, downloadError.message)
+        return res.status(500).json({ error: downloadError.message })
+      }
+
+      const fileBuffer = Buffer.from(await blob.arrayBuffer())
+      const fileName = storage_path.split('/').pop() || 'document.pdf'
+      const mimeType = fileName.toLowerCase().endsWith('.pdf') ? 'application/pdf'
+        : /\.(jpe?g)$/i.test(fileName) ? 'image/jpeg'
+        : fileName.toLowerCase().endsWith('.png') ? 'image/png'
+        : 'application/pdf'
+
+      console.log(`${tag} Downloaded:`, { fileName, bytes: fileBuffer.length, mimeType })
+
+      // STEP 2 — Build file content arrays based on doc_type
+      const vetBillFileContents = []
+      const vetBillTextBackup = []
+      const policyFileContents = []
+      const policyTextBackup = []
+
+      const isFilePdf = mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')
+
+      const addFile = async (contentsArr, textArr, label) => {
+        if (isFilePdf) {
+          contentsArr.push(pciqPdfToFileInput(fileBuffer, fileName))
+          const text = await pciqExtractPdfText(fileBuffer, fileName)
+          textArr.push(`=== ${label} (text backup) ===\n${text}`)
+        } else {
+          contentsArr.push({ type: 'image_url', image_url: { url: pciqToDataUrl(fileBuffer, mimeType), detail: 'high' } })
+        }
+      }
+
+      // 'bill'  → vet bill only, no policy docs
+      // 'eob'   → EOB used as bill (for extraction) + policy doc (for coverage determination)
+      // 'both'  → combined doc used as both vet bill and policy doc
+      if (doc_type === 'bill') {
+        await addFile(vetBillFileContents, vetBillTextBackup, 'VET BILL')
+      } else if (doc_type === 'eob') {
+        await addFile(vetBillFileContents, vetBillTextBackup, 'EOB (bill extraction)')
+        await addFile(policyFileContents, policyTextBackup, 'EOB (coverage determination)')
+      } else {
+        await addFile(vetBillFileContents, vetBillTextBackup, 'VET BILL + EOB')
+        await addFile(policyFileContents, policyTextBackup, 'POLICY DOCUMENTS')
+      }
+
+      // STEP 3 — Stage 1: Extract vet bill + classify visit type
+      const extractionPrompt = `You are a veterinary invoice parser. Your ONLY job is to extract data from the attached vet bill and classify the visit type. Do not perform any insurance coverage analysis.
+
+EXTRACTION RULES:
+1. Use ONLY the TOTAL column (rightmost dollar amount) for each line item — never the Quantity or Unit Price columns.
+2. Vet bill columns are typically: Description | Quantity | Total. The dollar amount is always the last column.
+3. VALIDATION: Your line item amounts must sum to the invoice total shown on the bill. If they do not match, re-read and correct.
+4. Items with $0.00 totals should still be listed with amount: 0.
+5. Watch for quantity values that look like prices (e.g., Quantity: 100.00 with Total: $0.00 — the amount is 0, not 100).
+6. Watch for quantities with decimals (e.g., 1.18) — this is a quantity multiplied by unit price, NOT a dollar amount.
+
+VET BILL TEXT BACKUP (may be incomplete — always prefer the attached document):
+${vetBillTextBackup.join('\n\n') || '(No text backup available)'}
+
+VISIT TYPE CLASSIFICATION:
+Classify the visit as WELLNESS_VISIT or SICK_INJURY_VISIT based on the PRIMARY purpose of the visit.
+
+WELLNESS_VISIT — majority of items are routine or preventive:
+- Vaccinations (DHPP, rabies, bordetella, leptospirosis, etc.)
+- Annual wellness exam with no illness noted
+- Microchipping
+- Fecal/parasite screening
+- Heartworm testing
+- Dental cleaning (routine, not accident-related)
+- Nail trim, ear cleaning, anal gland expression
+
+SICK_INJURY_VISIT — primary purpose is diagnosing or treating illness or injury:
+- Diagnostic tests for specific symptoms (bloodwork, x-rays, urinalysis for a condition)
+- Medications prescribed for a condition
+- Treatments (IV fluids, wound care, sutures)
+- Surgery for illness or injury
+- Emergency care
+- Follow-up for ongoing condition
+
+MIXED VISITS: Classify by PRIMARY purpose. If a sick pet also gets a vaccine during the visit, it is still a SICK_INJURY_VISIT if the main reason was illness treatment.
+
+LINE ITEM CATEGORIES — assign one per item:
+- "vaccination" — any vaccine
+- "exam" — office visit fee, exam fee, consultation fee
+- "diagnostic" — bloodwork, urinalysis, x-ray, ultrasound, lab tests, cultures
+- "medication" — prescriptions, injections, topicals
+- "surgery" — surgical procedures, anesthesia, surgery supplies
+- "preventive" — heartworm test, fecal, microchip, dental cleaning, nail trim
+- "cosmetic" — elective cosmetic procedures
+- "other" — anything that does not fit above
+
+Return ONLY this JSON object:
+{
+  "visitType": "WELLNESS_VISIT" | "SICK_INJURY_VISIT",
+  "visitTypeReason": "brief explanation of classification",
+  "petInfo": {
+    "name": string | null,
+    "species": string | null,
+    "breed": string | null
+  },
+  "clinicInfo": {
+    "name": string | null,
+    "date": string | null
+  },
+  "totalBill": number,
+  "lineItems": [
+    {
+      "description": string,
+      "amount": number,
+      "category": "vaccination" | "exam" | "diagnostic" | "medication" | "surgery" | "preventive" | "cosmetic" | "other"
+    }
+  ]
+}`
+
+      console.log(`${tag} Stage 1: Extracting vet bill...`, { files: vetBillFileContents.length })
+
+      const stage1Completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: 'You are a veterinary invoice parser. Extract data accurately and return valid JSON only.' },
+          { role: 'user', content: [{ type: 'text', text: extractionPrompt }, ...vetBillFileContents] }
+        ],
+        temperature: 0.1,
+        max_tokens: 2000,
+        response_format: { type: 'json_object' }
+      })
+
+      const stage1Content = stage1Completion.choices?.[0]?.message?.content ?? ''
+      let stage1Result = null
+      try {
+        let c = stage1Content.trim()
+        if (c.startsWith('```')) c = c.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```\s*$/, '')
+        stage1Result = JSON.parse(c)
+      } catch {
+        const m = stage1Content.match(/\{[\s\S]*\}/)
+        if (m) { try { stage1Result = JSON.parse(m[0]) } catch {} }
+      }
+
+      if (!stage1Result) {
+        console.error(`${tag} Stage 1 failed to parse:`, stage1Content.substring(0, 500))
+        return res.status(422).json({ error: 'Failed to extract bill data. Please try again.' })
+      }
+
+      console.log(`${tag} Stage 1 complete:`, {
+        visitType: stage1Result.visitType,
+        lineItems: stage1Result.lineItems?.length,
+        totalBill: stage1Result.totalBill
+      })
+
+      // STEP 4 — Stage 2: Coverage analysis
+      const coveragePrompt = `You are a pet insurance coverage analyst. A structured extraction of the vet bill has already been completed in Stage 1. Your job is ONLY to determine coverage and calculate reimbursement. Do not re-extract line items or re-classify the visit type.
+
+STAGE 1 EXTRACTION (treat as ground truth — do not modify):
+${JSON.stringify(stage1Result, null, 2)}
+
+THE VISIT TYPE IS: ${stage1Result.visitType}
+This is FINAL and IMMUTABLE. Do not reconsider it under any circumstances.
+
+Policy documents are attached. Examine each one carefully.
+
+POLICY TEXT BACKUP (may be incomplete — always prefer attached documents):
+${policyTextBackup.join('\n\n') || '(No policy documents uploaded)'}
+
+DOCUMENT IDENTIFICATION:
+- Declarations page (usually 1 page): reimbursement rate, deductible, annual limit, pet schedule
+- Policy documents: coverage details, exclusions, terms
+- Endorsements/changes: may OVERRIDE declarations for a specific pet — match pet name, use most recent/specific document
+
+UNDERWRITER-TO-BRAND MAPPINGS (always use the brand name, never the underwriter):
+- "Westchester Fire Insurance Company" = "Healthy Paws"
+- "United States Fire Insurance Company" = "Pumpkin"
+- "American Pet Insurance Company" = "Fetch"
+- "Independence American Insurance Company" = "Figo"
+- "National Casualty Company" = "Nationwide Pet Insurance"
+
+STEP A — ASSESS COMPLETENESS:
+- "full": vet bill + enough policy info for complete analysis
+- "partial": vet bill + some policy info but missing key details
+- "bill_only": no usable policy documents uploaded
+If partial, populate missingInfo[] with user-friendly descriptions.
+Include missingDocumentHint.
+
+STEP B — EXTRACT POLICY PARAMETERS FROM THE DECLARATIONS PAGE:
+Find and extract each field exactly as written — do NOT guess or invent values. Return null for any field not clearly present.
+
+REIMBURSEMENT RATE: Look for "Co-Insurance", "Coinsurance %", "Reimbursement Rate", "Insurer Pays". Return as plain integer (70 means 70%). Do NOT return 0.70.
+ANNUAL DEDUCTIBLE: Look for "Annual Deductible", "Deductible", "Per Policy Period Deductible". Return as plain number.
+ANNUAL LIMIT: Look for "Annual Limit", "Policy Maximum", "Annual Maximum". Return as plain number or null.
+CARRIER BRAND NAME: Use consumer-facing brand name, not underwriter (see mappings above).
+MATH ORDER: Look for a worked example showing order of operations.
+  reimbursement-first: percentage applied first, then deductible subtracted
+  deductible-first: deductible subtracted first, then percentage applied
+  null if cannot determine
+FILING DEADLINE: e.g., "90 days from date of service" or null.
+POLICY PET NAME: pet name from declarations page or null.
+POLICY EFFECTIVE DATE: return in YYYY-MM-DD format or null.
+
+STEP C — DETERMINE COVERAGE FOR EACH LINE ITEM:
+Apply these rules in ORDER:
+
+RULE 1 — EXAM FEE RULE: Visit type is "${stage1Result.visitType}".
+- WELLNESS_VISIT: any exam/office visit fee is EXCLUDED regardless of policy declarations
+- SICK_INJURY_VISIT: exam fee follows carrier-specific rules (RULE 3)
+
+RULE 2 — WELLNESS/PREVENTIVE: Items categorized "vaccination" or "preventive" are EXCLUDED.
+
+RULE 3 — CARRIER-SPECIFIC RULES: Use ONLY exclusions from the attached policy documents.
+- Healthy Paws: exam fees always excluded (blanket exclusion)
+- Pumpkin: exam fees covered for sick/injury visits
+- Apply all other carrier-specific exclusions found in uploaded documents only
+
+RULE 4 — PRE-OP/POST-OP INHERITANCE: Pre/post-op items inherit coverage from the associated surgery.
+
+RULE 5 — RADIOLOGY/SPECIALIST READS: Radiologist reads of diagnostic images are DIAGNOSTIC TESTS, not exam fees. Mark as COVERED.
+
+RULE 6 — DEFAULT: Pet insurance covers on an EXCLUSION basis. Medically necessary treatment IS covered unless explicitly excluded. Default to COVERED, not UNKNOWN.
+
+RULE 7 — PRESCRIPTION DIET: Covered when prescribed to treat a specific covered condition.
+
+RULE 8 — E-COLLAR: Covered as a medical supply when provided as part of post-surgical care for a covered procedure.
+
+For each line item from Stage 1:
+- "covered": true | false | null
+- "reason": "Covered — [category]" or "Excluded — [reason]" or "Uncertain — [reason]"
+- "sourceQuote": verbatim policy text or null
+- "section": policy section or null
+
+STEP D — CALCULATE REIMBURSEMENT:
+- totalCovered = sum of covered items
+- totalExcluded = sum of excluded items
+- maxReimbursement = totalCovered x (reimbursementRate / 100)
+- maxReimbursement must be a positive number when totalCovered > 0
+
+STEP E — FILING RECOMMENDATION:
+- shouldFile: true if totalCovered > 0 (even sub-deductible claims build deductible progress)
+- shouldFile: false ONLY if totalCovered === 0
+- shouldFileReason: explain the decision
+
+Return ONLY this JSON object:
+{
+  "completeness": "full" | "partial" | "bill_only",
+  "missingInfo": [],
+  "missingDocumentHint": null,
+  "policyInfo": {
+    "carrier": string | null,
+    "reimbursementRate": number | null,
+    "deductible": number | null,
+    "annualLimit": number | null,
+    "mathOrder": "reimbursement-first" | "deductible-first" | null,
+    "filingDeadline": string | null,
+    "policyPetName": string | null,
+    "policyEffectiveDate": string | null
+  },
+  "analysis": {
+    "visitType": string,
+    "lineItems": [
+      {
+        "description": string,
+        "amount": number,
+        "covered": true | false | null,
+        "reason": string,
+        "sourceQuote": string | null,
+        "section": string | null
+      }
+    ],
+    "totalBill": number,
+    "totalCovered": number,
+    "totalExcluded": number,
+    "maxReimbursement": number,
+    "shouldFile": boolean,
+    "shouldFileReason": string,
+    "exclusionWarnings": [],
+    "eligibilityWarnings": []
+  }
+}
+
+IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an integer (80 not 0.80). Return ONLY the JSON object.`
+
+      console.log(`${tag} Stage 2: Running coverage analysis...`, {
+        policyFiles: policyFileContents.length,
+        visitType: stage1Result.visitType
+      })
+
+      const stage2Completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: 'You are a pet insurance coverage analyst. Provide accurate analysis. Always return valid JSON.' },
+          { role: 'user', content: [{ type: 'text', text: coveragePrompt }, ...policyFileContents] }
+        ],
+        temperature: 0.1,
+        max_tokens: 4000,
+        response_format: { type: 'json_object' }
+      })
+
+      const stage2Content = stage2Completion.choices?.[0]?.message?.content ?? ''
+      let stage2Result = null
+      try {
+        let c = stage2Content.trim()
+        if (c.startsWith('```')) c = c.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```\s*$/, '')
+        stage2Result = JSON.parse(c)
+      } catch {
+        const m = stage2Content.match(/\{[\s\S]*\}/)
+        if (m) { try { stage2Result = JSON.parse(m[0]) } catch {} }
+      }
+
+      if (!stage2Result) {
+        console.error(`${tag} Stage 2 failed to parse:`, stage2Content.substring(0, 500))
+        return res.status(422).json({ error: 'Failed to analyze coverage. Please try again.' })
+      }
+
+      console.log(`${tag} Stage 2 complete:`, {
+        completeness: stage2Result.completeness,
+        carrier: stage2Result.policyInfo?.carrier,
+        totalCovered: stage2Result.analysis?.totalCovered,
+        lineItems: stage2Result.analysis?.lineItems?.length
+      })
+
+      // STEP 5 — Recalculate reimbursement server-side (same logic as /api/analyze-claim)
+      const s2a = stage2Result.analysis || {}
+      const s2p = stage2Result.policyInfo || {}
+
+      const totalCovered = s2a.totalCovered || 0
+      const rateRaw = s2p.reimbursementRate || null
+      const deductible = s2p.deductible || 0
+      const mathOrder = s2p.mathOrder || 'reimbursement-first'
+
+      let maxReimbursement = s2a.maxReimbursement || 0
+      if (totalCovered > 0 && rateRaw) {
+        const rate = rateRaw / 100
+        maxReimbursement = mathOrder === 'deductible-first'
+          ? (totalCovered - deductible) * rate
+          : (totalCovered * rate) - deductible
+        maxReimbursement = Math.round(Math.max(0, maxReimbursement) * 100) / 100
+      }
+
+      // STEP 6 — Map to mobile response shape
+      const shouldFile = s2a.shouldFile ?? false
+      const recommendation = shouldFile ? 'file' : 'skip'
+
+      const lineItems = (s2a.lineItems || []).map(item => ({
+        description: item.description,
+        amount: item.amount,
+        covered: item.covered ?? false,
+        reason: item.reason || ''
+      }))
+
+      const mobileResponse = {
+        estimated_reimbursement: maxReimbursement,
+        total_bill: s2a.totalBill || stage1Result.totalBill || 0,
+        recommendation,
+        line_items: lineItems
+      }
+
+      console.log(`${tag} ✅ Complete:`, {
+        total_bill: mobileResponse.total_bill,
+        estimated_reimbursement: mobileResponse.estimated_reimbursement,
+        recommendation: mobileResponse.recommendation,
+        line_items: mobileResponse.line_items.length
+      })
+
+      return res.json(mobileResponse)
+
+    } catch (error) {
+      console.error(`[pciq/analyze] Error:`, error)
+      if (error.code === 'ETIMEDOUT' || error.message?.includes('timeout')) {
+        return res.status(504).json({ error: 'Analysis timed out. Please try again with a smaller file.' })
+      }
+      if (error.status === 429) {
+        return res.status(429).json({ error: 'Service is busy. Please try again in a moment.' })
+      }
+      return res.status(500).json({ error: error.message || 'An unexpected error occurred.' })
+    }
+  })
+
   app.listen(port, () => {
     console.log(`[server] listening on http://localhost:${port}`)
   })
