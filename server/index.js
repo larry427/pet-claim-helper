@@ -3868,25 +3868,53 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
       const shouldFile = s2a.shouldFile ?? false
       const recommendation = shouldFile ? 'file' : 'skip'
 
-      const lineItems = (s2a.lineItems || []).map(item => ({
-        description: item.description,
-        amount: item.amount,
-        covered: item.covered ?? false,
-        reason: item.reason || ''
-      }))
+      const reimbursementIfDeductibleMet = (totalCovered > 0 && rateRaw)
+        ? Math.round(totalCovered * (rateRaw / 100) * 100) / 100
+        : 0
 
       const mobileResponse = {
         estimated_reimbursement: maxReimbursement,
         total_bill: s2a.totalBill || stage1Result.totalBill || 0,
         recommendation,
-        line_items: lineItems
+        line_items: (s2a.lineItems || []).map(item => ({
+          description: item.description,
+          amount: item.amount,
+          covered: item.covered ?? false,
+          reason: item.reason || '',
+          policy_section: item.sourceQuote || item.section || null,
+        })),
+        // Stage 1 fields
+        visit_type: stage1Result.visitType || null,
+        clinic_name: stage1Result.clinicInfo?.name || null,
+        visit_date: stage1Result.clinicInfo?.date || null,
+        pet_name: stage1Result.petInfo?.name || savedPolicy?.pet_name || null,
+        // Stage 2 / policy fields
+        confidence: stage2Result.completeness === 'full' ? 'High'
+          : stage2Result.completeness === 'partial' ? 'Medium' : 'Low',
+        eligibility_warnings: s2a.eligibilityWarnings || [],
+        carrier: savedPolicy?.carrier || s2p.carrier || null,
+        deductible_total: deductible,
+        deductible_used: 0,
+        reimbursement_rate: rateRaw,
+        covered_total: totalCovered,
+        excluded_total: s2a.totalExcluded || 0,
+        estimated_reimbursement_if_deductible_met: reimbursementIfDeductibleMet,
+        estimated_reimbursement_actual: maxReimbursement,
+        should_file: shouldFile,
+        should_file_reason: s2a.shouldFileReason || '',
+        filing_deadline_days: savedPolicy?.filing_deadline_days
+          || (s2p.filingDeadline ? parseInt(s2p.filingDeadline) : null) || null,
+        math_order: mathOrder,
       }
 
       console.log(`${tag} ✅ Complete:`, {
         total_bill: mobileResponse.total_bill,
         estimated_reimbursement: mobileResponse.estimated_reimbursement,
         recommendation: mobileResponse.recommendation,
-        line_items: mobileResponse.line_items.length
+        line_items: mobileResponse.line_items.length,
+        confidence: mobileResponse.confidence,
+        visit_type: mobileResponse.visit_type,
+        carrier: mobileResponse.carrier,
       })
 
       return res.json(mobileResponse)
