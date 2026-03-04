@@ -4087,6 +4087,7 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
 
   app.post('/api/pciq/compare-eob', async (req, res) => {
     const tag = '[compare-eob]'
+    console.log('[compare-eob] RAW BODY:', JSON.stringify(req.body, null, 2))
     try {
       const { claim_id, eob_storage_path, original_line_items } = req.body
 
