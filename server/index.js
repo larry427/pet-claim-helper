@@ -4083,6 +4083,91 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
     }
   })
 
+  // ─── Generate Appeal Letter ──────────────────────────────────────────────────
+
+  app.post('/api/pciq/generate-appeal', async (req, res) => {
+    const tag = '[generate-appeal]'
+    try {
+      const {
+        claim_id,
+        pet_name,
+        carrier,
+        clinic_name,
+        visit_date,
+        predicted_reimbursement,
+        actual_paid,
+        discrepancy,
+        line_items = [],
+        policy_language = [],
+      } = req.body
+
+      console.log(`${tag} claim_id=${claim_id} carrier=${carrier} discrepancy=${discrepancy}`)
+
+      if (!discrepancy || discrepancy <= 0) {
+        return res.status(400).json({ error: 'No discrepancy to appeal.' })
+      }
+
+      // Build line-item detail for the prompt
+      const itemDetails = line_items
+        .filter(i => i.covered)
+        .map((i, idx) => {
+          let line = `${idx + 1}. ${i.description || 'Item'} — $${(i.amount || 0).toFixed(2)}`
+          if (i.reason) line += ` (${i.reason})`
+          if (i.policy_section) line += `\n   Policy citation: "${i.policy_section}"`
+          return line
+        })
+        .join('\n')
+
+      const policyCitations = policy_language.length > 0
+        ? `\nRelevant policy language already extracted:\n${policy_language.map((c, i) => `${i + 1}. "${c}"`).join('\n')}`
+        : ''
+
+      const prompt = `You are writing a formal insurance appeal letter on behalf of a pet owner. Write the letter directly — no preamble, no markdown, no commentary.
+
+FACTS:
+- Pet name: ${pet_name || 'the insured pet'}
+- Insurance carrier: ${carrier || 'the insurance company'}
+- Veterinary clinic: ${clinic_name || 'the veterinary clinic'}
+- Date of service: ${visit_date || 'recent'}
+- Pet Claim IQ predicted reimbursement: $${(predicted_reimbursement || 0).toFixed(2)}
+- Amount actually paid by insurer: $${(actual_paid || 0).toFixed(2)}
+- Discrepancy: $${discrepancy.toFixed(2)}
+
+COVERED LINE ITEMS:
+${itemDetails || 'No itemized breakdown available.'}
+${policyCitations}
+
+INSTRUCTIONS:
+1. Address the letter to "${carrier || 'Claims Department'}" Claims Department
+2. Reference the specific pet, clinic, and date of service
+3. State clearly what was predicted vs what was paid, and the exact discrepancy amount
+4. Go line by line through the covered items, citing any extracted policy language
+5. Use formal but clear language — this is a real letter a pet parent would send
+6. End with a request for reconsideration and reimbursement of exactly $${discrepancy.toFixed(2)}
+7. Sign off as "Policyholder" generically (do not invent a name)
+8. Do NOT include any subject line or "RE:" header — start with "Dear"`
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        temperature: 0,
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }],
+      })
+
+      const letter = completion.choices[0]?.message?.content?.trim()
+      if (!letter) {
+        throw new Error('Empty response from OpenAI')
+      }
+
+      console.log(`${tag} Generated letter (${letter.length} chars)`)
+      return res.json({ letter })
+
+    } catch (error) {
+      console.error(`${tag} Error:`, error)
+      return res.status(500).json({ error: error.message || 'Failed to generate appeal letter.' })
+    }
+  })
+
   app.listen(port, () => {
     console.log(`[server] listening on http://localhost:${port}`)
   })
