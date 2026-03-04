@@ -7,7 +7,7 @@ const authToken = process.env.TWILIO_AUTH_TOKEN
 const twilioPhone = process.env.TWILIO_PHONE_NUMBER || '+18446256781'
 
 let twilioClient = null
-if (accountSid && authToken) {
+if (accountSid && authToken && accountSid.startsWith('AC')) {
   twilioClient = twilio(accountSid, authToken)
 }
 

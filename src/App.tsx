@@ -4725,6 +4725,27 @@ function AuthForm({ mode, onSwitch }: { mode: 'login' | 'signup'; onSwitch: (m: 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {mode === 'login' && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-800 px-4 py-3 text-sm">
+          <p className="font-semibold text-emerald-800 dark:text-emerald-300 mb-1.5">🔑 Prototype credentials</p>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-emerald-700 dark:text-emerald-400">Email</span>
+            <button type="button" onClick={() => setEmail('demo@petclaimhelper.com')}
+              className="font-mono text-xs bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-700 rounded px-2 py-0.5 text-emerald-900 dark:text-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-900 transition-colors">
+              demo@petclaimhelper.com
+            </button>
+          </div>
+          <div className="flex items-center justify-between gap-2 mt-1.5">
+            <span className="text-emerald-700 dark:text-emerald-400">Password</span>
+            <button type="button" onClick={() => setPassword('Demo1234!')}
+              className="font-mono text-xs bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-700 rounded px-2 py-0.5 text-emerald-900 dark:text-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-900 transition-colors">
+              Demo1234!
+            </button>
+          </div>
+          <p className="text-xs text-emerald-600 dark:text-emerald-500 mt-2">Click either value to auto-fill</p>
+        </div>
+      )}
+
       {signupNoticeEmail && (
         <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800 text-sm">
           <div className="font-medium">Account created!</div>
