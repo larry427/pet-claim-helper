@@ -4116,46 +4116,62 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
 
       console.log(`${tag} Downloaded EOB:`, { fileName, bytes: fileBuffer.length, mimeType })
 
-      // Build the original line items summary for GPT
+      // Build the original line items summary for GPT (covered items with policy citations)
       const items = original_line_items?.items || []
-      const originalSummary = items.map((item, idx) => {
-        return `${idx + 1}. ${item.description || 'Item'} — $${(item.amount || 0).toFixed(2)} (${item.covered ? 'covered' : 'excluded'})`
-      }).join('\n')
+      const originalSummary = items
+        .filter(item => item.covered)
+        .map((item, idx) => {
+          let line = `${idx + 1}. ${item.description || 'Item'} — $${(item.amount || 0).toFixed(2)} (COVERED)`
+          if (item.reason) line += `\n   Reason: ${item.reason}`
+          if (item.policy_section) line += `\n   Policy citation: "${item.policy_section}"`
+          return line
+        }).join('\n')
 
-      const prompt = `You are analyzing a pet insurance Explanation of Benefits (EOB) document.
+      const excludedSummary = items
+        .filter(item => !item.covered)
+        .map((item, idx) => {
+          return `${idx + 1}. ${item.description || 'Item'} — $${(item.amount || 0).toFixed(2)} (EXCLUDED)`
+        }).join('\n')
 
-ORIGINAL CLAIM LINE ITEMS (what we predicted the insurer should pay):
-${originalSummary || 'No original line items available.'}
+      const prompt = `You are a pet insurance claims auditor. You will be given:
+1. An EOB (Explanation of Benefits) from an insurer
+2. The original PCIQ line-by-line coverage predictions with policy citations
 
-TASK:
-1. Extract each line item from the EOB with what the insurer actually paid for each.
-2. Compare each EOB line item to the original predictions above.
-3. Calculate the total the insurer actually paid vs. what we predicted they should pay.
-4. Determine if the insurer underpaid, paid correctly, or overpaid.
+Your job is to find discrepancies where the insurer denied or underpaid a line item that PCIQ predicted was covered, with a specific policy citation supporting that coverage.
 
-Return ONLY a JSON object in this exact format (no markdown, no commentary):
+ORIGINAL PCIQ PREDICTIONS — COVERED ITEMS:
+${originalSummary || 'No covered items.'}
+
+ORIGINAL PCIQ PREDICTIONS — EXCLUDED ITEMS (ignore these):
+${excludedSummary || 'None.'}
+
+For each line item in the original PCIQ predictions that was marked as COVERED:
+- Check if the EOB denied or underpaid that item
+- If the EOB denied something PCIQ said was covered with a policy citation, that is a disputable discrepancy
+
+Return ONLY a JSON object (no markdown, no commentary):
 {
   "status": "underpaid" | "correct" | "overpaid",
-  "total_predicted": <number>,
-  "total_paid": <number>,
-  "discrepancy": <number - only if underpaid, the positive difference>,
+  "discrepancy": <total dollar amount underpaid, 0 if not underpaid>,
   "disputed_items": [
     {
-      "description": "<item description>",
-      "predicted": <number - what we predicted>,
-      "paid": <number - what EOB shows was paid>
+      "name": "<item name>",
+      "pciq_predicted": <dollar amount PCIQ said should be covered>,
+      "insurer_paid": <dollar amount EOB shows was paid>,
+      "policy_citation": "<exact policy language from original prediction>",
+      "denial_reason": "<what the EOB said about this item>"
     }
   ]
 }
 
 Rules:
-- "underpaid" means the insurer paid LESS than predicted (discrepancy > 0)
-- "correct" means total paid >= total predicted (or within $1 tolerance)
-- "overpaid" means total paid > total predicted by more than $1
-- disputed_items should only include items where paid < predicted
-- If you cannot read the EOB or cannot determine amounts, return {"status": "correct"} as a safe default
-- discrepancy field should only be present when status is "underpaid"
-- All numbers should be plain numbers, not strings`
+- If the insurer paid MORE than predicted overall, return status: "overpaid" with discrepancy: 0 and empty disputed_items
+- If amounts match within $1.00 overall, return status: "correct" with discrepancy: 0 and empty disputed_items
+- If the insurer paid LESS than predicted, return status: "underpaid" with the total dollar discrepancy and each disputed item
+- disputed_items should ONLY include covered items where the insurer paid less than PCIQ predicted
+- Only flag items that have a policy citation supporting coverage — items without citations are not disputable
+- If you cannot read the EOB or cannot determine amounts, return {"status": "correct", "discrepancy": 0, "disputed_items": []}
+- All numbers must be plain numbers, not strings`
 
       // Build messages with image content
       const userContent = mimeType === 'application/pdf'
