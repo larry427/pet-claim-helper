@@ -4139,7 +4139,19 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
 1. An EOB (Explanation of Benefits) from an insurer
 2. The original PCIQ line-by-line coverage predictions with policy citations
 
-Your job is to find discrepancies where the insurer denied or underpaid a line item that PCIQ predicted was covered, with a specific policy citation supporting that coverage.
+Your job is to find COVERAGE DENIALS — items the insurer denied for coverage reasons that PCIQ predicted were covered with policy citations.
+
+CRITICAL DISTINCTION — TWO TYPES OF DENIALS:
+1. DEDUCTIBLE DENIALS (VALID — do NOT flag these):
+   - "applied to deductible", "deductible not yet met", "subject to annual deductible"
+   - These are correct insurer behavior. The policyholder must meet their deductible first.
+   - Even if PCIQ predicted the item was covered, a deductible denial is NOT a dispute.
+
+2. COVERAGE DENIALS (DISPUTABLE — flag these):
+   - "not a covered service", "excluded from coverage", "not medically necessary"
+   - "requires pre-authorization", "waiting period not met", "breed-specific exclusion"
+   - "cosmetic procedure", "experimental treatment", "pre-existing condition"
+   - These are cases where the insurer says the policy does NOT cover the item at all.
 
 ORIGINAL PCIQ PREDICTIONS — COVERED ITEMS:
 ${originalSummary || 'No covered items.'}
@@ -4147,30 +4159,32 @@ ${originalSummary || 'No covered items.'}
 ORIGINAL PCIQ PREDICTIONS — EXCLUDED ITEMS (ignore these):
 ${excludedSummary || 'None.'}
 
-For each line item in the original PCIQ predictions that was marked as COVERED:
-- Check if the EOB denied or underpaid that item
-- If the EOB denied something PCIQ said was covered with a policy citation, that is a disputable discrepancy
+For each COVERED item, check the EOB:
+- If the EOB denied it for a DEDUCTIBLE reason → ignore, this is valid
+- If the EOB denied it for a COVERAGE reason and PCIQ has a policy citation supporting coverage → this is a disputable item
 
 Return ONLY a JSON object (no markdown, no commentary):
 {
   "status": "underpaid" | "correct" | "overpaid",
-  "discrepancy": <total dollar amount underpaid, 0 if not underpaid>,
+  "discrepancy": <total dollar amount of COVERAGE denials only, 0 if none>,
   "disputed_items": [
     {
       "name": "<item name>",
       "pciq_predicted": <dollar amount PCIQ said should be covered>,
       "insurer_paid": <dollar amount EOB shows was paid>,
       "policy_citation": "<exact policy language from original prediction>",
-      "denial_reason": "<what the EOB said about this item>"
+      "denial_reason": "<what the EOB said — must be a COVERAGE denial, not deductible>"
     }
   ]
 }
 
 Rules:
+- NEVER include deductible-related denials in disputed_items
+- Only include genuine COVERAGE denials where the insurer says the item is not covered
+- If ALL denials are deductible-related and there are no coverage disputes, return status: "correct"
+- status "underpaid" means there are actual COVERAGE denials totaling more than $1.00
 - If the insurer paid MORE than predicted overall, return status: "overpaid" with discrepancy: 0 and empty disputed_items
-- If amounts match within $1.00 overall, return status: "correct" with discrepancy: 0 and empty disputed_items
-- If the insurer paid LESS than predicted, return status: "underpaid" with the total dollar discrepancy and each disputed item
-- disputed_items should ONLY include covered items where the insurer paid less than PCIQ predicted
+- If amounts match within $1.00 (excluding deductible applications), return status: "correct"
 - Only flag items that have a policy citation supporting coverage — items without citations are not disputable
 - If you cannot read the EOB or cannot determine amounts, return {"status": "correct", "discrepancy": 0, "disputed_items": []}
 - All numbers must be plain numbers, not strings`
@@ -4279,16 +4293,22 @@ FACTS:
 DISPUTED ITEMS (denied or underpaid by insurer):
 ${disputedDetails || 'No itemized breakdown available.'}
 
+IMPORTANT CONTEXT:
+- These disputed items are COVERAGE denials only — the insurer claims these items are not covered by the policy
+- These are NOT deductible disputes — do not mention deductibles or suggest the deductible was applied incorrectly
+- Each disputed item includes specific policy language that contradicts the insurer's denial
+
 INSTRUCTIONS:
 1. Open with "Dear ${carrier || 'Claims Department'} Claims Department"
 2. State that covered charges of $${safeCovered.toFixed(2)} were eligible per the policy for ${pet_name || 'the insured pet'}
-3. State that the insurer paid $${safePaid.toFixed(2)} on this claim, leaving an underpayment of $${safeDiscrepancy.toFixed(2)}
-4. Go through ONLY the disputed items listed above — for each one, cite the exact policy language that supports coverage and explain why the denial was incorrect
+3. State that the insurer paid $${safePaid.toFixed(2)} on this claim, and $${safeDiscrepancy.toFixed(2)} in covered charges were incorrectly denied
+4. For each disputed item: quote the exact policy language that supports coverage, then explain why the insurer's denial reason is inconsistent with the policy terms
 5. Use formal but clear language — this is a real letter a pet parent would send
 6. End with a specific request for reconsideration and reimbursement of exactly $${safeDiscrepancy.toFixed(2)} for the denied items
 7. Sign off as "Policyholder" generically (do not invent a name)
 8. Do NOT include any subject line or "RE:" header — start with "Dear"
-9. Do NOT list items that were correctly paid — focus only on the disputed denials`
+9. Do NOT list items that were correctly paid or correctly applied to deductible — focus ONLY on coverage denials
+10. NEVER argue that deductible application was incorrect — deductible denials are valid`
 
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o',
