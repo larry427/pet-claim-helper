@@ -4237,33 +4237,33 @@ Rules:
         carrier,
         clinic_name,
         visit_date,
-        predicted_reimbursement,
+        covered_total,
         actual_paid,
         discrepancy,
-        line_items = [],
-        policy_language = [],
+        disputed_items = [],
       } = req.body
 
-      console.log(`${tag} claim_id=${claim_id} carrier=${carrier} discrepancy=${discrepancy}`)
+      const safePaid = Math.abs(actual_paid || 0)
+      const safeDiscrepancy = Math.abs(discrepancy || 0)
+      const safeCovered = covered_total || 0
 
-      if (!discrepancy || discrepancy <= 0) {
+      console.log(`${tag} claim_id=${claim_id} carrier=${carrier} pet=${pet_name} covered=$${safeCovered} paid=$${safePaid} discrepancy=$${safeDiscrepancy}`)
+
+      if (!safeDiscrepancy || safeDiscrepancy <= 0) {
         return res.status(400).json({ error: 'No discrepancy to appeal.' })
       }
 
-      // Build line-item detail for the prompt
-      const itemDetails = line_items
-        .filter(i => i.covered)
-        .map((i, idx) => {
-          let line = `${idx + 1}. ${i.description || 'Item'} — $${(i.amount || 0).toFixed(2)}`
-          if (i.reason) line += ` (${i.reason})`
-          if (i.policy_section) line += `\n   Policy citation: "${i.policy_section}"`
+      // Build disputed items detail — only denied/underpaid items with policy citations
+      const disputedDetails = disputed_items
+        .map((item, idx) => {
+          const predicted = (item.pciq_predicted || 0).toFixed(2)
+          const paid = (item.insurer_paid || 0).toFixed(2)
+          let line = `${idx + 1}. ${item.name || 'Item'} — predicted $${predicted}, insurer paid $${paid}`
+          if (item.denial_reason) line += `\n   EOB denial reason: "${item.denial_reason}"`
+          if (item.policy_citation) line += `\n   Policy language supporting coverage: "${item.policy_citation}"`
           return line
         })
         .join('\n')
-
-      const policyCitations = policy_language.length > 0
-        ? `\nRelevant policy language already extracted:\n${policy_language.map((c, i) => `${i + 1}. "${c}"`).join('\n')}`
-        : ''
 
       const prompt = `You are writing a formal insurance appeal letter on behalf of a pet owner. Write the letter directly — no preamble, no markdown, no commentary.
 
@@ -4272,23 +4272,23 @@ FACTS:
 - Insurance carrier: ${carrier || 'the insurance company'}
 - Veterinary clinic: ${clinic_name || 'the veterinary clinic'}
 - Date of service: ${visit_date || 'recent'}
-- Pet Claim IQ predicted reimbursement: $${(predicted_reimbursement || 0).toFixed(2)}
-- Amount actually paid by insurer: $${(actual_paid || 0).toFixed(2)}
-- Discrepancy: $${discrepancy.toFixed(2)}
+- Total covered charges per policy: $${safeCovered.toFixed(2)}
+- Amount insurer actually paid: $${safePaid.toFixed(2)}
+- Total underpayment: $${safeDiscrepancy.toFixed(2)}
 
-COVERED LINE ITEMS:
-${itemDetails || 'No itemized breakdown available.'}
-${policyCitations}
+DISPUTED ITEMS (denied or underpaid by insurer):
+${disputedDetails || 'No itemized breakdown available.'}
 
 INSTRUCTIONS:
-1. Address the letter to "${carrier || 'Claims Department'}" Claims Department
-2. Reference the specific pet, clinic, and date of service
-3. State clearly what was predicted vs what was paid, and the exact discrepancy amount
-4. Go line by line through the covered items, citing any extracted policy language
+1. Open with "Dear ${carrier || 'Claims Department'} Claims Department"
+2. State that covered charges of $${safeCovered.toFixed(2)} were eligible per the policy for ${pet_name || 'the insured pet'}
+3. State that the insurer paid $${safePaid.toFixed(2)} on this claim, leaving an underpayment of $${safeDiscrepancy.toFixed(2)}
+4. Go through ONLY the disputed items listed above — for each one, cite the exact policy language that supports coverage and explain why the denial was incorrect
 5. Use formal but clear language — this is a real letter a pet parent would send
-6. End with a request for reconsideration and reimbursement of exactly $${discrepancy.toFixed(2)}
+6. End with a specific request for reconsideration and reimbursement of exactly $${safeDiscrepancy.toFixed(2)} for the denied items
 7. Sign off as "Policyholder" generically (do not invent a name)
-8. Do NOT include any subject line or "RE:" header — start with "Dear"`
+8. Do NOT include any subject line or "RE:" header — start with "Dear"
+9. Do NOT list items that were correctly paid — focus only on the disputed denials`
 
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o',
