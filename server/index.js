@@ -4083,6 +4083,129 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
     }
   })
 
+  // ─── Compare EOB ────────────────────────────────────────────────────────────
+
+  app.post('/api/pciq/compare-eob', async (req, res) => {
+    const tag = '[compare-eob]'
+    try {
+      const { claim_id, eob_storage_path, original_line_items } = req.body
+
+      console.log(`${tag} claim_id=${claim_id} path=${eob_storage_path}`)
+
+      if (!eob_storage_path) {
+        return res.status(400).json({ error: 'Missing eob_storage_path' })
+      }
+
+      // Download EOB from Supabase Storage
+      const { data: blob, error: downloadError } = await supabase.storage
+        .from('pciq-policies')
+        .download(eob_storage_path)
+
+      if (downloadError) {
+        console.error(`${tag} Download error:`, downloadError.message)
+        return res.status(500).json({ error: downloadError.message })
+      }
+
+      const fileBuffer = Buffer.from(await blob.arrayBuffer())
+      const fileName = eob_storage_path.split('/').pop() || 'eob.pdf'
+      const mimeType = fileName.toLowerCase().endsWith('.pdf') ? 'application/pdf'
+        : /\.(jpe?g)$/i.test(fileName) ? 'image/jpeg'
+        : fileName.toLowerCase().endsWith('.png') ? 'image/png'
+        : 'application/pdf'
+      const base64Data = fileBuffer.toString('base64')
+
+      console.log(`${tag} Downloaded EOB:`, { fileName, bytes: fileBuffer.length, mimeType })
+
+      // Build the original line items summary for GPT
+      const items = original_line_items?.items || []
+      const originalSummary = items.map((item, idx) => {
+        return `${idx + 1}. ${item.description || 'Item'} — $${(item.amount || 0).toFixed(2)} (${item.covered ? 'covered' : 'excluded'})`
+      }).join('\n')
+
+      const prompt = `You are analyzing a pet insurance Explanation of Benefits (EOB) document.
+
+ORIGINAL CLAIM LINE ITEMS (what we predicted the insurer should pay):
+${originalSummary || 'No original line items available.'}
+
+TASK:
+1. Extract each line item from the EOB with what the insurer actually paid for each.
+2. Compare each EOB line item to the original predictions above.
+3. Calculate the total the insurer actually paid vs. what we predicted they should pay.
+4. Determine if the insurer underpaid, paid correctly, or overpaid.
+
+Return ONLY a JSON object in this exact format (no markdown, no commentary):
+{
+  "status": "underpaid" | "correct" | "overpaid",
+  "total_predicted": <number>,
+  "total_paid": <number>,
+  "discrepancy": <number - only if underpaid, the positive difference>,
+  "disputed_items": [
+    {
+      "description": "<item description>",
+      "predicted": <number - what we predicted>,
+      "paid": <number - what EOB shows was paid>
+    }
+  ]
+}
+
+Rules:
+- "underpaid" means the insurer paid LESS than predicted (discrepancy > 0)
+- "correct" means total paid >= total predicted (or within $1 tolerance)
+- "overpaid" means total paid > total predicted by more than $1
+- disputed_items should only include items where paid < predicted
+- If you cannot read the EOB or cannot determine amounts, return {"status": "correct"} as a safe default
+- discrepancy field should only be present when status is "underpaid"
+- All numbers should be plain numbers, not strings`
+
+      // Build messages with image content
+      const userContent = mimeType === 'application/pdf'
+        ? [
+            { type: 'text', text: prompt },
+            { type: 'file', file: { filename: fileName, file_data: `data:${mimeType};base64,${base64Data}` } },
+          ]
+        : [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Data}` } },
+          ]
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        temperature: 0,
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: userContent }],
+      })
+
+      const raw = completion.choices[0]?.message?.content?.trim()
+      console.log(`${tag} Raw GPT response:`, raw)
+
+      if (!raw) throw new Error('Empty response from OpenAI')
+
+      // Parse JSON — strip markdown fences if present
+      const jsonStr = raw.replace(/^```json?\s*/i, '').replace(/```\s*$/i, '').trim()
+      const parsed = JSON.parse(jsonStr)
+
+      // Validate and normalize
+      const status = parsed.status
+      if (!['underpaid', 'correct', 'overpaid'].includes(status)) {
+        throw new Error(`Invalid status: ${status}`)
+      }
+
+      if (status === 'underpaid') {
+        return res.json({
+          status: 'underpaid',
+          discrepancy: Math.abs(parsed.discrepancy || 0),
+          disputed_items: parsed.disputed_items || [],
+        })
+      }
+
+      return res.json({ status })
+
+    } catch (error) {
+      console.error(`${tag} Error:`, error)
+      return res.status(500).json({ error: error.message || 'Failed to compare EOB.' })
+    }
+  })
+
   // ─── Generate Appeal Letter ──────────────────────────────────────────────────
 
   app.post('/api/pciq/generate-appeal', async (req, res) => {
