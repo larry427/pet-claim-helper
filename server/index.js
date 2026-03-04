@@ -4091,6 +4091,7 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
       const { claim_id, eob_storage_path, original_line_items } = req.body
 
       console.log(`${tag} claim_id=${claim_id} path=${eob_storage_path}`)
+      console.log(`${tag} original_line_items:`, JSON.stringify(original_line_items, null, 2))
 
       if (!eob_storage_path) {
         return res.status(400).json({ error: 'Missing eob_storage_path' })
@@ -4172,6 +4173,8 @@ Rules:
 - Only flag items that have a policy citation supporting coverage — items without citations are not disputable
 - If you cannot read the EOB or cannot determine amounts, return {"status": "correct", "discrepancy": 0, "disputed_items": []}
 - All numbers must be plain numbers, not strings`
+
+      console.log(`${tag} PROMPT:\n`, prompt)
 
       // Build messages with image content
       const userContent = mimeType === 'application/pdf'
