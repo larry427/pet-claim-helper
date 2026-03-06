@@ -28,7 +28,8 @@ const DEMO_ACCOUNTS = [
   'demo@petclaimhelper.com',
   'drsarah@petclaimhelper.com',
   'david@mybenefitexperience.com',
-  'larry@uglydogadventures.com'
+  'larry@uglydogadventures.com',
+  'popovic@mindspring.com'
 ]
 // ================================================================================================
 
