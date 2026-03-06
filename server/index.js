@@ -5006,6 +5006,18 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
 
       // Build the original line items summary for GPT (covered items with policy citations)
       const items = original_line_items?.items || []
+
+      // 🔍 DIAGNOSTIC: Dump raw fields of first 3 items to trace policy citation data
+      console.log(`${tag} 🔍 Original line items count: ${items.length}`)
+      items.slice(0, 3).forEach((item, idx) => {
+        console.log(`${tag} 🔍 Item[${idx}] ALL KEYS: ${Object.keys(item).join(', ')}`)
+        console.log(`${tag} 🔍 Item[${idx}] description="${item.description}" covered=${item.covered} amount=${item.amount}`)
+        console.log(`${tag} 🔍 Item[${idx}] reason="${item.reason || 'NONE'}"`)
+        console.log(`${tag} 🔍 Item[${idx}] policy_section="${item.policy_section || 'NONE'}"`)
+        console.log(`${tag} 🔍 Item[${idx}] sourceQuote="${item.sourceQuote || 'NONE'}"`)
+        console.log(`${tag} 🔍 Item[${idx}] section="${item.section || 'NONE'}"`)
+        console.log(`${tag} 🔍 Item[${idx}] policy_citation="${item.policy_citation || 'NONE'}"`)
+      })
       const originalSummary = items
         .filter(item => item.covered)
         .map((item, idx) => {
