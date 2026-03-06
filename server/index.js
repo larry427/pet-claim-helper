@@ -5236,16 +5236,30 @@ INSTRUCTIONS:
 
       console.log(`${tag} Generated letter (${letter.length} chars)`)
 
-      // Safety net: ensure pciq_analyses status is 'disputed'
+      // Fetch appeals contact info from line_items (extracted by compare-eob)
+      let appealsContact = { appeals_email: null, appeals_phone: null, appeals_address: null }
       if (claim_id) {
-        const { error: updateErr } = await supabase
+        // Safety net: ensure pciq_analyses status is 'disputed'
+        const { data: row, error: updateErr } = await supabase
           .from('pciq_analyses')
           .update({ status: 'disputed' })
           .eq('id', claim_id)
+          .select('line_items')
+          .single()
         console.log(`${tag} Status update: claim_id=${claim_id} → 'disputed' ${updateErr ? 'FAILED: ' + updateErr.message : 'OK'}`)
+
+        if (row?.line_items) {
+          const li = row.line_items
+          appealsContact = {
+            appeals_email: li.appeals_email || null,
+            appeals_phone: li.appeals_phone || null,
+            appeals_address: li.appeals_address || null,
+          }
+          console.log(`${tag} Appeals contact: email=${appealsContact.appeals_email} phone=${appealsContact.appeals_phone} address=${appealsContact.appeals_address ? 'present' : 'null'}`)
+        }
       }
 
-      return res.json({ letter })
+      return res.json({ letter, ...appealsContact })
 
     } catch (error) {
       console.error(`${tag} Error:`, error)
