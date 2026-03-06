@@ -3445,9 +3445,25 @@ IMPORTANT:
   app.post('/api/pciq/analyze', async (req, res) => {
     const tag = '[pciq/analyze]'
     try {
-      const { user_id, storage_path, doc_type, policy_id } = req.body || {}
+      // Auth
+      const authHeader = req.headers.authorization
+      if (!authHeader?.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Unauthorized - token required' })
+      }
+      const token = authHeader.replace('Bearer ', '')
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+      if (authError || !user) {
+        return res.status(401).json({ error: 'Invalid or expired token' })
+      }
 
-      if (!storage_path || !doc_type) {
+      const { storage_path, doc_type, policy_id, bill_storage_path, eob_storage_path } = req.body || {}
+      const user_id = user.id
+
+      if (doc_type === 'both') {
+        if (!bill_storage_path || !eob_storage_path) {
+          return res.status(400).json({ error: 'bill_storage_path and eob_storage_path are required for doc_type "both"' })
+        }
+      } else if (!storage_path || !doc_type) {
         return res.status(400).json({ error: 'storage_path and doc_type are required' })
       }
       if (!['bill', 'eob', 'both'].includes(doc_type)) {
@@ -3457,7 +3473,7 @@ IMPORTANT:
         return res.status(500).json({ error: 'OpenAI API key not configured' })
       }
 
-      console.log(`${tag} Request:`, { user_id, storage_path, doc_type, policy_id })
+      console.log(`${tag} Request: doc_type=${doc_type} has_policy=${!!policy_id}`)
 
       // STEP 0 — Fetch saved policy from DB (if provided)
       let savedPolicy = null
@@ -3473,16 +3489,436 @@ IMPORTANT:
           console.log(`${tag} Policy not found for id:`, policy_id)
         } else {
           savedPolicy = policyRow
-          console.log(`${tag} Policy found:`, {
-            carrier: savedPolicy.carrier,
-            pet_name: savedPolicy.pet_name,
-            deductible: savedPolicy.deductible,
-            reimbursement_rate: savedPolicy.reimbursement_rate,
-            math_order: savedPolicy.math_order,
-            has_storage_path: !!savedPolicy.storage_path
-          })
+          console.log(`${tag} Policy found: has_deductible=${savedPolicy.deductible != null} has_rate=${savedPolicy.reimbursement_rate != null} math_order=${savedPolicy.math_order}`)
         }
       }
+
+      // ═══════════════════════════════════════════════════════════════
+      // ROUTE 3 — Bill + EOB Together (three-way comparison)
+      // Downloads bill, EOB, and policy separately; three-stage pipeline
+      // Returns early — never falls through to Route 1 / Route 2
+      // ═══════════════════════════════════════════════════════════════
+      if (doc_type === 'both' && bill_storage_path && eob_storage_path) {
+        // Helper: download + prepare a file from Supabase Storage
+        const downloadAndPrepare = async (path, label) => {
+          const { data: blob, error: dlErr } = await supabase.storage
+            .from('pciq-policies')
+            .download(path)
+          if (dlErr) throw new Error(`Failed to download ${label}: ${dlErr.message}`)
+          const buf = Buffer.from(await blob.arrayBuffer())
+          const name = path.split('/').pop() || 'document.pdf'
+          const mime = name.toLowerCase().endsWith('.pdf') ? 'application/pdf'
+            : /\.(jpe?g)$/i.test(name) ? 'image/jpeg'
+            : name.toLowerCase().endsWith('.png') ? 'image/png'
+            : 'application/pdf'
+          const isPdf = mime === 'application/pdf'
+          const fileContents = []
+          const textBackup = []
+          if (isPdf) {
+            fileContents.push(pciqPdfToFileInput(buf, name))
+            const text = await pciqExtractPdfText(buf, name)
+            textBackup.push(`=== ${label} ===\n${text}`)
+          } else {
+            fileContents.push({ type: 'image_url', image_url: { url: pciqToDataUrl(buf, mime), detail: 'high' } })
+          }
+          console.log(`${tag} Route 3: Downloaded ${label}:`, { name, bytes: buf.length, mime })
+          return { fileContents, textBackup }
+        }
+
+        // Download all three documents
+        const billData = await downloadAndPrepare(bill_storage_path, 'VET BILL')
+        const eobData = await downloadAndPrepare(eob_storage_path, 'EOB')
+
+        // Download saved policy PDF
+        const policyData = { fileContents: [], textBackup: [] }
+        if (savedPolicy?.storage_path) {
+          try {
+            const p = await downloadAndPrepare(savedPolicy.storage_path, 'SAVED POLICY')
+            policyData.fileContents = p.fileContents
+            policyData.textBackup = p.textBackup
+          } catch (e) {
+            console.warn(`${tag} Route 3: Policy PDF download failed:`, e.message)
+          }
+        }
+
+        // ── Route 3 Stage 1: Extract vet bill data + classify visit type ──
+        const r3ExtractionPrompt = `You are a veterinary invoice parser. Your ONLY job is to extract data from the attached vet bill and classify the visit type. Do not perform any insurance coverage analysis.
+
+EXTRACTION RULES:
+1. Use ONLY the TOTAL column (rightmost dollar amount) for each line item — never the Quantity or Unit Price columns.
+2. Vet bill columns are typically: Description | Quantity | Total. The dollar amount is always the last column.
+3. VALIDATION: Your line item amounts must sum to the invoice total shown on the bill. If they do not match, re-read and correct.
+4. Items with $0.00 totals should still be listed with amount: 0.
+
+VET BILL TEXT BACKUP (may be incomplete — always prefer the attached document):
+${billData.textBackup.join('\n\n') || '(No text backup available)'}
+
+VISIT TYPE CLASSIFICATION:
+Classify the visit as WELLNESS_VISIT or SICK_INJURY_VISIT based on the PRIMARY purpose of the visit.
+
+LINE ITEM CATEGORIES — assign one per item:
+- "vaccination" — any vaccine
+- "exam" — office visit fee, exam fee, consultation fee
+- "diagnostic" — bloodwork, urinalysis, x-ray, ultrasound, lab tests, cultures
+- "medication" — prescriptions, injections, topicals
+- "surgery" — surgical procedures, anesthesia, surgery supplies
+- "preventive" — heartworm test, fecal, microchip, dental cleaning, nail trim
+- "cosmetic" — elective cosmetic procedures
+- "other" — anything that does not fit above
+
+Return ONLY this JSON object:
+{
+  "visitType": "WELLNESS_VISIT" | "SICK_INJURY_VISIT",
+  "visitTypeReason": "brief explanation of classification",
+  "petInfo": { "name": string | null, "species": string | null, "breed": string | null },
+  "clinicInfo": { "name": string | null, "date": string | null },
+  "totalBill": number,
+  "lineItems": [
+    { "description": string, "amount": number, "category": string }
+  ]
+}`
+
+        console.log(`${tag} Route 3 Stage 1: Extracting vet bill...`)
+        const r3Stage1Completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: 'You are a veterinary invoice parser. Extract data accurately and return valid JSON only.' },
+            { role: 'user', content: [{ type: 'text', text: r3ExtractionPrompt }, ...billData.fileContents] }
+          ],
+          temperature: 0.1,
+          max_tokens: 2000,
+          response_format: { type: 'json_object' }
+        })
+
+        let r3Stage1Result = null
+        try {
+          let c = (r3Stage1Completion.choices?.[0]?.message?.content ?? '').trim()
+          if (c.startsWith('```')) c = c.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```\s*$/, '')
+          r3Stage1Result = JSON.parse(c)
+        } catch {
+          const m = (r3Stage1Completion.choices?.[0]?.message?.content ?? '').match(/\{[\s\S]*\}/)
+          if (m) { try { r3Stage1Result = JSON.parse(m[0]) } catch {} }
+        }
+        if (!r3Stage1Result) {
+          return res.status(422).json({ error: 'Failed to extract bill data. Please try again.' })
+        }
+        console.log(`${tag} Route 3 Stage 1 complete:`, {
+          visitType: r3Stage1Result.visitType,
+          lineItems: r3Stage1Result.lineItems?.length,
+          totalBill: r3Stage1Result.totalBill
+        })
+
+        // ── Route 3 Stage 2: Extract EOB data ──
+        const r3EobPrompt = `You are an insurance EOB (Explanation of Benefits) parser. Extract all data from the attached EOB document.
+
+EOB TEXT BACKUP (may be incomplete — always prefer the attached document):
+${eobData.textBackup.join('\n\n') || '(No text backup available)'}
+
+EXTRACTION RULES:
+1. Extract EVERY line item from the EOB — what was submitted, what was allowed, what was paid, and what was denied.
+2. For each denied or reduced item, extract the EXACT denial reason given on the EOB.
+3. Classify each denial into one of these categories:
+   - "deductible" — amount applied to annual deductible (normal)
+   - "coinsurance" — pet owner's share based on reimbursement rate (normal)
+   - "excluded" — item explicitly excluded from coverage
+   - "not_covered" — item not covered under the policy
+   - "waiting_period" — denied due to waiting period
+   - "pre_existing" — denied as pre-existing condition
+   - "limit_reached" — annual or per-incident limit reached
+   - "covered" — item was fully covered and paid
+   - "other" — any other reason
+
+UNDERWRITER-TO-BRAND MAPPINGS (always use the brand name):
+- "Westchester Fire Insurance Company" = "Healthy Paws"
+- "United States Fire Insurance Company" = "Pumpkin"
+- "American Pet Insurance Company" = "Fetch"
+- "Independence American Insurance Company" = "Figo"
+- "National Casualty Company" = "Nationwide Pet Insurance"
+
+Return ONLY this JSON object:
+{
+  "petInfo": { "name": string | null, "species": string | null },
+  "carrier": string | null,
+  "claimNumber": string | null,
+  "serviceDate": string | null,
+  "totalSubmitted": number,
+  "totalAllowed": number,
+  "totalPaid": number,
+  "totalDenied": number,
+  "deductibleApplied": number,
+  "coinsuranceApplied": number,
+  "lineItems": [
+    {
+      "description": string,
+      "amount_submitted": number,
+      "amount_allowed": number,
+      "amount_paid": number,
+      "amount_denied": number,
+      "denial_reason": string | null,
+      "denial_category": string,
+      "insurer_explanation": string | null
+    }
+  ]
+}
+
+IMPORTANT: Use numbers not strings for amounts. Return ONLY the JSON object.`
+
+        console.log(`${tag} Route 3 Stage 2: Extracting EOB data...`)
+        const r3Stage2Completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: 'You are an insurance EOB parser. Extract data accurately and return valid JSON only.' },
+            { role: 'user', content: [{ type: 'text', text: r3EobPrompt }, ...eobData.fileContents] }
+          ],
+          temperature: 0.1,
+          max_tokens: 3000,
+          response_format: { type: 'json_object' }
+        })
+
+        let r3EobResult = null
+        try {
+          let c = (r3Stage2Completion.choices?.[0]?.message?.content ?? '').trim()
+          if (c.startsWith('```')) c = c.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```\s*$/, '')
+          r3EobResult = JSON.parse(c)
+        } catch {
+          const m = (r3Stage2Completion.choices?.[0]?.message?.content ?? '').match(/\{[\s\S]*\}/)
+          if (m) { try { r3EobResult = JSON.parse(m[0]) } catch {} }
+        }
+        if (!r3EobResult) {
+          return res.status(422).json({ error: 'Failed to extract EOB data. Please try again.' })
+        }
+        console.log(`${tag} Route 3 Stage 2 complete:`, {
+          carrier: r3EobResult.carrier,
+          totalPaid: r3EobResult.totalPaid,
+          totalDenied: r3EobResult.totalDenied,
+          lineItems: r3EobResult.lineItems?.length
+        })
+
+        // ── Route 3 Stage 3: Three-way comparison — bill vs policy vs EOB ──
+        let r3PolicyContext = ''
+        if (savedPolicy) {
+          r3PolicyContext = `
+SAVED POLICY PARAMETERS (from user's account — use as ground truth when policy documents are absent or incomplete):
+  Carrier: ${savedPolicy.carrier || 'Unknown'}
+  Pet Name: ${savedPolicy.pet_name || 'Unknown'}
+  Species: ${savedPolicy.species || 'Unknown'}
+  Deductible: $${savedPolicy.deductible ?? 'Unknown'}
+  Reimbursement Rate: ${savedPolicy.reimbursement_rate != null ? savedPolicy.reimbursement_rate + '%' : 'Unknown'}
+  Annual Limit: ${savedPolicy.annual_limit != null ? '$' + savedPolicy.annual_limit : 'Unknown'}
+  Math Order: ${savedPolicy.math_order || 'Unknown'}
+  Effective Date: ${savedPolicy.effective_date || 'Unknown'}
+  Exclusions: ${(savedPolicy.exclusions || []).join(', ') || 'None listed'}
+  Policy Notes: ${savedPolicy.policy_text || 'None'}
+`
+        }
+
+        const r3ComparePrompt = `You are a pet insurance claims auditor performing a THREE-WAY comparison: vet bill vs policy vs EOB. You have all three documents. Your job is to find any gap between what the policy SHOULD cover and what the EOB ACTUALLY paid.
+
+VET BILL EXTRACTION (Stage 1):
+${JSON.stringify(r3Stage1Result, null, 2)}
+
+EOB EXTRACTION (Stage 2):
+${JSON.stringify(r3EobResult, null, 2)}
+${r3PolicyContext}
+${policyData.textBackup.length > 0 ? `Policy documents are attached. Examine each one carefully.\n\nPOLICY TEXT BACKUP:\n${policyData.textBackup.join('\n\n')}` : '(No policy documents available — use saved policy parameters above)'}
+
+THE VISIT TYPE IS: ${r3Stage1Result.visitType}
+This is FINAL and IMMUTABLE.
+
+STEP A — MATCH LINE ITEMS:
+Match each vet bill line item to the corresponding EOB line item. Items may have slightly different descriptions — match by amount and context.
+
+STEP B — FOR EACH LINE ITEM, DETERMINE:
+1. Should this item be COVERED per the policy? Apply these rules in order:
+   - WELLNESS/PREVENTIVE items (vaccinations, routine exams for wellness visits) → EXCLUDED
+   - Items explicitly excluded by policy → EXCLUDED
+   - Medically necessary treatment → COVERED (pet insurance covers on an exclusion basis)
+2. Was this item actually PAID by the insurer per the EOB?
+3. Is there a DISCREPANCY between what the policy should cover and what the EOB paid?
+
+STEP C — CLASSIFY EACH DISCREPANCY:
+- "underpaid" — policy should cover this but EOB denied or underpaid it
+- "correctly_denied" — EOB denial matches policy exclusions
+- "correctly_paid" — EOB payment matches policy coverage
+- "deductible_applied" — amount applied to deductible (expected, not a dispute)
+- "coinsurance_applied" — owner's share per reimbursement rate (expected)
+
+STEP D — CALCULATE:
+- totalCovered = sum of items that SHOULD be covered per policy
+- totalExcluded = sum of items correctly excluded per policy
+- totalPaidByInsurer = sum of what EOB actually paid
+- totalUnderpaid = sum of amounts that should have been paid but weren't
+- expectedReimbursement = what the insurer SHOULD have paid (totalCovered × rate, minus deductible)
+- actualReimbursement = what the insurer DID pay
+
+STEP E — APPEAL RECOMMENDATION:
+- appealRecommended: true if totalUnderpaid > 0 (any item wrongly denied or underpaid)
+- appealReason: specific explanation of what was underpaid and why it should be covered
+
+Return ONLY this JSON object:
+{
+  "completeness": "full" | "partial",
+  "policyInfo": {
+    "carrier": string | null,
+    "reimbursementRate": number | null,
+    "deductible": number | null,
+    "annualLimit": number | null,
+    "mathOrder": "reimbursement-first" | "deductible-first" | null
+  },
+  "analysis": {
+    "lineItems": [
+      {
+        "description": string,
+        "amount": number,
+        "covered": true | false | null,
+        "reason": string,
+        "sourceQuote": string | null,
+        "section": string | null,
+        "eob_paid": number,
+        "eob_denied": number,
+        "denial_correct": true | false | null,
+        "appeal_recommended": boolean,
+        "discrepancy_type": "underpaid" | "correctly_denied" | "correctly_paid" | "deductible_applied" | "coinsurance_applied"
+      }
+    ],
+    "totalBill": number,
+    "totalCovered": number,
+    "totalExcluded": number,
+    "totalPaidByInsurer": number,
+    "totalUnderpaid": number,
+    "expectedReimbursement": number,
+    "maxReimbursement": number,
+    "shouldFile": boolean,
+    "shouldFileReason": string,
+    "appealRecommended": boolean,
+    "appealReason": string | null,
+    "eligibilityWarnings": [],
+    "disputedItems": []
+  }
+}
+
+IMPORTANT: Use numbers not strings. reimbursementRate must be an integer (80 not 0.80). Return ONLY the JSON object.`
+
+        console.log(`${tag} Route 3 Stage 3: Three-way comparison...`, {
+          billItems: r3Stage1Result.lineItems?.length,
+          eobItems: r3EobResult.lineItems?.length,
+          policyFiles: policyData.fileContents.length,
+          hasSavedPolicy: !!savedPolicy
+        })
+
+        const r3Stage3Completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: 'You are a pet insurance claims auditor. Perform accurate three-way comparison and return valid JSON.' },
+            { role: 'user', content: [{ type: 'text', text: r3ComparePrompt }, ...policyData.fileContents] }
+          ],
+          temperature: 0.1,
+          max_tokens: 5000,
+          response_format: { type: 'json_object' }
+        })
+
+        let r3Stage3Result = null
+        try {
+          let c = (r3Stage3Completion.choices?.[0]?.message?.content ?? '').trim()
+          if (c.startsWith('```')) c = c.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```\s*$/, '')
+          r3Stage3Result = JSON.parse(c)
+        } catch {
+          const m = (r3Stage3Completion.choices?.[0]?.message?.content ?? '').match(/\{[\s\S]*\}/)
+          if (m) { try { r3Stage3Result = JSON.parse(m[0]) } catch {} }
+        }
+        if (!r3Stage3Result) {
+          return res.status(422).json({ error: 'Failed to compare bill, EOB, and policy. Please try again.' })
+        }
+
+        const r3a = r3Stage3Result.analysis || {}
+        const r3p = r3Stage3Result.policyInfo || {}
+
+        console.log(`${tag} Route 3 Stage 3 complete:`, {
+          completeness: r3Stage3Result.completeness,
+          totalPaidByInsurer: r3a.totalPaidByInsurer,
+          totalUnderpaid: r3a.totalUnderpaid,
+          appealRecommended: r3a.appealRecommended,
+          lineItems: r3a.lineItems?.length
+        })
+
+        // ── Route 3: Recalculate reimbursement server-side ──
+        const r3TotalCovered = r3a.totalCovered || 0
+        const r3RateRaw = (savedPolicy?.reimbursement_rate ?? r3p.reimbursementRate) || null
+        const r3Deductible = (savedPolicy?.deductible ?? r3p.deductible) || 0
+        const r3MathOrder = (savedPolicy?.math_order ?? r3p.mathOrder) || 'reimbursement-first'
+
+        let r3MaxReimbursement = r3a.maxReimbursement || 0
+        if (r3TotalCovered > 0 && r3RateRaw) {
+          const rate = r3RateRaw / 100
+          r3MaxReimbursement = r3MathOrder === 'deductible-first'
+            ? (r3TotalCovered - r3Deductible) * rate
+            : (r3TotalCovered * rate) - r3Deductible
+          r3MaxReimbursement = Math.round(Math.max(0, r3MaxReimbursement) * 100) / 100
+        }
+
+        const r3ShouldFile = r3a.appealRecommended ?? r3a.shouldFile ?? false
+        const r3Recommendation = r3ShouldFile ? 'file' : 'skip'
+
+        const r3ReimbursementIfDeductibleMet = (r3TotalCovered > 0 && r3RateRaw)
+          ? Math.round(r3TotalCovered * (r3RateRaw / 100) * 100) / 100
+          : 0
+
+        // ── Route 3: Map to mobile response shape ──
+        const r3MobileResponse = {
+          estimated_reimbursement: r3MaxReimbursement,
+          total_bill: r3a.totalBill || r3Stage1Result.totalBill || 0,
+          recommendation: r3Recommendation,
+          line_items: (r3a.lineItems || []).map(item => ({
+            description: item.description,
+            amount: item.amount,
+            covered: item.covered ?? false,
+            reason: item.reason || '',
+            policy_section: item.sourceQuote || item.section || null,
+            eob_paid: item.eob_paid ?? null,
+            eob_denied: item.eob_denied ?? null,
+            appeal_recommended: item.appeal_recommended ?? false,
+          })),
+          visit_type: r3Stage1Result.visitType || null,
+          clinic_name: r3Stage1Result.clinicInfo?.name || null,
+          visit_date: r3Stage1Result.clinicInfo?.date || r3EobResult.serviceDate || null,
+          pet_name: r3Stage1Result.petInfo?.name || r3EobResult.petInfo?.name || savedPolicy?.pet_name || null,
+          confidence: r3Stage3Result.completeness === 'full' ? 'High'
+            : r3Stage3Result.completeness === 'partial' ? 'Medium' : 'Low',
+          eligibility_warnings: r3a.eligibilityWarnings || [],
+          carrier: savedPolicy?.carrier || r3EobResult.carrier || r3p.carrier || null,
+          deductible_total: r3Deductible,
+          deductible_used: r3EobResult.deductibleApplied || 0,
+          reimbursement_rate: r3RateRaw,
+          covered_total: r3TotalCovered,
+          excluded_total: r3a.totalExcluded || 0,
+          estimated_reimbursement_if_deductible_met: r3ReimbursementIfDeductibleMet,
+          estimated_reimbursement_actual: r3MaxReimbursement,
+          should_file: r3ShouldFile,
+          should_file_reason: r3a.shouldFileReason || r3a.appealReason || '',
+          filing_deadline_days: savedPolicy?.filing_deadline_days || null,
+          math_order: r3MathOrder,
+          // Route 3 specific fields
+          appeal_recommended: r3a.appealRecommended ?? false,
+          total_paid_by_insurer: r3a.totalPaidByInsurer || r3EobResult.totalPaid || 0,
+          total_underpaid: r3a.totalUnderpaid || 0,
+          disputed_items: r3a.disputedItems || [],
+        }
+
+        console.log(`${tag} ✅ Route 3 (Bill+EOB) complete:`, {
+          total_bill: r3MobileResponse.total_bill,
+          total_paid_by_insurer: r3MobileResponse.total_paid_by_insurer,
+          total_underpaid: r3MobileResponse.total_underpaid,
+          appeal_recommended: r3MobileResponse.appeal_recommended,
+          visit_type: r3MobileResponse.visit_type,
+          line_items: r3MobileResponse.line_items.length,
+          confidence: r3MobileResponse.confidence,
+        })
+
+        return res.json(r3MobileResponse)
+      }
+      // ═══════════════════════════════════════════════════════════════
+      // END ROUTE 3 — Routes 1 & 2 continue below
+      // ═══════════════════════════════════════════════════════════════
 
       // STEP 1 — Download from Supabase Storage
       const { data: blob, error: downloadError } = await supabase.storage
@@ -3522,8 +3958,8 @@ IMPORTANT:
       }
 
       // 'bill'  → vet bill only; inject saved policy PDF if available
-      // 'eob'   → EOB used as bill (for extraction) + policy doc (for coverage determination)
-      // 'both'  → combined doc used as both vet bill and policy doc
+      // 'eob'   → EOB-only pipeline (returns early in Route 2 above)
+      // 'both'  → returns early in Route 3 above — never reaches here
       if (doc_type === 'bill') {
         await addFile(vetBillFileContents, vetBillTextBackup, 'VET BILL')
         // Inject saved policy PDF if the user's policy has one stored
@@ -3548,12 +3984,370 @@ IMPORTANT:
           }
         }
       } else if (doc_type === 'eob') {
-        await addFile(vetBillFileContents, vetBillTextBackup, 'EOB (bill extraction)')
-        await addFile(policyFileContents, policyTextBackup, 'EOB (coverage determination)')
-      } else {
-        await addFile(vetBillFileContents, vetBillTextBackup, 'VET BILL + EOB')
-        await addFile(policyFileContents, policyTextBackup, 'POLICY DOCUMENTS')
+        // ═══════════════════════════════════════════════════════════════
+        // ROUTE 2 — EOB-only analysis (completely separate pipeline)
+        // Downloads EOB + saved policy, classifies denials, reviews against policy
+        // Returns early — never falls through to the bill/both Stage 1 & 2
+        // ═══════════════════════════════════════════════════════════════
+
+        // Build EOB file arrays
+        const eobFileContents = []
+        const eobTextBackup = []
+        const eobPolicyContents = []
+        const eobPolicyTextBackup = []
+
+        // Add the uploaded EOB
+        if (isFilePdf) {
+          eobFileContents.push(pciqPdfToFileInput(fileBuffer, fileName))
+          const text = await pciqExtractPdfText(fileBuffer, fileName)
+          eobTextBackup.push(`=== EOB DOCUMENT ===\n${text}`)
+        } else {
+          eobFileContents.push({ type: 'image_url', image_url: { url: pciqToDataUrl(fileBuffer, mimeType), detail: 'high' } })
+        }
+
+        // Download saved policy PDF for comparison (same pattern as bill route)
+        if (savedPolicy?.storage_path) {
+          const { data: policyBlob, error: policyDlErr } = await supabase.storage
+            .from('pciq-policies')
+            .download(savedPolicy.storage_path)
+          if (policyDlErr) {
+            console.warn(`${tag} EOB route: Policy PDF download failed:`, policyDlErr.message)
+          } else {
+            const policyBuf = Buffer.from(await policyBlob.arrayBuffer())
+            const policyFileName = savedPolicy.storage_path.split('/').pop() || 'policy.pdf'
+            const isPolicyPdf = /\.pdf$/i.test(policyFileName)
+            if (isPolicyPdf) {
+              eobPolicyContents.push(pciqPdfToFileInput(policyBuf, policyFileName))
+              const policyText = await pciqExtractPdfText(policyBuf, policyFileName)
+              eobPolicyTextBackup.push(`=== SAVED POLICY DOCUMENT ===\n${policyText}`)
+            } else {
+              eobPolicyContents.push({ type: 'image_url', image_url: { url: pciqToDataUrl(policyBuf, 'image/jpeg'), detail: 'high' } })
+            }
+            console.log(`${tag} EOB route: Injected saved policy PDF:`, policyFileName)
+          }
+        }
+
+        // ── EOB Stage 1: Extract EOB data and classify denials ──
+        const eobExtractionPrompt = `You are an insurance EOB (Explanation of Benefits) parser. Extract all data from the attached EOB document.
+
+EOB TEXT BACKUP (may be incomplete — always prefer the attached document):
+${eobTextBackup.join('\n\n') || '(No text backup available)'}
+
+EXTRACTION RULES:
+1. Extract EVERY line item from the EOB — what was submitted, what was allowed, what was paid, and what was denied or reduced.
+2. For each denied or reduced item, extract the EXACT denial/reduction reason given on the EOB.
+3. Classify each denial into one of these categories:
+   - "deductible" — amount applied to annual deductible (normal, not a dispute)
+   - "coinsurance" — pet owner's share based on reimbursement rate (normal, not a dispute)
+   - "excluded" — item explicitly excluded from coverage
+   - "not_covered" — item not covered under the policy
+   - "waiting_period" — denied due to waiting period not yet elapsed
+   - "pre_existing" — denied as pre-existing condition
+   - "limit_reached" — annual or per-incident limit reached
+   - "covered" — item was fully covered and paid
+   - "other" — any other reason
+4. Amounts: use the amounts shown on the EOB for each column.
+5. "amount_submitted" = what the vet charged / amount billed
+6. "amount_allowed" = what the insurer considers eligible (if shown; otherwise use amount_submitted)
+7. "amount_paid" = what the insurer actually paid
+8. "amount_denied" = what was not paid
+
+UNDERWRITER-TO-BRAND MAPPINGS (always use the brand name, never the underwriter):
+- "Westchester Fire Insurance Company" = "Healthy Paws"
+- "United States Fire Insurance Company" = "Pumpkin"
+- "American Pet Insurance Company" = "Fetch"
+- "Independence American Insurance Company" = "Figo"
+- "National Casualty Company" = "Nationwide Pet Insurance"
+
+Return ONLY this JSON object:
+{
+  "petInfo": {
+    "name": string | null,
+    "species": string | null
+  },
+  "carrier": string | null,
+  "claimNumber": string | null,
+  "claimDate": string | null,
+  "serviceDate": string | null,
+  "totalSubmitted": number,
+  "totalAllowed": number,
+  "totalPaid": number,
+  "totalDenied": number,
+  "deductibleApplied": number,
+  "coinsuranceApplied": number,
+  "lineItems": [
+    {
+      "description": string,
+      "amount_submitted": number,
+      "amount_allowed": number,
+      "amount_paid": number,
+      "amount_denied": number,
+      "denial_reason": string | null,
+      "denial_category": "deductible" | "coinsurance" | "excluded" | "not_covered" | "waiting_period" | "pre_existing" | "limit_reached" | "covered" | "other",
+      "insurer_explanation": string | null
+    }
+  ]
+}
+
+IMPORTANT: Use numbers not strings for amounts. Return ONLY the JSON object.`
+
+        console.log(`${tag} EOB Stage 1: Extracting EOB data...`, { files: eobFileContents.length })
+
+        const eobStage1Completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: 'You are an insurance EOB parser. Extract data accurately and return valid JSON only.' },
+            { role: 'user', content: [{ type: 'text', text: eobExtractionPrompt }, ...eobFileContents] }
+          ],
+          temperature: 0.1,
+          max_tokens: 3000,
+          response_format: { type: 'json_object' }
+        })
+
+        const eobStage1Content = eobStage1Completion.choices?.[0]?.message?.content ?? ''
+        let eobStage1Result = null
+        try {
+          let c = eobStage1Content.trim()
+          if (c.startsWith('```')) c = c.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```\s*$/, '')
+          eobStage1Result = JSON.parse(c)
+        } catch {
+          const m = eobStage1Content.match(/\{[\s\S]*\}/)
+          if (m) { try { eobStage1Result = JSON.parse(m[0]) } catch {} }
+        }
+
+        if (!eobStage1Result) {
+          console.error(`${tag} EOB Stage 1 failed to parse:`, eobStage1Content.substring(0, 500))
+          return res.status(422).json({ error: 'Failed to extract EOB data. Please try again.' })
+        }
+
+        console.log(`${tag} EOB Stage 1 complete:`, {
+          carrier: eobStage1Result.carrier,
+          lineItems: eobStage1Result.lineItems?.length,
+          totalSubmitted: eobStage1Result.totalSubmitted,
+          totalPaid: eobStage1Result.totalPaid,
+          totalDenied: eobStage1Result.totalDenied
+        })
+
+        // ── EOB Stage 2: Compare denials against policy rules ──
+        let eobPolicyContext = ''
+        if (savedPolicy) {
+          eobPolicyContext = `
+SAVED POLICY PARAMETERS (from user's account — use as ground truth when policy documents are absent or incomplete):
+  Carrier: ${savedPolicy.carrier || 'Unknown'}
+  Pet Name: ${savedPolicy.pet_name || 'Unknown'}
+  Species: ${savedPolicy.species || 'Unknown'}
+  Deductible: $${savedPolicy.deductible ?? 'Unknown'}
+  Reimbursement Rate: ${savedPolicy.reimbursement_rate != null ? savedPolicy.reimbursement_rate + '%' : 'Unknown'}
+  Annual Limit: ${savedPolicy.annual_limit != null ? '$' + savedPolicy.annual_limit : 'Unknown'}
+  Math Order: ${savedPolicy.math_order || 'Unknown'}
+  Effective Date: ${savedPolicy.effective_date || 'Unknown'}
+  Exclusions: ${(savedPolicy.exclusions || []).join(', ') || 'None listed'}
+  Policy Notes: ${savedPolicy.policy_text || 'None'}
+`
+        }
+
+        const eobReviewPrompt = `You are a pet insurance claims reviewer. An EOB (Explanation of Benefits) has been parsed in Stage 1. Your job is to review each denial and determine if it was handled correctly according to the policy.
+
+EOB EXTRACTION (from Stage 1 — treat as ground truth):
+${JSON.stringify(eobStage1Result, null, 2)}
+${eobPolicyContext}
+${eobPolicyTextBackup.length > 0 ? `Policy documents are attached. Examine each one carefully.\n\nPOLICY TEXT BACKUP:\n${eobPolicyTextBackup.join('\n\n')}` : '(No policy documents available — use saved policy parameters above)'}
+
+REVIEW EACH LINE ITEM:
+
+For items denied as "excluded", "not_covered", "waiting_period", or "pre_existing":
+1. Check if the policy actually excludes this item
+2. Check if the denial reason is valid per the policy terms
+3. Flag items that appear WRONGLY DENIED — set appeal_recommended: true
+
+For items with "deductible" or "coinsurance" applied:
+1. Verify the deductible amount matches the policy terms
+2. Verify the coinsurance percentage matches the policy terms
+3. Flag discrepancies
+
+For items marked "covered":
+1. Verify the paid amount seems correct
+2. These are fine — set appeal_recommended: false
+
+IMPORTANT RULES:
+- Deductible and coinsurance applications are usually correct — only flag if amounts don't match policy
+- Focus on coverage denials that may be incorrect
+- If no policy documents are available, note that review is limited but still flag obviously wrong denials
+- Be specific about WHY you think a denial is wrong (cite policy section if possible)
+- Pet insurance covers on an EXCLUSION basis: medically necessary treatment IS covered unless explicitly excluded
+
+Return ONLY this JSON object:
+{
+  "completeness": "full" | "partial" | "eob_only",
+  "policyInfo": {
+    "carrier": string | null,
+    "reimbursementRate": number | null,
+    "deductible": number | null,
+    "annualLimit": number | null,
+    "mathOrder": "reimbursement-first" | "deductible-first" | null
+  },
+  "analysis": {
+    "lineItems": [
+      {
+        "description": string,
+        "amount": number,
+        "covered": true | false | null,
+        "reason": string,
+        "sourceQuote": string | null,
+        "section": string | null,
+        "eob_paid": number,
+        "eob_denied": number,
+        "denial_correct": true | false | null,
+        "appeal_recommended": boolean
       }
+    ],
+    "totalBill": number,
+    "totalCovered": number,
+    "totalExcluded": number,
+    "totalPaidByInsurer": number,
+    "totalUnderpaid": number,
+    "maxReimbursement": number,
+    "shouldFile": boolean,
+    "shouldFileReason": string,
+    "appealRecommended": boolean,
+    "appealReason": string | null,
+    "eligibilityWarnings": [],
+    "disputedItems": []
+  }
+}
+
+For each lineItem:
+- "amount" = amount_submitted from the EOB
+- "covered" = true if the item should be covered (whether or not insurer actually paid)
+- "reason" = explanation of your coverage determination
+- "appeal_recommended" = true if this item appears wrongly denied and should be appealed
+- "eob_paid" = what insurer actually paid for this item
+- "eob_denied" = what insurer denied for this item
+
+IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an integer (80 not 0.80). Return ONLY the JSON object.`
+
+        console.log(`${tag} EOB Stage 2: Reviewing denials against policy...`, {
+          policyFiles: eobPolicyContents.length,
+          hasSavedPolicy: !!savedPolicy
+        })
+
+        const eobStage2Completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: 'You are a pet insurance claims reviewer. Analyze denials carefully and return valid JSON.' },
+            { role: 'user', content: [{ type: 'text', text: eobReviewPrompt }, ...eobPolicyContents] }
+          ],
+          temperature: 0.1,
+          max_tokens: 4000,
+          response_format: { type: 'json_object' }
+        })
+
+        const eobStage2Content = eobStage2Completion.choices?.[0]?.message?.content ?? ''
+        let eobStage2Result = null
+        try {
+          let c = eobStage2Content.trim()
+          if (c.startsWith('```')) c = c.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```\s*$/, '')
+          eobStage2Result = JSON.parse(c)
+        } catch {
+          const m = eobStage2Content.match(/\{[\s\S]*\}/)
+          if (m) { try { eobStage2Result = JSON.parse(m[0]) } catch {} }
+        }
+
+        if (!eobStage2Result) {
+          console.error(`${tag} EOB Stage 2 failed to parse:`, eobStage2Content.substring(0, 500))
+          return res.status(422).json({ error: 'Failed to review EOB denials. Please try again.' })
+        }
+
+        const eobS2a = eobStage2Result.analysis || {}
+        const eobS2p = eobStage2Result.policyInfo || {}
+
+        console.log(`${tag} EOB Stage 2 complete:`, {
+          completeness: eobStage2Result.completeness,
+          totalPaidByInsurer: eobS2a.totalPaidByInsurer,
+          totalUnderpaid: eobS2a.totalUnderpaid,
+          appealRecommended: eobS2a.appealRecommended,
+          lineItems: eobS2a.lineItems?.length
+        })
+
+        // ── EOB: Recalculate reimbursement server-side ──
+        const eobTotalCovered = eobS2a.totalCovered || 0
+        const eobRateRaw = (savedPolicy?.reimbursement_rate ?? eobS2p.reimbursementRate) || null
+        const eobDeductible = (savedPolicy?.deductible ?? eobS2p.deductible) || 0
+        const eobMathOrder = (savedPolicy?.math_order ?? eobS2p.mathOrder) || 'reimbursement-first'
+
+        let eobMaxReimbursement = eobS2a.maxReimbursement || 0
+        if (eobTotalCovered > 0 && eobRateRaw) {
+          const rate = eobRateRaw / 100
+          eobMaxReimbursement = eobMathOrder === 'deductible-first'
+            ? (eobTotalCovered - eobDeductible) * rate
+            : (eobTotalCovered * rate) - eobDeductible
+          eobMaxReimbursement = Math.round(Math.max(0, eobMaxReimbursement) * 100) / 100
+        }
+
+        const eobShouldFile = eobS2a.appealRecommended ?? eobS2a.shouldFile ?? false
+        const eobRecommendation = eobShouldFile ? 'file' : 'skip'
+
+        const eobReimbursementIfDeductibleMet = (eobTotalCovered > 0 && eobRateRaw)
+          ? Math.round(eobTotalCovered * (eobRateRaw / 100) * 100) / 100
+          : 0
+
+        // ── EOB: Map to mobile response shape (same structure as bill route) ──
+        const eobMobileResponse = {
+          estimated_reimbursement: eobMaxReimbursement,
+          total_bill: eobS2a.totalBill || eobStage1Result.totalSubmitted || 0,
+          recommendation: eobRecommendation,
+          line_items: (eobS2a.lineItems || []).map(item => ({
+            description: item.description,
+            amount: item.amount,
+            covered: item.covered ?? false,
+            reason: item.reason || '',
+            policy_section: item.sourceQuote || item.section || null,
+            eob_paid: item.eob_paid ?? null,
+            eob_denied: item.eob_denied ?? null,
+            appeal_recommended: item.appeal_recommended ?? false,
+          })),
+          // EOB doesn't classify visit type — that's a bill-only concept
+          visit_type: null,
+          clinic_name: null,
+          visit_date: eobStage1Result.serviceDate || null,
+          pet_name: eobStage1Result.petInfo?.name || savedPolicy?.pet_name || null,
+          confidence: eobStage2Result.completeness === 'full' ? 'High'
+            : eobStage2Result.completeness === 'partial' ? 'Medium' : 'Low',
+          eligibility_warnings: eobS2a.eligibilityWarnings || [],
+          carrier: savedPolicy?.carrier || eobStage1Result.carrier || eobS2p.carrier || null,
+          deductible_total: eobDeductible,
+          deductible_used: eobStage1Result.deductibleApplied || 0,
+          reimbursement_rate: eobRateRaw,
+          covered_total: eobTotalCovered,
+          excluded_total: eobS2a.totalExcluded || 0,
+          estimated_reimbursement_if_deductible_met: eobReimbursementIfDeductibleMet,
+          estimated_reimbursement_actual: eobMaxReimbursement,
+          should_file: eobShouldFile,
+          should_file_reason: eobS2a.shouldFileReason || eobS2a.appealReason || '',
+          filing_deadline_days: savedPolicy?.filing_deadline_days || null,
+          math_order: eobMathOrder,
+          // EOB-specific fields
+          appeal_recommended: eobS2a.appealRecommended ?? false,
+          total_paid_by_insurer: eobS2a.totalPaidByInsurer || eobStage1Result.totalPaid || 0,
+          total_underpaid: eobS2a.totalUnderpaid || 0,
+          disputed_items: eobS2a.disputedItems || [],
+        }
+
+        console.log(`${tag} ✅ EOB analysis complete:`, {
+          total_bill: eobMobileResponse.total_bill,
+          total_paid_by_insurer: eobMobileResponse.total_paid_by_insurer,
+          total_underpaid: eobMobileResponse.total_underpaid,
+          appeal_recommended: eobMobileResponse.appeal_recommended,
+          line_items: eobMobileResponse.line_items.length,
+          confidence: eobMobileResponse.confidence,
+        })
+
+        return res.json(eobMobileResponse)
+        // ═══════════════════════════════════════════════════════════════
+        // END ROUTE 2 — bill/both routes continue below
+        // ═══════════════════════════════════════════════════════════════
+      }
+      // Route 3 (both) returns early above — only bill route reaches here
 
       // STEP 3 — Stage 1: Extract vet bill + classify visit type
       const extractionPrompt = `You are a veterinary invoice parser. Your ONLY job is to extract data from the attached vet bill and classify the visit type. Do not perform any insurance coverage analysis.
@@ -3942,7 +4736,19 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
   app.post('/api/pciq/extract-policy', async (req, res) => {
     const tag = '[pciq/extract-policy]'
     try {
-      const { user_id, storage_path } = req.body || {}
+      // Auth
+      const authHeader = req.headers.authorization
+      if (!authHeader?.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Unauthorized - token required' })
+      }
+      const token = authHeader.replace('Bearer ', '')
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+      if (authError || !user) {
+        return res.status(401).json({ error: 'Invalid or expired token' })
+      }
+
+      const { storage_path } = req.body || {}
+      const user_id = user.id
 
       if (!storage_path) {
         return res.status(400).json({ error: 'storage_path is required' })
@@ -3951,7 +4757,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         return res.status(500).json({ error: 'OpenAI API key not configured' })
       }
 
-      console.log(`${tag} Request:`, { user_id, storage_path })
+      console.log(`${tag} Request received`)
 
       // Download policy PDF from Supabase Storage
       const { data: blob, error: downloadError } = await supabase.storage
@@ -3967,8 +4773,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
       const fileName = storage_path.split('/').pop() || 'policy.pdf'
       const isPdf = /\.pdf$/i.test(fileName)
 
-      console.log(`${tag} Downloaded:`, { fileName, bytes: fileBuffer.length })
-      console.log('EXTRACT-POLICY: file downloaded, size:', fileBuffer.length)
+      console.log(`${tag} Downloaded: ${fileBuffer.length} bytes, isPdf=${isPdf}`)
 
       // Build file content for gpt-4o
       // PDFs: extract text and send as text block (gpt-4o doesn't support PDF file inputs)
@@ -3978,8 +4783,6 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
       if (isPdf) {
         policyText = await pciqExtractPdfText(fileBuffer, fileName)
         console.log(`${tag} Extracted ${policyText.length} chars of text from PDF`)
-        console.log('EXTRACT-POLICY: text extracted, length:', policyText.length)
-        console.log('EXTRACT-POLICY: text preview:', policyText.substring(0, 200))
       } else {
         const mimeType = /\.(jpe?g)$/i.test(fileName) ? 'image/jpeg' : 'image/png'
         fileContents.push({ type: 'image_url', image_url: { url: pciqToDataUrl(fileBuffer, mimeType), detail: 'high' } })
@@ -4044,7 +4847,7 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
       })
 
       const rawContent = completion.choices?.[0]?.message?.content ?? ''
-      console.log('EXTRACT-POLICY: raw OpenAI response:', rawContent)
+      console.log(`${tag} OpenAI response: ${rawContent.length} chars`)
       let extracted = null
       try {
         let c = rawContent.trim()
@@ -4055,20 +4858,14 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
         if (m) { try { extracted = JSON.parse(m[0]) } catch {} }
       }
 
-      console.log('EXTRACT-POLICY: parsed result:', JSON.stringify(extracted))
+      console.log(`${tag} Parsed: ${extracted ? 'success' : 'failed'}`)
 
       if (!extracted) {
         console.error(`${tag} Failed to parse response:`, rawContent.substring(0, 500))
         return res.status(422).json({ error: 'Failed to extract policy data. Please try again.' })
       }
 
-      console.log(`${tag} ✅ Extracted:`, {
-        carrier: extracted.carrier,
-        pet_name: extracted.pet_name,
-        deductible: extracted.deductible,
-        reimbursement_rate: extracted.reimbursement_rate,
-        math_order: extracted.math_order
-      })
+      console.log(`${tag} ✅ Extracted: has_carrier=${!!extracted.carrier} has_deductible=${extracted.deductible != null} has_rate=${extracted.reimbursement_rate != null} math_order=${extracted.math_order}`)
 
       // Normalize math_order to match DB enum (reimbursement_first → reimbursement_first)
       if (extracted.math_order === 'reimbursement-first') extracted.math_order = 'reimbursement_first'
@@ -4077,8 +4874,7 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
       return res.json({ ...extracted, storage_path })
 
     } catch (error) {
-      console.error(`${tag} Error:`, error)
-      console.log('EXTRACT-POLICY ERROR:', error.message, error.stack)
+      console.error(`${tag} Error:`, error.message)
       return res.status(500).json({ error: error.message || 'An unexpected error occurred.' })
     }
   })
@@ -4087,12 +4883,21 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
 
   app.post('/api/pciq/compare-eob', async (req, res) => {
     const tag = '[compare-eob]'
-    console.log('[compare-eob] RAW BODY:', JSON.stringify(req.body, null, 2))
     try {
+      // Auth
+      const authHeader = req.headers.authorization
+      if (!authHeader?.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Unauthorized - token required' })
+      }
+      const token = authHeader.replace('Bearer ', '')
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+      if (authError || !user) {
+        return res.status(401).json({ error: 'Invalid or expired token' })
+      }
+
       const { claim_id, eob_storage_path, original_line_items } = req.body
 
-      console.log(`${tag} claim_id=${claim_id} path=${eob_storage_path}`)
-      console.log(`${tag} original_line_items:`, JSON.stringify(original_line_items, null, 2))
+      console.log(`${tag} claim_id=${claim_id} items=${(original_line_items || []).length}`)
 
       if (!eob_storage_path) {
         return res.status(400).json({ error: 'Missing eob_storage_path' })
@@ -4189,7 +4994,7 @@ Rules:
 - If you cannot read the EOB or cannot determine amounts, return {"status": "correct", "discrepancy": 0, "disputed_items": []}
 - All numbers must be plain numbers, not strings`
 
-      console.log(`${tag} PROMPT:\n`, prompt)
+      console.log(`${tag} Prompt built: ${prompt.length} chars`)
 
       // Build messages with image content
       const userContent = mimeType === 'application/pdf'
@@ -4210,7 +5015,7 @@ Rules:
       })
 
       const raw = completion.choices[0]?.message?.content?.trim()
-      console.log(`${tag} Raw GPT response:`, raw)
+      console.log(`${tag} GPT response: ${(raw || '').length} chars`)
 
       if (!raw) throw new Error('Empty response from OpenAI')
 
@@ -4225,6 +5030,15 @@ Rules:
       }
 
       if (status === 'underpaid') {
+        // Update pciq_analyses status to 'disputed' so the Appeal tab picks it up
+        if (claim_id) {
+          const { error: updateErr } = await supabase
+            .from('pciq_analyses')
+            .update({ status: 'disputed' })
+            .eq('id', claim_id)
+          console.log(`${tag} Status update: claim_id=${claim_id} → 'disputed' ${updateErr ? 'FAILED: ' + updateErr.message : 'OK'}`)
+        }
+
         return res.json({
           status: 'underpaid',
           discrepancy: Math.abs(parsed.discrepancy || 0),
@@ -4245,6 +5059,17 @@ Rules:
   app.post('/api/pciq/generate-appeal', async (req, res) => {
     const tag = '[generate-appeal]'
     try {
+      // Auth
+      const authHeader = req.headers.authorization
+      if (!authHeader?.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Unauthorized - token required' })
+      }
+      const token = authHeader.replace('Bearer ', '')
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+      if (authError || !user) {
+        return res.status(401).json({ error: 'Invalid or expired token' })
+      }
+
       const {
         claim_id,
         pet_name,
@@ -4261,7 +5086,7 @@ Rules:
       const safeDiscrepancy = Math.abs(discrepancy || 0)
       const safeCovered = covered_total || 0
 
-      console.log(`${tag} claim_id=${claim_id} carrier=${carrier} pet=${pet_name} covered=$${safeCovered} paid=$${safePaid} discrepancy=$${safeDiscrepancy}`)
+      console.log(`${tag} claim_id=${claim_id} discrepancy=$${safeDiscrepancy} items=${(disputed_items || []).length}`)
 
       if (!safeDiscrepancy || safeDiscrepancy <= 0) {
         return res.status(400).json({ error: 'No discrepancy to appeal.' })
@@ -4323,6 +5148,16 @@ INSTRUCTIONS:
       }
 
       console.log(`${tag} Generated letter (${letter.length} chars)`)
+
+      // Safety net: ensure pciq_analyses status is 'disputed'
+      if (claim_id) {
+        const { error: updateErr } = await supabase
+          .from('pciq_analyses')
+          .update({ status: 'disputed' })
+          .eq('id', claim_id)
+        console.log(`${tag} Status update: claim_id=${claim_id} → 'disputed' ${updateErr ? 'FAILED: ' + updateErr.message : 'OK'}`)
+      }
+
       return res.json({ letter })
 
     } catch (error) {
