@@ -2874,7 +2874,13 @@ IMPORTANT:
         // Input: vet bill only. Output: line items, visit type, pet/clinic info.
         // ============================================================
 
-        const extractionPrompt = `You are a veterinary invoice parser. Your ONLY job is to extract data from the attached vet bill and classify the visit type. Do not perform any insurance coverage analysis.
+        const extractionPrompt = `You are a veterinary invoice parser. Your ONLY job is to extract data from the attached vet bill/invoice and classify the visit type. Do not perform any insurance coverage analysis.
+
+CRITICAL — DOCUMENT SCOPE:
+- You are reading a VET BILL or INVOICE only. Do NOT extract or infer any values from an insurance policy document.
+- clinic_name must be the name of the veterinary clinic or animal hospital that provided services — NEVER an insurance company name (e.g., never "Westchester Fire Insurance Company", "Healthy Paws", "Pumpkin", etc.)
+- visit_date must be the date services were rendered on the invoice — NEVER a policy effective date or expiration date
+- If you cannot find a value with confidence, return null for that field — do NOT guess or pull from non-vet-bill content
 
 EXTRACTION RULES:
 1. Use ONLY the TOTAL column (rightmost dollar amount) for each line item — never the Quantity or Unit Price columns.
@@ -2999,6 +3005,26 @@ Return ONLY this JSON object:
           lineItemCount: stage1Result.lineItems?.length,
           totalBill: stage1Result.totalBill
         })
+
+        // ── Post-Stage 1 validation: reject policy-document contamination ──
+        const insurerNames = ['insurance', 'westchester', 'chubb', 'pumpkin', 'healthy paws', 'embrace', 'odie', 'fetch', 'figo', 'nationwide', 'trupanion', 'lemonade', 'spot', 'pets best']
+        const rawClinic = stage1Result.clinicInfo?.name || ''
+        if (rawClinic && insurerNames.some(n => rawClinic.toLowerCase().includes(n))) {
+          console.warn(`[analyze-claim] ⚠ Stage 1 clinic_name rejected (looks like insurer): "${rawClinic}"`)
+          stage1Result.clinicInfo.name = null
+        }
+        const rawDate = stage1Result.clinicInfo?.date || null
+        if (rawDate) {
+          const parsedDate = new Date(rawDate)
+          const sixMonthsAgo = new Date()
+          sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+          if (!isNaN(parsedDate.getTime()) && parsedDate < sixMonthsAgo) {
+            console.warn(`[analyze-claim] ⚠ Stage 1 visit_date suspicious (>6mo old): "${rawDate}"`)
+          }
+        }
+        if (!stage1Result.totalBill || stage1Result.totalBill === 0) {
+          console.warn('[analyze-claim] ⚠ Stage 1 totalBill is null or 0')
+        }
 
         // ============================================================
         // STAGE 2 — COVERAGE ANALYSIS
@@ -3274,11 +3300,11 @@ IMPORTANT:
           completeness: stage2Result.completeness,
           missingInfo: stage2Result.missingInfo || [],
           missingDocumentHint: stage2Result.missingDocumentHint || null,
-          // petInfo and billInfo come from Stage 1
+          // petInfo and billInfo come from Stage 1 ONLY — never backfill from policy/Stage 2
           petInfo: stage1Result.petInfo || { name: null, species: null, breed: null },
           billInfo: {
-            clinic: stage1Result.clinicInfo?.name || null,
-            date: stage1Result.clinicInfo?.date || null,
+            clinic: stage1Result.clinicInfo?.name || null,   // Stage 1 only — null is OK
+            date: stage1Result.clinicInfo?.date || null,     // Stage 1 only — null is OK
             lineItems: s2analysis.lineItems || [],
             total: stage1Result.totalBill || 0
           },
@@ -3542,7 +3568,13 @@ IMPORTANT:
         }
 
         // ── Route 3 Stage 1: Extract vet bill data + classify visit type ──
-        const r3ExtractionPrompt = `You are a veterinary invoice parser. Your ONLY job is to extract data from the attached vet bill and classify the visit type. Do not perform any insurance coverage analysis.
+        const r3ExtractionPrompt = `You are a veterinary invoice parser. Your ONLY job is to extract data from the attached vet bill/invoice and classify the visit type. Do not perform any insurance coverage analysis.
+
+CRITICAL — DOCUMENT SCOPE:
+- You are reading a VET BILL or INVOICE only. Do NOT extract or infer any values from an insurance policy document.
+- clinic_name must be the name of the veterinary clinic or animal hospital that provided services — NEVER an insurance company name (e.g., never "Westchester Fire Insurance Company", "Healthy Paws", "Pumpkin", etc.)
+- visit_date must be the date services were rendered on the invoice — NEVER a policy effective date or expiration date
+- If you cannot find a value with confidence, return null for that field — do NOT guess or pull from non-vet-bill content
 
 EXTRACTION RULES:
 1. Use ONLY the TOTAL column (rightmost dollar amount) for each line item — never the Quantity or Unit Price columns.
@@ -3607,6 +3639,26 @@ Return ONLY this JSON object:
           lineItems: r3Stage1Result.lineItems?.length,
           totalBill: r3Stage1Result.totalBill
         })
+
+        // ── Post-Stage 1 validation: reject policy-document contamination ──
+        const r3InsurerNames = ['insurance', 'westchester', 'chubb', 'pumpkin', 'healthy paws', 'embrace', 'odie', 'fetch', 'figo', 'nationwide', 'trupanion', 'lemonade', 'spot', 'pets best']
+        const r3RawClinic = r3Stage1Result.clinicInfo?.name || ''
+        if (r3RawClinic && r3InsurerNames.some(n => r3RawClinic.toLowerCase().includes(n))) {
+          console.warn(`${tag} ⚠ Route 3 Stage 1 clinic_name rejected (looks like insurer): "${r3RawClinic}"`)
+          r3Stage1Result.clinicInfo.name = null
+        }
+        const r3RawDate = r3Stage1Result.clinicInfo?.date || null
+        if (r3RawDate) {
+          const r3Parsed = new Date(r3RawDate)
+          const r3SixMo = new Date()
+          r3SixMo.setMonth(r3SixMo.getMonth() - 6)
+          if (!isNaN(r3Parsed.getTime()) && r3Parsed < r3SixMo) {
+            console.warn(`${tag} ⚠ Route 3 Stage 1 visit_date suspicious (>6mo old): "${r3RawDate}"`)
+          }
+        }
+        if (!r3Stage1Result.totalBill || r3Stage1Result.totalBill === 0) {
+          console.warn(`${tag} ⚠ Route 3 Stage 1 totalBill is null or 0`)
+        }
 
         // ── Route 3 Stage 2: Extract EOB data ──
         const r3EobPrompt = `You are an insurance EOB (Explanation of Benefits) parser. Extract all data from the attached EOB document.
@@ -3878,9 +3930,10 @@ IMPORTANT: Use numbers not strings. reimbursementRate must be an integer (80 not
             eob_denied: item.eob_denied ?? null,
             appeal_recommended: item.appeal_recommended ?? false,
           })),
+          // Vet bill fields — Stage 1 ONLY (never backfill from policy)
           visit_type: r3Stage1Result.visitType || null,
-          clinic_name: r3Stage1Result.clinicInfo?.name || null,
-          visit_date: r3Stage1Result.clinicInfo?.date || r3EobResult.serviceDate || null,
+          clinic_name: r3Stage1Result.clinicInfo?.name || null,   // Stage 1 only — null is OK
+          visit_date: r3Stage1Result.clinicInfo?.date || r3EobResult.serviceDate || null,  // EOB fallback OK (it's about this claim)
           pet_name: r3Stage1Result.petInfo?.name || r3EobResult.petInfo?.name || savedPolicy?.pet_name || null,
           confidence: r3Stage3Result.completeness === 'full' ? 'High'
             : r3Stage3Result.completeness === 'partial' ? 'Medium' : 'Low',
@@ -4350,7 +4403,13 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
       // Route 3 (both) returns early above — only bill route reaches here
 
       // STEP 3 — Stage 1: Extract vet bill + classify visit type
-      const extractionPrompt = `You are a veterinary invoice parser. Your ONLY job is to extract data from the attached vet bill and classify the visit type. Do not perform any insurance coverage analysis.
+      const extractionPrompt = `You are a veterinary invoice parser. Your ONLY job is to extract data from the attached vet bill/invoice and classify the visit type. Do not perform any insurance coverage analysis.
+
+CRITICAL — DOCUMENT SCOPE:
+- You are reading a VET BILL or INVOICE only. Do NOT extract or infer any values from an insurance policy document.
+- clinic_name must be the name of the veterinary clinic or animal hospital that provided services — NEVER an insurance company name (e.g., never "Westchester Fire Insurance Company", "Healthy Paws", "Pumpkin", etc.)
+- visit_date must be the date services were rendered on the invoice — NEVER a policy effective date or expiration date
+- If you cannot find a value with confidence, return null for that field — do NOT guess or pull from non-vet-bill content
 
 EXTRACTION RULES:
 1. Use ONLY the TOTAL column (rightmost dollar amount) for each line item — never the Quantity or Unit Price columns.
@@ -4452,6 +4511,26 @@ Return ONLY this JSON object:
         lineItems: stage1Result.lineItems?.length,
         totalBill: stage1Result.totalBill
       })
+
+      // ── Post-Stage 1 validation: reject policy-document contamination ──
+      const insurerNames = ['insurance', 'westchester', 'chubb', 'pumpkin', 'healthy paws', 'embrace', 'odie', 'fetch', 'figo', 'nationwide', 'trupanion', 'lemonade', 'spot', 'pets best']
+      const rawClinic = stage1Result.clinicInfo?.name || ''
+      if (rawClinic && insurerNames.some(n => rawClinic.toLowerCase().includes(n))) {
+        console.warn(`${tag} ⚠ Stage 1 clinic_name rejected (looks like insurer): "${rawClinic}"`)
+        stage1Result.clinicInfo.name = null
+      }
+      const rawDate = stage1Result.clinicInfo?.date || null
+      if (rawDate) {
+        const parsedDate = new Date(rawDate)
+        const sixMonthsAgo = new Date()
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+        if (!isNaN(parsedDate.getTime()) && parsedDate < sixMonthsAgo) {
+          console.warn(`${tag} ⚠ Stage 1 visit_date suspicious (>6mo old): "${rawDate}"`)
+        }
+      }
+      if (!stage1Result.totalBill || stage1Result.totalBill === 0) {
+        console.warn(`${tag} ⚠ Stage 1 totalBill is null or 0`)
+      }
 
       // STEP 4 — Build saved-policy context string for Stage 2 prompt
       let savedPolicyContext = ''
@@ -4679,10 +4758,10 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
           reason: item.reason || '',
           policy_section: item.sourceQuote || item.section || null,
         })),
-        // Stage 1 fields
+        // Stage 1 fields ONLY — never backfill clinic/date from policy or Stage 2
         visit_type: stage1Result.visitType || null,
-        clinic_name: stage1Result.clinicInfo?.name || null,
-        visit_date: stage1Result.clinicInfo?.date || null,
+        clinic_name: stage1Result.clinicInfo?.name || null,   // Stage 1 only — null is OK
+        visit_date: stage1Result.clinicInfo?.date || null,     // Stage 1 only — null is OK
         pet_name: stage1Result.petInfo?.name || savedPolicy?.pet_name || null,
         // Stage 2 / policy fields
         confidence: stage2Result.completeness === 'full' ? 'High'
