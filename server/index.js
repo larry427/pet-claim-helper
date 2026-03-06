@@ -5131,9 +5131,9 @@ FACTS:
 - Insurance carrier: ${carrier || 'the insurance company'}
 - Veterinary clinic: ${clinic_name || 'the veterinary clinic'}
 - Date of service: ${visit_date || 'recent'}
-- Total covered charges per policy: $${safeCovered.toFixed(2)}
-- Amount insurer actually paid: $${safePaid.toFixed(2)}
-- Total underpayment: $${safeDiscrepancy.toFixed(2)}
+- Total covered charges per policy (entire claim): $${safeCovered.toFixed(2)}
+- Amount insurer actually paid on disputed items: $${safePaid.toFixed(2)}
+- Total denied/underpaid amount in dispute: $${safeDiscrepancy.toFixed(2)}
 
 DISPUTED ITEMS (denied or underpaid by insurer):
 ${disputedDetails || 'No itemized breakdown available.'}
@@ -5145,8 +5145,8 @@ IMPORTANT CONTEXT:
 
 INSTRUCTIONS:
 1. Open with "Dear ${carrier || 'Claims Department'} Claims Department"
-2. State that covered charges of $${safeCovered.toFixed(2)} were eligible per the policy for ${pet_name || 'the insured pet'}
-3. State that the insurer paid $${safePaid.toFixed(2)} on this claim, and $${safeDiscrepancy.toFixed(2)} in covered charges were incorrectly denied
+2. State that the total covered charges for ${pet_name || 'the insured pet'}'s visit were $${safeCovered.toFixed(2)} per the policy
+3. State that the insurer denied or underpaid $${safeDiscrepancy.toFixed(2)} in charges that should have been covered per the policy terms
 4. For each disputed item: quote the exact policy language that supports coverage, then explain why the insurer's denial reason is inconsistent with the policy terms
 5. Use formal but clear language — this is a real letter a pet parent would send
 6. End with a specific request for reconsideration and reimbursement of exactly $${safeDiscrepancy.toFixed(2)} for the denied items
