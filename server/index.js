@@ -5244,6 +5244,22 @@ Rules:
 
       console.log(`${tag} claim_id=${claim_id} discrepancy=$${safeDiscrepancy} items=${(disputed_items || []).length}`)
 
+      // ── DIAGNOSTIC LOGGING (FIX 1 + FIX 2) ──
+      console.log(`${tag} 🔍 RAW req.body values:`)
+      console.log(`${tag}   discrepancy (raw from frontend): ${JSON.stringify(discrepancy)}`)
+      console.log(`${tag}   covered_total (raw from frontend): ${JSON.stringify(covered_total)}`)
+      console.log(`${tag}   actual_paid (raw from frontend): ${JSON.stringify(actual_paid)}`)
+      console.log(`${tag}   safeDiscrepancy (used in prompt): $${safeDiscrepancy.toFixed(2)}`)
+      console.log(`${tag}   safeCovered (used in prompt): $${safeCovered}`)
+      console.log(`${tag} 🔍 disputed_items array (${(disputed_items || []).length} items):`)
+      ;(disputed_items || []).forEach((item, idx) => {
+        console.log(`${tag}   [${idx}] name="${item.name}" amount=${item.amount} insurer_paid=${item.insurer_paid} pciq_predicted=${item.pciq_predicted}`)
+        console.log(`${tag}       coverage_reason="${item.coverage_reason || 'NONE'}"`)
+        console.log(`${tag}       reason/denial_reason="${item.denial_reason || item.reason || 'NONE'}"`)
+        console.log(`${tag}       policy_citation="${item.policy_citation || 'NONE'}" policy_section="${item.policy_section || 'NONE'}"`)
+      })
+      // ── END DIAGNOSTIC LOGGING ──
+
       if (!safeDiscrepancy || safeDiscrepancy <= 0) {
         return res.status(400).json({ error: 'No discrepancy to appeal.' })
       }
@@ -5261,6 +5277,10 @@ Rules:
           return line
         })
         .join('\n')
+
+      // ── DIAGNOSTIC: Show exactly what GPT will see ──
+      console.log(`${tag} 🔍 disputedDetails string for GPT prompt:\n${disputedDetails}`)
+      console.log(`${tag} 🔍 Dollar amounts injected into prompt: disputed=$${safeDiscrepancy.toFixed(2)} covered=$${safeCovered.toFixed(2)} paid=$${safePaid.toFixed(2)}`)
 
       // Compute sign-off name: owner_name > "Pet Name's Pet Parent" > "Policyholder"
       const signOffName = owner_name || (pet_name ? `${pet_name}'s Pet Parent` : 'Policyholder')
