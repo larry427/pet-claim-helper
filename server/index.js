@@ -5091,6 +5091,7 @@ Return ONLY a JSON object (no markdown, no commentary):
       "name": "<item name>",
       "pciq_predicted": <dollar amount PCIQ said should be covered>,
       "insurer_paid": <dollar amount actually disbursed for this item — use $0 if the total disbursement was $0>,
+      "coverage_reason": "<exact coverage category from the original PCIQ analysis, e.g. 'Covered — other' or 'Covered — diagnostic test'. Copy verbatim from the Reason field above>",
       "policy_citation": "<exact policy language from original prediction>",
       "denial_reason": "<what the EOB said — must be a COVERAGE denial, not deductible>"
     }
@@ -5246,13 +5247,15 @@ Rules:
       }
 
       // Build disputed items detail — only denied/underpaid items with policy citations
+      // Frontend sends: amount (=pciq_predicted), insurer_paid, coverage_reason, reason (=denial_reason), policy_section (=policy_citation)
       const disputedDetails = disputed_items
         .map((item, idx) => {
-          const predicted = (item.pciq_predicted || 0).toFixed(2)
+          const predicted = (item.pciq_predicted || item.amount || 0).toFixed(2)
           const paid = (item.insurer_paid || 0).toFixed(2)
           let line = `${idx + 1}. ${item.name || 'Item'} — predicted $${predicted}, insurer paid $${paid}`
-          if (item.denial_reason) line += `\n   [INTERNAL NOTE — insurer's stated reason, DO NOT quote in letter]: "${item.denial_reason}"`
-          if (item.policy_citation) line += `\n   POLICY LANGUAGE TO CITE IN LETTER: "${item.policy_citation}"`
+          if (item.coverage_reason) line += `\n   COVERAGE CATEGORY (use this EXACT wording): "${item.coverage_reason}"`
+          if (item.denial_reason || item.reason) line += `\n   [INTERNAL NOTE — insurer's stated reason, DO NOT quote in letter]: "${item.denial_reason || item.reason}"`
+          if (item.policy_citation || item.policy_section) line += `\n   POLICY LANGUAGE TO CITE IN LETTER: "${item.policy_citation || item.policy_section}"`
           return line
         })
         .join('\n')
@@ -5274,9 +5277,7 @@ FACTS:
 - Insurance carrier: ${carrier || 'the insurance company'}
 - Veterinary clinic: ${clinic_name || 'the veterinary clinic'}
 - Date of service: ${visit_date || 'recent'}
-- Amount the insurer owes the policyholder: $${safeDiscrepancy.toFixed(2)}
-  (This is the NET amount after all deductible and copay calculations — this is the number to use in the letter)
-- For context only: total covered charges on the claim were $${safeCovered.toFixed(2)}, insurer paid $${safePaid.toFixed(2)}
+- THE DISPUTED AMOUNT IS EXACTLY $${safeDiscrepancy.toFixed(2)} — this is the net reimbursement owed after all deductible and coinsurance calculations. Use this number everywhere in the letter. Do NOT use covered_total or any other amount.
 ${identifierLine ? `- Policy/claim identifiers: ${identifierLine}` : ''}
 
 DISPUTED ITEMS (denied or underpaid by insurer):
@@ -5286,13 +5287,14 @@ IMPORTANT CONTEXT:
 - These disputed items are COVERAGE denials only — the insurer claims these items are not covered by the policy
 - These are NOT deductible disputes — do not mention deductibles or suggest the deductible was applied incorrectly
 - Each disputed item includes specific policy language that contradicts the insurer's denial
+- For each disputed item, use the exact COVERAGE CATEGORY from the data provided. Do not reclassify or infer coverage categories — if the data says "Covered — other", write "Covered — other", NOT "Covered — medication" or any other category
 
 INSTRUCTIONS:
 1. Open with "Dear ${carrier || 'Claims Department'} Claims Department"
 2. ${identifierLine ? `On the SECOND line of the letter body, include: "${identifierLine}" on its own line` : 'Skip this step — no policy/claim identifiers available'}
 3. State that you are writing to appeal the denial of $${safeDiscrepancy.toFixed(2)} in covered charges for ${pet_name || 'the insured pet'}'s visit on ${visit_date || 'a recent date'} at ${clinic_name || 'the veterinary clinic'}
-4. The amount in dispute is EXACTLY $${safeDiscrepancy.toFixed(2)} — do NOT use the total covered charges ($${safeCovered.toFixed(2)}) as the disputed amount. The disputed amount is the net owed after deductible and reimbursement rate calculations.
-5. For each disputed item: quote the POLICY LANGUAGE CITATION verbatim, then explain why the item should be covered based on that policy language
+4. The amount in dispute is EXACTLY $${safeDiscrepancy.toFixed(2)} — this is the ONLY dollar amount to cite as the total disputed/owed. Do NOT use $${safeCovered.toFixed(2)} (that is the total covered charges, NOT the disputed amount). Do NOT sum the individual item amounts and use that total.
+5. For each disputed item: state its exact COVERAGE CATEGORY as provided in the data, then quote the POLICY LANGUAGE CITATION verbatim, then explain why the item should be covered based on that policy language
 6. Do NOT copy, quote, paraphrase, or reference the insurer's denial reason text from the EOB. The denial reasons in the data above are marked [INTERNAL NOTE] — they are for your understanding only. Base your arguments ENTIRELY on the policy language citations.
 7. Use formal but clear language — this is a real letter a pet parent would send
 8. End with a specific request for reconsideration and reimbursement of exactly $${safeDiscrepancy.toFixed(2)}
