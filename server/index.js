@@ -5151,6 +5151,9 @@ Rules:
         actual_paid,
         discrepancy,
         disputed_items = [],
+        owner_name,
+        policy_number,
+        appeals_reference,
       } = req.body
 
       const safePaid = Math.abs(actual_paid || 0)
@@ -5169,11 +5172,21 @@ Rules:
           const predicted = (item.pciq_predicted || 0).toFixed(2)
           const paid = (item.insurer_paid || 0).toFixed(2)
           let line = `${idx + 1}. ${item.name || 'Item'} — predicted $${predicted}, insurer paid $${paid}`
-          if (item.denial_reason) line += `\n   EOB denial reason: "${item.denial_reason}"`
-          if (item.policy_citation) line += `\n   Policy language supporting coverage: "${item.policy_citation}"`
+          if (item.denial_reason) line += `\n   [INTERNAL NOTE — insurer's stated reason, DO NOT quote in letter]: "${item.denial_reason}"`
+          if (item.policy_citation) line += `\n   POLICY LANGUAGE TO CITE IN LETTER: "${item.policy_citation}"`
           return line
         })
         .join('\n')
+
+      // Compute sign-off name: owner_name > "Pet Name's Pet Parent" > "Policyholder"
+      const signOffName = owner_name || (pet_name ? `${pet_name}'s Pet Parent` : 'Policyholder')
+      // Policy/claim identifiers for the letter header
+      const policyNum = policy_number || null
+      const claimRef = appeals_reference || null
+      const identifierLine = [
+        policyNum ? `Policy Number: ${policyNum}` : null,
+        claimRef ? `Claim Reference: ${claimRef}` : null,
+      ].filter(Boolean).join(' | ')
 
       const prompt = `You are writing a formal insurance appeal letter on behalf of a pet owner. Write the letter directly — no preamble, no markdown, no commentary.
 
@@ -5182,9 +5195,10 @@ FACTS:
 - Insurance carrier: ${carrier || 'the insurance company'}
 - Veterinary clinic: ${clinic_name || 'the veterinary clinic'}
 - Date of service: ${visit_date || 'recent'}
-- Total covered charges per policy (entire claim): $${safeCovered.toFixed(2)}
-- Amount insurer actually paid on disputed items: $${safePaid.toFixed(2)}
-- Total denied/underpaid amount in dispute: $${safeDiscrepancy.toFixed(2)}
+- Amount the insurer owes the policyholder: $${safeDiscrepancy.toFixed(2)}
+  (This is the NET amount after all deductible and copay calculations — this is the number to use in the letter)
+- For context only: total covered charges on the claim were $${safeCovered.toFixed(2)}, insurer paid $${safePaid.toFixed(2)}
+${identifierLine ? `- Policy/claim identifiers: ${identifierLine}` : ''}
 
 DISPUTED ITEMS (denied or underpaid by insurer):
 ${disputedDetails || 'No itemized breakdown available.'}
@@ -5196,15 +5210,17 @@ IMPORTANT CONTEXT:
 
 INSTRUCTIONS:
 1. Open with "Dear ${carrier || 'Claims Department'} Claims Department"
-2. State that the total covered charges for ${pet_name || 'the insured pet'}'s visit were $${safeCovered.toFixed(2)} per the policy
-3. State that the insurer denied or underpaid $${safeDiscrepancy.toFixed(2)} in charges that should have been covered per the policy terms
-4. For each disputed item: quote the exact policy language that supports coverage, then explain why the insurer's denial reason is inconsistent with the policy terms
-5. Use formal but clear language — this is a real letter a pet parent would send
-6. End with a specific request for reconsideration and reimbursement of exactly $${safeDiscrepancy.toFixed(2)} for the denied items
-7. Sign off as "Policyholder" generically (do not invent a name)
-8. Do NOT include any subject line or "RE:" header — start with "Dear"
-9. Do NOT list items that were correctly paid or correctly applied to deductible — focus ONLY on coverage denials
-10. NEVER argue that deductible application was incorrect — deductible denials are valid`
+2. ${identifierLine ? `On the SECOND line of the letter body, include: "${identifierLine}" on its own line` : 'Skip this step — no policy/claim identifiers available'}
+3. State that you are writing to appeal the denial of $${safeDiscrepancy.toFixed(2)} in covered charges for ${pet_name || 'the insured pet'}'s visit on ${visit_date || 'a recent date'} at ${clinic_name || 'the veterinary clinic'}
+4. The amount in dispute is EXACTLY $${safeDiscrepancy.toFixed(2)} — do NOT use the total covered charges ($${safeCovered.toFixed(2)}) as the disputed amount. The disputed amount is the net owed after deductible and reimbursement rate calculations.
+5. For each disputed item: quote the POLICY LANGUAGE CITATION verbatim, then explain why the item should be covered based on that policy language
+6. Do NOT copy, quote, paraphrase, or reference the insurer's denial reason text from the EOB. The denial reasons in the data above are marked [INTERNAL NOTE] — they are for your understanding only. Base your arguments ENTIRELY on the policy language citations.
+7. Use formal but clear language — this is a real letter a pet parent would send
+8. End with a specific request for reconsideration and reimbursement of exactly $${safeDiscrepancy.toFixed(2)}
+9. Sign off as "${signOffName}" — use this exact name, do not change it
+10. Do NOT include any subject line or "RE:" header — start with "Dear"
+11. Do NOT list items that were correctly paid or correctly applied to deductible — focus ONLY on coverage denials
+12. NEVER argue that deductible application was incorrect — deductible denials are valid`
 
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o',
