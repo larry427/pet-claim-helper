@@ -4968,6 +4968,8 @@ For each COVERED item, check the EOB:
 - If the EOB denied it for a DEDUCTIBLE reason → ignore, this is valid
 - If the EOB denied it for a COVERAGE reason and PCIQ has a policy citation supporting coverage → this is a disputable item
 
+Also extract appeals contact information from the EOB. Most EOBs include an appeals section with an address, phone number, email, deadline, and/or claim reference number. Extract whatever is present — use null for any field not found. NEVER guess or fabricate contact info.
+
 Return ONLY a JSON object (no markdown, no commentary):
 {
   "status": "underpaid" | "correct" | "overpaid",
@@ -4980,7 +4982,12 @@ Return ONLY a JSON object (no markdown, no commentary):
       "policy_citation": "<exact policy language from original prediction>",
       "denial_reason": "<what the EOB said — must be a COVERAGE denial, not deductible>"
     }
-  ]
+  ],
+  "appeals_email": "<email address for appeals, or null if not found>",
+  "appeals_address": "<mailing address for appeals, or null if not found>",
+  "appeals_phone": "<phone number for appeals, or null if not found>",
+  "appeals_deadline": "<deadline text e.g. 'within 30 days of this notice', or null if not found>",
+  "appeals_reference": "<claim/reference number to cite in appeal, or null if not found>"
 }
 
 Rules:
@@ -5046,6 +5053,11 @@ Rules:
             ...(existing?.line_items || {}),
             eob_disputed_items: parsed.disputed_items || [],
             eob_discrepancy: discrepancyAmt,
+            appeals_email: parsed.appeals_email || null,
+            appeals_address: parsed.appeals_address || null,
+            appeals_phone: parsed.appeals_phone || null,
+            appeals_deadline: parsed.appeals_deadline || null,
+            appeals_reference: parsed.appeals_reference || null,
           }
 
           const { error: updateErr } = await supabase
@@ -5063,6 +5075,11 @@ Rules:
           status: 'underpaid',
           discrepancy: Math.abs(parsed.discrepancy || 0),
           disputed_items: parsed.disputed_items || [],
+          appeals_email: parsed.appeals_email || null,
+          appeals_address: parsed.appeals_address || null,
+          appeals_phone: parsed.appeals_phone || null,
+          appeals_deadline: parsed.appeals_deadline || null,
+          appeals_reference: parsed.appeals_reference || null,
         })
       }
 
