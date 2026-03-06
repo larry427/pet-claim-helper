@@ -5021,13 +5021,28 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
           return `${idx + 1}. ${item.description || 'Item'} — $${(item.amount || 0).toFixed(2)} (EXCLUDED)`
         }).join('\n')
 
-      // Compute expected reimbursement from covered items to pass into the prompt
-      const expectedReimbursement = items.filter(i => i.covered).reduce((sum, i) => sum + (i.amount || 0), 0)
+      // Fetch the NET expected reimbursement from the DB (after deductible + coinsurance math).
+      // This is the actual amount the insurer should have paid — NOT the raw sum of covered items.
+      const coveredTotal = items.filter(i => i.covered).reduce((sum, i) => sum + (i.amount || 0), 0)
+      let expectedReimbursement = coveredTotal  // fallback to covered total if DB value unavailable
+      if (claim_id) {
+        const { data: claimRow } = await supabase
+          .from('pciq_analyses')
+          .select('estimated_reimbursement')
+          .eq('id', claim_id)
+          .single()
+        if (claimRow?.estimated_reimbursement != null && claimRow.estimated_reimbursement > 0) {
+          expectedReimbursement = claimRow.estimated_reimbursement
+          console.log(`${tag} Using DB estimated_reimbursement=$${expectedReimbursement} (coveredTotal was $${coveredTotal.toFixed(2)})`)
+        } else {
+          console.warn(`${tag} ⚠ No estimated_reimbursement in DB, falling back to coveredTotal=$${coveredTotal.toFixed(2)}`)
+        }
+      }
 
       const prompt = `You are a pet insurance claims auditor. You will be given:
 1. An EOB (Explanation of Benefits) from an insurer
 2. The original PCIQ line-by-line coverage predictions with policy citations
-3. Our expected reimbursement: $${expectedReimbursement.toFixed(2)}
+3. Our expected NET reimbursement (after deductible and coinsurance): $${expectedReimbursement.toFixed(2)}
 
 Follow these steps IN THIS EXACT ORDER:
 
@@ -5087,7 +5102,7 @@ Return ONLY a JSON object (no markdown, no commentary):
 {
   "actual_paid_by_insurer": <the final disbursement amount found in Step 1>,
   "status": "underpaid" | "correct" | "overpaid",
-  "discrepancy": <difference between our expected $${expectedReimbursement.toFixed(2)} and actual_paid_by_insurer, 0 if correct>,
+  "discrepancy": <difference between our expected NET reimbursement $${expectedReimbursement.toFixed(2)} and actual_paid_by_insurer, 0 if correct>,
   "disputed_items": [
     {
       "name": "<item name>",
