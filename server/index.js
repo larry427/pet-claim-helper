@@ -4940,13 +4940,47 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
           return `${idx + 1}. ${item.description || 'Item'} — $${(item.amount || 0).toFixed(2)} (EXCLUDED)`
         }).join('\n')
 
+      // Compute expected reimbursement from covered items to pass into the prompt
+      const expectedReimbursement = items.filter(i => i.covered).reduce((sum, i) => sum + (i.amount || 0), 0)
+
       const prompt = `You are a pet insurance claims auditor. You will be given:
 1. An EOB (Explanation of Benefits) from an insurer
 2. The original PCIQ line-by-line coverage predictions with policy citations
+3. Our expected reimbursement: $${expectedReimbursement.toFixed(2)}
 
-Your job is to find COVERAGE DENIALS — items the insurer denied for coverage reasons that PCIQ predicted were covered with policy citations.
+Follow these steps IN THIS EXACT ORDER:
 
-CRITICAL DISTINCTION — TWO TYPES OF DENIALS:
+═══════════════════════════════════════════════════════════════
+STEP 1 — FIND THE ACTUAL AMOUNT DISBURSED TO THE POLICYHOLDER
+═══════════════════════════════════════════════════════════════
+Search the EOB for the FINAL DISBURSEMENT amount — the real money being sent to the policyholder. Look for:
+- "Amount Paid", "Amount Paid by [Carrier Name]", "Total Payment"
+- "Check Amount", "Amount Disbursed", "Your Reimbursement"
+- "Benefit Paid", "We Are Paying You", "Total Benefit"
+
+⚠️  CRITICAL: EOBs show intermediate math steps ABOVE the final payment line. For example:
+   Eligible charges: $706.66
+   Less deductible: -$250.00
+   Reimbursement at 80%: $364.93    ← THIS IS NOT THE ACTUAL PAYMENT
+   Amount Paid by Carrier: $0.00     ← THIS IS THE ACTUAL PAYMENT
+
+The ACTUAL PAYMENT is the FINAL disbursement line — the amount the insurer is really sending. It may be $0.00 even when the math above shows a positive number. You MUST find this final line, not the calculated reimbursement.
+
+Record this number as "actual_paid_by_insurer".
+
+═══════════════════════════════════════════════════════════════
+STEP 2 — COMPARE ACTUAL PAID vs OUR EXPECTED REIMBURSEMENT
+═══════════════════════════════════════════════════════════════
+Our prior analysis predicted the policyholder should receive: $${expectedReimbursement.toFixed(2)}
+Compare this to actual_paid_by_insurer from Step 1.
+If they differ by more than $1.00, this claim is UNDERPAID.
+
+═══════════════════════════════════════════════════════════════
+STEP 3 — IDENTIFY DENIED/UNDERPAID ITEMS
+═══════════════════════════════════════════════════════════════
+For each item we predicted as covered, check the EOB to see if it was denied or underpaid.
+
+TWO TYPES OF DENIALS:
 1. DEDUCTIBLE DENIALS (VALID — do NOT flag these):
    - "applied to deductible", "deductible not yet met", "subject to annual deductible"
    - These are correct insurer behavior. The policyholder must meet their deductible first.
@@ -4958,27 +4992,26 @@ CRITICAL DISTINCTION — TWO TYPES OF DENIALS:
    - "cosmetic procedure", "experimental treatment", "pre-existing condition"
    - These are cases where the insurer says the policy does NOT cover the item at all.
 
+IMPORTANT: If actual_paid_by_insurer is $0.00 (or near $0) but our prediction was $${expectedReimbursement.toFixed(2)}, then ALL covered items were effectively denied. Each covered item's insurer_paid should be $0.00 in that case.
+
 ORIGINAL PCIQ PREDICTIONS — COVERED ITEMS:
 ${originalSummary || 'No covered items.'}
 
 ORIGINAL PCIQ PREDICTIONS — EXCLUDED ITEMS (ignore these):
 ${excludedSummary || 'None.'}
 
-For each COVERED item, check the EOB:
-- If the EOB denied it for a DEDUCTIBLE reason → ignore, this is valid
-- If the EOB denied it for a COVERAGE reason and PCIQ has a policy citation supporting coverage → this is a disputable item
-
 Also extract appeals contact information from the EOB. Most EOBs include an appeals section with an address, phone number, email, deadline, and/or claim reference number. Extract whatever is present — use null for any field not found. NEVER guess or fabricate contact info.
 
 Return ONLY a JSON object (no markdown, no commentary):
 {
+  "actual_paid_by_insurer": <the final disbursement amount found in Step 1>,
   "status": "underpaid" | "correct" | "overpaid",
-  "discrepancy": <total dollar amount of COVERAGE denials only, 0 if none>,
+  "discrepancy": <difference between our expected $${expectedReimbursement.toFixed(2)} and actual_paid_by_insurer, 0 if correct>,
   "disputed_items": [
     {
       "name": "<item name>",
       "pciq_predicted": <dollar amount PCIQ said should be covered>,
-      "insurer_paid": <dollar amount EOB shows was paid>,
+      "insurer_paid": <dollar amount actually disbursed for this item — use $0 if the total disbursement was $0>,
       "policy_citation": "<exact policy language from original prediction>",
       "denial_reason": "<what the EOB said — must be a COVERAGE denial, not deductible>"
     }
@@ -4991,12 +5024,13 @@ Return ONLY a JSON object (no markdown, no commentary):
 }
 
 Rules:
+- STEP 1 is MANDATORY — you must find the actual disbursement amount before evaluating anything else
+- If actual_paid_by_insurer differs from $${expectedReimbursement.toFixed(2)} by more than $1.00, status MUST be "underpaid" (or "overpaid" if they paid more)
+- insurer_paid on each disputed item must reflect ACTUAL DISBURSEMENT, not intermediate math
 - NEVER include deductible-related denials in disputed_items
 - Only include genuine COVERAGE denials where the insurer says the item is not covered
 - If ALL denials are deductible-related and there are no coverage disputes, return status: "correct"
-- status "underpaid" means there are actual COVERAGE denials totaling more than $1.00
 - If the insurer paid MORE than predicted overall, return status: "overpaid" with discrepancy: 0 and empty disputed_items
-- If amounts match within $1.00 (excluding deductible applications), return status: "correct"
 - Only flag items that have a policy citation supporting coverage — items without citations are not disputable
 - If you cannot read the EOB or cannot determine amounts, return {"status": "correct", "discrepancy": 0, "disputed_items": []}
 - All numbers must be plain numbers, not strings`
