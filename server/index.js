@@ -5030,13 +5030,33 @@ Rules:
       }
 
       if (status === 'underpaid') {
-        // Update pciq_analyses status to 'disputed' so the Appeal tab picks it up
+        // Save comparison results to pciq_analyses so the Appeal tab can display them
         if (claim_id) {
+          const { data: existing } = await supabase
+            .from('pciq_analyses')
+            .select('estimated_reimbursement, line_items')
+            .eq('id', claim_id)
+            .single()
+
+          const estReimb = existing?.estimated_reimbursement ?? 0
+          const discrepancyAmt = Math.abs(parsed.discrepancy || 0)
+          const actualPaid = Math.max(0, estReimb - discrepancyAmt)
+
+          const updatedLineItems = {
+            ...(existing?.line_items || {}),
+            eob_disputed_items: parsed.disputed_items || [],
+            eob_discrepancy: discrepancyAmt,
+          }
+
           const { error: updateErr } = await supabase
             .from('pciq_analyses')
-            .update({ status: 'disputed' })
+            .update({
+              status: 'disputed',
+              actual_payment: actualPaid,
+              line_items: updatedLineItems,
+            })
             .eq('id', claim_id)
-          console.log(`${tag} Status update: claim_id=${claim_id} → 'disputed' ${updateErr ? 'FAILED: ' + updateErr.message : 'OK'}`)
+          console.log(`${tag} Status update: claim_id=${claim_id} → 'disputed' actual_payment=${actualPaid} ${updateErr ? 'FAILED: ' + updateErr.message : 'OK'}`)
         }
 
         return res.json({
