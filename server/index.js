@@ -4894,6 +4894,7 @@ EXTRACTION RULES:
 11. FILING DEADLINE DAYS: number of days from service date to file a claim (e.g., 90), or null.
 12. EXCLUSIONS: array of key exclusion categories as short strings (e.g., ["pre-existing conditions", "wellness", "elective procedures"]).
 13. POLICY TEXT: a 1-3 sentence plain-English summary of what this policy covers.
+14. POLICY NUMBER: Look for "Policy Number", "Policy No.", "Policy #", "Certificate Number". Return as a string exactly as printed, or null if not found.
 
 Return ONLY this JSON object:
 {
@@ -4909,7 +4910,8 @@ Return ONLY this JSON object:
   "expiration_date": string | null,
   "filing_deadline_days": number | null,
   "exclusions": string[],
-  "policy_text": string | null
+  "policy_text": string | null,
+  "policy_number": string | null
 }
 
 IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
