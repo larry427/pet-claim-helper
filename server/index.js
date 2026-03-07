@@ -5284,10 +5284,14 @@ Rules:
         dbLineItems = claimRow?.line_items || null
       }
 
+      // ── BUG 1 DIAGNOSTIC ──
+      console.log(`${tag} 📅 RAW visit_date from req.body: ${JSON.stringify(req.body.visit_date)} (type: ${typeof req.body.visit_date})`)
+      console.log(`${tag} 📅 RAW dbServiceDate from pciq_analyses: ${JSON.stringify(dbServiceDate)} (type: ${typeof dbServiceDate})`)
+
       // ── BUG 1 FIX: Ensure visit_date is populated ──
       if (!visit_date && dbServiceDate) {
         visit_date = dbServiceDate
-        console.log(`${tag} visit_date fetched from DB: ${visit_date}`)
+        console.log(`${tag} 📅 Using dbServiceDate as visit_date`)
       }
       // Format visit_date to human-readable (e.g., "January 27, 2026")
       if (visit_date) {
