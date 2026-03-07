@@ -5255,15 +5255,15 @@ Rules:
         pet_name,
         carrier,
         clinic_name,
-        visit_date,
         covered_total,
         actual_paid,
         discrepancy,
         disputed_items = [],
-        owner_name,
         policy_number,
         appeals_reference,
       } = req.body
+
+      let { visit_date, owner_name } = req.body
 
       const safePaid = Math.abs(actual_paid || 0)
       const safeDiscrepancy = Math.abs(discrepancy || 0)
@@ -5271,24 +5271,82 @@ Rules:
 
       console.log(`${tag} claim_id=${claim_id} discrepancy=$${safeDiscrepancy} items=${(disputed_items || []).length}`)
 
-      // ── DIAGNOSTIC LOGGING (FIX 1 + FIX 2) ──
-      console.log(`${tag} 🔍 RAW req.body values:`)
-      console.log(`${tag}   discrepancy (raw from frontend): ${JSON.stringify(discrepancy)}`)
-      console.log(`${tag}   covered_total (raw from frontend): ${JSON.stringify(covered_total)}`)
-      console.log(`${tag}   actual_paid (raw from frontend): ${JSON.stringify(actual_paid)}`)
-      console.log(`${tag}   safeDiscrepancy (used in prompt): $${safeDiscrepancy.toFixed(2)}`)
-      console.log(`${tag}   safeCovered (used in prompt): $${safeCovered}`)
-      console.log(`${tag} 🔍 disputed_items array (${(disputed_items || []).length} items):`)
-      ;(disputed_items || []).forEach((item, idx) => {
-        console.log(`${tag}   [${idx}] name="${item.name}" amount=${item.amount} insurer_paid=${item.insurer_paid} pciq_predicted=${item.pciq_predicted}`)
-        console.log(`${tag}       coverage_reason="${item.coverage_reason || 'NONE'}"`)
-        console.log(`${tag}       reason/denial_reason="${item.denial_reason || item.reason || 'NONE'}"`)
-        console.log(`${tag}       policy_citation="${item.policy_citation || 'NONE'}" policy_section="${item.policy_section || 'NONE'}"`)
+      // ── Fetch claim data from DB (used by BUG 1 + BUG 3 fixes) ──
+      let dbServiceDate = null
+      let dbLineItems = null
+      if (claim_id) {
+        const { data: claimRow } = await supabase
+          .from('pciq_analyses')
+          .select('service_date, line_items')
+          .eq('id', claim_id)
+          .single()
+        dbServiceDate = claimRow?.service_date || null
+        dbLineItems = claimRow?.line_items || null
+      }
+
+      // ── BUG 1 FIX: Ensure visit_date is populated ──
+      if (!visit_date && dbServiceDate) {
+        visit_date = dbServiceDate
+        console.log(`${tag} visit_date fetched from DB: ${visit_date}`)
+      }
+      // Format visit_date to human-readable (e.g., "January 27, 2026")
+      if (visit_date) {
+        const d = new Date(visit_date + (visit_date.length === 10 ? 'T12:00:00' : ''))
+        if (!isNaN(d.getTime())) {
+          visit_date = d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+        }
+      }
+      console.log(`${tag} visit_date for prompt: "${visit_date || 'MISSING'}"`)
+
+      // ── BUG 2 FIX: Robust owner_name fallback chain ──
+      // 1. req.body owner_name (from user_metadata.full_name)
+      // 2. profiles table full_name
+      // 3. "[Your Name]" — never use "Pet's Pet Parent"
+      if (!owner_name) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single()
+        if (profile?.full_name) {
+          owner_name = profile.full_name
+          console.log(`${tag} owner_name from profiles table: "${owner_name}"`)
+        } else {
+          owner_name = '[Your Name]'
+          console.log(`${tag} owner_name fallback: "[Your Name]"`)
+        }
+      } else {
+        console.log(`${tag} owner_name from request: "${owner_name}"`)
+      }
+
+      // ── BUG 3 DIAGNOSTIC: Log full structure of first 3 disputed items ──
+      console.log(`${tag} 🔍 disputed_items (${(disputed_items || []).length} items) — FULL FIELD DUMP:`)
+      ;(disputed_items || []).slice(0, 3).forEach((item, idx) => {
+        console.log(`${tag}   [${idx}] ALL KEYS: ${Object.keys(item).join(', ')}`)
+        console.log(`${tag}   [${idx}] name="${item.name}" amount=${item.amount} insurer_paid=${item.insurer_paid}`)
+        console.log(`${tag}   [${idx}] coverage_reason="${item.coverage_reason || 'NONE'}"`)
+        console.log(`${tag}   [${idx}] reason="${item.reason || 'NONE'}" denial_reason="${item.denial_reason || 'NONE'}"`)
+        console.log(`${tag}   [${idx}] policy_citation="${item.policy_citation || 'NONE'}"`)
+        console.log(`${tag}   [${idx}] policy_section="${item.policy_section || 'NONE'}"`)
+        console.log(`${tag}   [${idx}] sourceQuote="${item.sourceQuote || 'NONE'}"`)
       })
-      // ── END DIAGNOSTIC LOGGING ──
 
       if (!safeDiscrepancy || safeDiscrepancy <= 0) {
         return res.status(400).json({ error: 'No discrepancy to appeal.' })
+      }
+
+      // ── BUG 3 FIX: Build lookup of original sourceQuote values from DB ──
+      // The frontend only sends coverage_reason and policy_citation (from compare-eob GPT output).
+      // If policy_citation just repeats coverage_reason (circular), we need the REAL sourceQuote
+      // from the original analysis which is stored in line_items.items[].policy_section in the DB.
+      let originalItemsByName = {}
+      if (dbLineItems?.items) {
+        dbLineItems.items.forEach(item => {
+          if (item.description && item.policy_section) {
+            originalItemsByName[item.description.toLowerCase().trim()] = item.policy_section
+          }
+        })
+        console.log(`${tag} Loaded ${Object.keys(originalItemsByName).length} original items with policy_section from DB`)
       }
 
       // Build disputed items detail — only denied/underpaid items with policy citations
@@ -5300,7 +5358,27 @@ Rules:
           let line = `${idx + 1}. ${item.name || 'Item'} — predicted $${predicted}, insurer paid $${paid}`
           if (item.coverage_reason) line += `\n   COVERAGE CATEGORY (use this EXACT wording): "${item.coverage_reason}"`
           if (item.denial_reason || item.reason) line += `\n   [INTERNAL NOTE — insurer's stated reason, DO NOT quote in letter]: "${item.denial_reason || item.reason}"`
-          if (item.policy_citation || item.policy_section) line += `\n   POLICY LANGUAGE TO CITE IN LETTER: "${item.policy_citation || item.policy_section}"`
+
+          // Policy citation: prefer real sourceQuote from original analysis over compare-eob output
+          const rawCitation = item.policy_citation || item.policy_section || ''
+          const coverageReason = item.coverage_reason || ''
+          // Detect circular citations: if citation starts with "Covered" or matches coverage_reason, it's not real policy text
+          const isCircular = !rawCitation
+            || rawCitation.toLowerCase().startsWith('covered')
+            || rawCitation.toLowerCase().trim() === coverageReason.toLowerCase().trim()
+
+          // Try to find the real sourceQuote from the original analysis
+          const itemKey = (item.name || '').toLowerCase().trim()
+          const realQuote = originalItemsByName[itemKey] || null
+
+          if (realQuote && !realQuote.toLowerCase().startsWith('covered')) {
+            line += `\n   POLICY LANGUAGE TO CITE IN LETTER: "${realQuote}"`
+          } else if (!isCircular) {
+            line += `\n   POLICY LANGUAGE TO CITE IN LETTER: "${rawCitation}"`
+          } else {
+            line += `\n   POLICY LANGUAGE TO CITE IN LETTER: "as outlined in the policyholder's coverage terms"`
+            console.log(`${tag} ⚠️ Item "${item.name}": no real policy quote available (citation was circular: "${rawCitation}")`)
+          }
           return line
         })
         .join('\n')
@@ -5309,8 +5387,8 @@ Rules:
       console.log(`${tag} 🔍 disputedDetails string for GPT prompt:\n${disputedDetails}`)
       console.log(`${tag} 🔍 Dollar amounts injected into prompt: disputed=$${safeDiscrepancy.toFixed(2)} covered=$${safeCovered.toFixed(2)} paid=$${safePaid.toFixed(2)}`)
 
-      // Compute sign-off name: owner_name > "Pet Name's Pet Parent" > "Policyholder"
-      const signOffName = owner_name || (pet_name ? `${pet_name}'s Pet Parent` : 'Policyholder')
+      // Sign-off name — already resolved above via BUG 2 fix
+      const signOffName = owner_name
       // Policy/claim identifiers for the letter header
       const policyNum = policy_number || null
       const claimRef = appeals_reference || null
