@@ -5269,14 +5269,15 @@ Rules:
             .eq('id', claim_id)
             .single()
 
-          const estReimb = existing?.estimated_reimbursement ?? 0
           const discrepancyAmt = Math.abs(parsed.discrepancy || 0)
-          const actualPaid = Math.max(0, estReimb - discrepancyAmt)
+          // Use the GPT-extracted payment amount from the EOB document
+          const actualPaid = Number(parsed.actual_paid_by_insurer) || 0
 
           const updatedLineItems = {
             ...(existing?.line_items || {}),
             eob_disputed_items: parsed.disputed_items || [],
             eob_discrepancy: discrepancyAmt,
+            eob_actual_paid: actualPaid,
             appeals_email: parsed.appeals_email || null,
             appeals_address: parsed.appeals_address || null,
             appeals_phone: parsed.appeals_phone || null,
