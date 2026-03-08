@@ -5338,6 +5338,7 @@ Rules:
         clinic_name,
         covered_total,
         discrepancy,
+        actual_paid,
         disputed_items = [],
         policy_number,
         appeals_reference,
@@ -5447,22 +5448,27 @@ Rules:
         policyMathOrder === 'reimbursement-first' ||
         (carrier ?? '').toLowerCase().includes('healthy paws')
 
-      // Math steps depend on carrier
-      let mathStep1Label, mathStep1Result, mathStep2Label, mathStep2Result
+      // Math steps depend on carrier — compute reimbursement server-side
+      const eobPaid = Math.max(0, Number(actual_paid) || 0)
+      let mathStep1Label, mathStep2Label, mathStep3Label
+      let computedReimbursement
       if (isCoinsuranceFirst) {
         // Healthy Paws: rate first, then deductible
         const atRate = coveredAmt * (rate / 100)
+        computedReimbursement = Math.max(0, atRate - deductible)
         mathStep1Label = `$${coveredAmt.toFixed(2)} × ${rate}% = $${atRate.toFixed(2)}`
-        mathStep1Result = atRate
-        mathStep2Label = `$${atRate.toFixed(2)} − $${deductible.toFixed(2)} deductible = $${safeDiscrepancy.toFixed(2)}`
-        mathStep2Result = safeDiscrepancy
+        mathStep2Label = `$${atRate.toFixed(2)} − $${deductible.toFixed(2)} deductible = $${computedReimbursement.toFixed(2)}`
       } else {
         // Standard: deductible first, then rate
         const afterDeductible = Math.max(0, coveredAmt - deductible)
+        computedReimbursement = afterDeductible * (rate / 100)
         mathStep1Label = `$${coveredAmt.toFixed(2)} − $${deductible.toFixed(2)} deductible = $${afterDeductible.toFixed(2)}`
-        mathStep1Result = afterDeductible
-        mathStep2Label = `$${afterDeductible.toFixed(2)} × ${rate}% = $${safeDiscrepancy.toFixed(2)}`
-        mathStep2Result = safeDiscrepancy
+        mathStep2Label = `$${afterDeductible.toFixed(2)} × ${rate}% = $${computedReimbursement.toFixed(2)}`
+      }
+      // If EOB paid something, add a step showing the shortfall
+      const amountOwed = eobPaid > 0 ? Math.max(0, computedReimbursement - eobPaid) : computedReimbursement
+      if (eobPaid > 0) {
+        mathStep3Label = `$${computedReimbursement.toFixed(2)} − $${eobPaid.toFixed(2)} already paid = $${amountOwed.toFixed(2)}`
       }
 
       // Build excluded items list (names + amounts)
@@ -5478,7 +5484,7 @@ Rules:
       const policyNum = policy_number || dbPolicyNumber || null
       const claimRef = appeals_reference || claim_id || null
 
-      console.log(`${tag} Letter data: totalBill=$${totalBill} covered=$${coveredAmt} excluded=$${excludedAmt} rate=${rate}% deductible=$${deductible} disputed=$${safeDiscrepancy} mathOrder=${isCoinsuranceFirst ? 'coinsurance-first' : 'deductible-first'}`)
+      console.log(`${tag} Letter data: totalBill=$${totalBill} covered=$${coveredAmt} excluded=$${excludedAmt} rate=${rate}% deductible=$${deductible} reimbursement=$${computedReimbursement.toFixed(2)} eobPaid=$${eobPaid.toFixed(2)} amountOwed=$${amountOwed.toFixed(2)} mathOrder=${isCoinsuranceFirst ? 'coinsurance-first' : 'deductible-first'}`)
       console.log(`${tag} Excluded items: ${excludedItemsList.join(', ') || 'NONE'}`)
       console.log(`${tag} Covered items: ${coveredItemsList.join(', ') || 'NONE'}`)
 
@@ -5499,16 +5505,16 @@ PARAGRAPH 1 — THE DISCREPANCY (2-3 sentences max):
 State that you are writing regarding ${pet_name || 'the pet'}'s visit on ${visit_date || '[date]'} at ${clinic_name || '[clinic]'}. The total bill was $${totalBill.toFixed(2)}. ${excludedItemsList.length > 0
   ? `You acknowledge that ${excludedItemsList.join(', ')} (totaling $${excludedAmt.toFixed(2)}) ${excludedItemsList.length === 1 ? 'is' : 'are'} properly excluded, leaving $${coveredAmt.toFixed(2)} in covered charges.`
   : `All $${coveredAmt.toFixed(2)} in charges are covered under the policy.`}
-Your records indicate ${carrier || 'the insurer'} paid $0.00 on this claim. The correct reimbursement is $${safeDiscrepancy.toFixed(2)}.
+Your records indicate ${carrier || 'the insurer'} paid $${eobPaid.toFixed(2)} on this claim. The correct reimbursement is $${computedReimbursement.toFixed(2)}${eobPaid > 0 ? `, leaving $${amountOwed.toFixed(2)} still owed` : ''}.
 
 PARAGRAPH 2 — THE MATH (show exact steps, no prose — just the calculation):
 Under ${pet_name || 'the pet'}'s policy:
 Step 1: ${mathStep1Label}
-Step 2: ${mathStep2Label}
-Amount owed: $${safeDiscrepancy.toFixed(2)}
+Step 2: ${mathStep2Label}${mathStep3Label ? `\nStep 3: ${mathStep3Label}` : ''}
+Amount owed: $${amountOwed.toFixed(2)}
 
 PARAGRAPH 3 — THE DEMAND (1 sentence only):
-State that you are requesting immediate remittance of exactly $${safeDiscrepancy.toFixed(2)}. Nothing else — go straight to the sign-off after this sentence.
+State that you are requesting immediate remittance of exactly $${amountOwed.toFixed(2)}. Nothing else — go straight to the sign-off after this sentence.
 
 SIGN OFF:
 Sincerely,
@@ -5520,7 +5526,7 @@ RULES:
 - Do NOT mention deductible disputes — only coverage disputes
 - Do NOT use markdown formatting (no **, no ##, no bullets)
 - Do NOT add a subject line or "RE:" — start with the header block
-- The ONLY dollar amount to demand is $${safeDiscrepancy.toFixed(2)}
+- The ONLY dollar amount to demand is $${amountOwed.toFixed(2)}
 - Keep the entire letter under 250 words
 - Write it as if you have sent hundreds of these and know exactly what gets results`
 
