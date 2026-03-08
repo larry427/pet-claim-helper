@@ -2791,10 +2791,10 @@ Common exclusions to check:
 
 For excluded items, cite the policy section. For covered items, cite the insuring agreement (e.g., "Covered — Section V.31.b: Laboratory and diagnostic tests").
 
-For EACH line item, also include a "sourceQuote" field containing the verbatim or near-verbatim quote from the policy document that supports the coverage decision. Examples:
-- Excluded item: "We do not cover: a. Veterinary examination fees."
-- Covered item: "Veterinary Treatment means: b. Laboratory and diagnostic tests"
-If no policy document is available or the specific text cannot be identified, set sourceQuote to null.
+For EACH line item, include a "sourceQuote" field — the VERBATIM quote (1-2 sentences, copied word-for-word) from the policy document that justifies the coverage decision. This is EQUALLY required for COVERED and EXCLUDED items:
+- COVERED items: Find the language in the policy's insuring agreement, covered benefits section, or benefit provisions that explicitly covers this type of service. Example: "Veterinary Treatment means: b. Laboratory and diagnostic tests including but not limited to blood tests, urinalysis, and cultures."
+- EXCLUDED items: Find the exclusion clause. Example: "We do not cover: a. Veterinary examination fees."
+Search the policy thoroughly — covered benefits language exists for virtually every covered item. Set sourceQuote to null ONLY if no policy document was uploaded. NEVER return "" for a covered item when a policy document is present — the insuring agreement or definitions section always describes what is covered. NEVER fabricate — exact words from the policy only.
 
 STEP 5 — CALCULATE REIMBURSEMENT:
 - totalCovered = sum of all COVERED line items
@@ -2861,7 +2861,7 @@ Return valid JSON matching this schema:
 
 IMPORTANT:
 - For "reason" on line items: Use "Covered — [category]" or "Excluded — [Policy Section]: [reason]" or "Uncertain — [reason]"
-- For "sourceQuote" on line items: Include the verbatim policy text supporting the coverage decision, or null if unavailable
+- For "sourceQuote" on line items: REQUIRED for BOTH covered and excluded items — find the verbatim policy language from the insuring agreement (for covered) or exclusions list (for excluded). Never return "" when a policy document is present
 - For amounts, use numbers not strings (150.00 not "$150.00")
 - For reimbursementRate, use the percentage number (80 not 0.80)
 - If completeness is "partial" or "bill_only", set covered to null for line items
@@ -3170,7 +3170,10 @@ An Elizabethan collar (e-collar, cone) provided as part of post-surgical care or
 For each line item from Stage 1, provide:
 - "covered": true (covered) | false (excluded) | null (unknown/no policy)
 - "reason": "Covered — [category/section]" or "Excluded — [specific reason]" or "Uncertain — [reason]"
-- "sourceQuote": You MUST extract and return the verbatim policy language (1-2 sentences max, copied word-for-word from the uploaded policy document) that justifies the coverage decision. This is the exact sentence or clause from the policy that supports why this item is covered or excluded. Example for a covered diagnostic: "We will pay covered veterinary expenses that you incur during the policy term for the diagnosis or treatment of your pet's condition." Example for an excluded exam fee: "Examination fees, office visit charges, and consultation fees are not covered under this policy." Search the policy text thoroughly — the justification almost always exists in the covered benefits section or the exclusions list. Return an empty string "" ONLY if no policy documents were uploaded or no relevant language exists after a thorough search. NEVER fabricate or paraphrase — copy the exact words from the policy.
+- "sourceQuote": REQUIRED for BOTH covered AND excluded items — not just exclusions. Extract the verbatim policy language (1-2 sentences max, copied word-for-word from the uploaded policy document) that justifies the coverage decision.
+  FOR COVERED ITEMS: Search the insuring agreement, covered benefits section, definitions, or benefit provisions for language that explicitly covers this type of service. Look for definitions of "Veterinary Treatment", "Covered Veterinary Expenses", "Eligible Expenses", or benefit descriptions. Example: "We will pay covered veterinary expenses that you incur during the policy term for the diagnosis or treatment of your pet's condition." Another example: "Veterinary Treatment means: b. Laboratory and diagnostic tests including but not limited to blood tests, urinalysis, and cultures."
+  FOR EXCLUDED ITEMS: Search the exclusions section. Example: "Examination fees, office visit charges, and consultation fees are not covered under this policy."
+  The policy ALWAYS contains language describing what IS covered — the insuring agreement, covered benefits, or definitions section will have it. Return "" ONLY if no policy documents were uploaded. NEVER return "" for a covered item when a policy is present — find the applicable covered benefits language. NEVER fabricate or paraphrase — copy the exact words from the policy.
 - "section": policy section reference (e.g., "Section V.31.b") or null
 
 STEP D — CALCULATE REIMBURSEMENT:
@@ -4693,7 +4696,7 @@ RULE 8 — E-COLLAR: Covered as a medical supply when provided as part of post-s
 For each line item from Stage 1:
 - "covered": true | false | null
 - "reason": "Covered — [category]" or "Excluded — [reason]" or "Uncertain — [reason]"
-- "sourceQuote": verbatim policy text or null
+- "sourceQuote": REQUIRED for BOTH covered AND excluded items. Extract the verbatim policy language (1-2 sentences, word-for-word from the policy document) that justifies the coverage decision. For COVERED items, find the insuring agreement, covered benefits, or benefit provisions describing this service type (e.g., "Veterinary Treatment means: b. Laboratory and diagnostic tests"). For EXCLUDED items, find the exclusion clause. Return null ONLY if no policy was uploaded. NEVER return "" when a policy is present — the insuring agreement always describes what is covered.
 - "section": policy section or null
 
 STEP D — CALCULATE REIMBURSEMENT:
