@@ -2890,6 +2890,13 @@ EXTRACTION RULES:
 5. Watch for quantity values that look like prices (e.g., Quantity: 100.00 with Total: $0.00 — the amount is 0, not 100).
 6. Watch for quantities with decimals (e.g., 1.18) — this is a quantity multiplied by unit price, NOT a dollar amount.
 
+SERVICE DATE EXTRACTION (REQUIRED):
+- Extract the date the pet was seen by the veterinarian. This is the visit/service date, NOT the invoice print date, payment date, or account statement date.
+- Look for labels like "Date:", "Date of Service:", "Service Date:", "Visit Date:", "Exam Date:", or a date printed near the clinic header or near the line items.
+- Return as clinicInfo.date in YYYY-MM-DD format (e.g., "2026-01-27").
+- If multiple dates appear on the bill, use the earliest service/treatment date — not the payment or statement date.
+- This field is REQUIRED — search the entire document thoroughly before returning null.
+
 VET BILL TEXT BACKUP (may be incomplete — always prefer the attached document):
 ${vetBillTextBackup.join('\n\n') || '(No text backup available)'}
 
@@ -3606,6 +3613,13 @@ EXTRACTION RULES:
 2. Vet bill columns are typically: Description | Quantity | Total. The dollar amount is always the last column.
 3. VALIDATION: Your line item amounts must sum to the invoice total shown on the bill. If they do not match, re-read and correct.
 4. Items with $0.00 totals should still be listed with amount: 0.
+
+SERVICE DATE EXTRACTION (REQUIRED):
+- Extract the date the pet was seen by the veterinarian. This is the visit/service date, NOT the invoice print date, payment date, or account statement date.
+- Look for labels like "Date:", "Date of Service:", "Service Date:", "Visit Date:", "Exam Date:", or a date printed near the clinic header or near the line items.
+- Return as clinicInfo.date in YYYY-MM-DD format (e.g., "2026-01-27").
+- If multiple dates appear on the bill, use the earliest service/treatment date — not the payment or statement date.
+- This field is REQUIRED — search the entire document thoroughly before returning null.
 
 VET BILL TEXT BACKUP (may be incomplete — always prefer the attached document):
 ${billData.textBackup.join('\n\n') || '(No text backup available)'}
@@ -4463,6 +4477,13 @@ EXTRACTION RULES:
 4. Items with $0.00 totals should still be listed with amount: 0.
 5. Watch for quantity values that look like prices (e.g., Quantity: 100.00 with Total: $0.00 — the amount is 0, not 100).
 6. Watch for quantities with decimals (e.g., 1.18) — this is a quantity multiplied by unit price, NOT a dollar amount.
+
+SERVICE DATE EXTRACTION (REQUIRED):
+- Extract the date the pet was seen by the veterinarian. This is the visit/service date, NOT the invoice print date, payment date, or account statement date.
+- Look for labels like "Date:", "Date of Service:", "Service Date:", "Visit Date:", "Exam Date:", or a date printed near the clinic header or near the line items.
+- Return as clinicInfo.date in YYYY-MM-DD format (e.g., "2026-01-27").
+- If multiple dates appear on the bill, use the earliest service/treatment date — not the payment or statement date.
+- This field is REQUIRED — search the entire document thoroughly before returning null.
 
 VET BILL TEXT BACKUP (may be incomplete — always prefer the attached document):
 ${vetBillTextBackup.join('\n\n') || '(No text backup available)'}
