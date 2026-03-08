@@ -3071,9 +3071,17 @@ STEP B — EXTRACT POLICY PARAMETERS FROM THE DECLARATIONS PAGE:
 The declarations page is typically a 1-page summary with a header block or table containing specific labeled fields. Find and extract each one exactly as written — do NOT guess or invent values. If a field is not clearly present, return null.
 
 REIMBURSEMENT RATE (the percentage the insurer pays you back):
-- Look for a field labeled: "Co-Insurance", "Coinsurance", "Coinsurance %", "Reimbursement Rate", "Insurer Pays", or "Reimbursement %"
-- CRITICAL TERMINOLOGY: When the declarations page uses "Co-Insurance" and shows a percentage (e.g., "Co-Insurance: 70%"), that percentage IS the amount the insurer reimburses to you. Return 70, not 30. Co-Insurance on a declarations page represents the insurer's share of covered costs, not the policyholder's out-of-pocket share.
-- Return as a plain integer: 70 means 70% reimbursement. Do NOT return 0.70.
+- Look for a field labeled: "Co-Insurance", "Coinsurance", "Coinsurance %", "Reimbursement Rate", "Insurer Pays", "Reimbursement %", or "Owner's Share"
+- CRITICAL — CO-INSURANCE CONVERSION: In standard insurance terminology, "co-insurance" means the POLICYHOLDER'S share (what the owner pays), NOT the insurer's share. You MUST convert it:
+  → "Co-Insurance: 10%" or "Coinsurance: 10%" or "Owner's Share: 10%" → the owner pays 10%, the insurer pays 90% → return reimbursementRate: 90
+  → "Co-Insurance: 20%" → the owner pays 20%, the insurer pays 80% → return reimbursementRate: 80
+  → "Co-Insurance: 30%" → the owner pays 30%, the insurer pays 70% → return reimbursementRate: 70
+  This applies to ALL carriers (Nationwide, etc.) that use co-insurance/coinsurance/owner's share terminology.
+- NO CONVERSION NEEDED for labels like "Reimbursement Rate", "Reimbursement %", "Insurer Pays", "We Pay" — these already represent the insurer's share. Use the value directly.
+  → "Reimbursement Rate: 80%" → return reimbursementRate: 80
+  → "Insurer Pays: 90%" → return reimbursementRate: 90
+- Also return a new field "rateIsCoinsurance": true if you converted from co-insurance/coinsurance/owner's share terminology, false otherwise.
+- Return as a plain integer: 90 means 90% reimbursement. Do NOT return 0.90.
 - If you cannot find this field with confidence, return null. Do NOT default to 80 or any other value.
 
 ANNUAL DEDUCTIBLE:
@@ -3155,7 +3163,7 @@ An Elizabethan collar (e-collar, cone) provided as part of post-surgical care or
 For each line item from Stage 1, provide:
 - "covered": true (covered) | false (excluded) | null (unknown/no policy)
 - "reason": "Covered — [category/section]" or "Excluded — [specific reason]" or "Uncertain — [reason]"
-- "sourceQuote": verbatim or near-verbatim policy text supporting the decision, or null if unavailable
+- "sourceQuote": You MUST extract and return the verbatim policy language (1-2 sentences max, copied word-for-word from the uploaded policy document) that justifies the coverage decision. This is the exact sentence or clause from the policy that supports why this item is covered or excluded. Example for a covered diagnostic: "We will pay covered veterinary expenses that you incur during the policy term for the diagnosis or treatment of your pet's condition." Example for an excluded exam fee: "Examination fees, office visit charges, and consultation fees are not covered under this policy." Search the policy text thoroughly — the justification almost always exists in the covered benefits section or the exclusions list. Return an empty string "" ONLY if no policy documents were uploaded or no relevant language exists after a thorough search. NEVER fabricate or paraphrase — copy the exact words from the policy.
 - "section": policy section reference (e.g., "Section V.31.b") or null
 
 STEP D — CALCULATE REIMBURSEMENT:
@@ -3191,6 +3199,7 @@ Return ONLY this JSON object:
   "policyInfo": {
     "carrier": string | null,
     "reimbursementRate": number | null,
+    "rateIsCoinsurance": boolean,
     "deductible": number | null,
     "annualLimit": number | null,
     "mathOrder": "reimbursement-first" | "deductible-first" | null,
@@ -3295,6 +3304,22 @@ IMPORTANT:
 
         const s2analysis = stage2Result.analysis || {}
         const s2policy = stage2Result.policyInfo || {}
+
+        // ── Co-insurance safety net ──
+        // If GPT flagged the rate as co-insurance but forgot to convert, fix it server-side.
+        // Co-insurance = owner's share, so reimbursement = 100 - coinsurance.
+        // Also catch cases where GPT returned a suspiciously low rate (≤30%) with a co-insurance flag.
+        if (s2policy.reimbursementRate != null && s2policy.rateIsCoinsurance === true) {
+          const raw = s2policy.reimbursementRate
+          if (raw <= 30) {
+            // GPT likely returned the raw co-insurance value without converting — fix it
+            s2policy.reimbursementRate = 100 - raw
+            console.log(`[analyze-claim] Co-insurance safety net: converted ${raw}% co-insurance → ${s2policy.reimbursementRate}% reimbursement rate`)
+          } else {
+            // GPT already converted (e.g., returned 90 with rateIsCoinsurance: true) — no change needed
+            console.log(`[analyze-claim] Co-insurance detected: ${raw}% reimbursement rate (already converted by GPT)`)
+          }
+        }
 
         const analysis = {
           completeness: stage2Result.completeness,
@@ -3893,6 +3918,15 @@ IMPORTANT: Use numbers not strings. reimbursementRate must be an integer (80 not
           lineItems: r3a.lineItems?.length
         })
 
+        // ── Co-insurance safety net (Route 3) ──
+        if (r3p.reimbursementRate != null && r3p.rateIsCoinsurance === true) {
+          const raw = r3p.reimbursementRate
+          if (raw <= 30) {
+            r3p.reimbursementRate = 100 - raw
+            console.log(`${tag} Route 3 co-insurance safety net: converted ${raw}% → ${r3p.reimbursementRate}%`)
+          }
+        }
+
         // ── Route 3: Recalculate reimbursement server-side ──
         const r3TotalCovered = r3a.totalCovered || 0
         const r3RateRaw = (savedPolicy?.reimbursement_rate ?? r3p.reimbursementRate) || null
@@ -3925,6 +3959,7 @@ IMPORTANT: Use numbers not strings. reimbursementRate must be an integer (80 not
             amount: item.amount,
             covered: item.covered ?? false,
             reason: item.reason || '',
+            source_quote: item.sourceQuote || '',
             policy_section: item.sourceQuote || item.section || null,
             eob_paid: item.eob_paid ?? null,
             eob_denied: item.eob_denied ?? null,
@@ -4322,6 +4357,15 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
           lineItems: eobS2a.lineItems?.length
         })
 
+        // ── Co-insurance safety net (EOB route) ──
+        if (eobS2p.reimbursementRate != null && eobS2p.rateIsCoinsurance === true) {
+          const raw = eobS2p.reimbursementRate
+          if (raw <= 30) {
+            eobS2p.reimbursementRate = 100 - raw
+            console.log(`${tag} EOB co-insurance safety net: converted ${raw}% → ${eobS2p.reimbursementRate}%`)
+          }
+        }
+
         // ── EOB: Recalculate reimbursement server-side ──
         const eobTotalCovered = eobS2a.totalCovered || 0
         const eobRateRaw = (savedPolicy?.reimbursement_rate ?? eobS2p.reimbursementRate) || null
@@ -4354,6 +4398,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
             amount: item.amount,
             covered: item.covered ?? false,
             reason: item.reason || '',
+            source_quote: item.sourceQuote || '',
             policy_section: item.sourceQuote || item.section || null,
             eob_paid: item.eob_paid ?? null,
             eob_denied: item.eob_denied ?? null,
@@ -4725,6 +4770,17 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
       const s2a = stage2Result.analysis || {}
       const s2p = stage2Result.policyInfo || {}
 
+      // ── Co-insurance safety net (mobile route) ──
+      if (s2p.reimbursementRate != null && s2p.rateIsCoinsurance === true) {
+        const raw = s2p.reimbursementRate
+        if (raw <= 30) {
+          s2p.reimbursementRate = 100 - raw
+          console.log(`${tag} Co-insurance safety net: converted ${raw}% co-insurance → ${s2p.reimbursementRate}% reimbursement rate`)
+        } else {
+          console.log(`${tag} Co-insurance detected: ${raw}% reimbursement rate (already converted by GPT)`)
+        }
+      }
+
       const totalCovered = s2a.totalCovered || 0
       const rateRaw = (savedPolicy?.reimbursement_rate ?? s2p.reimbursementRate) || null
       const deductible = (savedPolicy?.deductible ?? s2p.deductible) || 0
@@ -4756,6 +4812,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
           amount: item.amount,
           covered: item.covered ?? false,
           reason: item.reason || '',
+          source_quote: item.sourceQuote || '',
           policy_section: item.sourceQuote || item.section || null,
         })),
         // Stage 1 fields ONLY — never backfill clinic/date from policy or Stage 2
@@ -5256,7 +5313,6 @@ Rules:
         carrier,
         clinic_name,
         covered_total,
-        actual_paid,
         discrepancy,
         disputed_items = [],
         policy_number,
@@ -5265,174 +5321,175 @@ Rules:
 
       let { visit_date, owner_name } = req.body
 
-      const safePaid = Math.abs(actual_paid || 0)
       const safeDiscrepancy = Math.abs(discrepancy || 0)
-      const safeCovered = covered_total || 0
 
       console.log(`${tag} claim_id=${claim_id} discrepancy=$${safeDiscrepancy} items=${(disputed_items || []).length}`)
 
-      // ── Fetch claim data from DB (used by BUG 1 + BUG 3 fixes) ──
+      // ── Fetch claim + policy + profile data from DB ──
       let dbServiceDate = null
       let dbLineItems = null
+      let dbTotalBill = 0
+      let dbPolicyId = null
+      let policyRate = null       // e.g., 80
+      let policyDeductible = null // e.g., 500
+      let policyMathOrder = null  // "reimbursement_first" or "deductible_first"
+      let ownerPhone = null
+
       if (claim_id) {
         const { data: claimRow } = await supabase
           .from('pciq_analyses')
-          .select('service_date, line_items')
+          .select('service_date, line_items, total_bill, policy_id')
           .eq('id', claim_id)
           .single()
         dbServiceDate = claimRow?.service_date || null
         dbLineItems = claimRow?.line_items || null
+        dbTotalBill = claimRow?.total_bill || 0
+        dbPolicyId = claimRow?.policy_id || null
       }
 
-      // ── BUG 1 DIAGNOSTIC ──
-      console.log(`${tag} 📅 RAW visit_date from req.body: ${JSON.stringify(req.body.visit_date)} (type: ${typeof req.body.visit_date})`)
-      console.log(`${tag} 📅 RAW dbServiceDate from pciq_analyses: ${JSON.stringify(dbServiceDate)} (type: ${typeof dbServiceDate})`)
+      // Fetch policy details (reimbursement_rate, deductible, math_order)
+      if (dbPolicyId) {
+        const { data: policyRow } = await supabase
+          .from('pciq_policies')
+          .select('reimbursement_rate, deductible, math_order')
+          .eq('id', dbPolicyId)
+          .single()
+        if (policyRow) {
+          policyRate = policyRow.reimbursement_rate ?? null
+          policyDeductible = policyRow.deductible ?? null
+          policyMathOrder = policyRow.math_order ?? null
+        }
+      }
+      console.log(`${tag} Policy: rate=${policyRate}% deductible=$${policyDeductible} mathOrder=${policyMathOrder}`)
 
-      // ── BUG 1 FIX: Ensure visit_date is populated ──
+      // ── Visit date: DB fallback + format to human-readable ──
       if (!visit_date && dbServiceDate) {
         visit_date = dbServiceDate
-        console.log(`${tag} 📅 Using dbServiceDate as visit_date`)
       }
-      // Format visit_date to human-readable (e.g., "January 27, 2026")
       if (visit_date) {
-        const d = new Date(visit_date + (visit_date.length === 10 ? 'T12:00:00' : ''))
+        const d = new Date(visit_date + (typeof visit_date === 'string' && visit_date.length === 10 ? 'T12:00:00' : ''))
         if (!isNaN(d.getTime())) {
           visit_date = d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
         }
       }
       console.log(`${tag} visit_date for prompt: "${visit_date || 'MISSING'}"`)
 
-      // ── BUG 2 FIX: Robust owner_name fallback chain ──
-      // 1. req.body owner_name (from user_metadata.full_name)
-      // 2. profiles table full_name
-      // 3. "[Your Name]" — never use "Pet's Pet Parent"
+      // ── Owner name: user_metadata > profiles table > "[Your Name]" ──
+      // Also fetch phone number from profiles
       if (!owner_name) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('full_name')
+          .select('full_name, phone')
           .eq('id', user.id)
           .single()
         if (profile?.full_name) {
           owner_name = profile.full_name
-          console.log(`${tag} owner_name from profiles table: "${owner_name}"`)
         } else {
           owner_name = '[Your Name]'
-          console.log(`${tag} owner_name fallback: "[Your Name]"`)
         }
+        ownerPhone = profile?.phone || null
       } else {
-        console.log(`${tag} owner_name from request: "${owner_name}"`)
+        // Still fetch phone even if name came from request
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('phone')
+          .eq('id', user.id)
+          .single()
+        ownerPhone = profile?.phone || null
       }
-
-      // ── BUG 3 DIAGNOSTIC: Log full structure of first 3 disputed items ──
-      console.log(`${tag} 🔍 disputed_items (${(disputed_items || []).length} items) — FULL FIELD DUMP:`)
-      ;(disputed_items || []).slice(0, 3).forEach((item, idx) => {
-        console.log(`${tag}   [${idx}] ALL KEYS: ${Object.keys(item).join(', ')}`)
-        console.log(`${tag}   [${idx}] name="${item.name}" amount=${item.amount} insurer_paid=${item.insurer_paid}`)
-        console.log(`${tag}   [${idx}] coverage_reason="${item.coverage_reason || 'NONE'}"`)
-        console.log(`${tag}   [${idx}] reason="${item.reason || 'NONE'}" denial_reason="${item.denial_reason || 'NONE'}"`)
-        console.log(`${tag}   [${idx}] policy_citation="${item.policy_citation || 'NONE'}"`)
-        console.log(`${tag}   [${idx}] policy_section="${item.policy_section || 'NONE'}"`)
-        console.log(`${tag}   [${idx}] sourceQuote="${item.sourceQuote || 'NONE'}"`)
-      })
+      console.log(`${tag} owner_name="${owner_name}" phone="${ownerPhone || 'NONE'}"`)
 
       if (!safeDiscrepancy || safeDiscrepancy <= 0) {
         return res.status(400).json({ error: 'No discrepancy to appeal.' })
       }
 
-      // ── BUG 3 FIX: Build lookup of original sourceQuote values from DB ──
-      // The frontend only sends coverage_reason and policy_citation (from compare-eob GPT output).
-      // If policy_citation just repeats coverage_reason (circular), we need the REAL sourceQuote
-      // from the original analysis which is stored in line_items.items[].policy_section in the DB.
-      let originalItemsByName = {}
-      if (dbLineItems?.items) {
-        dbLineItems.items.forEach(item => {
-          if (item.description && item.policy_section) {
-            originalItemsByName[item.description.toLowerCase().trim()] = item.policy_section
-          }
-        })
-        console.log(`${tag} Loaded ${Object.keys(originalItemsByName).length} original items with policy_section from DB`)
+      // ── Compute amounts for the letter ──
+      const coveredAmt = covered_total || Number(dbLineItems?.covered_total ?? 0)
+      const totalBill = dbTotalBill || 0
+      const excludedAmt = Math.max(0, totalBill - coveredAmt)
+      const rate = policyRate ?? 80     // fallback 80%
+      const deductible = policyDeductible ?? 0
+      const isCoinsuranceFirst =
+        policyMathOrder === 'reimbursement_first' ||
+        policyMathOrder === 'reimbursement-first' ||
+        (carrier ?? '').toLowerCase().includes('healthy paws')
+
+      // Math steps depend on carrier
+      let mathStep1Label, mathStep1Result, mathStep2Label, mathStep2Result
+      if (isCoinsuranceFirst) {
+        // Healthy Paws: rate first, then deductible
+        const atRate = coveredAmt * (rate / 100)
+        mathStep1Label = `$${coveredAmt.toFixed(2)} × ${rate}% = $${atRate.toFixed(2)}`
+        mathStep1Result = atRate
+        mathStep2Label = `$${atRate.toFixed(2)} − $${deductible.toFixed(2)} deductible = $${safeDiscrepancy.toFixed(2)}`
+        mathStep2Result = safeDiscrepancy
+      } else {
+        // Standard: deductible first, then rate
+        const afterDeductible = Math.max(0, coveredAmt - deductible)
+        mathStep1Label = `$${coveredAmt.toFixed(2)} − $${deductible.toFixed(2)} deductible = $${afterDeductible.toFixed(2)}`
+        mathStep1Result = afterDeductible
+        mathStep2Label = `$${afterDeductible.toFixed(2)} × ${rate}% = $${safeDiscrepancy.toFixed(2)}`
+        mathStep2Result = safeDiscrepancy
       }
 
-      // Build disputed items detail — only denied/underpaid items with policy citations
-      // Frontend sends: amount (=pciq_predicted), insurer_paid, coverage_reason, reason (=denial_reason), policy_section (=policy_citation)
-      const disputedDetails = disputed_items
-        .map((item, idx) => {
-          const predicted = (item.pciq_predicted || item.amount || 0).toFixed(2)
-          const paid = (item.insurer_paid || 0).toFixed(2)
-          let line = `${idx + 1}. ${item.name || 'Item'} — predicted $${predicted}, insurer paid $${paid}`
-          if (item.coverage_reason) line += `\n   COVERAGE CATEGORY (use this EXACT wording): "${item.coverage_reason}"`
-          if (item.denial_reason || item.reason) line += `\n   [INTERNAL NOTE — insurer's stated reason, DO NOT quote in letter]: "${item.denial_reason || item.reason}"`
+      // Build excluded items list (names + amounts)
+      const excludedItemsList = (dbLineItems?.items || [])
+        .filter(i => !i.covered)
+        .map(i => `${i.description || 'Item'} ($${(i.amount || 0).toFixed(2)})`)
 
-          // Policy citation: prefer real sourceQuote from original analysis over compare-eob output
-          const rawCitation = item.policy_citation || item.policy_section || ''
-          const coverageReason = item.coverage_reason || ''
-          // Detect circular citations: if citation starts with "Covered" or matches coverage_reason, it's not real policy text
-          const isCircular = !rawCitation
-            || rawCitation.toLowerCase().startsWith('covered')
-            || rawCitation.toLowerCase().trim() === coverageReason.toLowerCase().trim()
+      // Build covered items list (names only — for reference)
+      const coveredItemsList = (dbLineItems?.items || [])
+        .filter(i => i.covered)
+        .map(i => i.description || 'Item')
 
-          // Try to find the real sourceQuote from the original analysis
-          const itemKey = (item.name || '').toLowerCase().trim()
-          const realQuote = originalItemsByName[itemKey] || null
-
-          if (realQuote && !realQuote.toLowerCase().startsWith('covered')) {
-            line += `\n   POLICY LANGUAGE TO CITE IN LETTER: "${realQuote}"`
-          } else if (!isCircular) {
-            line += `\n   POLICY LANGUAGE TO CITE IN LETTER: "${rawCitation}"`
-          } else {
-            line += `\n   POLICY LANGUAGE TO CITE IN LETTER: "as outlined in the policyholder's coverage terms"`
-            console.log(`${tag} ⚠️ Item "${item.name}": no real policy quote available (citation was circular: "${rawCitation}")`)
-          }
-          return line
-        })
-        .join('\n')
-
-      // ── DIAGNOSTIC: Show exactly what GPT will see ──
-      console.log(`${tag} 🔍 disputedDetails string for GPT prompt:\n${disputedDetails}`)
-      console.log(`${tag} 🔍 Dollar amounts injected into prompt: disputed=$${safeDiscrepancy.toFixed(2)} covered=$${safeCovered.toFixed(2)} paid=$${safePaid.toFixed(2)}`)
-
-      // Sign-off name — already resolved above via BUG 2 fix
-      const signOffName = owner_name
-      // Policy/claim identifiers for the letter header
       const policyNum = policy_number || null
-      const claimRef = appeals_reference || null
-      const identifierLine = [
-        policyNum ? `Policy Number: ${policyNum}` : null,
-        claimRef ? `Claim Reference: ${claimRef}` : null,
-      ].filter(Boolean).join(' | ')
+      const claimRef = appeals_reference || claim_id || null
 
-      const prompt = `You are writing a formal insurance appeal letter on behalf of a pet owner. Write the letter directly — no preamble, no markdown, no commentary.
+      console.log(`${tag} Letter data: totalBill=$${totalBill} covered=$${coveredAmt} excluded=$${excludedAmt} rate=${rate}% deductible=$${deductible} disputed=$${safeDiscrepancy} mathOrder=${isCoinsuranceFirst ? 'coinsurance-first' : 'deductible-first'}`)
+      console.log(`${tag} Excluded items: ${excludedItemsList.join(', ') || 'NONE'}`)
+      console.log(`${tag} Covered items: ${coveredItemsList.join(', ') || 'NONE'}`)
 
-FACTS:
-- Pet name: ${pet_name || 'the insured pet'}
-- Insurance carrier: ${carrier || 'the insurance company'}
-- Veterinary clinic: ${clinic_name || 'the veterinary clinic'}
-- Date of service: ${visit_date || 'recent'}
-- THE DISPUTED AMOUNT IS EXACTLY $${safeDiscrepancy.toFixed(2)} — this is the net reimbursement owed after all deductible and coinsurance calculations. Use this number everywhere in the letter. Do NOT use covered_total or any other amount.
-${identifierLine ? `- Policy/claim identifiers: ${identifierLine}` : ''}
+      const prompt = `You are a concise, assertive insurance appeal writer. Write a single confident letter — no repetition, no boilerplate per item, no filler. Tone: a pit bull lawyer who knows the math cold.
 
-DISPUTED ITEMS (denied or underpaid by insurer):
-${disputedDetails || 'No itemized breakdown available.'}
+Output the letter as PLAIN TEXT. No markdown, no bold markers, no asterisks, no headers. Just a clean letter.
 
-IMPORTANT CONTEXT:
-- These disputed items are COVERAGE denials only — the insurer claims these items are not covered by the policy
-- These are NOT deductible disputes — do not mention deductibles or suggest the deductible was applied incorrectly
-- Each disputed item includes specific policy language that contradicts the insurer's denial
-- For each disputed item, use the exact COVERAGE CATEGORY from the data provided. Do not reclassify or infer coverage categories — if the data says "Covered — other", write "Covered — other", NOT "Covered — medication" or any other category
+HEADER BLOCK (each on its own line at the top of the letter, before the greeting):
+${policyNum ? `Policy Number: ${policyNum}` : '(omit — not available)'}
+${claimRef ? `Claim Reference: ${claimRef}` : '(omit — not available)'}
+Pet: ${pet_name || '[Pet Name]'}
+Date of Service: ${visit_date || '[Date]'}
+Provider: ${clinic_name || '[Clinic]'}
 
-INSTRUCTIONS:
-1. Open with "Dear ${carrier || 'Claims Department'} Claims Department"
-2. ${identifierLine ? `On the SECOND line of the letter body, include: "${identifierLine}" on its own line` : 'Skip this step — no policy/claim identifiers available'}
-3. State that you are writing to appeal the denial of $${safeDiscrepancy.toFixed(2)} in covered charges for ${pet_name || 'the insured pet'}'s visit on ${visit_date || 'a recent date'} at ${clinic_name || 'the veterinary clinic'}
-4. The amount in dispute is EXACTLY $${safeDiscrepancy.toFixed(2)} — this is the ONLY dollar amount to cite as the total disputed/owed. Do NOT use $${safeCovered.toFixed(2)} (that is the total covered charges, NOT the disputed amount). Do NOT sum the individual item amounts and use that total.
-5. For each disputed item: state its exact COVERAGE CATEGORY as provided in the data, then quote the POLICY LANGUAGE CITATION verbatim, then explain why the item should be covered based on that policy language
-6. Do NOT copy, quote, paraphrase, or reference the insurer's denial reason text from the EOB. The denial reasons in the data above are marked [INTERNAL NOTE] — they are for your understanding only. Base your arguments ENTIRELY on the policy language citations.
-7. Use formal but clear language — this is a real letter a pet parent would send
-8. End with a specific request for reconsideration and reimbursement of exactly $${safeDiscrepancy.toFixed(2)}
-9. Sign off as "${signOffName}" — use this exact name, do not change it
-10. Do NOT include any subject line or "RE:" header — start with "Dear"
-11. Do NOT list items that were correctly paid or correctly applied to deductible — focus ONLY on coverage denials
-12. NEVER argue that deductible application was incorrect — deductible denials are valid`
+Then "Dear ${carrier || 'Claims'} Claims Department,"
+
+PARAGRAPH 1 — THE DISCREPANCY (2-3 sentences max):
+State that you are writing regarding ${pet_name || 'the pet'}'s visit on ${visit_date || '[date]'} at ${clinic_name || '[clinic]'}. The total bill was $${totalBill.toFixed(2)}. ${excludedItemsList.length > 0
+  ? `You acknowledge that ${excludedItemsList.join(', ')} (totaling $${excludedAmt.toFixed(2)}) ${excludedItemsList.length === 1 ? 'is' : 'are'} properly excluded, leaving $${coveredAmt.toFixed(2)} in covered charges.`
+  : `All $${coveredAmt.toFixed(2)} in charges are covered under the policy.`}
+Your records indicate ${carrier || 'the insurer'} paid $0.00 on this claim. The correct reimbursement is $${safeDiscrepancy.toFixed(2)}.
+
+PARAGRAPH 2 — THE MATH (show exact steps, no prose — just the calculation):
+Under ${pet_name || 'the pet'}'s policy:
+Step 1: ${mathStep1Label}
+Step 2: ${mathStep2Label}
+Amount owed: $${safeDiscrepancy.toFixed(2)}
+
+PARAGRAPH 3 — THE DEMAND (1-2 sentences):
+State that you are requesting immediate remittance of exactly $${safeDiscrepancy.toFixed(2)}. If they need supporting documentation (itemized invoice, medical records, policy schedule), you will provide it promptly.
+
+SIGN OFF:
+Sincerely,
+${owner_name}${ownerPhone ? `\n${ownerPhone}` : ''}
+
+RULES:
+- Do NOT loop through individual line items with separate policy citations
+- Do NOT repeat coverage category labels like "Covered — diagnostic"
+- Do NOT mention deductible disputes — only coverage disputes
+- Do NOT use markdown formatting (no **, no ##, no bullets)
+- Do NOT add a subject line or "RE:" — start with the header block
+- The ONLY dollar amount to demand is $${safeDiscrepancy.toFixed(2)}
+- Keep the entire letter under 250 words
+- Write it as if you have sent hundreds of these and know exactly what gets results`
 
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o',
