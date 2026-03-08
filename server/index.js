@@ -5376,12 +5376,15 @@ Rules:
 
       // ── Owner name: user_metadata > profiles table > "[Your Name]" ──
       // Also fetch phone number from profiles
+      console.log(`${tag} 👤 owner_name from req.body: ${JSON.stringify(req.body.owner_name)}`)
+      console.log(`${tag} 👤 Querying profiles table with user.id: ${user.id}`)
       if (!owner_name) {
-        const { data: profile } = await supabase
+        const { data: profile, error: profileErr } = await supabase
           .from('profiles')
           .select('full_name, phone')
           .eq('id', user.id)
           .single()
+        console.log(`${tag} 👤 profiles result: ${JSON.stringify(profile)} error: ${profileErr ? profileErr.message : 'none'}`)
         if (profile?.full_name) {
           owner_name = profile.full_name
         } else {
@@ -5397,7 +5400,7 @@ Rules:
           .single()
         ownerPhone = profile?.phone || null
       }
-      console.log(`${tag} owner_name="${owner_name}" phone="${ownerPhone || 'NONE'}"`)
+      console.log(`${tag} 👤 FINAL owner_name="${owner_name}" phone="${ownerPhone || 'NONE'}"`)
 
       if (!safeDiscrepancy || safeDiscrepancy <= 0) {
         return res.status(400).json({ error: 'No discrepancy to appeal.' })
@@ -5405,8 +5408,12 @@ Rules:
 
       // ── Compute amounts for the letter ──
       const coveredAmt = covered_total || Number(dbLineItems?.covered_total ?? 0)
-      const totalBill = dbTotalBill || 0
+      // total_bill: prefer sum of line item amounts (most accurate) over DB column
+      const lineItemsArr = dbLineItems?.items || []
+      const lineItemsTotal = lineItemsArr.reduce((sum, i) => sum + (i.amount || 0), 0)
+      const totalBill = lineItemsTotal > 0 ? lineItemsTotal : (dbTotalBill || 0)
       const excludedAmt = Math.max(0, totalBill - coveredAmt)
+      console.log(`${tag} 💰 totalBill: DB=${dbTotalBill} lineItemsSum=${lineItemsTotal.toFixed(2)} using=${totalBill.toFixed(2)} covered=${coveredAmt.toFixed(2)} excluded=${excludedAmt.toFixed(2)}`)
       const rate = policyRate ?? 80     // fallback 80%
       const deductible = policyDeductible ?? 0
       const isCoinsuranceFirst =
