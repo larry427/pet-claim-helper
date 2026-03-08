@@ -5507,8 +5507,8 @@ Step 1: ${mathStep1Label}
 Step 2: ${mathStep2Label}
 Amount owed: $${safeDiscrepancy.toFixed(2)}
 
-PARAGRAPH 3 — THE DEMAND (1-2 sentences):
-State that you are requesting immediate remittance of exactly $${safeDiscrepancy.toFixed(2)}. If they need supporting documentation (itemized invoice, medical records, policy schedule), you will provide it promptly.
+PARAGRAPH 3 — THE DEMAND (1 sentence only):
+State that you are requesting immediate remittance of exactly $${safeDiscrepancy.toFixed(2)}. Nothing else — go straight to the sign-off after this sentence.
 
 SIGN OFF:
 Sincerely,
