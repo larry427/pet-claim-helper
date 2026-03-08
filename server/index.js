@@ -5254,6 +5254,12 @@ Rules:
       const jsonStr = raw.replace(/^```json?\s*/i, '').replace(/```\s*$/i, '').trim()
       const parsed = JSON.parse(jsonStr)
 
+      // ── DIAGNOSTIC: full parsed GPT response ──
+      console.log(`${tag} 🔍 FULL PARSED EOB RESPONSE:`, JSON.stringify(parsed, null, 2))
+      console.log(`${tag} 🔍 parsed.actual_paid_by_insurer = ${JSON.stringify(parsed.actual_paid_by_insurer)} (type: ${typeof parsed.actual_paid_by_insurer})`)
+      console.log(`${tag} 🔍 parsed.discrepancy = ${JSON.stringify(parsed.discrepancy)}`)
+      console.log(`${tag} 🔍 parsed.status = ${JSON.stringify(parsed.status)}`)
+
       // Validate and normalize
       const status = parsed.status
       if (!['underpaid', 'correct', 'overpaid'].includes(status)) {
@@ -5272,6 +5278,9 @@ Rules:
           const discrepancyAmt = Math.abs(parsed.discrepancy || 0)
           // Use the GPT-extracted payment amount from the EOB document
           const actualPaid = Number(parsed.actual_paid_by_insurer) || 0
+          console.log(`${tag} 🔍 STORAGE: discrepancyAmt=${discrepancyAmt} actualPaid=${actualPaid} (from parsed.actual_paid_by_insurer=${JSON.stringify(parsed.actual_paid_by_insurer)})`)
+          console.log(`${tag} 🔍 STORAGE: eob_actual_paid will be stored as: ${actualPaid}`)
+          console.log(`${tag} 🔍 STORAGE: actual_payment column will be stored as: ${actualPaid}`)
 
           const updatedLineItems = {
             ...(existing?.line_items || {}),
@@ -5450,7 +5459,9 @@ Rules:
         (carrier ?? '').toLowerCase().includes('healthy paws')
 
       // Math steps depend on carrier — compute reimbursement server-side
+      console.log(`${tag} 🔍 APPEAL: req.body.actual_paid = ${JSON.stringify(actual_paid)} (type: ${typeof actual_paid})`)
       const eobPaid = Math.max(0, Number(actual_paid) || 0)
+      console.log(`${tag} 🔍 APPEAL: eobPaid after computation = ${eobPaid}`)
       let mathStep1Label, mathStep2Label, mathStep3Label
       let computedReimbursement
       if (isCoinsuranceFirst) {
