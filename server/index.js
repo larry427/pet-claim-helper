@@ -5357,6 +5357,7 @@ Rules:
       let policyRate = null       // e.g., 80
       let policyDeductible = null // e.g., 500
       let policyMathOrder = null  // "reimbursement_first" or "deductible_first"
+      let dbPolicyNumber = null   // e.g., "I27298175"
       let ownerPhone = null
 
       if (claim_id) {
@@ -5375,13 +5376,14 @@ Rules:
       if (dbPolicyId) {
         const { data: policyRow } = await supabase
           .from('pciq_policies')
-          .select('reimbursement_rate, deductible, math_order')
+          .select('reimbursement_rate, deductible, math_order, policy_number')
           .eq('id', dbPolicyId)
           .single()
         if (policyRow) {
           policyRate = policyRow.reimbursement_rate ?? null
           policyDeductible = policyRow.deductible ?? null
           policyMathOrder = policyRow.math_order ?? null
+          dbPolicyNumber = policyRow.policy_number ?? null
         }
       }
       console.log(`${tag} Policy: rate=${policyRate}% deductible=$${policyDeductible} mathOrder=${policyMathOrder}`)
@@ -5473,7 +5475,7 @@ Rules:
         .filter(i => i.covered)
         .map(i => i.description || 'Item')
 
-      const policyNum = policy_number || null
+      const policyNum = policy_number || dbPolicyNumber || null
       const claimRef = appeals_reference || claim_id || null
 
       console.log(`${tag} Letter data: totalBill=$${totalBill} covered=$${coveredAmt} excluded=$${excludedAmt} rate=${rate}% deductible=$${deductible} disputed=$${safeDiscrepancy} mathOrder=${isCoinsuranceFirst ? 'coinsurance-first' : 'deductible-first'}`)
