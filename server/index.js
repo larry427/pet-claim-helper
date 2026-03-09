@@ -5294,6 +5294,28 @@ Rules:
       }
 
       if (status === 'underpaid') {
+        // Compute corrected reimbursement — always runs, even without claim_id
+        const actualPaid = Number(parsed.actual_paid_by_insurer) || 0
+        const eobDeductible = Number(parsed.deductible_applied) || 0
+        const eobRate = Number(parsed.reimbursement_rate_used) || null
+        const eobEligible = Number(parsed.insurer_eligible_amount) || null
+        console.log(`${tag} 🔍 EOB extracted: actualPaid=${actualPaid} deductible=${eobDeductible} rate=${eobRate} eligible=${eobEligible}`)
+
+        const correctedEligible = coveredTotal  // PCIQ says this much should be covered
+        const rateForCalc = eobRate || 80  // fallback to 80% if EOB didn't show rate
+        const isCoinsuranceFirst = dbMathOrder === 'reimbursement_first' || dbMathOrder === 'reimbursement-first'
+        let correctedReimbursement
+        if (isCoinsuranceFirst) {
+          // Healthy Paws: rate first, then deductible
+          correctedReimbursement = Math.max(0, (correctedEligible * rateForCalc / 100) - eobDeductible)
+        } else {
+          // Standard: deductible first, then rate
+          correctedReimbursement = Math.max(0, (correctedEligible - eobDeductible) * rateForCalc / 100)
+        }
+        const realShortfall = Math.max(0, correctedReimbursement - actualPaid)
+        console.log(`${tag} 🔍 CORRECTED: eligible=${correctedEligible} rate=${rateForCalc}% deductible=${eobDeductible} mathOrder=${isCoinsuranceFirst ? 'coinsurance-first' : 'deductible-first'}`)
+        console.log(`${tag} 🔍 CORRECTED: reimbursement=${correctedReimbursement.toFixed(2)} actualPaid=${actualPaid} realShortfall=${realShortfall.toFixed(2)}`)
+
         // Save comparison results to pciq_analyses so the Appeal tab can display them
         if (claim_id) {
           const { data: existing } = await supabase
@@ -5301,29 +5323,6 @@ Rules:
             .select('estimated_reimbursement, line_items')
             .eq('id', claim_id)
             .single()
-
-          // Use the GPT-extracted payment amount from the EOB document
-          const actualPaid = Number(parsed.actual_paid_by_insurer) || 0
-          const eobDeductible = Number(parsed.deductible_applied) || 0
-          const eobRate = Number(parsed.reimbursement_rate_used) || null
-          const eobEligible = Number(parsed.insurer_eligible_amount) || null
-          console.log(`${tag} 🔍 EOB extracted: actualPaid=${actualPaid} deductible=${eobDeductible} rate=${eobRate} eligible=${eobEligible}`)
-
-          // Compute corrected reimbursement using PCIQ's covered total + EOB's deductible/rate + policy math_order
-          const correctedEligible = coveredTotal  // PCIQ says this much should be covered
-          const rateForCalc = eobRate || 80  // fallback to 80% if EOB didn't show rate
-          const isCoinsuranceFirst = dbMathOrder === 'reimbursement_first' || dbMathOrder === 'reimbursement-first'
-          let correctedReimbursement
-          if (isCoinsuranceFirst) {
-            // Healthy Paws: rate first, then deductible
-            correctedReimbursement = Math.max(0, (correctedEligible * rateForCalc / 100) - eobDeductible)
-          } else {
-            // Standard: deductible first, then rate
-            correctedReimbursement = Math.max(0, (correctedEligible - eobDeductible) * rateForCalc / 100)
-          }
-          const realShortfall = Math.max(0, correctedReimbursement - actualPaid)
-          console.log(`${tag} 🔍 CORRECTED: eligible=${correctedEligible} rate=${rateForCalc}% deductible=${eobDeductible} mathOrder=${isCoinsuranceFirst ? 'coinsurance-first' : 'deductible-first'}`)
-          console.log(`${tag} 🔍 CORRECTED: reimbursement=${correctedReimbursement.toFixed(2)} actualPaid=${actualPaid} realShortfall=${realShortfall.toFixed(2)}`)
 
           const updatedLineItems = {
             ...(existing?.line_items || {}),
