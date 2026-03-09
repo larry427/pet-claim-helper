@@ -5354,6 +5354,7 @@ Rules:
         return res.json({
           status: 'underpaid',
           discrepancy: realShortfall,
+          eob_actual_paid: actualPaid,
           eob_corrected_reimbursement: correctedReimbursement,
           disputed_items: parsed.disputed_items || [],
           appeals_email: parsed.appeals_email || null,
