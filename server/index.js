@@ -5118,10 +5118,12 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
       // This is the actual amount the insurer should have paid — NOT the raw sum of covered items.
       const coveredTotal = items.filter(i => i.covered).reduce((sum, i) => sum + (i.amount || 0), 0)
       let expectedReimbursement = coveredTotal  // fallback to covered total if DB value unavailable
+      let dbPolicyId = null
+      let dbMathOrder = null
       if (claim_id) {
         const { data: claimRow } = await supabase
           .from('pciq_analyses')
-          .select('estimated_reimbursement')
+          .select('estimated_reimbursement, policy_id')
           .eq('id', claim_id)
           .single()
         if (claimRow?.estimated_reimbursement != null && claimRow.estimated_reimbursement > 0) {
@@ -5130,6 +5132,23 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
         } else {
           console.warn(`${tag} ⚠ No estimated_reimbursement in DB, falling back to coveredTotal=$${coveredTotal.toFixed(2)}`)
         }
+        dbPolicyId = claimRow?.policy_id || null
+      }
+      // Fetch math_order from policy so we can compute corrected reimbursement after EOB comparison
+      if (dbPolicyId) {
+        const { data: policyRow } = await supabase
+          .from('pciq_policies')
+          .select('math_order, carrier')
+          .eq('id', dbPolicyId)
+          .single()
+        if (policyRow) {
+          dbMathOrder = policyRow.math_order || null
+          // Also check carrier for Healthy Paws coinsurance-first detection
+          if (!dbMathOrder && (policyRow.carrier || '').toLowerCase().includes('healthy paws')) {
+            dbMathOrder = 'reimbursement_first'
+          }
+        }
+        console.log(`${tag} Policy math_order=${dbMathOrder}`)
       }
 
       const prompt = `You are a pet insurance claims auditor. You will be given:
@@ -5191,9 +5210,17 @@ ${excludedSummary || 'None.'}
 
 Also extract appeals contact information from the EOB. Most EOBs include an appeals section with an address, phone number, email, deadline, and/or claim reference number. Extract whatever is present — use null for any field not found. NEVER guess or fabricate contact info.
 
+Also extract the insurer's own math from the EOB:
+- The DEDUCTIBLE amount they applied (e.g., "Less annual deductible: $250.00" → 250)
+- The REIMBURSEMENT RATE / coinsurance percentage they used (e.g., "Reimbursement at 80%" → 80)
+- The ELIGIBLE AMOUNT before deductible/coinsurance (e.g., "Eligible charges: $1,825.00" → 1825)
+
 Return ONLY a JSON object (no markdown, no commentary):
 {
   "actual_paid_by_insurer": <the final disbursement amount found in Step 1>,
+  "deductible_applied": <the deductible amount the insurer subtracted, or 0 if not shown>,
+  "reimbursement_rate_used": <the coinsurance/reimbursement percentage as a whole number e.g. 80, or null if not shown>,
+  "insurer_eligible_amount": <the total the insurer considered eligible before deductible/coinsurance, or null if not shown>,
   "status": "underpaid" | "correct" | "overpaid",
   "discrepancy": <difference between our expected NET reimbursement $${expectedReimbursement.toFixed(2)} and actual_paid_by_insurer, 0 if correct>,
   "disputed_items": [
@@ -5275,18 +5302,38 @@ Rules:
             .eq('id', claim_id)
             .single()
 
-          const discrepancyAmt = Math.abs(parsed.discrepancy || 0)
           // Use the GPT-extracted payment amount from the EOB document
           const actualPaid = Number(parsed.actual_paid_by_insurer) || 0
-          console.log(`${tag} 🔍 STORAGE: discrepancyAmt=${discrepancyAmt} actualPaid=${actualPaid} (from parsed.actual_paid_by_insurer=${JSON.stringify(parsed.actual_paid_by_insurer)})`)
-          console.log(`${tag} 🔍 STORAGE: eob_actual_paid will be stored as: ${actualPaid}`)
-          console.log(`${tag} 🔍 STORAGE: actual_payment column will be stored as: ${actualPaid}`)
+          const eobDeductible = Number(parsed.deductible_applied) || 0
+          const eobRate = Number(parsed.reimbursement_rate_used) || null
+          const eobEligible = Number(parsed.insurer_eligible_amount) || null
+          console.log(`${tag} 🔍 EOB extracted: actualPaid=${actualPaid} deductible=${eobDeductible} rate=${eobRate} eligible=${eobEligible}`)
+
+          // Compute corrected reimbursement using PCIQ's covered total + EOB's deductible/rate + policy math_order
+          const correctedEligible = coveredTotal  // PCIQ says this much should be covered
+          const rateForCalc = eobRate || 80  // fallback to 80% if EOB didn't show rate
+          const isCoinsuranceFirst = dbMathOrder === 'reimbursement_first' || dbMathOrder === 'reimbursement-first'
+          let correctedReimbursement
+          if (isCoinsuranceFirst) {
+            // Healthy Paws: rate first, then deductible
+            correctedReimbursement = Math.max(0, (correctedEligible * rateForCalc / 100) - eobDeductible)
+          } else {
+            // Standard: deductible first, then rate
+            correctedReimbursement = Math.max(0, (correctedEligible - eobDeductible) * rateForCalc / 100)
+          }
+          const realShortfall = Math.max(0, correctedReimbursement - actualPaid)
+          console.log(`${tag} 🔍 CORRECTED: eligible=${correctedEligible} rate=${rateForCalc}% deductible=${eobDeductible} mathOrder=${isCoinsuranceFirst ? 'coinsurance-first' : 'deductible-first'}`)
+          console.log(`${tag} 🔍 CORRECTED: reimbursement=${correctedReimbursement.toFixed(2)} actualPaid=${actualPaid} realShortfall=${realShortfall.toFixed(2)}`)
 
           const updatedLineItems = {
             ...(existing?.line_items || {}),
             eob_disputed_items: parsed.disputed_items || [],
-            eob_discrepancy: discrepancyAmt,
+            eob_discrepancy: realShortfall,
             eob_actual_paid: actualPaid,
+            eob_deductible_applied: eobDeductible,
+            eob_reimbursement_rate_used: eobRate,
+            eob_insurer_eligible_amount: eobEligible,
+            eob_corrected_reimbursement: correctedReimbursement,
             appeals_email: parsed.appeals_email || null,
             appeals_address: parsed.appeals_address || null,
             appeals_phone: parsed.appeals_phone || null,
@@ -5307,7 +5354,8 @@ Rules:
 
         return res.json({
           status: 'underpaid',
-          discrepancy: Math.abs(parsed.discrepancy || 0),
+          discrepancy: realShortfall,
+          eob_corrected_reimbursement: correctedReimbursement,
           disputed_items: parsed.disputed_items || [],
           appeals_email: parsed.appeals_email || null,
           appeals_address: parsed.appeals_address || null,
@@ -5452,7 +5500,10 @@ Rules:
       const excludedAmt = Math.max(0, totalBill - coveredAmt)
       console.log(`${tag} 💰 totalBill: DB=${dbTotalBill} lineItemsSum=${lineItemsTotal.toFixed(2)} using=${totalBill.toFixed(2)} covered=${coveredAmt.toFixed(2)} excluded=${excludedAmt.toFixed(2)}`)
       const rate = policyRate ?? 80     // fallback 80%
-      const deductible = policyDeductible ?? 0
+      // Prefer EOB's stated deductible (what the insurer actually applied) over policy default
+      const eobDeductibleApplied = Number(dbLineItems?.eob_deductible_applied) || 0
+      const deductible = eobDeductibleApplied > 0 ? eobDeductibleApplied : (policyDeductible ?? 0)
+      console.log(`${tag} 💰 deductible: eob=${eobDeductibleApplied} policy=${policyDeductible} using=${deductible}`)
       const isCoinsuranceFirst =
         policyMathOrder === 'reimbursement_first' ||
         policyMathOrder === 'reimbursement-first' ||
@@ -5493,6 +5544,20 @@ Rules:
         .filter(i => i.covered)
         .map(i => i.description || 'Item')
 
+      // Build disputed items summary for the appeal letter
+      const eobDisputedItems = disputed_items.length > 0
+        ? disputed_items
+        : (dbLineItems?.eob_disputed_items || [])
+      const disputedItemsSummary = eobDisputedItems.map((item, idx) => {
+        const name = item.name || 'Item'
+        const amt = Number(item.pciq_predicted || item.amount || 0).toFixed(2)
+        const denial = item.denial_reason || item.reason || 'not specified'
+        const citation = item.policy_citation || item.policy_section || ''
+        const coverageReason = item.coverage_reason || ''
+        return `${idx + 1}. ${name} ($${amt}) — The EOB states this was denied as "${denial}." However, ${citation ? `this is covered under the policy: "${citation}."` : `this is a covered service under the policy (${coverageReason}).`}`
+      }).join('\n')
+      console.log(`${tag} Disputed items for letter: ${eobDisputedItems.length} items`)
+
       const policyNum = policy_number || dbPolicyNumber || null
       const claimRef = appeals_reference || claim_id || null
 
@@ -5519,13 +5584,18 @@ State that you are writing regarding ${pet_name || 'the pet'}'s visit on ${visit
   : `All $${coveredAmt.toFixed(2)} in charges are covered under the policy.`}
 Your records indicate ${carrier || 'the insurer'} paid $${eobPaid.toFixed(2)} on this claim. The correct reimbursement is $${computedReimbursement.toFixed(2)}${eobPaid > 0 ? `, leaving $${amountOwed.toFixed(2)} still owed` : ''}.
 
-PARAGRAPH 2 — THE MATH (show exact steps, no prose — just the calculation):
+${eobDisputedItems.length > 0 ? `PARAGRAPH 2 — DISPUTED ITEMS (list each wrongly denied item):
+The following items were wrongly denied or underpaid:
+${disputedItemsSummary}
+
+For each item: state the amount, quote the insurer's denial reason from the EOB, then counter with the policy language showing why it IS covered. Use the exact policy citations provided above. Keep each item to 2-3 sentences max.
+` : ''}PARAGRAPH ${eobDisputedItems.length > 0 ? '3' : '2'} — THE MATH (show exact steps, no prose — just the calculation):
 Under ${pet_name || 'the pet'}'s policy:
 Step 1: ${mathStep1Label}
 Step 2: ${mathStep2Label}${mathStep3Label ? `\nStep 3: ${mathStep3Label}` : ''}
 Amount owed: $${amountOwed.toFixed(2)}
 
-PARAGRAPH 3 — THE DEMAND (1 sentence only):
+PARAGRAPH ${eobDisputedItems.length > 0 ? '4' : '3'} — THE DEMAND (1 sentence only):
 State that you are requesting immediate remittance of exactly $${amountOwed.toFixed(2)}. Nothing else — go straight to the sign-off after this sentence.
 
 SIGN OFF:
@@ -5533,13 +5603,14 @@ Sincerely,
 ${owner_name}${ownerPhone ? `\n${ownerPhone}` : ''}
 
 RULES:
-- Do NOT loop through individual line items with separate policy citations
+- For disputed items: USE the exact policy citations and denial reasons provided — do NOT invent or paraphrase them
+- For disputed items: keep each to 2-3 sentences — name, EOB denial quote, policy counter-citation
 - Do NOT repeat coverage category labels like "Covered — diagnostic"
 - Do NOT mention deductible disputes — only coverage disputes
 - Do NOT use markdown formatting (no **, no ##, no bullets)
 - Do NOT add a subject line or "RE:" — start with the header block
 - The ONLY dollar amount to demand is $${amountOwed.toFixed(2)}
-- Keep the entire letter under 250 words
+- Keep the entire letter under ${eobDisputedItems.length > 0 ? '400' : '250'} words
 - Write it as if you have sent hundreds of these and know exactly what gets results`
 
       const completion = await openai.chat.completions.create({
