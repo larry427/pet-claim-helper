@@ -4118,16 +4118,14 @@ IMPORTANT: Use numbers not strings for amounts. Return ONLY the JSON object.`
         // ── Route 3: Compare coverage analysis with EOB payment ──
         const eobActualPaid = r3EobResult.totalPaid || 0
         const eobDeductibleApplied = r3EobResult.deductibleApplied || 0
-        const expectedReimbursement = coverageResult.estimated_reimbursement || 0
-        const totalUnderpaid = Math.max(0, Math.round((expectedReimbursement - eobActualPaid) * 100) / 100)
-        const appealRecommended = totalUnderpaid > 0
+        const coveredTotal = coverageResult.covered_total || 0
 
         // Match coverage line items with EOB line items
         const eobItems = r3EobResult.lineItems || []
         const r3LineItems = (coverageResult.line_items || []).map(item => {
-          const firstWord = (item.description || "").split(" ")[0].toLowerCase()
+          const firstWord = (item.description || '').split(' ')[0].toLowerCase()
           const eobMatch = eobItems.find(e =>
-            (e.description || "").toLowerCase().includes(firstWord) ||
+            (e.description || '').toLowerCase().includes(firstWord) ||
             Math.abs((e.amount_submitted || 0) - item.amount) < 0.01
           )
           return {
@@ -4144,9 +4142,86 @@ IMPORTANT: Use numbers not strings for amounts. Return ONLY the JSON object.`
           .map(item => ({
             description: item.description,
             amount: item.amount,
-            denial_reason: "Denied by insurer",
+            denial_reason: 'Denied by insurer',
             policy_citation: item.policy_section || null,
           }))
+
+        // ── Route 3: Compute corrected reimbursement (same math as compare-eob) ──
+        const eobRate = coverageResult.reimbursement_rate || (savedPolicy?.reimbursement_rate) || null
+        const rateForCalc = eobRate || 80
+        const mathOrder = coverageResult.math_order || savedPolicy?.math_order || 'reimbursement-first'
+        const isCoinsuranceFirst = mathOrder === 'reimbursement_first' || mathOrder === 'reimbursement-first'
+        let correctedReimbursement
+        if (isCoinsuranceFirst) {
+          correctedReimbursement = Math.max(0, (coveredTotal * rateForCalc / 100) - eobDeductibleApplied)
+        } else {
+          correctedReimbursement = Math.max(0, (coveredTotal - eobDeductibleApplied) * rateForCalc / 100)
+        }
+        correctedReimbursement = Math.round(correctedReimbursement * 100) / 100
+        const realShortfall = Math.max(0, Math.round((correctedReimbursement - eobActualPaid) * 100) / 100)
+        const appealRecommended = realShortfall > 1  // >$1 threshold, same as compare-eob
+
+        console.log(`${tag} Route 3 EOB math:`, {
+          coveredTotal, eobActualPaid, eobDeductibleApplied,
+          rate: rateForCalc, mathOrder, isCoinsuranceFirst,
+          correctedReimbursement, realShortfall, appealRecommended,
+        })
+
+        // ── Route 3: Save analysis to DB (server-side — skips mobile save) ──
+        let serviceDate = null
+        const rawDate = coverageResult.visit_date || r3EobResult.serviceDate || null
+        if (rawDate) {
+          const d = new Date(rawDate)
+          if (!isNaN(d.getTime())) serviceDate = d.toISOString().slice(0, 10)
+        }
+        let filingDeadline = null
+        if (serviceDate && coverageResult.filing_deadline_days) {
+          const d = new Date(serviceDate)
+          d.setDate(d.getDate() + coverageResult.filing_deadline_days)
+          if (!isNaN(d.getTime())) filingDeadline = d.toISOString().slice(0, 10)
+        }
+
+        const r3Status = appealRecommended ? 'disputed' : 'analyzed'
+        const r3LineItemsPayload = {
+          items: r3LineItems,
+          pet_name: coverageResult.pet_name || (r3EobResult.petInfo && r3EobResult.petInfo.name) || null,
+          carrier: coverageResult.carrier || r3EobResult.carrier || null,
+          visit_type: coverageResult.visit_type || null,
+          covered_total: coveredTotal,
+          // EOB comparison fields (same as compare-eob route stores)
+          eob_disputed_items: disputedItems,
+          eob_discrepancy: realShortfall,
+          eob_actual_paid: eobActualPaid,
+          eob_deductible_applied: eobDeductibleApplied,
+          eob_reimbursement_rate_used: eobRate,
+          eob_insurer_eligible_amount: r3EobResult.totalAllowed || null,
+          eob_corrected_reimbursement: correctedReimbursement,
+          eob_storage_path: eob_storage_path,
+        }
+
+        const { data: savedAnalysis, error: saveError } = await supabase
+          .from('pciq_analyses')
+          .insert({
+            user_id,
+            policy_id: policy_id || null,
+            analysis_type: 'both',
+            clinic_name: coverageResult.clinic_name || null,
+            service_date: serviceDate,
+            total_bill: coverageResult.total_bill || 0,
+            estimated_reimbursement: correctedReimbursement,
+            actual_payment: eobActualPaid,
+            status: r3Status,
+            line_items: r3LineItemsPayload,
+            filing_deadline: filingDeadline,
+          })
+          .select('id')
+          .single()
+
+        if (saveError) {
+          console.error(`${tag} Route 3 DB save error:`, saveError.message)
+        } else {
+          console.log(`${tag} Route 3 saved to DB: id=${savedAnalysis.id} status=${r3Status}`)
+        }
 
         // ── Route 3: Build mobile response ──
         const r3MobileResponse = {
@@ -4157,21 +4232,32 @@ IMPORTANT: Use numbers not strings for amounts. Return ONLY the JSON object.`
           carrier: coverageResult.carrier || r3EobResult.carrier || null,
           deductible_used: eobDeductibleApplied,
           line_items: r3LineItems,
+          // EOB-grounded reimbursement (overrides Stage 2 estimate)
+          estimated_reimbursement: correctedReimbursement,
+          estimated_reimbursement_actual: correctedReimbursement,
+          eob_corrected_reimbursement: correctedReimbursement,
+          eob_actual_paid: eobActualPaid,
           // Route 3 specific fields
           appeal_recommended: appealRecommended,
           total_paid_by_insurer: eobActualPaid,
-          total_underpaid: totalUnderpaid,
+          total_underpaid: realShortfall,
           disputed_items: disputedItems,
+          // Server-side save ID — tells mobile to skip its own save
+          saved_id: savedAnalysis?.id || null,
+          status: r3Status,
         }
 
-        console.log(`${tag} \u2705 Route 3 (Bill+EOB) complete:`, {
+        console.log(`${tag} ✅ Route 3 (Bill+EOB) complete:`, {
           total_bill: r3MobileResponse.total_bill,
           total_paid_by_insurer: r3MobileResponse.total_paid_by_insurer,
           total_underpaid: r3MobileResponse.total_underpaid,
           appeal_recommended: r3MobileResponse.appeal_recommended,
+          corrected_reimbursement: correctedReimbursement,
           visit_type: r3MobileResponse.visit_type,
           line_items: r3MobileResponse.line_items.length,
           confidence: r3MobileResponse.confidence,
+          saved_id: r3MobileResponse.saved_id,
+          status: r3Status,
         })
 
         return res.json(r3MobileResponse)
