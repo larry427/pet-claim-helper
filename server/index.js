@@ -3742,6 +3742,10 @@ RULE 1 — EXAM FEE RULE: Visit type is "${stage1Result.visitType}".
 
 RULE 2 — WELLNESS/PREVENTIVE: Items categorized "vaccination" or "preventive" are EXCLUDED.
 
+RULE 2B — VISIT-TYPE CONTEXT FOR AMBIGUOUS ITEMS: The visit has been classified as "${stage1Result.visitType}". This MUST influence how you classify items that could be either preventive or problem-driven:
+- If visit_type is WELLNESS_VISIT: Diagnostic tests (e.g., fluorescein stain, blood panel, urinalysis, fecal test, heartworm test), medications (e.g., eye drops, ear drops, antibiotics, ointments), and procedures that COULD be either routine screening or problem-driven MUST be classified as EXCLUDED under the preventive/routine care exclusion UNLESS the vet bill explicitly mentions a specific diagnosis, complaint, symptom, or medical condition being treated (e.g., "eye infection", "ear infection", "skin rash", "limping", "vomiting"). The key question: Does the vet bill show ANY evidence that this item was used to diagnose or treat a SPECIFIC medical problem? If not, it is routine preventive care on a wellness visit and should be EXCLUDED.
+- If visit_type is SICK_INJURY_VISIT, SURGERY_VISIT, or EMERGENCY_VISIT: The same items should be classified according to standard policy coverage rules (diagnostic tests covered, prescribed medications covered, etc.) because the visit context implies they are medically necessary for a specific condition.
+
 RULE 3 — CARRIER-SPECIFIC RULES: Use ONLY exclusions from the attached policy documents.
 - Healthy Paws: exam fees always excluded (blanket exclusion)
 - Pumpkin: exam fees covered for sick/injury visits
