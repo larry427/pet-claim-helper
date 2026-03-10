@@ -3722,6 +3722,7 @@ STEP B — EXTRACT POLICY PARAMETERS FROM THE DECLARATIONS PAGE:
 Find and extract each field exactly as written — do NOT guess or invent values. Return null for any field not clearly present.
 
 REIMBURSEMENT RATE: Look for "Co-Insurance", "Coinsurance %", "Reimbursement Rate", "Insurer Pays". Return as plain integer (70 means 70%). Do NOT return 0.70.
+IMPORTANT: The reimbursement_rate must represent the percentage the INSURER pays. If saved policy parameters above provide a reimbursement rate, it has ALREADY been correctly converted — use it directly. Do not re-interpret or re-convert co-insurance values from the policy document.
 ANNUAL DEDUCTIBLE: Look for "Annual Deductible", "Deductible", "Per Policy Period Deductible". Return as plain number.
 ANNUAL LIMIT: Look for "Annual Limit", "Policy Maximum", "Annual Maximum". Return as plain number or null.
 CARRIER BRAND NAME: Use consumer-facing brand name, not underwriter (see mappings above).
@@ -4851,6 +4852,12 @@ ${policyText || '(No text extracted — see attached image)'}
 
 EXTRACTION RULES:
 1. REIMBURSEMENT RATE: Look for "Co-Insurance", "Coinsurance %", "Reimbursement Rate", "Insurer Pays". Return as plain integer (80 means 80%). Do NOT return 0.80.
+   CRITICAL CO-INSURANCE CONVERSION — different carriers use "co-insurance" differently. You MUST apply the correct conversion:
+   - Nationwide Pet Insurance: "Co-insurance" means the OWNER's share. Convert by subtracting from 100%. Example: "10% co-insurance" → reimbursement_rate = 90. Example: "20% co-insurance" → reimbursement_rate = 80.
+   - Odie: "Co-Insurance" means the INSURER's share. Use the number directly. Example: "70% Co-Insurance" → reimbursement_rate = 70.
+   - Pumpkin, Healthy Paws, Embrace, Fetch, Figo, or any carrier using "reimbursement rate" or "reimbursement level": Use the number directly. Example: "80% reimbursement rate" → reimbursement_rate = 80.
+   - Unknown carrier: Read the policy language carefully. If it says "you are responsible for X%" or "your share is X%" or "co-insurance X%", that's the owner's share — subtract from 100%. If it says "we pay X%" or "we reimburse X%", use directly.
+   The reimbursement_rate field must ALWAYS represent the percentage the INSURER pays.
 2. ANNUAL DEDUCTIBLE: Look for "Annual Deductible", "Deductible", "Per Policy Period Deductible". Return as plain number (no $ sign).
 3. ANNUAL LIMIT: Look for "Annual Limit", "Policy Maximum", "Annual Maximum". Return as plain number or null if unlimited.
 4. CARRIER: Use consumer-facing brand name (e.g., "Healthy Paws" not "Westchester Fire Insurance Company"). Brand mappings:
@@ -4928,6 +4935,18 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
       // Normalize math_order to match DB enum (reimbursement_first → reimbursement_first)
       if (extracted.math_order === 'reimbursement-first') extracted.math_order = 'reimbursement_first'
       if (extracted.math_order === 'deductible-first') extracted.math_order = 'deductible_first'
+
+      // ── Co-insurance safety net ──
+      // If a Nationwide policy returns a very low rate (≤30%), GPT likely returned the
+      // owner's co-insurance share instead of converting. Fix it server-side.
+      if (extracted.reimbursement_rate != null && extracted.reimbursement_rate <= 30) {
+        const carrierLower = (extracted.carrier || '').toLowerCase()
+        if (carrierLower.includes('nationwide')) {
+          const original = extracted.reimbursement_rate
+          extracted.reimbursement_rate = 100 - original
+          console.log(`${tag} ⚠ Co-insurance safety net: Nationwide ${original}% → ${extracted.reimbursement_rate}% reimbursement rate`)
+        }
+      }
 
       return res.json({ ...extracted, storage_path })
 
