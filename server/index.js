@@ -3503,6 +3503,416 @@ IMPORTANT:
   const pciqToDataUrl = (buffer, mime) =>
     `data:${mime};base64,${buffer.toString('base64')}`
 
+  // ═══════════════════════════════════════════════════════════════
+  // Shared analysis helpers (used by main bill route + Route 3)
+  // ═══════════════════════════════════════════════════════════════
+
+  const pciqRunStage1 = async ({ openai, tag, vetBillFileContents, vetBillTextBackup }) => {
+      const extractionPrompt = `You are a veterinary invoice parser. Your ONLY job is to extract data from the attached vet bill/invoice and classify the visit type. Do not perform any insurance coverage analysis.
+
+CRITICAL — DOCUMENT SCOPE:
+- You are reading a VET BILL or INVOICE only. Do NOT extract or infer any values from an insurance policy document.
+- clinic_name must be the name of the veterinary clinic or animal hospital that provided services — NEVER an insurance company name (e.g., never "Westchester Fire Insurance Company", "Healthy Paws", "Pumpkin", etc.)
+- visit_date must be the date services were rendered on the invoice — NEVER a policy effective date or expiration date
+- If you cannot find a value with confidence, return null for that field — do NOT guess or pull from non-vet-bill content
+
+EXTRACTION RULES:
+1. Use ONLY the TOTAL column (rightmost dollar amount) for each line item — never the Quantity or Unit Price columns.
+2. Vet bill columns are typically: Description | Quantity | Total. The dollar amount is always the last column.
+3. VALIDATION: Your line item amounts must sum to the invoice total shown on the bill. If they do not match, re-read and correct.
+4. Items with $0.00 totals should still be listed with amount: 0.
+5. Watch for quantity values that look like prices (e.g., Quantity: 100.00 with Total: $0.00 — the amount is 0, not 100).
+6. Watch for quantities with decimals (e.g., 1.18) — this is a quantity multiplied by unit price, NOT a dollar amount.
+
+SERVICE DATE EXTRACTION (REQUIRED):
+- Extract the date the pet was seen by the veterinarian. This is the visit/service date, NOT the invoice print date, payment date, or account statement date.
+- Look for labels like "Date:", "Date of Service:", "Service Date:", "Visit Date:", "Exam Date:", or a date printed near the clinic header or near the line items.
+- Return as clinicInfo.date in YYYY-MM-DD format (e.g., "2026-01-27").
+- If multiple dates appear on the bill, use the earliest service/treatment date — not the payment or statement date.
+- This field is REQUIRED — search the entire document thoroughly before returning null.
+
+VET BILL TEXT BACKUP (may be incomplete — always prefer the attached document):
+${vetBillTextBackup.join('\n\n') || '(No text backup available)'}
+
+VISIT TYPE CLASSIFICATION:
+Classify the visit as WELLNESS_VISIT or SICK_INJURY_VISIT based on the PRIMARY purpose of the visit.
+
+WELLNESS_VISIT — majority of items are routine or preventive:
+- Vaccinations (DHPP, rabies, bordetella, leptospirosis, etc.)
+- Annual wellness exam with no illness noted
+- Microchipping
+- Fecal/parasite screening
+- Heartworm testing
+- Dental cleaning (routine, not accident-related)
+- Nail trim, ear cleaning, anal gland expression
+
+SICK_INJURY_VISIT — primary purpose is diagnosing or treating illness or injury:
+- Diagnostic tests for specific symptoms (bloodwork, x-rays, urinalysis for a condition)
+- Medications prescribed for a condition
+- Treatments (IV fluids, wound care, sutures)
+- Surgery for illness or injury
+- Emergency care
+- Follow-up for ongoing condition
+
+MIXED VISITS: Classify by PRIMARY purpose. If a sick pet also gets a vaccine during the visit, it is still a SICK_INJURY_VISIT if the main reason was illness treatment.
+
+LINE ITEM CATEGORIES — assign one per item:
+- "vaccination" — any vaccine
+- "exam" — office visit fee, exam fee, consultation fee
+- "diagnostic" — bloodwork, urinalysis, x-ray, ultrasound, lab tests, cultures
+- "medication" — prescriptions, injections, topicals
+- "surgery" — surgical procedures, anesthesia, surgery supplies
+- "preventive" — heartworm test, fecal, microchip, dental cleaning, nail trim
+- "cosmetic" — elective cosmetic procedures
+- "other" — anything that does not fit above
+
+Return ONLY this JSON object:
+{
+  "visitType": "WELLNESS_VISIT" | "SICK_INJURY_VISIT",
+  "visitTypeReason": "brief explanation of classification",
+  "petInfo": {
+    "name": string | null,
+    "species": string | null,
+    "breed": string | null
+  },
+  "clinicInfo": {
+    "name": string | null,
+    "date": string | null
+  },
+  "totalBill": number,
+  "lineItems": [
+    {
+      "description": string,
+      "amount": number,
+      "category": "vaccination" | "exam" | "diagnostic" | "medication" | "surgery" | "preventive" | "cosmetic" | "other"
+    }
+  ]
+}`
+
+      console.log(`${tag} Stage 1: Extracting vet bill...`, { files: vetBillFileContents.length })
+
+      const stage1Completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: 'You are a veterinary invoice parser. Extract data accurately and return valid JSON only.' },
+          { role: 'user', content: [{ type: 'text', text: extractionPrompt }, ...vetBillFileContents] }
+        ],
+        temperature: 0.1,
+        max_tokens: 2000,
+        response_format: { type: 'json_object' }
+      })
+
+      const stage1Content = stage1Completion.choices?.[0]?.message?.content ?? ''
+      let stage1Result = null
+      try {
+        let c = stage1Content.trim()
+        if (c.startsWith('```')) c = c.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```\s*$/, '')
+        stage1Result = JSON.parse(c)
+      } catch {
+        const m = stage1Content.match(/\{[\s\S]*\}/)
+        if (m) { try { stage1Result = JSON.parse(m[0]) } catch {} }
+      }
+
+      if (!stage1Result) {
+        console.error(`${tag} Stage 1 failed to parse:`, stage1Content.substring(0, 500))
+        throw new Error('Failed to extract bill data. Please try again.')
+      }
+
+      console.log(`${tag} Stage 1 complete:`, {
+        visitType: stage1Result.visitType,
+        lineItems: stage1Result.lineItems?.length,
+        totalBill: stage1Result.totalBill
+      })
+
+      // ── Post-Stage 1 validation: reject policy-document contamination ──
+      const insurerNames = ['insurance', 'westchester', 'chubb', 'pumpkin', 'healthy paws', 'embrace', 'odie', 'fetch', 'figo', 'nationwide', 'trupanion', 'lemonade', 'spot', 'pets best']
+      const rawClinic = stage1Result.clinicInfo?.name || ''
+      if (rawClinic && insurerNames.some(n => rawClinic.toLowerCase().includes(n))) {
+        console.warn(`${tag} ⚠ Stage 1 clinic_name rejected (looks like insurer): "${rawClinic}"`)
+        stage1Result.clinicInfo.name = null
+      }
+      const rawDate = stage1Result.clinicInfo?.date || null
+      if (rawDate) {
+        const parsedDate = new Date(rawDate)
+        const sixMonthsAgo = new Date()
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+        if (!isNaN(parsedDate.getTime()) && parsedDate < sixMonthsAgo) {
+          console.warn(`${tag} ⚠ Stage 1 visit_date suspicious (>6mo old): "${rawDate}"`)
+        }
+      }
+      if (!stage1Result.totalBill || stage1Result.totalBill === 0) {
+        console.warn(`${tag} ⚠ Stage 1 totalBill is null or 0`)
+      }
+      return stage1Result
+  }
+
+  const pciqRunStage2 = async ({ openai, tag, stage1Result, policyFileContents, policyTextBackup, savedPolicy }) => {
+      // STEP 4 — Build saved-policy context string for Stage 2 prompt
+      let savedPolicyContext = ''
+      if (savedPolicy) {
+        savedPolicyContext = `
+SAVED POLICY PARAMETERS (from user's account — use these as ground truth when policy documents are absent or incomplete):
+  Carrier: ${savedPolicy.carrier || 'Unknown'}
+  Pet Name: ${savedPolicy.pet_name || 'Unknown'}
+  Species: ${savedPolicy.species || 'Unknown'}
+  Deductible: $${savedPolicy.deductible ?? 'Unknown'}
+  Reimbursement Rate: ${savedPolicy.reimbursement_rate != null ? savedPolicy.reimbursement_rate + '%' : 'Unknown'}
+  Annual Limit: ${savedPolicy.annual_limit != null ? '$' + savedPolicy.annual_limit : 'Unknown'}
+  Math Order: ${savedPolicy.math_order || 'Unknown'}
+  Effective Date: ${savedPolicy.effective_date || 'Unknown'}
+  Exclusions: ${(savedPolicy.exclusions || []).join(', ') || 'None listed'}
+  Policy Notes: ${savedPolicy.policy_text || 'None'}
+
+When saved policy parameters conflict with policy documents, prefer the attached documents but fall back to these saved values if the document is missing or unclear.
+`
+      }
+
+      // STEP 5 — Stage 2: Coverage analysis
+      const coveragePrompt = `You are a pet insurance coverage analyst. A structured extraction of the vet bill has already been completed in Stage 1. Your job is ONLY to determine coverage and calculate reimbursement. Do not re-extract line items or re-classify the visit type.
+
+STAGE 1 EXTRACTION (treat as ground truth — do not modify):
+${JSON.stringify(stage1Result, null, 2)}
+
+THE VISIT TYPE IS: ${stage1Result.visitType}
+This is FINAL and IMMUTABLE. Do not reconsider it under any circumstances.
+${savedPolicyContext}
+Policy documents are attached. Examine each one carefully.
+
+POLICY TEXT BACKUP (may be incomplete — always prefer attached documents):
+${policyTextBackup.join('\n\n') || '(No policy documents uploaded)'}
+
+DOCUMENT IDENTIFICATION:
+- Declarations page (usually 1 page): reimbursement rate, deductible, annual limit, pet schedule
+- Policy documents: coverage details, exclusions, terms
+- Endorsements/changes: may OVERRIDE declarations for a specific pet — match pet name, use most recent/specific document
+
+UNDERWRITER-TO-BRAND MAPPINGS (always use the brand name, never the underwriter):
+- "Westchester Fire Insurance Company" = "Healthy Paws"
+- "United States Fire Insurance Company" = "Pumpkin"
+- "American Pet Insurance Company" = "Fetch"
+- "Independence American Insurance Company" = "Figo"
+- "National Casualty Company" = "Nationwide Pet Insurance"
+
+STEP A — ASSESS COMPLETENESS:
+- "full": vet bill + enough policy info for complete analysis
+- "partial": vet bill + some policy info but missing key details
+- "bill_only": no usable policy documents uploaded
+If partial, populate missingInfo[] with user-friendly descriptions.
+Include missingDocumentHint.
+
+STEP B — EXTRACT POLICY PARAMETERS FROM THE DECLARATIONS PAGE:
+Find and extract each field exactly as written — do NOT guess or invent values. Return null for any field not clearly present.
+
+REIMBURSEMENT RATE: Look for "Co-Insurance", "Coinsurance %", "Reimbursement Rate", "Insurer Pays". Return as plain integer (70 means 70%). Do NOT return 0.70.
+ANNUAL DEDUCTIBLE: Look for "Annual Deductible", "Deductible", "Per Policy Period Deductible". Return as plain number.
+ANNUAL LIMIT: Look for "Annual Limit", "Policy Maximum", "Annual Maximum". Return as plain number or null.
+CARRIER BRAND NAME: Use consumer-facing brand name, not underwriter (see mappings above).
+MATH ORDER: Look for a worked example showing order of operations.
+  reimbursement-first: percentage applied first, then deductible subtracted
+  deductible-first: deductible subtracted first, then percentage applied
+  null if cannot determine
+FILING DEADLINE: e.g., "90 days from date of service" or null.
+POLICY PET NAME: pet name from declarations page or null.
+POLICY EFFECTIVE DATE: return in YYYY-MM-DD format or null.
+
+STEP C — DETERMINE COVERAGE FOR EACH LINE ITEM:
+Apply these rules in ORDER:
+
+RULE 1 — EXAM FEE RULE: Visit type is "${stage1Result.visitType}".
+- WELLNESS_VISIT: any exam/office visit fee is EXCLUDED regardless of policy declarations
+- SICK_INJURY_VISIT: exam fee follows carrier-specific rules (RULE 3)
+
+RULE 2 — WELLNESS/PREVENTIVE: Items categorized "vaccination" or "preventive" are EXCLUDED.
+
+RULE 3 — CARRIER-SPECIFIC RULES: Use ONLY exclusions from the attached policy documents.
+- Healthy Paws: exam fees always excluded (blanket exclusion)
+- Pumpkin: exam fees covered for sick/injury visits
+- Apply all other carrier-specific exclusions found in uploaded documents only
+
+RULE 4 — PRE-OP/POST-OP INHERITANCE: Pre/post-op items inherit coverage from the associated surgery.
+
+RULE 5 — RADIOLOGY/SPECIALIST READS: Radiologist reads of diagnostic images are DIAGNOSTIC TESTS, not exam fees. Mark as COVERED.
+
+RULE 6 — DEFAULT: Pet insurance covers on an EXCLUSION basis. Medically necessary treatment IS covered unless explicitly excluded. Default to COVERED, not UNKNOWN.
+
+RULE 7 — PRESCRIPTION DIET: Covered when prescribed to treat a specific covered condition.
+
+RULE 8 — E-COLLAR: Covered as a medical supply when provided as part of post-surgical care for a covered procedure.
+
+For each line item from Stage 1:
+- "covered": true | false | null
+- "reason": "Covered — [category]" or "Excluded — [reason]" or "Uncertain — [reason]"
+- "sourceQuote": REQUIRED for BOTH covered AND excluded items. Extract the verbatim policy language (1-2 sentences, word-for-word from the policy document) that justifies the coverage decision. For COVERED items, find the insuring agreement, covered benefits, or benefit provisions describing this service type (e.g., "Veterinary Treatment means: b. Laboratory and diagnostic tests"). For EXCLUDED items, find the exclusion clause. Return null ONLY if no policy was uploaded. NEVER return "" when a policy is present — the insuring agreement always describes what is covered.
+- "section": policy section or null
+
+STEP D — CALCULATE REIMBURSEMENT:
+- totalCovered = sum of covered items
+- totalExcluded = sum of excluded items
+- maxReimbursement = totalCovered x (reimbursementRate / 100)
+- maxReimbursement must be a positive number when totalCovered > 0
+
+STEP E — FILING RECOMMENDATION:
+- shouldFile: true if totalCovered > 0 (even sub-deductible claims build deductible progress)
+- shouldFile: false ONLY if totalCovered === 0
+- shouldFileReason: explain the decision
+
+Return ONLY this JSON object:
+{
+  "completeness": "full" | "partial" | "bill_only",
+  "missingInfo": [],
+  "missingDocumentHint": null,
+  "policyInfo": {
+    "carrier": string | null,
+    "reimbursementRate": number | null,
+    "deductible": number | null,
+    "annualLimit": number | null,
+    "mathOrder": "reimbursement-first" | "deductible-first" | null,
+    "filingDeadline": string | null,
+    "policyPetName": string | null,
+    "policyEffectiveDate": string | null
+  },
+  "analysis": {
+    "visitType": string,
+    "lineItems": [
+      {
+        "description": string,
+        "amount": number,
+        "covered": true | false | null,
+        "reason": string,
+        "sourceQuote": string | null,
+        "section": string | null
+      }
+    ],
+    "totalBill": number,
+    "totalCovered": number,
+    "totalExcluded": number,
+    "maxReimbursement": number,
+    "shouldFile": boolean,
+    "shouldFileReason": string,
+    "exclusionWarnings": [],
+    "eligibilityWarnings": []
+  }
+}
+
+IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an integer (80 not 0.80). Return ONLY the JSON object.`
+
+      console.log(`${tag} Stage 2: Running coverage analysis...`, {
+        policyFiles: policyFileContents.length,
+        visitType: stage1Result.visitType
+      })
+
+      const stage2Completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: 'You are a pet insurance coverage analyst. Provide accurate analysis. Always return valid JSON.' },
+          { role: 'user', content: [{ type: 'text', text: coveragePrompt }, ...policyFileContents] }
+        ],
+        temperature: 0.1,
+        max_tokens: 4000,
+        response_format: { type: 'json_object' }
+      })
+
+      const stage2Content = stage2Completion.choices?.[0]?.message?.content ?? ''
+      let stage2Result = null
+      try {
+        let c = stage2Content.trim()
+        if (c.startsWith('```')) c = c.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```\s*$/, '')
+        stage2Result = JSON.parse(c)
+      } catch {
+        const m = stage2Content.match(/\{[\s\S]*\}/)
+        if (m) { try { stage2Result = JSON.parse(m[0]) } catch {} }
+      }
+
+      if (!stage2Result) {
+        console.error(`${tag} Stage 2 failed to parse:`, stage2Content.substring(0, 500))
+        throw new Error('Failed to analyze coverage. Please try again.')
+      }
+
+      console.log(`${tag} Stage 2 complete:`, {
+        completeness: stage2Result.completeness,
+        carrier: stage2Result.policyInfo?.carrier,
+        totalCovered: stage2Result.analysis?.totalCovered,
+        lineItems: stage2Result.analysis?.lineItems?.length
+      })
+
+      // STEP 6 — Recalculate reimbursement server-side (same logic as /api/analyze-claim)
+      // Prefer saved policy parameters over AI-extracted values (AI can misread policy docs)
+      const s2a = stage2Result.analysis || {}
+      const s2p = stage2Result.policyInfo || {}
+
+      // ── Co-insurance safety net (mobile route) ──
+      if (s2p.reimbursementRate != null && s2p.rateIsCoinsurance === true) {
+        const raw = s2p.reimbursementRate
+        if (raw <= 30) {
+          s2p.reimbursementRate = 100 - raw
+          console.log(`${tag} Co-insurance safety net: converted ${raw}% co-insurance → ${s2p.reimbursementRate}% reimbursement rate`)
+        } else {
+          console.log(`${tag} Co-insurance detected: ${raw}% reimbursement rate (already converted by GPT)`)
+        }
+      }
+
+      const totalCovered = s2a.totalCovered || 0
+      const rateRaw = (savedPolicy?.reimbursement_rate ?? s2p.reimbursementRate) || null
+      const deductible = (savedPolicy?.deductible ?? s2p.deductible) || 0
+      const mathOrder = (savedPolicy?.math_order ?? s2p.mathOrder) || 'reimbursement-first'
+
+      let maxReimbursement = s2a.maxReimbursement || 0
+      if (totalCovered > 0 && rateRaw) {
+        const rate = rateRaw / 100
+        maxReimbursement = mathOrder === 'deductible-first'
+          ? (totalCovered - deductible) * rate
+          : (totalCovered * rate) - deductible
+        maxReimbursement = Math.round(Math.max(0, maxReimbursement) * 100) / 100
+      }
+
+      // STEP 7 — Map to mobile response shape
+      const shouldFile = s2a.shouldFile ?? false
+      const recommendation = shouldFile ? 'file' : 'skip'
+
+      const reimbursementIfDeductibleMet = (totalCovered > 0 && rateRaw)
+        ? Math.round(totalCovered * (rateRaw / 100) * 100) / 100
+        : 0
+
+      const mobileResponse = {
+        estimated_reimbursement: maxReimbursement,
+        total_bill: s2a.totalBill || stage1Result.totalBill || 0,
+        recommendation,
+        line_items: (s2a.lineItems || []).map(item => ({
+          description: item.description,
+          amount: item.amount,
+          covered: item.covered ?? false,
+          reason: item.reason || '',
+          source_quote: item.sourceQuote || '',
+          policy_section: item.sourceQuote || item.section || null,
+        })),
+        // Stage 1 fields ONLY — never backfill clinic/date from policy or Stage 2
+        visit_type: stage1Result.visitType || null,
+        clinic_name: stage1Result.clinicInfo?.name || null,   // Stage 1 only — null is OK
+        visit_date: stage1Result.clinicInfo?.date || null,     // Stage 1 only — null is OK
+        pet_name: stage1Result.petInfo?.name || savedPolicy?.pet_name || null,
+        // Stage 2 / policy fields
+        confidence: stage2Result.completeness === 'full' ? 'High'
+          : stage2Result.completeness === 'partial' ? 'Medium' : 'Low',
+        eligibility_warnings: s2a.eligibilityWarnings || [],
+        carrier: savedPolicy?.carrier || s2p.carrier || null,
+        deductible_total: deductible,
+        deductible_used: 0,
+        reimbursement_rate: rateRaw,
+        covered_total: totalCovered,
+        excluded_total: s2a.totalExcluded || 0,
+        estimated_reimbursement_if_deductible_met: reimbursementIfDeductibleMet,
+        estimated_reimbursement_actual: maxReimbursement,
+        should_file: shouldFile,
+        should_file_reason: s2a.shouldFileReason || '',
+        filing_deadline_days: savedPolicy?.filing_deadline_days
+          || (s2p.filingDeadline ? parseInt(s2p.filingDeadline) : null) || null,
+        math_order: mathOrder,
+      }
+
+      return mobileResponse
+  }
+
+
   app.post('/api/pciq/analyze', async (req, res) => {
     const tag = '[pciq/analyze]'
     try {
@@ -3602,105 +4012,13 @@ IMPORTANT:
           }
         }
 
-        // ── Route 3 Stage 1: Extract vet bill data + classify visit type ──
-        const r3ExtractionPrompt = `You are a veterinary invoice parser. Your ONLY job is to extract data from the attached vet bill/invoice and classify the visit type. Do not perform any insurance coverage analysis.
 
-CRITICAL — DOCUMENT SCOPE:
-- You are reading a VET BILL or INVOICE only. Do NOT extract or infer any values from an insurance policy document.
-- clinic_name must be the name of the veterinary clinic or animal hospital that provided services — NEVER an insurance company name (e.g., never "Westchester Fire Insurance Company", "Healthy Paws", "Pumpkin", etc.)
-- visit_date must be the date services were rendered on the invoice — NEVER a policy effective date or expiration date
-- If you cannot find a value with confidence, return null for that field — do NOT guess or pull from non-vet-bill content
-
-EXTRACTION RULES:
-1. Use ONLY the TOTAL column (rightmost dollar amount) for each line item — never the Quantity or Unit Price columns.
-2. Vet bill columns are typically: Description | Quantity | Total. The dollar amount is always the last column.
-3. VALIDATION: Your line item amounts must sum to the invoice total shown on the bill. If they do not match, re-read and correct.
-4. Items with $0.00 totals should still be listed with amount: 0.
-
-SERVICE DATE EXTRACTION (REQUIRED):
-- Extract the date the pet was seen by the veterinarian. This is the visit/service date, NOT the invoice print date, payment date, or account statement date.
-- Look for labels like "Date:", "Date of Service:", "Service Date:", "Visit Date:", "Exam Date:", or a date printed near the clinic header or near the line items.
-- Return as clinicInfo.date in YYYY-MM-DD format (e.g., "2026-01-27").
-- If multiple dates appear on the bill, use the earliest service/treatment date — not the payment or statement date.
-- This field is REQUIRED — search the entire document thoroughly before returning null.
-
-VET BILL TEXT BACKUP (may be incomplete — always prefer the attached document):
-${billData.textBackup.join('\n\n') || '(No text backup available)'}
-
-VISIT TYPE CLASSIFICATION:
-Classify the visit as WELLNESS_VISIT or SICK_INJURY_VISIT based on the PRIMARY purpose of the visit.
-
-LINE ITEM CATEGORIES — assign one per item:
-- "vaccination" — any vaccine
-- "exam" — office visit fee, exam fee, consultation fee
-- "diagnostic" — bloodwork, urinalysis, x-ray, ultrasound, lab tests, cultures
-- "medication" — prescriptions, injections, topicals
-- "surgery" — surgical procedures, anesthesia, surgery supplies
-- "preventive" — heartworm test, fecal, microchip, dental cleaning, nail trim
-- "cosmetic" — elective cosmetic procedures
-- "other" — anything that does not fit above
-
-Return ONLY this JSON object:
-{
-  "visitType": "WELLNESS_VISIT" | "SICK_INJURY_VISIT",
-  "visitTypeReason": "brief explanation of classification",
-  "petInfo": { "name": string | null, "species": string | null, "breed": string | null },
-  "clinicInfo": { "name": string | null, "date": string | null },
-  "totalBill": number,
-  "lineItems": [
-    { "description": string, "amount": number, "category": string }
-  ]
-}`
-
-        console.log(`${tag} Route 3 Stage 1: Extracting vet bill...`)
-        const r3Stage1Completion = await openai.chat.completions.create({
-          model: 'gpt-4o',
-          messages: [
-            { role: 'system', content: 'You are a veterinary invoice parser. Extract data accurately and return valid JSON only.' },
-            { role: 'user', content: [{ type: 'text', text: r3ExtractionPrompt }, ...billData.fileContents] }
-          ],
-          temperature: 0.1,
-          max_tokens: 2000,
-          response_format: { type: 'json_object' }
+        // ── Route 3: Run shared Stage 1 (vet bill extraction) ──
+        const stage1Result = await pciqRunStage1({
+          openai, tag,
+          vetBillFileContents: billData.fileContents,
+          vetBillTextBackup: billData.textBackup,
         })
-
-        let r3Stage1Result = null
-        try {
-          let c = (r3Stage1Completion.choices?.[0]?.message?.content ?? '').trim()
-          if (c.startsWith('```')) c = c.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```\s*$/, '')
-          r3Stage1Result = JSON.parse(c)
-        } catch {
-          const m = (r3Stage1Completion.choices?.[0]?.message?.content ?? '').match(/\{[\s\S]*\}/)
-          if (m) { try { r3Stage1Result = JSON.parse(m[0]) } catch {} }
-        }
-        if (!r3Stage1Result) {
-          return res.status(422).json({ error: 'Failed to extract bill data. Please try again.' })
-        }
-        console.log(`${tag} Route 3 Stage 1 complete:`, {
-          visitType: r3Stage1Result.visitType,
-          lineItems: r3Stage1Result.lineItems?.length,
-          totalBill: r3Stage1Result.totalBill
-        })
-
-        // ── Post-Stage 1 validation: reject policy-document contamination ──
-        const r3InsurerNames = ['insurance', 'westchester', 'chubb', 'pumpkin', 'healthy paws', 'embrace', 'odie', 'fetch', 'figo', 'nationwide', 'trupanion', 'lemonade', 'spot', 'pets best']
-        const r3RawClinic = r3Stage1Result.clinicInfo?.name || ''
-        if (r3RawClinic && r3InsurerNames.some(n => r3RawClinic.toLowerCase().includes(n))) {
-          console.warn(`${tag} ⚠ Route 3 Stage 1 clinic_name rejected (looks like insurer): "${r3RawClinic}"`)
-          r3Stage1Result.clinicInfo.name = null
-        }
-        const r3RawDate = r3Stage1Result.clinicInfo?.date || null
-        if (r3RawDate) {
-          const r3Parsed = new Date(r3RawDate)
-          const r3SixMo = new Date()
-          r3SixMo.setMonth(r3SixMo.getMonth() - 6)
-          if (!isNaN(r3Parsed.getTime()) && r3Parsed < r3SixMo) {
-            console.warn(`${tag} ⚠ Route 3 Stage 1 visit_date suspicious (>6mo old): "${r3RawDate}"`)
-          }
-        }
-        if (!r3Stage1Result.totalBill || r3Stage1Result.totalBill === 0) {
-          console.warn(`${tag} ⚠ Route 3 Stage 1 totalBill is null or 0`)
-        }
 
         // ── Route 3 Stage 2: Extract EOB data ──
         const r3EobPrompt = `You are an insurance EOB (Explanation of Benefits) parser. Extract all data from the attached EOB document.
@@ -3788,228 +4106,65 @@ IMPORTANT: Use numbers not strings for amounts. Return ONLY the JSON object.`
           lineItems: r3EobResult.lineItems?.length
         })
 
-        // ── Route 3 Stage 3: Three-way comparison — bill vs policy vs EOB ──
-        let r3PolicyContext = ''
-        if (savedPolicy) {
-          r3PolicyContext = `
-SAVED POLICY PARAMETERS (from user's account — use as ground truth when policy documents are absent or incomplete):
-  Carrier: ${savedPolicy.carrier || 'Unknown'}
-  Pet Name: ${savedPolicy.pet_name || 'Unknown'}
-  Species: ${savedPolicy.species || 'Unknown'}
-  Deductible: $${savedPolicy.deductible ?? 'Unknown'}
-  Reimbursement Rate: ${savedPolicy.reimbursement_rate != null ? savedPolicy.reimbursement_rate + '%' : 'Unknown'}
-  Annual Limit: ${savedPolicy.annual_limit != null ? '$' + savedPolicy.annual_limit : 'Unknown'}
-  Math Order: ${savedPolicy.math_order || 'Unknown'}
-  Effective Date: ${savedPolicy.effective_date || 'Unknown'}
-  Exclusions: ${(savedPolicy.exclusions || []).join(', ') || 'None listed'}
-  Policy Notes: ${savedPolicy.policy_text || 'None'}
-`
-        }
-
-        const r3ComparePrompt = `You are a pet insurance claims auditor performing a THREE-WAY comparison: vet bill vs policy vs EOB. You have all three documents. Your job is to find any gap between what the policy SHOULD cover and what the EOB ACTUALLY paid.
-
-VET BILL EXTRACTION (Stage 1):
-${JSON.stringify(r3Stage1Result, null, 2)}
-
-EOB EXTRACTION (Stage 2):
-${JSON.stringify(r3EobResult, null, 2)}
-${r3PolicyContext}
-${policyData.textBackup.length > 0 ? `Policy documents are attached. Examine each one carefully.\n\nPOLICY TEXT BACKUP:\n${policyData.textBackup.join('\n\n')}` : '(No policy documents available — use saved policy parameters above)'}
-
-THE VISIT TYPE IS: ${r3Stage1Result.visitType}
-This is FINAL and IMMUTABLE.
-
-STEP A — MATCH LINE ITEMS:
-Match each vet bill line item to the corresponding EOB line item. Items may have slightly different descriptions — match by amount and context.
-
-STEP B — FOR EACH LINE ITEM, DETERMINE:
-1. Should this item be COVERED per the policy? Apply these rules in order:
-   - WELLNESS/PREVENTIVE items (vaccinations, routine exams for wellness visits) → EXCLUDED
-   - Items explicitly excluded by policy → EXCLUDED
-   - Medically necessary treatment → COVERED (pet insurance covers on an exclusion basis)
-2. Was this item actually PAID by the insurer per the EOB?
-3. Is there a DISCREPANCY between what the policy should cover and what the EOB paid?
-
-STEP C — CLASSIFY EACH DISCREPANCY:
-- "underpaid" — policy should cover this but EOB denied or underpaid it
-- "correctly_denied" — EOB denial matches policy exclusions
-- "correctly_paid" — EOB payment matches policy coverage
-- "deductible_applied" — amount applied to deductible (expected, not a dispute)
-- "coinsurance_applied" — owner's share per reimbursement rate (expected)
-
-STEP D — CALCULATE:
-- totalCovered = sum of items that SHOULD be covered per policy
-- totalExcluded = sum of items correctly excluded per policy
-- totalPaidByInsurer = sum of what EOB actually paid
-- totalUnderpaid = sum of amounts that should have been paid but weren't
-- expectedReimbursement = what the insurer SHOULD have paid (totalCovered × rate, minus deductible)
-- actualReimbursement = what the insurer DID pay
-
-STEP E — APPEAL RECOMMENDATION:
-- appealRecommended: true if totalUnderpaid > 0 (any item wrongly denied or underpaid)
-- appealReason: specific explanation of what was underpaid and why it should be covered
-
-Return ONLY this JSON object:
-{
-  "completeness": "full" | "partial",
-  "policyInfo": {
-    "carrier": string | null,
-    "reimbursementRate": number | null,
-    "deductible": number | null,
-    "annualLimit": number | null,
-    "mathOrder": "reimbursement-first" | "deductible-first" | null
-  },
-  "analysis": {
-    "lineItems": [
-      {
-        "description": string,
-        "amount": number,
-        "covered": true | false | null,
-        "reason": string,
-        "sourceQuote": string | null,
-        "section": string | null,
-        "eob_paid": number,
-        "eob_denied": number,
-        "denial_correct": true | false | null,
-        "appeal_recommended": boolean,
-        "discrepancy_type": "underpaid" | "correctly_denied" | "correctly_paid" | "deductible_applied" | "coinsurance_applied"
-      }
-    ],
-    "totalBill": number,
-    "totalCovered": number,
-    "totalExcluded": number,
-    "totalPaidByInsurer": number,
-    "totalUnderpaid": number,
-    "expectedReimbursement": number,
-    "maxReimbursement": number,
-    "shouldFile": boolean,
-    "shouldFileReason": string,
-    "appealRecommended": boolean,
-    "appealReason": string | null,
-    "eligibilityWarnings": [],
-    "disputedItems": []
-  }
-}
-
-IMPORTANT: Use numbers not strings. reimbursementRate must be an integer (80 not 0.80). Return ONLY the JSON object.`
-
-        console.log(`${tag} Route 3 Stage 3: Three-way comparison...`, {
-          billItems: r3Stage1Result.lineItems?.length,
-          eobItems: r3EobResult.lineItems?.length,
-          policyFiles: policyData.fileContents.length,
-          hasSavedPolicy: !!savedPolicy
+        // ── Route 3: Run shared Stage 2 (coverage analysis) ──
+        const coverageResult = await pciqRunStage2({
+          openai, tag,
+          stage1Result,
+          policyFileContents: policyData.fileContents,
+          policyTextBackup: policyData.textBackup,
+          savedPolicy,
         })
 
-        const r3Stage3Completion = await openai.chat.completions.create({
-          model: 'gpt-4o',
-          messages: [
-            { role: 'system', content: 'You are a pet insurance claims auditor. Perform accurate three-way comparison and return valid JSON.' },
-            { role: 'user', content: [{ type: 'text', text: r3ComparePrompt }, ...policyData.fileContents] }
-          ],
-          temperature: 0.1,
-          max_tokens: 5000,
-          response_format: { type: 'json_object' }
-        })
+        // ── Route 3: Compare coverage analysis with EOB payment ──
+        const eobActualPaid = r3EobResult.totalPaid || 0
+        const eobDeductibleApplied = r3EobResult.deductibleApplied || 0
+        const expectedReimbursement = coverageResult.estimated_reimbursement || 0
+        const totalUnderpaid = Math.max(0, Math.round((expectedReimbursement - eobActualPaid) * 100) / 100)
+        const appealRecommended = totalUnderpaid > 0
 
-        let r3Stage3Result = null
-        try {
-          let c = (r3Stage3Completion.choices?.[0]?.message?.content ?? '').trim()
-          if (c.startsWith('```')) c = c.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```\s*$/, '')
-          r3Stage3Result = JSON.parse(c)
-        } catch {
-          const m = (r3Stage3Completion.choices?.[0]?.message?.content ?? '').match(/\{[\s\S]*\}/)
-          if (m) { try { r3Stage3Result = JSON.parse(m[0]) } catch {} }
-        }
-        if (!r3Stage3Result) {
-          return res.status(422).json({ error: 'Failed to compare bill, EOB, and policy. Please try again.' })
-        }
-
-        const r3a = r3Stage3Result.analysis || {}
-        const r3p = r3Stage3Result.policyInfo || {}
-
-        console.log(`${tag} Route 3 Stage 3 complete:`, {
-          completeness: r3Stage3Result.completeness,
-          totalPaidByInsurer: r3a.totalPaidByInsurer,
-          totalUnderpaid: r3a.totalUnderpaid,
-          appealRecommended: r3a.appealRecommended,
-          lineItems: r3a.lineItems?.length
-        })
-
-        // ── Co-insurance safety net (Route 3) ──
-        if (r3p.reimbursementRate != null && r3p.rateIsCoinsurance === true) {
-          const raw = r3p.reimbursementRate
-          if (raw <= 30) {
-            r3p.reimbursementRate = 100 - raw
-            console.log(`${tag} Route 3 co-insurance safety net: converted ${raw}% → ${r3p.reimbursementRate}%`)
+        // Match coverage line items with EOB line items
+        const eobItems = r3EobResult.lineItems || []
+        const r3LineItems = (coverageResult.line_items || []).map(item => {
+          const firstWord = (item.description || "").split(" ")[0].toLowerCase()
+          const eobMatch = eobItems.find(e =>
+            (e.description || "").toLowerCase().includes(firstWord) ||
+            Math.abs((e.amount_submitted || 0) - item.amount) < 0.01
+          )
+          return {
+            ...item,
+            eob_paid: eobMatch ? (eobMatch.amount_paid ?? null) : null,
+            eob_denied: eobMatch ? (eobMatch.amount_denied ?? null) : null,
+            appeal_recommended: !!(item.covered && eobMatch && eobMatch.amount_denied > 0),
           }
-        }
+        })
 
-        // ── Route 3: Recalculate reimbursement server-side ──
-        const r3TotalCovered = r3a.totalCovered || 0
-        const r3RateRaw = (savedPolicy?.reimbursement_rate ?? r3p.reimbursementRate) || null
-        const r3Deductible = (savedPolicy?.deductible ?? r3p.deductible) || 0
-        const r3MathOrder = (savedPolicy?.math_order ?? r3p.mathOrder) || 'reimbursement-first'
-
-        let r3MaxReimbursement = r3a.maxReimbursement || 0
-        if (r3TotalCovered > 0 && r3RateRaw) {
-          const rate = r3RateRaw / 100
-          r3MaxReimbursement = r3MathOrder === 'deductible-first'
-            ? (r3TotalCovered - r3Deductible) * rate
-            : (r3TotalCovered * rate) - r3Deductible
-          r3MaxReimbursement = Math.round(Math.max(0, r3MaxReimbursement) * 100) / 100
-        }
-
-        const r3ShouldFile = r3a.appealRecommended ?? r3a.shouldFile ?? false
-        const r3Recommendation = r3ShouldFile ? 'file' : 'skip'
-
-        const r3ReimbursementIfDeductibleMet = (r3TotalCovered > 0 && r3RateRaw)
-          ? Math.round(r3TotalCovered * (r3RateRaw / 100) * 100) / 100
-          : 0
-
-        // ── Route 3: Map to mobile response shape ──
-        const r3MobileResponse = {
-          estimated_reimbursement: r3MaxReimbursement,
-          total_bill: r3a.totalBill || r3Stage1Result.totalBill || 0,
-          recommendation: r3Recommendation,
-          line_items: (r3a.lineItems || []).map(item => ({
+        // Build disputed items list
+        const disputedItems = r3LineItems
+          .filter(item => item.covered && item.eob_denied > 0)
+          .map(item => ({
             description: item.description,
             amount: item.amount,
-            covered: item.covered ?? false,
-            reason: item.reason || '',
-            source_quote: item.sourceQuote || '',
-            policy_section: item.sourceQuote || item.section || null,
-            eob_paid: item.eob_paid ?? null,
-            eob_denied: item.eob_denied ?? null,
-            appeal_recommended: item.appeal_recommended ?? false,
-          })),
-          // Vet bill fields — Stage 1 ONLY (never backfill from policy)
-          visit_type: r3Stage1Result.visitType || null,
-          clinic_name: r3Stage1Result.clinicInfo?.name || null,   // Stage 1 only — null is OK
-          visit_date: r3Stage1Result.clinicInfo?.date || r3EobResult.serviceDate || null,  // EOB fallback OK (it's about this claim)
-          pet_name: r3Stage1Result.petInfo?.name || r3EobResult.petInfo?.name || savedPolicy?.pet_name || null,
-          confidence: r3Stage3Result.completeness === 'full' ? 'High'
-            : r3Stage3Result.completeness === 'partial' ? 'Medium' : 'Low',
-          eligibility_warnings: r3a.eligibilityWarnings || [],
-          carrier: savedPolicy?.carrier || r3EobResult.carrier || r3p.carrier || null,
-          deductible_total: r3Deductible,
-          deductible_used: r3EobResult.deductibleApplied || 0,
-          reimbursement_rate: r3RateRaw,
-          covered_total: r3TotalCovered,
-          excluded_total: r3a.totalExcluded || 0,
-          estimated_reimbursement_if_deductible_met: r3ReimbursementIfDeductibleMet,
-          estimated_reimbursement_actual: r3MaxReimbursement,
-          should_file: r3ShouldFile,
-          should_file_reason: r3a.shouldFileReason || r3a.appealReason || '',
-          filing_deadline_days: savedPolicy?.filing_deadline_days || null,
-          math_order: r3MathOrder,
+            denial_reason: "Denied by insurer",
+            policy_citation: item.policy_section || null,
+          }))
+
+        // ── Route 3: Build mobile response ──
+        const r3MobileResponse = {
+          ...coverageResult,
+          // Override with EOB-aware fields
+          visit_date: coverageResult.visit_date || r3EobResult.serviceDate || null,
+          pet_name: coverageResult.pet_name || (r3EobResult.petInfo && r3EobResult.petInfo.name) || null,
+          carrier: coverageResult.carrier || r3EobResult.carrier || null,
+          deductible_used: eobDeductibleApplied,
+          line_items: r3LineItems,
           // Route 3 specific fields
-          appeal_recommended: r3a.appealRecommended ?? false,
-          total_paid_by_insurer: r3a.totalPaidByInsurer || r3EobResult.totalPaid || 0,
-          total_underpaid: r3a.totalUnderpaid || 0,
-          disputed_items: r3a.disputedItems || [],
+          appeal_recommended: appealRecommended,
+          total_paid_by_insurer: eobActualPaid,
+          total_underpaid: totalUnderpaid,
+          disputed_items: disputedItems,
         }
 
-        console.log(`${tag} ✅ Route 3 (Bill+EOB) complete:`, {
+        console.log(`${tag} \u2705 Route 3 (Bill+EOB) complete:`, {
           total_bill: r3MobileResponse.total_bill,
           total_paid_by_insurer: r3MobileResponse.total_paid_by_insurer,
           total_underpaid: r3MobileResponse.total_underpaid,
@@ -4464,404 +4619,10 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
       }
       // Route 3 (both) returns early above — only bill route reaches here
 
-      // STEP 3 — Stage 1: Extract vet bill + classify visit type
-      const extractionPrompt = `You are a veterinary invoice parser. Your ONLY job is to extract data from the attached vet bill/invoice and classify the visit type. Do not perform any insurance coverage analysis.
 
-CRITICAL — DOCUMENT SCOPE:
-- You are reading a VET BILL or INVOICE only. Do NOT extract or infer any values from an insurance policy document.
-- clinic_name must be the name of the veterinary clinic or animal hospital that provided services — NEVER an insurance company name (e.g., never "Westchester Fire Insurance Company", "Healthy Paws", "Pumpkin", etc.)
-- visit_date must be the date services were rendered on the invoice — NEVER a policy effective date or expiration date
-- If you cannot find a value with confidence, return null for that field — do NOT guess or pull from non-vet-bill content
-
-EXTRACTION RULES:
-1. Use ONLY the TOTAL column (rightmost dollar amount) for each line item — never the Quantity or Unit Price columns.
-2. Vet bill columns are typically: Description | Quantity | Total. The dollar amount is always the last column.
-3. VALIDATION: Your line item amounts must sum to the invoice total shown on the bill. If they do not match, re-read and correct.
-4. Items with $0.00 totals should still be listed with amount: 0.
-5. Watch for quantity values that look like prices (e.g., Quantity: 100.00 with Total: $0.00 — the amount is 0, not 100).
-6. Watch for quantities with decimals (e.g., 1.18) — this is a quantity multiplied by unit price, NOT a dollar amount.
-
-SERVICE DATE EXTRACTION (REQUIRED):
-- Extract the date the pet was seen by the veterinarian. This is the visit/service date, NOT the invoice print date, payment date, or account statement date.
-- Look for labels like "Date:", "Date of Service:", "Service Date:", "Visit Date:", "Exam Date:", or a date printed near the clinic header or near the line items.
-- Return as clinicInfo.date in YYYY-MM-DD format (e.g., "2026-01-27").
-- If multiple dates appear on the bill, use the earliest service/treatment date — not the payment or statement date.
-- This field is REQUIRED — search the entire document thoroughly before returning null.
-
-VET BILL TEXT BACKUP (may be incomplete — always prefer the attached document):
-${vetBillTextBackup.join('\n\n') || '(No text backup available)'}
-
-VISIT TYPE CLASSIFICATION:
-Classify the visit as WELLNESS_VISIT or SICK_INJURY_VISIT based on the PRIMARY purpose of the visit.
-
-WELLNESS_VISIT — majority of items are routine or preventive:
-- Vaccinations (DHPP, rabies, bordetella, leptospirosis, etc.)
-- Annual wellness exam with no illness noted
-- Microchipping
-- Fecal/parasite screening
-- Heartworm testing
-- Dental cleaning (routine, not accident-related)
-- Nail trim, ear cleaning, anal gland expression
-
-SICK_INJURY_VISIT — primary purpose is diagnosing or treating illness or injury:
-- Diagnostic tests for specific symptoms (bloodwork, x-rays, urinalysis for a condition)
-- Medications prescribed for a condition
-- Treatments (IV fluids, wound care, sutures)
-- Surgery for illness or injury
-- Emergency care
-- Follow-up for ongoing condition
-
-MIXED VISITS: Classify by PRIMARY purpose. If a sick pet also gets a vaccine during the visit, it is still a SICK_INJURY_VISIT if the main reason was illness treatment.
-
-LINE ITEM CATEGORIES — assign one per item:
-- "vaccination" — any vaccine
-- "exam" — office visit fee, exam fee, consultation fee
-- "diagnostic" — bloodwork, urinalysis, x-ray, ultrasound, lab tests, cultures
-- "medication" — prescriptions, injections, topicals
-- "surgery" — surgical procedures, anesthesia, surgery supplies
-- "preventive" — heartworm test, fecal, microchip, dental cleaning, nail trim
-- "cosmetic" — elective cosmetic procedures
-- "other" — anything that does not fit above
-
-Return ONLY this JSON object:
-{
-  "visitType": "WELLNESS_VISIT" | "SICK_INJURY_VISIT",
-  "visitTypeReason": "brief explanation of classification",
-  "petInfo": {
-    "name": string | null,
-    "species": string | null,
-    "breed": string | null
-  },
-  "clinicInfo": {
-    "name": string | null,
-    "date": string | null
-  },
-  "totalBill": number,
-  "lineItems": [
-    {
-      "description": string,
-      "amount": number,
-      "category": "vaccination" | "exam" | "diagnostic" | "medication" | "surgery" | "preventive" | "cosmetic" | "other"
-    }
-  ]
-}`
-
-      console.log(`${tag} Stage 1: Extracting vet bill...`, { files: vetBillFileContents.length })
-
-      const stage1Completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: 'You are a veterinary invoice parser. Extract data accurately and return valid JSON only.' },
-          { role: 'user', content: [{ type: 'text', text: extractionPrompt }, ...vetBillFileContents] }
-        ],
-        temperature: 0.1,
-        max_tokens: 2000,
-        response_format: { type: 'json_object' }
-      })
-
-      const stage1Content = stage1Completion.choices?.[0]?.message?.content ?? ''
-      let stage1Result = null
-      try {
-        let c = stage1Content.trim()
-        if (c.startsWith('```')) c = c.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```\s*$/, '')
-        stage1Result = JSON.parse(c)
-      } catch {
-        const m = stage1Content.match(/\{[\s\S]*\}/)
-        if (m) { try { stage1Result = JSON.parse(m[0]) } catch {} }
-      }
-
-      if (!stage1Result) {
-        console.error(`${tag} Stage 1 failed to parse:`, stage1Content.substring(0, 500))
-        return res.status(422).json({ error: 'Failed to extract bill data. Please try again.' })
-      }
-
-      console.log(`${tag} Stage 1 complete:`, {
-        visitType: stage1Result.visitType,
-        lineItems: stage1Result.lineItems?.length,
-        totalBill: stage1Result.totalBill
-      })
-
-      // ── Post-Stage 1 validation: reject policy-document contamination ──
-      const insurerNames = ['insurance', 'westchester', 'chubb', 'pumpkin', 'healthy paws', 'embrace', 'odie', 'fetch', 'figo', 'nationwide', 'trupanion', 'lemonade', 'spot', 'pets best']
-      const rawClinic = stage1Result.clinicInfo?.name || ''
-      if (rawClinic && insurerNames.some(n => rawClinic.toLowerCase().includes(n))) {
-        console.warn(`${tag} ⚠ Stage 1 clinic_name rejected (looks like insurer): "${rawClinic}"`)
-        stage1Result.clinicInfo.name = null
-      }
-      const rawDate = stage1Result.clinicInfo?.date || null
-      if (rawDate) {
-        const parsedDate = new Date(rawDate)
-        const sixMonthsAgo = new Date()
-        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
-        if (!isNaN(parsedDate.getTime()) && parsedDate < sixMonthsAgo) {
-          console.warn(`${tag} ⚠ Stage 1 visit_date suspicious (>6mo old): "${rawDate}"`)
-        }
-      }
-      if (!stage1Result.totalBill || stage1Result.totalBill === 0) {
-        console.warn(`${tag} ⚠ Stage 1 totalBill is null or 0`)
-      }
-
-      // STEP 4 — Build saved-policy context string for Stage 2 prompt
-      let savedPolicyContext = ''
-      if (savedPolicy) {
-        savedPolicyContext = `
-SAVED POLICY PARAMETERS (from user's account — use these as ground truth when policy documents are absent or incomplete):
-  Carrier: ${savedPolicy.carrier || 'Unknown'}
-  Pet Name: ${savedPolicy.pet_name || 'Unknown'}
-  Species: ${savedPolicy.species || 'Unknown'}
-  Deductible: $${savedPolicy.deductible ?? 'Unknown'}
-  Reimbursement Rate: ${savedPolicy.reimbursement_rate != null ? savedPolicy.reimbursement_rate + '%' : 'Unknown'}
-  Annual Limit: ${savedPolicy.annual_limit != null ? '$' + savedPolicy.annual_limit : 'Unknown'}
-  Math Order: ${savedPolicy.math_order || 'Unknown'}
-  Effective Date: ${savedPolicy.effective_date || 'Unknown'}
-  Exclusions: ${(savedPolicy.exclusions || []).join(', ') || 'None listed'}
-  Policy Notes: ${savedPolicy.policy_text || 'None'}
-
-When saved policy parameters conflict with policy documents, prefer the attached documents but fall back to these saved values if the document is missing or unclear.
-`
-      }
-
-      // STEP 5 — Stage 2: Coverage analysis
-      const coveragePrompt = `You are a pet insurance coverage analyst. A structured extraction of the vet bill has already been completed in Stage 1. Your job is ONLY to determine coverage and calculate reimbursement. Do not re-extract line items or re-classify the visit type.
-
-STAGE 1 EXTRACTION (treat as ground truth — do not modify):
-${JSON.stringify(stage1Result, null, 2)}
-
-THE VISIT TYPE IS: ${stage1Result.visitType}
-This is FINAL and IMMUTABLE. Do not reconsider it under any circumstances.
-${savedPolicyContext}
-Policy documents are attached. Examine each one carefully.
-
-POLICY TEXT BACKUP (may be incomplete — always prefer attached documents):
-${policyTextBackup.join('\n\n') || '(No policy documents uploaded)'}
-
-DOCUMENT IDENTIFICATION:
-- Declarations page (usually 1 page): reimbursement rate, deductible, annual limit, pet schedule
-- Policy documents: coverage details, exclusions, terms
-- Endorsements/changes: may OVERRIDE declarations for a specific pet — match pet name, use most recent/specific document
-
-UNDERWRITER-TO-BRAND MAPPINGS (always use the brand name, never the underwriter):
-- "Westchester Fire Insurance Company" = "Healthy Paws"
-- "United States Fire Insurance Company" = "Pumpkin"
-- "American Pet Insurance Company" = "Fetch"
-- "Independence American Insurance Company" = "Figo"
-- "National Casualty Company" = "Nationwide Pet Insurance"
-
-STEP A — ASSESS COMPLETENESS:
-- "full": vet bill + enough policy info for complete analysis
-- "partial": vet bill + some policy info but missing key details
-- "bill_only": no usable policy documents uploaded
-If partial, populate missingInfo[] with user-friendly descriptions.
-Include missingDocumentHint.
-
-STEP B — EXTRACT POLICY PARAMETERS FROM THE DECLARATIONS PAGE:
-Find and extract each field exactly as written — do NOT guess or invent values. Return null for any field not clearly present.
-
-REIMBURSEMENT RATE: Look for "Co-Insurance", "Coinsurance %", "Reimbursement Rate", "Insurer Pays". Return as plain integer (70 means 70%). Do NOT return 0.70.
-ANNUAL DEDUCTIBLE: Look for "Annual Deductible", "Deductible", "Per Policy Period Deductible". Return as plain number.
-ANNUAL LIMIT: Look for "Annual Limit", "Policy Maximum", "Annual Maximum". Return as plain number or null.
-CARRIER BRAND NAME: Use consumer-facing brand name, not underwriter (see mappings above).
-MATH ORDER: Look for a worked example showing order of operations.
-  reimbursement-first: percentage applied first, then deductible subtracted
-  deductible-first: deductible subtracted first, then percentage applied
-  null if cannot determine
-FILING DEADLINE: e.g., "90 days from date of service" or null.
-POLICY PET NAME: pet name from declarations page or null.
-POLICY EFFECTIVE DATE: return in YYYY-MM-DD format or null.
-
-STEP C — DETERMINE COVERAGE FOR EACH LINE ITEM:
-Apply these rules in ORDER:
-
-RULE 1 — EXAM FEE RULE: Visit type is "${stage1Result.visitType}".
-- WELLNESS_VISIT: any exam/office visit fee is EXCLUDED regardless of policy declarations
-- SICK_INJURY_VISIT: exam fee follows carrier-specific rules (RULE 3)
-
-RULE 2 — WELLNESS/PREVENTIVE: Items categorized "vaccination" or "preventive" are EXCLUDED.
-
-RULE 3 — CARRIER-SPECIFIC RULES: Use ONLY exclusions from the attached policy documents.
-- Healthy Paws: exam fees always excluded (blanket exclusion)
-- Pumpkin: exam fees covered for sick/injury visits
-- Apply all other carrier-specific exclusions found in uploaded documents only
-
-RULE 4 — PRE-OP/POST-OP INHERITANCE: Pre/post-op items inherit coverage from the associated surgery.
-
-RULE 5 — RADIOLOGY/SPECIALIST READS: Radiologist reads of diagnostic images are DIAGNOSTIC TESTS, not exam fees. Mark as COVERED.
-
-RULE 6 — DEFAULT: Pet insurance covers on an EXCLUSION basis. Medically necessary treatment IS covered unless explicitly excluded. Default to COVERED, not UNKNOWN.
-
-RULE 7 — PRESCRIPTION DIET: Covered when prescribed to treat a specific covered condition.
-
-RULE 8 — E-COLLAR: Covered as a medical supply when provided as part of post-surgical care for a covered procedure.
-
-For each line item from Stage 1:
-- "covered": true | false | null
-- "reason": "Covered — [category]" or "Excluded — [reason]" or "Uncertain — [reason]"
-- "sourceQuote": REQUIRED for BOTH covered AND excluded items. Extract the verbatim policy language (1-2 sentences, word-for-word from the policy document) that justifies the coverage decision. For COVERED items, find the insuring agreement, covered benefits, or benefit provisions describing this service type (e.g., "Veterinary Treatment means: b. Laboratory and diagnostic tests"). For EXCLUDED items, find the exclusion clause. Return null ONLY if no policy was uploaded. NEVER return "" when a policy is present — the insuring agreement always describes what is covered.
-- "section": policy section or null
-
-STEP D — CALCULATE REIMBURSEMENT:
-- totalCovered = sum of covered items
-- totalExcluded = sum of excluded items
-- maxReimbursement = totalCovered x (reimbursementRate / 100)
-- maxReimbursement must be a positive number when totalCovered > 0
-
-STEP E — FILING RECOMMENDATION:
-- shouldFile: true if totalCovered > 0 (even sub-deductible claims build deductible progress)
-- shouldFile: false ONLY if totalCovered === 0
-- shouldFileReason: explain the decision
-
-Return ONLY this JSON object:
-{
-  "completeness": "full" | "partial" | "bill_only",
-  "missingInfo": [],
-  "missingDocumentHint": null,
-  "policyInfo": {
-    "carrier": string | null,
-    "reimbursementRate": number | null,
-    "deductible": number | null,
-    "annualLimit": number | null,
-    "mathOrder": "reimbursement-first" | "deductible-first" | null,
-    "filingDeadline": string | null,
-    "policyPetName": string | null,
-    "policyEffectiveDate": string | null
-  },
-  "analysis": {
-    "visitType": string,
-    "lineItems": [
-      {
-        "description": string,
-        "amount": number,
-        "covered": true | false | null,
-        "reason": string,
-        "sourceQuote": string | null,
-        "section": string | null
-      }
-    ],
-    "totalBill": number,
-    "totalCovered": number,
-    "totalExcluded": number,
-    "maxReimbursement": number,
-    "shouldFile": boolean,
-    "shouldFileReason": string,
-    "exclusionWarnings": [],
-    "eligibilityWarnings": []
-  }
-}
-
-IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an integer (80 not 0.80). Return ONLY the JSON object.`
-
-      console.log(`${tag} Stage 2: Running coverage analysis...`, {
-        policyFiles: policyFileContents.length,
-        visitType: stage1Result.visitType
-      })
-
-      const stage2Completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: 'You are a pet insurance coverage analyst. Provide accurate analysis. Always return valid JSON.' },
-          { role: 'user', content: [{ type: 'text', text: coveragePrompt }, ...policyFileContents] }
-        ],
-        temperature: 0.1,
-        max_tokens: 4000,
-        response_format: { type: 'json_object' }
-      })
-
-      const stage2Content = stage2Completion.choices?.[0]?.message?.content ?? ''
-      let stage2Result = null
-      try {
-        let c = stage2Content.trim()
-        if (c.startsWith('```')) c = c.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```\s*$/, '')
-        stage2Result = JSON.parse(c)
-      } catch {
-        const m = stage2Content.match(/\{[\s\S]*\}/)
-        if (m) { try { stage2Result = JSON.parse(m[0]) } catch {} }
-      }
-
-      if (!stage2Result) {
-        console.error(`${tag} Stage 2 failed to parse:`, stage2Content.substring(0, 500))
-        return res.status(422).json({ error: 'Failed to analyze coverage. Please try again.' })
-      }
-
-      console.log(`${tag} Stage 2 complete:`, {
-        completeness: stage2Result.completeness,
-        carrier: stage2Result.policyInfo?.carrier,
-        totalCovered: stage2Result.analysis?.totalCovered,
-        lineItems: stage2Result.analysis?.lineItems?.length
-      })
-
-      // STEP 6 — Recalculate reimbursement server-side (same logic as /api/analyze-claim)
-      // Prefer saved policy parameters over AI-extracted values (AI can misread policy docs)
-      const s2a = stage2Result.analysis || {}
-      const s2p = stage2Result.policyInfo || {}
-
-      // ── Co-insurance safety net (mobile route) ──
-      if (s2p.reimbursementRate != null && s2p.rateIsCoinsurance === true) {
-        const raw = s2p.reimbursementRate
-        if (raw <= 30) {
-          s2p.reimbursementRate = 100 - raw
-          console.log(`${tag} Co-insurance safety net: converted ${raw}% co-insurance → ${s2p.reimbursementRate}% reimbursement rate`)
-        } else {
-          console.log(`${tag} Co-insurance detected: ${raw}% reimbursement rate (already converted by GPT)`)
-        }
-      }
-
-      const totalCovered = s2a.totalCovered || 0
-      const rateRaw = (savedPolicy?.reimbursement_rate ?? s2p.reimbursementRate) || null
-      const deductible = (savedPolicy?.deductible ?? s2p.deductible) || 0
-      const mathOrder = (savedPolicy?.math_order ?? s2p.mathOrder) || 'reimbursement-first'
-
-      let maxReimbursement = s2a.maxReimbursement || 0
-      if (totalCovered > 0 && rateRaw) {
-        const rate = rateRaw / 100
-        maxReimbursement = mathOrder === 'deductible-first'
-          ? (totalCovered - deductible) * rate
-          : (totalCovered * rate) - deductible
-        maxReimbursement = Math.round(Math.max(0, maxReimbursement) * 100) / 100
-      }
-
-      // STEP 7 — Map to mobile response shape
-      const shouldFile = s2a.shouldFile ?? false
-      const recommendation = shouldFile ? 'file' : 'skip'
-
-      const reimbursementIfDeductibleMet = (totalCovered > 0 && rateRaw)
-        ? Math.round(totalCovered * (rateRaw / 100) * 100) / 100
-        : 0
-
-      const mobileResponse = {
-        estimated_reimbursement: maxReimbursement,
-        total_bill: s2a.totalBill || stage1Result.totalBill || 0,
-        recommendation,
-        line_items: (s2a.lineItems || []).map(item => ({
-          description: item.description,
-          amount: item.amount,
-          covered: item.covered ?? false,
-          reason: item.reason || '',
-          source_quote: item.sourceQuote || '',
-          policy_section: item.sourceQuote || item.section || null,
-        })),
-        // Stage 1 fields ONLY — never backfill clinic/date from policy or Stage 2
-        visit_type: stage1Result.visitType || null,
-        clinic_name: stage1Result.clinicInfo?.name || null,   // Stage 1 only — null is OK
-        visit_date: stage1Result.clinicInfo?.date || null,     // Stage 1 only — null is OK
-        pet_name: stage1Result.petInfo?.name || savedPolicy?.pet_name || null,
-        // Stage 2 / policy fields
-        confidence: stage2Result.completeness === 'full' ? 'High'
-          : stage2Result.completeness === 'partial' ? 'Medium' : 'Low',
-        eligibility_warnings: s2a.eligibilityWarnings || [],
-        carrier: savedPolicy?.carrier || s2p.carrier || null,
-        deductible_total: deductible,
-        deductible_used: 0,
-        reimbursement_rate: rateRaw,
-        covered_total: totalCovered,
-        excluded_total: s2a.totalExcluded || 0,
-        estimated_reimbursement_if_deductible_met: reimbursementIfDeductibleMet,
-        estimated_reimbursement_actual: maxReimbursement,
-        should_file: shouldFile,
-        should_file_reason: s2a.shouldFileReason || '',
-        filing_deadline_days: savedPolicy?.filing_deadline_days
-          || (s2p.filingDeadline ? parseInt(s2p.filingDeadline) : null) || null,
-        math_order: mathOrder,
-      }
+      // STEP 3 — Run Stage 1 + Stage 2 via shared helpers
+      const stage1Result = await pciqRunStage1({ openai, tag, vetBillFileContents, vetBillTextBackup })
+      const mobileResponse = await pciqRunStage2({ openai, tag, stage1Result, policyFileContents, policyTextBackup, savedPolicy })
 
       console.log(`${tag} ✅ Complete:`, {
         total_bill: mobileResponse.total_bill,
