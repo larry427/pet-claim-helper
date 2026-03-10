@@ -3643,6 +3643,24 @@ Return ONLY this JSON object:
       if (!stage1Result.totalBill || stage1Result.totalBill === 0) {
         console.warn(`${tag} ⚠ Stage 1 totalBill is null or 0`)
       }
+
+      // ── Filter out phantom/summary line items ──
+      const phantomPatterns = /^(invoice complete|total|balance due|amount due|subtotal|grand total|payment received|amount paid|change due|previous balance|account balance|statement total)$/i
+      if (stage1Result.lineItems && Array.isArray(stage1Result.lineItems)) {
+        const before = stage1Result.lineItems.length
+        stage1Result.lineItems = stage1Result.lineItems.filter(item => {
+          const desc = (item.description || '').trim()
+          if (phantomPatterns.test(desc)) {
+            console.log(`${tag} Filtered phantom line item: "${desc}" ($${item.amount})`)
+            return false
+          }
+          return true
+        })
+        if (stage1Result.lineItems.length < before) {
+          console.log(`${tag} Removed ${before - stage1Result.lineItems.length} phantom line item(s)`)
+        }
+      }
+
       return stage1Result
   }
 
@@ -3663,7 +3681,7 @@ SAVED POLICY PARAMETERS (from user's account — use these as ground truth when 
   Exclusions: ${(savedPolicy.exclusions || []).join(', ') || 'None listed'}
   Policy Notes: ${savedPolicy.policy_text || 'None'}
 
-When saved policy parameters conflict with policy documents, prefer the attached documents but fall back to these saved values if the document is missing or unclear.
+IMPORTANT: These saved policy parameters are the user's VERIFIED values. ALWAYS use these for deductible, reimbursement rate, annual limit, and math order — even if the attached policy documents show different numbers (the PDF may show a different pet, plan tier, or outdated values). Only use PDF-extracted values for fields marked "Unknown" above.
 `
       }
 
@@ -3854,7 +3872,17 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
       const totalCovered = s2a.totalCovered || 0
       const rateRaw = (savedPolicy?.reimbursement_rate ?? s2p.reimbursementRate) || null
       const deductible = (savedPolicy?.deductible ?? s2p.deductible) || 0
+      const annualLimit = (savedPolicy?.annual_limit ?? s2p.annualLimit) || null
       const mathOrder = (savedPolicy?.math_order ?? s2p.mathOrder) || 'reimbursement-first'
+
+      // ── Diagnostic: show where each policy value came from ──
+      console.log(`${tag} Policy value sources:`, {
+        rate: savedPolicy?.reimbursement_rate != null ? `${savedPolicy.reimbursement_rate}% (DB)` : `${s2p.reimbursementRate}% (GPT)`,
+        deductible: savedPolicy?.deductible != null ? `$${savedPolicy.deductible} (DB)` : `$${s2p.deductible} (GPT)`,
+        annualLimit: savedPolicy?.annual_limit != null ? `$${savedPolicy.annual_limit} (DB)` : `$${s2p.annualLimit} (GPT)`,
+        mathOrder: savedPolicy?.math_order ? `${savedPolicy.math_order} (DB)` : `${s2p.mathOrder} (GPT)`,
+        savedPolicyPresent: !!savedPolicy,
+      })
 
       let maxReimbursement = s2a.maxReimbursement || 0
       if (totalCovered > 0 && rateRaw) {
@@ -3872,6 +3900,21 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
       const reimbursementIfDeductibleMet = (totalCovered > 0 && rateRaw)
         ? Math.round(totalCovered * (rateRaw / 100) * 100) / 100
         : 0
+
+      // ── Date eligibility check: service date vs policy effective date ──
+      let dateEligibilityWarning = null
+      const visitDate = stage1Result.clinicInfo?.date || null
+      const policyEffectiveDate = savedPolicy?.effective_date || null
+      if (visitDate && policyEffectiveDate) {
+        const visitD = new Date(visitDate)
+        const effectiveD = new Date(policyEffectiveDate)
+        if (!isNaN(visitD.getTime()) && !isNaN(effectiveD.getTime()) && visitD < effectiveD) {
+          const fmtVisit = visitD.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
+          const fmtEffective = effectiveD.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
+          dateEligibilityWarning = `Warning: This vet bill's service date (${fmtVisit}) is before your policy effective date (${fmtEffective}). This claim would not be eligible for coverage.`
+          console.log(`${tag} ⚠ Date eligibility: visit ${visitDate} < policy effective ${policyEffectiveDate}`)
+        }
+      }
 
       const mobileResponse = {
         estimated_reimbursement: maxReimbursement,
@@ -3894,6 +3937,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         confidence: stage2Result.completeness === 'full' ? 'High'
           : stage2Result.completeness === 'partial' ? 'Medium' : 'Low',
         eligibility_warnings: s2a.eligibilityWarnings || [],
+        date_eligibility_warning: dateEligibilityWarning,
         carrier: savedPolicy?.carrier || s2p.carrier || null,
         deductible_total: deductible,
         deductible_used: 0,
@@ -3907,6 +3951,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         filing_deadline_days: savedPolicy?.filing_deadline_days
           || (s2p.filingDeadline ? parseInt(s2p.filingDeadline) : null) || null,
         math_order: mathOrder,
+        annual_limit: annualLimit,
       }
 
       return mobileResponse
