@@ -5602,6 +5602,156 @@ RULES:
     }
   })
 
+  // ─── Email-In Webhook (Resend Inbound) ─────────────────────────────────────
+  // Receives inbound emails at *@docs.petclaimiq.com, downloads attachments
+  // via the Resend API, and stores them in Supabase Storage + pciq_email_documents.
+  app.post('/api/webhook/email-in', async (req, res) => {
+    const tag = '[email-in]'
+    try {
+      const payload = req.body
+      if (!payload || payload.type !== 'email.received') {
+        console.log(`${tag} Ignored non-email event: ${payload?.type || 'empty'}`)
+        return res.status(200).json({ ok: true })
+      }
+
+      const { email_id, from: fromAddr, to: toAddrs, subject, attachments } = payload.data || {}
+      console.log(`${tag} Received email ${email_id} from="${fromAddr}" to=${JSON.stringify(toAddrs)} subject="${subject}" attachments=${attachments?.length || 0}`)
+
+      // ── Extract token from recipient address ──
+      // Format: {token}@docs.petclaimiq.com
+      const recipientEmail = (toAddrs || []).find(addr => addr.includes('@docs.petclaimiq.com'))
+      if (!recipientEmail) {
+        console.log(`${tag} No @docs.petclaimiq.com recipient found, ignoring`)
+        return res.status(200).json({ ok: true })
+      }
+      const token = recipientEmail.split('@')[0].toLowerCase()
+      console.log(`${tag} Token: ${token}`)
+
+      // ── Look up user by email_token ──
+      const { data: userData, error: userErr } = await supabase
+        .from('pciq_users')
+        .select('id, email')
+        .eq('email_token', token)
+        .single()
+
+      if (userErr || !userData) {
+        console.log(`${tag} No user found for token "${token}", ignoring`)
+        return res.status(200).json({ ok: true })
+      }
+      const userId = userData.id
+      console.log(`${tag} Matched user: ${userData.email} (${userId})`)
+
+      // ── Filter attachments: only docs over 50KB ──
+      const validExts = ['.pdf', '.jpg', '.jpeg', '.png', '.heic', '.tiff']
+      const validMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic', 'image/tiff']
+      const docAttachments = (attachments || []).filter(att => {
+        const fname = (att.filename || '').toLowerCase()
+        const mime = (att.content_type || '').toLowerCase()
+        const ext = fname.substring(fname.lastIndexOf('.'))
+        // Skip tiny inline images (signatures etc), calendar files, text files
+        if (fname.endsWith('.ics') || fname.endsWith('.txt') || fname.endsWith('.html')) return false
+        return validExts.includes(ext) || validMimes.some(m => mime.startsWith(m.split('/')[0]))
+      })
+
+      if (docAttachments.length === 0) {
+        console.log(`${tag} No valid document attachments found, ignoring`)
+        return res.status(200).json({ ok: true, message: 'No document attachments' })
+      }
+      console.log(`${tag} Processing ${docAttachments.length} document attachment(s)`)
+
+      // ── Download each attachment via Resend API and store ──
+      const stored = []
+      for (const att of docAttachments) {
+        try {
+          // Fetch attachment content via Resend API
+          const attRes = await fetch(`https://api.resend.com/emails/receiving/${email_id}/attachments`, {
+            headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}` }
+          })
+          if (!attRes.ok) {
+            console.error(`${tag} Failed to list attachments: ${attRes.status}`)
+            continue
+          }
+          const attList = await attRes.json()
+          const attMeta = (attList.data || []).find(a => a.id === att.id)
+          if (!attMeta || !attMeta.download_url) {
+            console.error(`${tag} No download_url for attachment ${att.id} (${att.filename})`)
+            continue
+          }
+
+          // Download the actual file
+          const fileRes = await fetch(attMeta.download_url)
+          if (!fileRes.ok) {
+            console.error(`${tag} Failed to download attachment: ${fileRes.status}`)
+            continue
+          }
+          const fileBuffer = Buffer.from(await fileRes.arrayBuffer())
+          const fileSizeBytes = fileBuffer.length
+
+          // Skip files under 50KB (likely signatures/inline images)
+          if (fileSizeBytes < 50 * 1024) {
+            console.log(`${tag} Skipping ${att.filename} — too small (${fileSizeBytes} bytes)`)
+            continue
+          }
+
+          // Upload to Supabase Storage
+          const timestamp = Date.now()
+          const safeFilename = (att.filename || 'attachment').replace(/[^a-zA-Z0-9._-]/g, '_')
+          const storagePath = `${userId}/${timestamp}_${safeFilename}`
+
+          const { error: uploadErr } = await supabase.storage
+            .from('policy-documents')
+            .upload(storagePath, fileBuffer, {
+              contentType: att.content_type || 'application/octet-stream',
+              upsert: false,
+            })
+
+          if (uploadErr) {
+            console.error(`${tag} Storage upload failed for ${att.filename}:`, uploadErr.message)
+            continue
+          }
+
+          // Get public URL
+          const { data: urlData } = supabase.storage
+            .from('policy-documents')
+            .getPublicUrl(storagePath)
+          const fileUrl = urlData?.publicUrl || storagePath
+
+          // Insert record into pciq_email_documents
+          const { error: insertErr } = await supabase.from('pciq_email_documents').insert({
+            user_id: userId,
+            email_from: fromAddr || null,
+            email_subject: subject || null,
+            filename: att.filename || null,
+            file_url: fileUrl,
+            file_size_bytes: fileSizeBytes,
+            mime_type: att.content_type || null,
+            document_type: null,
+            classification_status: 'pending',
+          })
+
+          if (insertErr) {
+            console.error(`${tag} DB insert failed for ${att.filename}:`, insertErr.message)
+            continue
+          }
+
+          stored.push(att.filename)
+          console.log(`${tag} ✅ Stored: ${att.filename} (${fileSizeBytes} bytes) → ${storagePath}`)
+
+        } catch (attError) {
+          console.error(`${tag} Error processing attachment ${att.filename}:`, attError.message)
+        }
+      }
+
+      console.log(`${tag} Done: stored ${stored.length}/${docAttachments.length} documents for ${userData.email}`)
+      return res.status(200).json({ ok: true, stored: stored.length })
+
+    } catch (error) {
+      console.error(`${tag} Webhook error:`, error.message)
+      // Always return 200 to prevent Resend retries
+      return res.status(200).json({ ok: false, error: error.message })
+    }
+  })
+
   // ─── Admin Dashboard ──────────────────────────────────────────────────────
   app.get('/admin', async (req, res) => {
     const tag = '[admin]'
