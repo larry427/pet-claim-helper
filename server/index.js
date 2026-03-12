@@ -5602,6 +5602,223 @@ RULES:
     }
   })
 
+  // ─── Admin Dashboard ──────────────────────────────────────────────────────
+  app.get('/admin', async (req, res) => {
+    const tag = '[admin]'
+    if (req.query.key !== 'PCIQ2026') {
+      return res.status(401).send('Unauthorized')
+    }
+
+    try {
+      // ── Fetch all data in parallel ──
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+      const [analysesRes, policiesRes, usersRes, appealsRes] = await Promise.all([
+        supabase.from('pciq_analyses')
+          .select('id, user_id, policy_id, clinic_name, service_date, total_bill, estimated_reimbursement, line_items, created_at')
+          .order('created_at', { ascending: false })
+          .limit(50),
+        supabase.from('pciq_policies')
+          .select('id, user_id, carrier, pet_name, species, breed, deductible, reimbursement_rate, annual_limit, created_at')
+          .order('created_at', { ascending: false })
+          .limit(50),
+        supabase.from('pciq_users')
+          .select('id, email, free_analyses_remaining, is_subscribed, created_at'),
+        supabase.from('pciq_appeals')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(20),
+      ])
+
+      const analyses = analysesRes.data || []
+      const policies = policiesRes.data || []
+      const users = usersRes.data || []
+      const appeals = appealsRes.data || []
+
+      // Build user email lookup
+      const userMap = {}
+      users.forEach(u => { userMap[u.id] = u.email })
+
+      // Build policy lookup for carrier/pet on analyses
+      const policyMap = {}
+      policies.forEach(p => { policyMap[p.id] = p })
+
+      // ── User activity stats (last 30 days) ──
+      const userActivity = {}
+      users.forEach(u => {
+        userActivity[u.id] = { email: u.email, analyses: 0, policies: 0, lastActive: u.created_at }
+      })
+      analyses.forEach(a => {
+        if (!userActivity[a.user_id]) return
+        userActivity[a.user_id].analyses++
+        if (a.created_at > userActivity[a.user_id].lastActive) userActivity[a.user_id].lastActive = a.created_at
+      })
+      policies.forEach(p => {
+        if (!userActivity[p.user_id]) return
+        userActivity[p.user_id].policies++
+        if (p.created_at > userActivity[p.user_id].lastActive) userActivity[p.user_id].lastActive = p.created_at
+      })
+
+      const activeUsers = Object.values(userActivity)
+        .filter(u => u.lastActive >= thirtyDaysAgo)
+        .sort((a, b) => b.lastActive.localeCompare(a.lastActive))
+
+      // ── Helper functions ──
+      const esc = s => String(s ?? '—').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      const fmt = n => n != null ? '$' + Number(n).toFixed(2) : '—'
+      const fmtDate = d => {
+        if (!d) return '—'
+        const dt = new Date(d)
+        return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+      }
+
+      // ── Build analyses rows ──
+      const analysisRows = analyses.map(a => {
+        const li = a.line_items || {}
+        const email = userMap[a.user_id] || '—'
+        const petName = li.pet_name || policyMap[a.policy_id]?.pet_name || '—'
+        const carrier = li.carrier || policyMap[a.policy_id]?.carrier || '—'
+        const visitType = li.visit_type || '—'
+        const covered = li.covered_total
+        const excluded = li.excluded_total
+        const confidence = li.confidence || '—'
+        const reimb = a.estimated_reimbursement
+        return `<tr>
+          <td>${esc(fmtDate(a.created_at))}</td>
+          <td>${esc(email)}</td>
+          <td>${esc(petName)}</td>
+          <td>${esc(carrier)}</td>
+          <td>${esc(visitType)}</td>
+          <td>${fmt(a.total_bill)}</td>
+          <td class="green">${fmt(covered)}</td>
+          <td class="red">${fmt(excluded)}</td>
+          <td class="green">${fmt(reimb)}</td>
+          <td>${esc(confidence)}</td>
+        </tr>`
+      }).join('\n')
+
+      // ── Build policy rows ──
+      const policyRows = policies.map(p => {
+        const email = userMap[p.user_id] || '—'
+        return `<tr>
+          <td>${esc(fmtDate(p.created_at))}</td>
+          <td>${esc(email)}</td>
+          <td>${esc(p.carrier)}</td>
+          <td>${esc(p.pet_name)}</td>
+          <td>${esc(p.species)}</td>
+          <td>${esc(p.breed)}</td>
+          <td>${fmt(p.deductible)}</td>
+          <td>${p.reimbursement_rate != null ? p.reimbursement_rate + '%' : '—'}</td>
+          <td>${p.annual_limit != null ? fmt(p.annual_limit) : 'Unlimited'}</td>
+        </tr>`
+      }).join('\n')
+
+      // ── Build user activity rows ──
+      const userRows = activeUsers.map(u => {
+        return `<tr>
+          <td>${esc(u.email)}</td>
+          <td>${esc(fmtDate(u.lastActive))}</td>
+          <td>${u.analyses}</td>
+          <td>${u.policies}</td>
+        </tr>`
+      }).join('\n')
+
+      // ── Summary stats ──
+      const totalAnalyses = analyses.length
+      const totalPolicies = policies.length
+      const totalUsers = users.length
+      const recentAnalyses = analyses.filter(a => a.created_at >= thirtyDaysAgo).length
+
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pet ClaimIQ — Admin Dashboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a1a; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  nav { background: #111128; padding: 12px 24px; display: flex; align-items: center; gap: 24px; border-bottom: 1px solid #2a2a4a; position: sticky; top: 0; z-index: 10; }
+  nav .brand { font-size: 16px; font-weight: 700; color: #4ade80; }
+  nav a { color: #94a3b8; text-decoration: none; font-size: 13px; }
+  nav a:hover { color: #4ade80; }
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+  .stats { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+  .stat-card { background: #111128; border-radius: 8px; padding: 16px 24px; border: 1px solid #2a2a4a; min-width: 160px; }
+  .stat-card .num { font-size: 28px; font-weight: 700; color: #4ade80; font-family: 'SF Mono', 'Fira Code', monospace; }
+  .stat-card .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+  h2 { font-size: 16px; font-weight: 700; color: #4ade80; margin-bottom: 12px; margin-top: 32px; text-transform: uppercase; letter-spacing: 1px; }
+  .table-wrap { overflow-x: auto; margin-bottom: 32px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: 'SF Mono', 'Fira Code', monospace; }
+  th { text-align: left; padding: 8px 12px; background: #111128; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #2a2a4a; position: sticky; top: 48px; }
+  td { padding: 7px 12px; border-bottom: 1px solid #1a1a3a; white-space: nowrap; }
+  tr:nth-child(even) td { background: #0f0f24; }
+  tr:hover td { background: #1a1a3a; }
+  .green { color: #4ade80; }
+  .red { color: #f87171; }
+  .muted { color: #64748b; }
+  #sections { scroll-margin-top: 60px; }
+  h2[id] { scroll-margin-top: 60px; }
+</style>
+</head>
+<body>
+<nav>
+  <span class="brand">🐾 Pet ClaimIQ Admin</span>
+  <a href="#stats">Stats</a>
+  <a href="#analyses">Analyses</a>
+  <a href="#policies">Policies</a>
+  <a href="#users">Users</a>
+</nav>
+<div class="container">
+  <div class="stats" id="stats">
+    <div class="stat-card"><div class="num">${totalUsers}</div><div class="label">Total Users</div></div>
+    <div class="stat-card"><div class="num">${totalAnalyses}</div><div class="label">Analyses (last 50)</div></div>
+    <div class="stat-card"><div class="num">${recentAnalyses}</div><div class="label">Analyses (30d)</div></div>
+    <div class="stat-card"><div class="num">${totalPolicies}</div><div class="label">Policies Uploaded</div></div>
+    <div class="stat-card"><div class="num">${activeUsers.length}</div><div class="label">Active Users (30d)</div></div>
+  </div>
+
+  <h2 id="analyses">Recent Analyses</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th>Date</th><th>User</th><th>Pet</th><th>Carrier</th><th>Visit Type</th><th>Total Bill</th><th>Covered</th><th>Excluded</th><th>Reimb Est</th><th>Confidence</th>
+    </tr></thead>
+    <tbody>${analysisRows || '<tr><td colspan="10" class="muted">No analyses yet</td></tr>'}</tbody>
+  </table>
+  </div>
+
+  <h2 id="policies">Policy Uploads</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th>Date</th><th>User</th><th>Carrier</th><th>Pet</th><th>Species</th><th>Breed</th><th>Deductible</th><th>Reimb Rate</th><th>Annual Limit</th>
+    </tr></thead>
+    <tbody>${policyRows || '<tr><td colspan="9" class="muted">No policies yet</td></tr>'}</tbody>
+  </table>
+  </div>
+
+  <h2 id="users">User Activity (Last 30 Days)</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th>Email</th><th>Last Active</th><th>Analyses</th><th>Policies</th>
+    </tr></thead>
+    <tbody>${userRows || '<tr><td colspan="4" class="muted">No active users</td></tr>'}</tbody>
+  </table>
+  </div>
+</div>
+</body>
+</html>`
+
+      res.setHeader('Content-Type', 'text/html')
+      return res.send(html)
+
+    } catch (error) {
+      console.error(`${tag} Error:`, error)
+      return res.status(500).send('Dashboard error: ' + error.message)
+    }
+  })
+
   app.listen(port, () => {
     console.log(`[server] listening on http://localhost:${port}`)
   })
