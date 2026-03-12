@@ -2766,11 +2766,31 @@ Some line items do not have independent coverage status — their coverage depen
 
 9. Common contextual clues for spay/neuter pre-op: young pet age (under 1-2 years), "pre-op blood panel" as only item, no illness or injury noted on the bill, scheduled surgery appointment the following day.
 
-10. RADIOLOGY AND SPECIALIST READS: Line items for radiologist interpretation, radiologist consultation, or specialist reads of diagnostic images (X-rays, ultrasounds, MRIs, CT scans) are part of the DIAGNOSTIC workup, NOT veterinary examination fees. These should be classified under diagnostic tests (e.g., Healthy Paws Section V.31.b) and marked as COVERED. Do not confuse the word "consultation" in a radiology context with a veterinary examination/consultation fee. Veterinary examination fees refer to the physical exam performed by the treating veterinarian, not specialist interpretation of diagnostic results.
+SURGERY VISIT CLASSIFICATION RULES:
+When the visit_type is "surgery" or the bill clearly describes a surgical procedure:
 
-11. CARRIER-SPECIFIC EXCLUSIONS: Do NOT apply carrier-specific exclusions universally. Each analysis must use ONLY the exclusions explicitly listed in the uploaded policy documents. For example, Healthy Paws excludes "veterinary examination fees" but Pumpkin explicitly covers examinations under Accident Benefits. If the policy's covered benefits section lists examinations, consultations, or similar terms, exam fees are COVERED — not excluded. Always check the uploaded policy's own exclusions list and covered benefits list independently. Never assume an exclusion exists unless you can cite the specific section and language from the provided documents.
+10. The following items are ALWAYS COVERED on surgery visits unless the SURGERY ITSELF is excluded (e.g., spay/neuter, cosmetic, elective, pre-existing condition). These are standard components of any surgical procedure and are never independently "not medically necessary" when the surgery is covered:
+    - General Anesthesia / Anesthesia
+    - Surgical Monitoring / Anesthesia Monitoring / Vital Signs Monitoring
+    - IV Catheter / IV Fluids / Fluid Therapy
+    - Surgical Pack / Surgical Supplies / Sterile Supplies
+    - Pain Management / Post-Op Pain Medication / Injectable Pain Medication
+    - Sutures / Wound Closure
+    - E-Collar / Cone
+    - Pre-Surgical Bloodwork (when associated with a covered surgery)
+    - Hospital/Boarding fees on the day of surgery
 
-12. VISIT TYPE CLASSIFICATION (apply before all exam fee decisions):
+11. Do NOT exclude any of the above items with reasons like "not medically necessary," "included in surgery fee," "bundled with procedure," or "routine monitoring." These are individually billable covered services when the underlying surgery is covered.
+
+12. If the surgery itself is excluded (spay/neuter, elective, cosmetic, pre-existing condition), then ALL associated surgical items (anesthesia, monitoring, supplies, etc.) are ALSO excluded — they inherit the exclusion from the procedure per the contextual coverage rules above.
+
+13. For surgery visits, the exam/consultation fee follows the carrier's specific rule (some carriers cover it, some exclude it). Do not change how exam fees are handled — only the surgical support items listed above.
+
+14. RADIOLOGY AND SPECIALIST READS: Line items for radiologist interpretation, radiologist consultation, or specialist reads of diagnostic images (X-rays, ultrasounds, MRIs, CT scans) are part of the DIAGNOSTIC workup, NOT veterinary examination fees. These should be classified under diagnostic tests (e.g., Healthy Paws Section V.31.b) and marked as COVERED. Do not confuse the word "consultation" in a radiology context with a veterinary examination/consultation fee. Veterinary examination fees refer to the physical exam performed by the treating veterinarian, not specialist interpretation of diagnostic results.
+
+15. CARRIER-SPECIFIC EXCLUSIONS: Do NOT apply carrier-specific exclusions universally. Each analysis must use ONLY the exclusions explicitly listed in the uploaded policy documents. For example, Healthy Paws excludes "veterinary examination fees" but Pumpkin explicitly covers examinations under Accident Benefits. If the policy's covered benefits section lists examinations, consultations, or similar terms, exam fees are COVERED — not excluded. Always check the uploaded policy's own exclusions list and covered benefits list independently. Never assume an exclusion exists unless you can cite the specific section and language from the provided documents.
+
+16. VISIT TYPE CLASSIFICATION (apply before all exam fee decisions):
 Before evaluating whether an exam fee is covered, classify the visit as either a WELLNESS VISIT or a SICK/INJURY VISIT based on the overall composition of the bill.
 A visit is a WELLNESS VISIT if the majority of line items are routine or preventive in nature, including but not limited to: vaccinations, microchipping, fecal/parasite screening, heartworm testing, dental cleanings, nail trims, or any combination of routine care items explicitly excluded under the policy.
 A visit is a SICK/INJURY VISIT if the primary reason for the visit is to diagnose or treat an illness or injury — meaning most line items are diagnostic tests, medications, treatments, or procedures addressing a specific medical condition.
