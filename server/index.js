@@ -5189,6 +5189,8 @@ ${originalSummary || 'No covered items.'}
 ORIGINAL PCIQ PREDICTIONS — EXCLUDED ITEMS (ignore these):
 ${excludedSummary || 'None.'}
 
+Also extract the CARRIER NAME from the EOB — the insurance company that issued this EOB. Look for the company name in the header, letterhead, or "From" section. Use the consumer-facing brand name (e.g., "Pumpkin" not "United States Fire Insurance Company"). Return as "eob_carrier".
+
 Also extract appeals contact information from the EOB. Most EOBs include an appeals section with an address, phone number, email, deadline, and/or claim reference number. Extract whatever is present — use null for any field not found. NEVER guess or fabricate contact info.
 
 Also extract the insurer's own math from the EOB:
@@ -5218,7 +5220,8 @@ Return ONLY a JSON object (no markdown, no commentary):
   "appeals_address": "<mailing address for appeals, or null if not found>",
   "appeals_phone": "<phone number for appeals, or null if not found>",
   "appeals_deadline": "<deadline text e.g. 'within 30 days of this notice', or null if not found>",
-  "appeals_reference": "<claim/reference number to cite in appeal, or null if not found>"
+  "appeals_reference": "<claim/reference number to cite in appeal, or null if not found>",
+  "eob_carrier": "<insurance company name from the EOB, or null if not found>"
 }
 
 Rules:
@@ -5267,6 +5270,28 @@ Rules:
       console.log(`${tag} 🔍 parsed.actual_paid_by_insurer = ${JSON.stringify(parsed.actual_paid_by_insurer)} (type: ${typeof parsed.actual_paid_by_insurer})`)
       console.log(`${tag} 🔍 parsed.discrepancy = ${JSON.stringify(parsed.discrepancy)}`)
       console.log(`${tag} 🔍 parsed.status = ${JSON.stringify(parsed.status)}`)
+
+      // ── Carrier mismatch detection ──
+      // Compare the carrier on the EOB against the policy carrier from the DB
+      const eobCarrier = parsed.eob_carrier || null
+      let policyCarrier = null
+      let carrierMismatchWarning = null
+      if (dbPolicyId) {
+        const { data: policyRow } = await supabase
+          .from('pciq_policies')
+          .select('carrier, policy_number')
+          .eq('id', dbPolicyId)
+          .single()
+        policyCarrier = policyRow?.carrier || null
+      }
+      if (eobCarrier && policyCarrier) {
+        const eobLower = eobCarrier.toLowerCase().trim()
+        const policyLower = policyCarrier.toLowerCase().trim()
+        if (!eobLower.includes(policyLower) && !policyLower.includes(eobLower)) {
+          carrierMismatchWarning = `This EOB is from ${eobCarrier}, but the claim was analyzed against your ${policyCarrier} policy. The appeal letter will reference ${policyCarrier}. If this EOB is from a different carrier, please upload the correct EOB.`
+          console.warn(`${tag} ⚠ CARRIER MISMATCH: EOB carrier="${eobCarrier}" vs policy carrier="${policyCarrier}"`)
+        }
+      }
 
       // Validate and normalize
       const status = parsed.status
@@ -5343,10 +5368,12 @@ Rules:
           appeals_phone: parsed.appeals_phone || null,
           appeals_deadline: parsed.appeals_deadline || null,
           appeals_reference: parsed.appeals_reference || null,
+          eob_carrier: eobCarrier,
+          carrier_mismatch_warning: carrierMismatchWarning,
         })
       }
 
-      return res.json({ status })
+      return res.json({ status, eob_carrier: eobCarrier, carrier_mismatch_warning: carrierMismatchWarning })
 
     } catch (error) {
       console.error(`${tag} Error:`, error)
@@ -5412,11 +5439,12 @@ Rules:
         dbPolicyId = claimRow?.policy_id || null
       }
 
-      // Fetch policy details (reimbursement_rate, deductible, math_order)
+      // Fetch policy details (reimbursement_rate, deductible, math_order, carrier)
+      let dbCarrier = null
       if (dbPolicyId) {
         const { data: policyRow } = await supabase
           .from('pciq_policies')
-          .select('reimbursement_rate, deductible, math_order, policy_number')
+          .select('reimbursement_rate, deductible, math_order, policy_number, carrier')
           .eq('id', dbPolicyId)
           .single()
         if (policyRow) {
@@ -5424,9 +5452,15 @@ Rules:
           policyDeductible = policyRow.deductible ?? null
           policyMathOrder = policyRow.math_order ?? null
           dbPolicyNumber = policyRow.policy_number ?? null
+          dbCarrier = policyRow.carrier ?? null
         }
       }
-      console.log(`${tag} Policy: rate=${policyRate}% deductible=$${policyDeductible} mathOrder=${policyMathOrder}`)
+      // Always use the policy carrier from DB — the client might pass the EOB carrier by mistake
+      if (dbCarrier && carrier && dbCarrier.toLowerCase() !== carrier.toLowerCase()) {
+        console.warn(`${tag} ⚠ Carrier mismatch: req.body="${carrier}" vs policy DB="${dbCarrier}" — using DB carrier`)
+      }
+      const effectiveCarrier = dbCarrier || carrier || null
+      console.log(`${tag} Policy: carrier=${effectiveCarrier} rate=${policyRate}% deductible=$${policyDeductible} mathOrder=${policyMathOrder}`)
 
       // ── Visit date: DB fallback + format to human-readable ──
       if (!visit_date && dbServiceDate) {
@@ -5488,7 +5522,7 @@ Rules:
       const isCoinsuranceFirst =
         policyMathOrder === 'reimbursement_first' ||
         policyMathOrder === 'reimbursement-first' ||
-        (carrier ?? '').toLowerCase().includes('healthy paws')
+        (effectiveCarrier ?? '').toLowerCase().includes('healthy paws')
 
       // Math steps depend on carrier — compute reimbursement server-side
       console.log(`${tag} 🔍 APPEAL: req.body.actual_paid = ${JSON.stringify(actual_paid)} (type: ${typeof actual_paid})`)
@@ -5557,13 +5591,13 @@ Pet: ${pet_name || '[Pet Name]'}
 Date of Service: ${visit_date || '[Date]'}
 Provider: ${clinic_name || '[Clinic]'}
 
-Then "Dear ${carrier || 'Claims'} Claims Department,"
+Then "Dear ${effectiveCarrier || 'Claims'} Claims Department,"
 
 PARAGRAPH 1 — THE DISCREPANCY (2-3 sentences max):
 State that you are writing regarding ${pet_name || 'the pet'}'s visit on ${visit_date || '[date]'} at ${clinic_name || '[clinic]'}. The total bill was $${totalBill.toFixed(2)}. ${excludedItemsList.length > 0
   ? `You acknowledge that ${excludedItemsList.join(', ')} (totaling $${excludedAmt.toFixed(2)}) ${excludedItemsList.length === 1 ? 'is' : 'are'} properly excluded, leaving $${coveredAmt.toFixed(2)} in covered charges.`
   : `All $${coveredAmt.toFixed(2)} in charges are covered under the policy.`}
-Your records indicate ${carrier || 'the insurer'} paid $${eobPaid.toFixed(2)} on this claim. The correct reimbursement is $${computedReimbursement.toFixed(2)}${eobPaid > 0 ? `, leaving $${amountOwed.toFixed(2)} still owed` : ''}.
+Your records indicate ${effectiveCarrier || 'the insurer'} paid $${eobPaid.toFixed(2)} on this claim. The correct reimbursement is $${computedReimbursement.toFixed(2)}${eobPaid > 0 ? `, leaving $${amountOwed.toFixed(2)} still owed` : ''}.
 
 ${eobDisputedItems.length > 0 ? `PARAGRAPH 2 — DISPUTED ITEMS (list each wrongly denied item):
 The following items were wrongly denied or underpaid:
