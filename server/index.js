@@ -25,7 +25,7 @@ import { getMissingRequiredFields, getRequiredFieldsForInsurer } from './lib/cla
 import { formatPhoneToE164 } from './utils/phoneUtils.js'
 import { Jimp } from 'jimp'
 import rateLimit from 'express-rate-limit'
-import { Webhook } from 'svix'
+import crypto from 'crypto'
 
 // Test Jimp availability at startup
 try {
@@ -6002,18 +6002,46 @@ Return JSON only, no markdown:
   app.post('/api/webhook/email-in', async (req, res) => {
     const tag = '[email-in]'
 
-    // ── Svix / Resend webhook signature verification ──
+    // ── Resend webhook signature verification (Svix HMAC-SHA256) ──
     const webhookSecret = process.env.RESEND_WEBHOOK_SECRET
     if (webhookSecret) {
-      try {
-        const wh = new Webhook(webhookSecret)
-        wh.verify(req.rawBody, {
-          'svix-id': req.headers['svix-id'],
-          'svix-timestamp': req.headers['svix-timestamp'],
-          'svix-signature': req.headers['svix-signature'],
-        })
-      } catch (err) {
-        console.log(`${tag} Webhook signature verification failed:`, err.message)
+      const svixId = req.headers['svix-id']
+      const svixTimestamp = req.headers['svix-timestamp']
+      const svixSignature = req.headers['svix-signature']
+
+      if (!svixId || !svixTimestamp || !svixSignature) {
+        console.log(`${tag} Webhook signature verification failed: missing svix headers`)
+        return res.status(401).json({ error: 'Webhook signature verification failed' })
+      }
+
+      // Reject timestamps older than 5 minutes to prevent replay attacks
+      const nowSeconds = Math.floor(Date.now() / 1000)
+      const ts = parseInt(svixTimestamp, 10)
+      if (isNaN(ts) || Math.abs(nowSeconds - ts) > 300) {
+        console.log(`${tag} Webhook signature verification failed: timestamp too old or invalid`)
+        return res.status(401).json({ error: 'Webhook signature verification failed' })
+      }
+
+      // Strip "whsec_" prefix and base64-decode the secret
+      const secretBytes = Buffer.from(webhookSecret.replace(/^whsec_/, ''), 'base64')
+
+      // Sign: "{svix-id}.{svix-timestamp}.{rawBody}"
+      const rawBody = req.rawBody instanceof Buffer ? req.rawBody.toString('utf8') : String(req.rawBody || '')
+      const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`
+      const expectedSig = crypto
+        .createHmac('sha256', secretBytes)
+        .update(signedContent)
+        .digest('base64')
+
+      // svix-signature may contain multiple "v1,<sig>" entries separated by spaces
+      const signatures = svixSignature.split(' ')
+      const verified = signatures.some(s => {
+        const [version, sig] = s.split(',')
+        return version === 'v1' && sig === expectedSig
+      })
+
+      if (!verified) {
+        console.log(`${tag} Webhook signature verification failed: signature mismatch`)
         return res.status(401).json({ error: 'Webhook signature verification failed' })
       }
     } else {
