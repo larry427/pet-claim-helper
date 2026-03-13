@@ -5629,10 +5629,10 @@ RULES:
       let fileContents = []
       let pdfText = ''
       if (isPdf) {
-        // Extract first 3 pages only for classification
+        // Extract first 5 pages for classification (declarations info often on pages 4-5)
         try {
           const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(fileBuffer) }).promise
-          const maxPages = Math.min(pdf.numPages, 3)
+          const maxPages = Math.min(pdf.numPages, 5)
           const pieces = []
           for (let i = 1; i <= maxPages; i++) {
             const page = await pdf.getPage(i)
@@ -5713,7 +5713,85 @@ Respond in JSON only, no markdown, no backticks:
         }
       }
 
-      console.log(`${tag} Classified ${filename}: ${result.classification} (${result.confidence}) carrier=${result.carrier_name || '—'} pet=${result.pet_name || '—'}`)
+      // ── Fallback: if COMBINED or DECLARATIONS but missing deductible, re-extract pages 4-8 ──
+      const cls = (result.classification || '').toUpperCase()
+      if ((cls === 'COMBINED' || cls === 'DECLARATIONS') && result.deductible == null && isPdf) {
+        console.log(`${tag} Deductible missing on ${cls} doc — re-extracting pages 4-8 for ${filename}`)
+        try {
+          const pdf2 = await pdfjsLib.getDocument({ data: new Uint8Array(fileBuffer) }).promise
+          const startPage = 4
+          const endPage = Math.min(pdf2.numPages, 8)
+          if (startPage <= pdf2.numPages) {
+            const laterPieces = []
+            for (let i = startPage; i <= endPage; i++) {
+              const page = await pdf2.getPage(i)
+              const content = await page.getTextContent()
+              laterPieces.push((content.items || []).map(it => it.str || '').join(' '))
+            }
+            const laterText = laterPieces.join('\n\n')
+            console.log(`${tag} Fallback: extracted pages ${startPage}-${endPage} (${laterText.length} chars)`)
+
+            const fallbackPrompt = `Extract ONLY the policy numbers from this pet insurance document text. Look for declarations page, schedule of benefits, or coverage summary.
+
+DOCUMENT TEXT (pages ${startPage}-${endPage}):
+${laterText}
+
+Extract these fields (return null for any not found):
+- deductible: Annual deductible dollar amount (number only)
+- reimbursement_rate: Percentage the insurer pays (number only, e.g. 80 not 0.80). If carrier is Nationwide, "co-insurance" = owner's share, subtract from 100.
+- annual_limit: Annual coverage limit (number only, null if unlimited)
+- policy_number: Policy or certificate number (string)
+- effective_date: YYYY-MM-DD format
+- expiration_date: YYYY-MM-DD format
+- pet_name: Insured pet's name
+- species: dog or cat
+- breed: Pet breed
+
+Return JSON only, no markdown:
+{"deductible":null,"reimbursement_rate":null,"annual_limit":null,"policy_number":null,"effective_date":null,"expiration_date":null,"pet_name":null,"species":null,"breed":null}`
+
+            const fallbackCompletion = await openai.chat.completions.create({
+              model: 'gpt-4o',
+              messages: [
+                { role: 'system', content: 'Extract policy numbers from the document. Return valid JSON only.' },
+                { role: 'user', content: fallbackPrompt }
+              ],
+              temperature: 0.1,
+              max_tokens: 400,
+              response_format: { type: 'json_object' }
+            })
+
+            const fbRaw = fallbackCompletion.choices?.[0]?.message?.content ?? ''
+            let fbResult = null
+            try { fbResult = JSON.parse(fbRaw.trim()) } catch { const m = fbRaw.match(/\{[\s\S]*\}/); if (m) try { fbResult = JSON.parse(m[0]) } catch {} }
+
+            if (fbResult) {
+              let merged = 0
+              for (const key of ['deductible', 'reimbursement_rate', 'annual_limit', 'policy_number', 'effective_date', 'expiration_date', 'pet_name', 'species', 'breed']) {
+                if (fbResult[key] != null && result[key] == null) {
+                  result[key] = fbResult[key]
+                  merged++
+                }
+              }
+              console.log(`${tag} Fallback merged ${merged} field(s): ded=${result.deductible} rate=${result.reimbursement_rate} limit=${result.annual_limit}`)
+
+              // Re-apply coinsurance safety net on any newly extracted rate
+              if (result.reimbursement_rate != null && result.reimbursement_rate <= 30) {
+                const carrierLower = (result.carrier_name || '').toLowerCase()
+                if (carrierLower.includes('nationwide') || carrierLower.includes('figo')) {
+                  const original = result.reimbursement_rate
+                  result.reimbursement_rate = 100 - original
+                  console.log(`${tag} ⚠ Fallback co-insurance safety net: ${original}% → ${result.reimbursement_rate}%`)
+                }
+              }
+            }
+          }
+        } catch (fbErr) {
+          console.error(`${tag} Fallback extraction failed:`, fbErr.message)
+        }
+      }
+
+      console.log(`${tag} Classified ${filename}: ${result.classification} (${result.confidence}) carrier=${result.carrier_name || '—'} pet=${result.pet_name || '—'} ded=${result.deductible ?? '—'} rate=${result.reimbursement_rate ?? '—'} limit=${result.annual_limit ?? '—'}`)
       return result
 
     } catch (err) {
