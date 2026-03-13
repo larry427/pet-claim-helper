@@ -3183,6 +3183,9 @@ Post-op items (medications, follow-ups, rechecks) inherit coverage from the orig
 RULE 5 — RADIOLOGY/SPECIALIST READS:
 Radiologist reads, radiologist consultations, and specialist interpretation of diagnostic images (x-ray, ultrasound, MRI, CT) are DIAGNOSTIC TESTS — not exam fees. Mark as COVERED citing diagnostic test coverage. Do not confuse specialist reads with veterinary exam fees.
 
+RULE 5B — WASTE DISPOSAL EXCLUSION (apply on ALL visit types):
+Medical Waste Disposal Fee, Hazardous Waste/Sharps Fee, Biohazard Disposal Fee, Sharps Disposal Fee, and any similar waste, sharps, or biohazard disposal charges are ALWAYS excluded. These are administrative clinic fees, not medical treatments, diagnostics, or medications. Exclude them on ALL visit types — wellness, sick, injury, surgery, and emergency. Reason: "Excluded — Administrative fee: waste/sharps disposal is a clinic operational cost, not a covered medical expense." Do NOT override this rule based on visit type or default coverage logic.
+
 RULE 6 — DEFAULT RULE:
 Pet insurance covers on an EXCLUSION basis. Everything medically necessary IS covered unless explicitly excluded.
 Diagnostics, medications, surgery, hospitalization, lab tests, x-rays, supplies, nursing care → COVERED by default.
@@ -3783,6 +3786,9 @@ RULE 4 — PRE-OP/POST-OP INHERITANCE: Pre/post-op items inherit coverage from t
 
 RULE 5 — RADIOLOGY/SPECIALIST READS: Radiologist reads of diagnostic images are DIAGNOSTIC TESTS, not exam fees. Mark as COVERED.
 
+RULE 5B — WASTE DISPOSAL EXCLUSION (apply on ALL visit types):
+Medical Waste Disposal Fee, Hazardous Waste/Sharps Fee, Biohazard Disposal Fee, Sharps Disposal Fee, and any similar waste, sharps, or biohazard disposal charges are ALWAYS excluded. These are administrative clinic fees, not medical treatments, diagnostics, or medications. Exclude on ALL visit types. Reason: "Excluded — Administrative fee: waste/sharps disposal is a clinic operational cost, not a covered medical expense."
+
 RULE 6 — DEFAULT: Pet insurance covers on an EXCLUSION basis. Medically necessary treatment IS covered unless explicitly excluded. Default to COVERED, not UNKNOWN.
 
 RULE 7 — PRESCRIPTION DIET: Covered when prescribed to treat a specific covered condition.
@@ -3966,8 +3972,23 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         visit_date: stage1Result.clinicInfo?.date || null,     // Stage 1 only — null is OK
         pet_name: stage1Result.petInfo?.name || savedPolicy?.pet_name || null,
         // Stage 2 / policy fields
-        confidence: stage2Result.completeness === 'full' ? 'High'
-          : stage2Result.completeness === 'partial' ? 'Medium' : 'Low',
+        confidence: (() => {
+          // Server-side confidence override — don't trust GPT's confidence assessment
+          const hasFullPolicy = savedPolicy && savedPolicy.deductible != null && savedPolicy.reimbursement_rate != null
+          const hasAnnualLimit = savedPolicy?.annual_limit != null || s2p.annualLimit != null
+          const allItemsClassified = (s2a.lineItems || []).every(item => item.covered === true || item.covered === false)
+          if (hasFullPolicy && allItemsClassified) {
+            // Saved policy with deductible + rate present, and all line items classified → HIGH
+            return 'High'
+          }
+          if (savedPolicy || stage2Result.completeness === 'full') {
+            // Policy exists but missing some fields, or GPT says full but no saved policy
+            if (!hasAnnualLimit || !allItemsClassified) return 'Medium'
+            return 'High'
+          }
+          if (stage2Result.completeness === 'partial') return 'Medium'
+          return 'Low' // bill_only or no policy
+        })(),
         eligibility_warnings: s2a.eligibilityWarnings || [],
         date_eligibility_warning: dateEligibilityWarning,
         carrier: savedPolicy?.carrier || s2p.carrier || null,
@@ -4744,8 +4765,17 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
           clinic_name: null,
           visit_date: eobStage1Result.serviceDate || null,
           pet_name: eobStage1Result.petInfo?.name || savedPolicy?.pet_name || null,
-          confidence: eobStage2Result.completeness === 'full' ? 'High'
-            : eobStage2Result.completeness === 'partial' ? 'Medium' : 'Low',
+          confidence: (() => {
+            const hasFullPolicy = savedPolicy && savedPolicy.deductible != null && savedPolicy.reimbursement_rate != null
+            const allItemsClassified = (eobS2a.lineItems || eobS2a.disputedItems || []).every(item => item.covered === true || item.covered === false || item.appeal_recommended != null)
+            if (hasFullPolicy && allItemsClassified) return 'High'
+            if (savedPolicy || eobStage2Result.completeness === 'full') {
+              if (!allItemsClassified) return 'Medium'
+              return 'High'
+            }
+            if (eobStage2Result.completeness === 'partial') return 'Medium'
+            return 'Low'
+          })(),
           eligibility_warnings: eobS2a.eligibilityWarnings || [],
           carrier: savedPolicy?.carrier || eobStage1Result.carrier || eobS2p.carrier || null,
           deductible_total: eobDeductible,
