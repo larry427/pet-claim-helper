@@ -5921,6 +5921,74 @@ Return JSON only, no markdown:
     return true
   }
 
+  // Send confirmation email after processing emailed documents
+  const sendDocConfirmationEmail = async ({ toEmail, token, completeness, policySaved }) => {
+    const tag = '[email-in/confirm]'
+    const from = process.env.MAIL_FROM || 'Pet ClaimIQ <noreply@petclaimhelper.com>'
+    const f = completeness.extracted_fields
+    const carrier = completeness.carrier_name || 'your insurance'
+    const pet = f.pet_name || 'your pet'
+    const inboxAddr = `${token}@docs.petclaimhelper.com`
+
+    const footer = `<p style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af;">Send more documents to: <a href="mailto:${inboxAddr}" style="color:#4ade80;">${inboxAddr}</a></p>`
+    const wrapper = (body) => `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;color:#1f2937;line-height:1.6;font-size:14px;">${body}${footer}<p style="font-size:12px;color:#9ca3af;margin-top:12px;">— Pet ClaimIQ</p></div>`
+
+    let subject = ''
+    let html = ''
+
+    if (completeness.status === 'complete' && policySaved) {
+      // ── Scenario 1: Complete — policy saved ──
+      subject = `Your ${carrier} policy for ${pet} has been saved`
+      html = wrapper(`
+        <p>We received your insurance documents and saved your policy. Here's what we found:</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+          <tr><td style="padding:6px 0;color:#6b7280;width:120px;">Carrier</td><td style="padding:6px 0;font-weight:600;">${carrier}</td></tr>
+          <tr><td style="padding:6px 0;color:#6b7280;">Pet</td><td style="padding:6px 0;font-weight:600;">${pet}</td></tr>
+          ${f.deductible != null ? `<tr><td style="padding:6px 0;color:#6b7280;">Deductible</td><td style="padding:6px 0;font-weight:600;">$${Number(f.deductible).toLocaleString()}</td></tr>` : ''}
+          ${f.reimbursement_rate != null ? `<tr><td style="padding:6px 0;color:#6b7280;">Reimbursement</td><td style="padding:6px 0;font-weight:600;">${f.reimbursement_rate}%</td></tr>` : ''}
+          ${f.annual_limit != null ? `<tr><td style="padding:6px 0;color:#6b7280;">Annual Limit</td><td style="padding:6px 0;font-weight:600;">$${Number(f.annual_limit).toLocaleString()}</td></tr>` : ''}
+          ${f.effective_date ? `<tr><td style="padding:6px 0;color:#6b7280;">Effective</td><td style="padding:6px 0;font-weight:600;">${f.effective_date}${f.expiration_date ? ' to ' + f.expiration_date : ''}</td></tr>` : ''}
+        </table>
+        <p>Open Pet ClaimIQ to see your policy and analyze a vet bill.</p>`)
+
+    } else if (completeness.status === 'partial') {
+      // ── Scenario 2: Partial — missing documents ──
+      subject = `We need one more document for ${pet}'s policy`
+      let guidance = ''
+      if (completeness.missing.includes('declarations')) {
+        guidance = `<p>We found your <strong>${carrier}</strong> policy terms but we're missing your declarations page — that's the document with your specific coverage numbers (deductible, reimbursement rate, annual limit). It's usually 1-2 pages with your pet's name on it.</p>
+        <p>Check your email from ${carrier} or log into your ${carrier} account to download it. Just reply to this email with the document attached.</p>`
+      } else if (completeness.missing.includes('policy_terms')) {
+        guidance = `<p>We found your <strong>${carrier}</strong> declarations page${f.reimbursement_rate ? ` showing ${pet} at ${f.reimbursement_rate}%` : ''}${f.deductible ? ` with a $${Number(f.deductible).toLocaleString()} deductible` : ''}. But we need the full policy terms to know what's covered and excluded.</p>
+        <p>Look for a longer PDF (10-30 pages) from ${carrier} with sections about exclusions, waiting periods, and covered conditions. Reply to this email with it attached.</p>`
+      }
+      html = wrapper(`<p>We received your documents — almost there!</p>${guidance}`)
+
+    } else {
+      // ── Scenario 3: No policy docs found ──
+      subject = "We couldn't find a pet insurance policy in your documents"
+      html = wrapper(`<p>We received your email but the attached documents don't appear to be pet insurance policy documents.</p>
+        <p>To set up your policy, we need your insurance documents — look for an email from your pet insurance company with your policy attached, or log into your insurer's website to download them.</p>
+        <p>Then forward that email (or attach the documents) and send them to <a href="mailto:${inboxAddr}" style="color:#4ade80;">${inboxAddr}</a>.</p>`)
+    }
+
+    try {
+      const { error: sendErr } = await resend.emails.send({
+        from,
+        to: [toEmail],
+        subject,
+        html,
+      })
+      if (sendErr) {
+        console.error(`${tag} Resend error:`, sendErr)
+      } else {
+        console.log(`${tag} ✅ Sent confirmation to ${toEmail}: "${subject}"`)
+      }
+    } catch (err) {
+      console.error(`${tag} Failed to send confirmation:`, err.message)
+    }
+  }
+
   // ─── Email-In Webhook (Resend Inbound) ─────────────────────────────────────
   // Receives inbound emails at *@docs.petclaimhelper.com, downloads attachments
   // via the Resend API, and stores them in Supabase Storage + pciq_email_documents.
@@ -6096,25 +6164,31 @@ Return JSON only, no markdown:
 
       // ── Stage 3: Check completeness and auto-save if ready ──
       const completeness = await checkPolicyCompleteness(userId)
+      let policySaved = false
 
       if (completeness.status === 'complete') {
-        const saved = await autoSavePolicy(userId, completeness)
-        if (saved) {
+        policySaved = await autoSavePolicy(userId, completeness)
+        if (policySaved) {
           console.log(`${tag} 🎉 Policy auto-saved for ${userData.email}`)
-        }
-      } else if (completeness.status === 'partial') {
-        // Log guidance for future email notification (Stage 4)
-        const carrier = completeness.carrier_name || 'your insurance'
-        const f = completeness.extracted_fields
-        if (completeness.missing.includes('declarations')) {
-          console.log(`${tag} 📋 Missing declarations for ${userData.email}: "We found your ${carrier} policy terms but we're missing your declarations page — that's the document with YOUR specific numbers (deductible, reimbursement rate, annual limit). It's usually 1-2 pages with your pet's name on it."`)
-        }
-        if (completeness.missing.includes('policy_terms')) {
-          console.log(`${tag} 📋 Missing policy terms for ${userData.email}: "We found your ${carrier} declarations page showing ${f.pet_name || 'your pet'} is covered at ${f.reimbursement_rate || '?'}% with a $${f.deductible || '?'} deductible. But we're missing the full policy terms document — that's the one that explains what's covered and what's excluded."`)
         }
       }
 
-      console.log(`${tag} Done: stored=${stored.length} classified completeness=${completeness.status}`)
+      // ── Stage 4: Send confirmation email ──
+      // Only send for policy-related outcomes, not EOB/VET_BILL
+      const hasOnlyNonPolicyDocs = stored.length > 0 && completeness.status === 'no_policy_docs'
+      const hasPolicyOutcome = completeness.status === 'complete' || completeness.status === 'partial' || hasOnlyNonPolicyDocs
+      if (hasPolicyOutcome && fromAddr) {
+        // Extract sender email address (Resend may include name: "John <john@example.com>")
+        const senderEmail = fromAddr.includes('<') ? fromAddr.match(/<([^>]+)>/)?.[1] || fromAddr : fromAddr
+        await sendDocConfirmationEmail({
+          toEmail: senderEmail,
+          token,
+          completeness,
+          policySaved,
+        })
+      }
+
+      console.log(`${tag} Done: stored=${stored.length} classified completeness=${completeness.status} policySaved=${policySaved}`)
       return res.status(200).json({ ok: true, stored: stored.length, completeness: completeness.status })
 
     } catch (error) {
