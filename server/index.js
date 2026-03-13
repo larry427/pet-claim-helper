@@ -5603,7 +5603,7 @@ RULES:
   })
 
   // ─── Email-In Webhook (Resend Inbound) ─────────────────────────────────────
-  // Receives inbound emails at *@docs.petclaimiq.com, downloads attachments
+  // Receives inbound emails at *@docs.petclaimhelper.com, downloads attachments
   // via the Resend API, and stores them in Supabase Storage + pciq_email_documents.
   app.post('/api/webhook/email-in', async (req, res) => {
     const tag = '[email-in]'
@@ -5618,10 +5618,10 @@ RULES:
       console.log(`${tag} Received email ${email_id} from="${fromAddr}" to=${JSON.stringify(toAddrs)} subject="${subject}" attachments=${attachments?.length || 0}`)
 
       // ── Extract token from recipient address ──
-      // Format: {token}@docs.petclaimiq.com
-      const recipientEmail = (toAddrs || []).find(addr => addr.includes('@docs.petclaimiq.com'))
+      // Format: {token}@docs.petclaimhelper.com
+      const recipientEmail = (toAddrs || []).find(addr => addr.includes('@docs.petclaimhelper.com'))
       if (!recipientEmail) {
-        console.log(`${tag} No @docs.petclaimiq.com recipient found, ignoring`)
+        console.log(`${tag} No @docs.petclaimhelper.com recipient found, ignoring`)
         return res.status(200).json({ ok: true })
       }
       const token = recipientEmail.split('@')[0].toLowerCase()
