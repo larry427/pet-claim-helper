@@ -5602,6 +5602,247 @@ RULES:
     }
   })
 
+  // ─── Email-In: AI Classification & Completeness ────────────────────────────
+
+  // Classify a single document via GPT-4o (PDF text or image)
+  const classifyDocument = async (docRecord) => {
+    const tag = '[email-in/classify]'
+    try {
+      const { id, file_url, filename, mime_type, user_id } = docRecord
+      const isPdf = (mime_type || '').includes('pdf') || (filename || '').toLowerCase().endsWith('.pdf')
+
+      // Download file from Supabase Storage
+      const storagePath = file_url.includes('/object/public/')
+        ? file_url.split('/object/public/policy-documents/')[1]
+        : file_url
+      const { data: blob, error: dlErr } = await supabase.storage
+        .from('policy-documents')
+        .download(storagePath)
+
+      if (dlErr || !blob) {
+        console.error(`${tag} Download failed for ${filename}:`, dlErr?.message)
+        return null
+      }
+      const fileBuffer = Buffer.from(await blob.arrayBuffer())
+
+      // Build content for GPT-4o
+      let fileContents = []
+      let pdfText = ''
+      if (isPdf) {
+        // Extract first 3 pages only for classification
+        try {
+          const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(fileBuffer) }).promise
+          const maxPages = Math.min(pdf.numPages, 3)
+          const pieces = []
+          for (let i = 1; i <= maxPages; i++) {
+            const page = await pdf.getPage(i)
+            const content = await page.getTextContent()
+            pieces.push((content.items || []).map(it => it.str || '').join(' '))
+          }
+          pdfText = pieces.join('\n\n')
+          console.log(`${tag} Extracted ${maxPages}/${pdf.numPages} pages from ${filename} (${pdfText.length} chars)`)
+        } catch (pdfErr) {
+          console.error(`${tag} PDF extraction failed for ${filename}:`, pdfErr.message)
+          return null
+        }
+      } else {
+        // Image — send as image_url
+        const mimeGuess = /\.(jpe?g)$/i.test(filename) ? 'image/jpeg' : 'image/png'
+        const dataUrl = `data:${mimeGuess};base64,${fileBuffer.toString('base64')}`
+        fileContents.push({ type: 'image_url', image_url: { url: dataUrl, detail: 'high' } })
+      }
+
+      const classificationPrompt = `You are analyzing a document that was emailed to a pet insurance analysis service. Classify this document into ONE of these categories:
+
+- DECLARATIONS: A pet insurance declarations page or schedule of benefits. Contains specific policyholder details: pet name, deductible amount, reimbursement percentage, annual limit, effective dates, policy number. Usually 1-3 pages.
+- POLICY_TERMS: A pet insurance policy booklet or terms document. Contains coverage rules, exclusions, waiting periods, definitions, what is and isn't covered. Usually 10-30+ pages. Does NOT contain the specific dollar amounts for this policyholder's deductible/reimbursement.
+- COMBINED: A single document that contains BOTH the declarations/schedule AND the full policy terms/exclusions. Some carriers (like Pumpkin) send everything in one PDF.
+- EOB: An Explanation of Benefits from an insurance company showing claim payment details. Contains claim numbers, amounts paid, denied items, applied to deductible.
+- VET_BILL: A veterinary invoice or receipt showing services performed and charges.
+- IRRELEVANT: Not a pet insurance document. Could be car insurance, a marketing brochure, a receipt for something unrelated, or any other non-pet-insurance document.
+
+DOCUMENT TEXT:
+${pdfText || '(No text extracted — see attached image)'}
+
+Also extract these fields if you can find them (return null for any you cannot find):
+- carrier_name: The insurance company name (use consumer-facing brand name, not underwriting entity). Brand mappings: "Westchester Fire Insurance Company" = "Healthy Paws", "United States Fire Insurance Company" = "Pumpkin", "American Pet Insurance Company" = "Fetch", "Independence American Insurance Company" = "Figo", "National Casualty Company" = "Nationwide Pet Insurance".
+- pet_name, policy_number, species (dog or cat), breed
+- deductible: Annual deductible amount (number only)
+- reimbursement_rate: Percentage the INSURER pays (number only, e.g. 80 not 0.80). CRITICAL: If carrier is Nationwide, "co-insurance" means the OWNER's share — subtract from 100. If carrier is Figo (newer form "IAIC FPI POL"), use the "Reimbursement Percentage" not the "Coinsurance".
+- annual_limit: Annual coverage limit (number only, or null if unlimited)
+- effective_date, expiration_date: YYYY-MM-DD format
+- math_order: "reimbursement_first" if percentage applied before deductible, "deductible_first" if deductible subtracted before percentage, null if unknown
+
+Respond in JSON only, no markdown, no backticks:
+{"classification":"DECLARATIONS|POLICY_TERMS|COMBINED|EOB|VET_BILL|IRRELEVANT","confidence":"high|medium|low","carrier_name":null,"pet_name":null,"policy_number":null,"deductible":null,"reimbursement_rate":null,"annual_limit":null,"effective_date":null,"expiration_date":null,"species":null,"breed":null,"math_order":null,"notes":"Brief description of what this document contains"}`
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: 'You are a pet insurance document classifier. Return valid JSON only.' },
+          { role: 'user', content: [{ type: 'text', text: classificationPrompt }, ...fileContents] }
+        ],
+        temperature: 0.1,
+        max_tokens: 800,
+        response_format: { type: 'json_object' }
+      })
+
+      const raw = completion.choices?.[0]?.message?.content ?? ''
+      let result = null
+      try {
+        let c = raw.trim()
+        if (c.startsWith('```')) c = c.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```\s*$/, '')
+        result = JSON.parse(c)
+      } catch {
+        const m = raw.match(/\{[\s\S]*\}/)
+        if (m) { try { result = JSON.parse(m[0]) } catch {} }
+      }
+
+      if (!result) {
+        console.error(`${tag} Failed to parse classification for ${filename}:`, raw.substring(0, 200))
+        return null
+      }
+
+      // Co-insurance safety net (same as extract-policy endpoint)
+      if (result.reimbursement_rate != null && result.reimbursement_rate <= 30) {
+        const carrierLower = (result.carrier_name || '').toLowerCase()
+        if (carrierLower.includes('nationwide') || carrierLower.includes('figo')) {
+          const original = result.reimbursement_rate
+          result.reimbursement_rate = 100 - original
+          console.log(`${tag} ⚠ Co-insurance safety net: ${result.carrier_name} ${original}% → ${result.reimbursement_rate}%`)
+        }
+      }
+
+      console.log(`${tag} Classified ${filename}: ${result.classification} (${result.confidence}) carrier=${result.carrier_name || '—'} pet=${result.pet_name || '—'}`)
+      return result
+
+    } catch (err) {
+      console.error(`${tag} Classification error for ${docRecord.filename}:`, err.message)
+      return null
+    }
+  }
+
+  // Check if a user has enough documents to build a complete policy
+  const checkPolicyCompleteness = async (userId) => {
+    const tag = '[email-in/completeness]'
+
+    const { data: docs, error } = await supabase
+      .from('pciq_email_documents')
+      .select('id, document_type, extracted_data, classification_status')
+      .eq('user_id', userId)
+      .eq('classification_status', 'classified')
+      .order('created_at', { ascending: false })
+
+    if (error || !docs || docs.length === 0) {
+      return { status: 'no_policy_docs', has_declarations: false, has_policy_terms: false, has_combined: false, carrier_name: null, missing: [], extracted_fields: {} }
+    }
+
+    let has_declarations = false
+    let has_policy_terms = false
+    let has_combined = false
+    let carrier_name = null
+    // Merge extracted fields from all docs — later docs override earlier for same fields
+    const merged = {}
+
+    for (const doc of docs) {
+      const dtype = (doc.document_type || '').toUpperCase()
+      const data = doc.extracted_data || {}
+
+      if (dtype === 'DECLARATIONS') has_declarations = true
+      if (dtype === 'POLICY_TERMS') has_policy_terms = true
+      if (dtype === 'COMBINED') has_combined = true
+
+      // Merge fields — prefer non-null values
+      for (const key of ['carrier_name', 'pet_name', 'policy_number', 'deductible', 'reimbursement_rate', 'annual_limit', 'effective_date', 'expiration_date', 'species', 'breed', 'math_order']) {
+        if (data[key] != null && merged[key] == null) {
+          merged[key] = data[key]
+        }
+      }
+      if (data.carrier_name && !carrier_name) carrier_name = data.carrier_name
+    }
+
+    let status = 'no_policy_docs'
+    const missing = []
+
+    if (has_combined) {
+      status = 'complete'
+    } else if (has_declarations && has_policy_terms) {
+      status = 'complete'
+    } else if (has_declarations) {
+      status = 'partial'
+      missing.push('policy_terms')
+    } else if (has_policy_terms) {
+      status = 'partial'
+      missing.push('declarations')
+    }
+
+    // If we have declarations or combined, check we got the key numeric fields
+    if (status === 'complete' || has_declarations || has_combined) {
+      if (!merged.deductible && !merged.reimbursement_rate) {
+        // Declarations without key fields — might be a mis-classification
+        console.log(`${tag} Warning: marked complete but missing deductible and rate — may need review`)
+      }
+    }
+
+    console.log(`${tag} User ${userId}: status=${status} combined=${has_combined} decl=${has_declarations} terms=${has_policy_terms} carrier=${carrier_name || '—'} missing=${JSON.stringify(missing)}`)
+    return { status, has_declarations, has_policy_terms, has_combined, carrier_name, missing, extracted_fields: merged }
+  }
+
+  // Auto-save a policy to pciq_policies from classified email documents
+  const autoSavePolicy = async (userId, completeness) => {
+    const tag = '[email-in/auto-save]'
+    const f = completeness.extracted_fields
+
+    if (!f.carrier_name || (!f.deductible && !f.reimbursement_rate)) {
+      console.log(`${tag} Skipping auto-save — insufficient extracted fields (carrier=${f.carrier_name}, ded=${f.deductible}, rate=${f.reimbursement_rate})`)
+      return false
+    }
+
+    // Check for duplicate — don't save if this carrier+pet already exists
+    const { data: existing } = await supabase
+      .from('pciq_policies')
+      .select('id')
+      .eq('user_id', userId)
+      .ilike('carrier', `%${f.carrier_name}%`)
+      .limit(1)
+
+    if (existing && existing.length > 0) {
+      console.log(`${tag} Policy already exists for ${f.carrier_name} — skipping auto-save`)
+      return false
+    }
+
+    const policyRow = {
+      user_id: userId,
+      carrier: f.carrier_name,
+      pet_name: f.pet_name || null,
+      species: f.species ? f.species.charAt(0).toUpperCase() + f.species.slice(1).toLowerCase() : null,
+      breed: f.breed || null,
+      deductible: f.deductible || null,
+      reimbursement_rate: f.reimbursement_rate || null,
+      annual_limit: f.annual_limit || null,
+      effective_date: f.effective_date || null,
+      expiration_date: f.expiration_date || null,
+      math_order: f.math_order || null,
+      policy_number: f.policy_number || null,
+      policy_text: `Auto-extracted from emailed policy documents for ${f.carrier_name}.`,
+      exclusions: null,
+      filing_deadline_days: null,
+      storage_path: null,
+    }
+
+    const { error: insertErr } = await supabase
+      .from('pciq_policies')
+      .insert(policyRow)
+
+    if (insertErr) {
+      console.error(`${tag} Failed to save policy:`, insertErr.message)
+      return false
+    }
+
+    console.log(`${tag} ✅ Auto-saved policy: ${f.carrier_name} for ${f.pet_name || 'unknown pet'}, ${f.reimbursement_rate || '?'}% / $${f.deductible || '?'} deductible`)
+    return true
+  }
+
   // ─── Email-In Webhook (Resend Inbound) ─────────────────────────────────────
   // Receives inbound emails at *@docs.petclaimhelper.com, downloads attachments
   // via the Resend API, and stores them in Supabase Storage + pciq_email_documents.
@@ -5717,7 +5958,7 @@ RULES:
           const fileUrl = urlData?.publicUrl || storagePath
 
           // Insert record into pciq_email_documents
-          const { error: insertErr } = await supabase.from('pciq_email_documents').insert({
+          const { data: insertData, error: insertErr } = await supabase.from('pciq_email_documents').insert({
             user_id: userId,
             email_from: fromAddr || null,
             email_subject: subject || null,
@@ -5727,14 +5968,14 @@ RULES:
             mime_type: att.content_type || null,
             document_type: null,
             classification_status: 'pending',
-          })
+          }).select('id, file_url, filename, mime_type, user_id').single()
 
           if (insertErr) {
             console.error(`${tag} DB insert failed for ${att.filename}:`, insertErr.message)
             continue
           }
 
-          stored.push(att.filename)
+          stored.push(insertData)
           console.log(`${tag} ✅ Stored: ${att.filename} (${fileSizeBytes} bytes) → ${storagePath}`)
 
         } catch (attError) {
@@ -5742,8 +5983,61 @@ RULES:
         }
       }
 
-      console.log(`${tag} Done: stored ${stored.length}/${docAttachments.length} documents for ${userData.email}`)
-      return res.status(200).json({ ok: true, stored: stored.length })
+      console.log(`${tag} Stored ${stored.length}/${docAttachments.length} documents for ${userData.email}`)
+
+      // ── Stage 2: Classify each stored document ──
+      for (const doc of stored) {
+        try {
+          const classification = await classifyDocument(doc)
+          if (classification) {
+            const docType = (classification.classification || 'unknown').toLowerCase()
+            await supabase
+              .from('pciq_email_documents')
+              .update({
+                document_type: docType,
+                extracted_data: classification,
+                classification_status: 'classified',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', doc.id)
+            console.log(`${tag} Updated doc ${doc.id}: type=${docType}`)
+          } else {
+            await supabase
+              .from('pciq_email_documents')
+              .update({ classification_status: 'failed', updated_at: new Date().toISOString() })
+              .eq('id', doc.id)
+          }
+        } catch (classErr) {
+          console.error(`${tag} Classification failed for ${doc.filename}:`, classErr.message)
+          await supabase
+            .from('pciq_email_documents')
+            .update({ classification_status: 'failed', updated_at: new Date().toISOString() })
+            .eq('id', doc.id)
+        }
+      }
+
+      // ── Stage 3: Check completeness and auto-save if ready ──
+      const completeness = await checkPolicyCompleteness(userId)
+
+      if (completeness.status === 'complete') {
+        const saved = await autoSavePolicy(userId, completeness)
+        if (saved) {
+          console.log(`${tag} 🎉 Policy auto-saved for ${userData.email}`)
+        }
+      } else if (completeness.status === 'partial') {
+        // Log guidance for future email notification (Stage 4)
+        const carrier = completeness.carrier_name || 'your insurance'
+        const f = completeness.extracted_fields
+        if (completeness.missing.includes('declarations')) {
+          console.log(`${tag} 📋 Missing declarations for ${userData.email}: "We found your ${carrier} policy terms but we're missing your declarations page — that's the document with YOUR specific numbers (deductible, reimbursement rate, annual limit). It's usually 1-2 pages with your pet's name on it."`)
+        }
+        if (completeness.missing.includes('policy_terms')) {
+          console.log(`${tag} 📋 Missing policy terms for ${userData.email}: "We found your ${carrier} declarations page showing ${f.pet_name || 'your pet'} is covered at ${f.reimbursement_rate || '?'}% with a $${f.deductible || '?'} deductible. But we're missing the full policy terms document — that's the one that explains what's covered and what's excluded."`)
+        }
+      }
+
+      console.log(`${tag} Done: stored=${stored.length} classified completeness=${completeness.status}`)
+      return res.status(200).json({ ok: true, stored: stored.length, completeness: completeness.status })
 
     } catch (error) {
       console.error(`${tag} Webhook error:`, error.message)
