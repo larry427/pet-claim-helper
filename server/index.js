@@ -6329,7 +6329,7 @@ Return JSON only, no markdown:
 
       const [analysesRes, policiesRes, usersRes, appealsRes, emailDocsRes] = await Promise.all([
         supabase.from('pciq_analyses')
-          .select('id, user_id, policy_id, clinic_name, service_date, total_bill, estimated_reimbursement, line_items, created_at')
+          .select('id, user_id, policy_id, clinic_name, service_date, total_bill, estimated_reimbursement, status, line_items, created_at')
           .order('created_at', { ascending: false })
           .limit(50),
         supabase.from('pciq_policies')
@@ -6362,25 +6362,44 @@ Return JSON only, no markdown:
       const policyMap = {}
       policies.forEach(p => { policyMap[p.id] = p })
 
-      // ── User activity stats (last 30 days) ──
+      // ── User activity stats ──
       const userActivity = {}
       users.forEach(u => {
-        userActivity[u.id] = { email: u.email, analyses: 0, policies: 0, lastActive: u.created_at }
+        userActivity[u.id] = { email: u.email, analyses: 0, policies: 0, lastActive: u.created_at, lastAnalysis: null, emailPolicies: 0 }
       })
       analyses.forEach(a => {
         if (!userActivity[a.user_id]) return
         userActivity[a.user_id].analyses++
         if (a.created_at > userActivity[a.user_id].lastActive) userActivity[a.user_id].lastActive = a.created_at
+        if (!userActivity[a.user_id].lastAnalysis || a.created_at > userActivity[a.user_id].lastAnalysis) {
+          userActivity[a.user_id].lastAnalysis = a.created_at
+        }
       })
       policies.forEach(p => {
         if (!userActivity[p.user_id]) return
         userActivity[p.user_id].policies++
         if (p.created_at > userActivity[p.user_id].lastActive) userActivity[p.user_id].lastActive = p.created_at
       })
+      // Count email-in policies per user
+      emailDocs.forEach(d => {
+        if (!userActivity[d.user_id]) return
+        if (['combined', 'declarations'].includes(d.document_type) && d.classification_status === 'classified') {
+          userActivity[d.user_id].emailPolicies++
+        }
+      })
 
       const activeUsers = Object.values(userActivity)
         .filter(u => u.lastActive >= thirtyDaysAgo)
         .sort((a, b) => b.lastActive.localeCompare(a.lastActive))
+
+      // ── Collect unique carriers for filter dropdown ──
+      const carrierSet = new Set()
+      analyses.forEach(a => {
+        const li = a.line_items || {}
+        const c = li.carrier || policyMap[a.policy_id]?.carrier
+        if (c) carrierSet.add(c)
+      })
+      const uniqueCarriers = [...carrierSet].sort()
 
       // ── Helper functions ──
       const esc = s => String(s ?? '—').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -6402,17 +6421,23 @@ Return JSON only, no markdown:
         const excluded = li.excluded_total
         const confidence = li.confidence || '—'
         const reimb = a.estimated_reimbursement
-        return `<tr>
-          <td>${esc(fmtDate(a.created_at))}</td>
+        const reimbClass = reimb && Number(reimb) > 0 ? 'green' : 'muted'
+        const policyLabel = carrier !== '—' ? `${carrier}` + (petName !== '—' ? ` · ${petName}` : '') : '—'
+        const statusBadge = a.status === 'disputed' ? '<span class="badge badge-yellow">disputed</span>'
+          : a.status === 'filed' ? '<span class="badge badge-green">filed</span>'
+          : a.status === 'paid' ? '<span class="badge badge-green">paid</span>'
+          : ''
+        return `<tr data-carrier="${esc(carrier)}">
+          <td class="date-col">${esc(fmtDate(a.created_at))}</td>
           <td>${esc(email)}</td>
-          <td>${esc(petName)}</td>
-          <td>${esc(carrier)}</td>
+          <td class="highlight">${esc(policyLabel)}</td>
           <td>${esc(visitType)}</td>
           <td>${fmt(a.total_bill)}</td>
           <td class="green">${fmt(covered)}</td>
           <td class="red">${fmt(excluded)}</td>
-          <td class="green">${fmt(reimb)}</td>
+          <td class="${reimbClass}">${fmt(reimb)}</td>
           <td>${esc(confidence)}</td>
+          <td>${statusBadge}</td>
         </tr>`
       }).join('\n')
 
@@ -6420,10 +6445,10 @@ Return JSON only, no markdown:
       const policyRows = policies.map(p => {
         const email = userMap[p.user_id] || '—'
         return `<tr>
-          <td>${esc(fmtDate(p.created_at))}</td>
+          <td class="date-col">${esc(fmtDate(p.created_at))}</td>
           <td>${esc(email)}</td>
-          <td>${esc(p.carrier)}</td>
-          <td>${esc(p.pet_name)}</td>
+          <td class="highlight">${esc(p.carrier)}</td>
+          <td class="highlight">${esc(p.pet_name)}</td>
           <td>${esc(p.species)}</td>
           <td>${esc(p.breed)}</td>
           <td>${fmt(p.deductible)}</td>
@@ -6436,9 +6461,11 @@ Return JSON only, no markdown:
       const userRows = activeUsers.map(u => {
         return `<tr>
           <td>${esc(u.email)}</td>
-          <td>${esc(fmtDate(u.lastActive))}</td>
+          <td class="date-col">${esc(fmtDate(u.lastActive))}</td>
+          <td class="date-col">${esc(u.lastAnalysis ? fmtDate(u.lastAnalysis) : '—')}</td>
           <td>${u.analyses}</td>
           <td>${u.policies}</td>
+          <td>${u.emailPolicies || 0}</td>
         </tr>`
       }).join('\n')
 
@@ -6451,13 +6478,13 @@ Return JSON only, no markdown:
         const typeColor = typeColors[dtype] || 'muted'
         const statusColor = statusColors[d.classification_status] || 'muted'
         return `<tr>
-          <td>${esc(fmtDate(d.created_at))}</td>
-          <td>${esc(d.email_from)}</td>
-          <td>${esc(d.filename)}</td>
+          <td class="date-col">${esc(fmtDate(d.created_at))}</td>
+          <td class="email-col">${esc(d.email_from)}</td>
+          <td class="filename-col" title="${esc(d.filename)}">${esc(d.filename)}</td>
           <td class="${typeColor}">${esc(dtype)}</td>
           <td>${esc(ext.confidence)}</td>
-          <td>${esc(ext.carrier_name)}</td>
-          <td>${esc(ext.pet_name)}</td>
+          <td class="highlight">${esc(ext.carrier_name)}</td>
+          <td class="highlight">${esc(ext.pet_name)}</td>
           <td class="${statusColor}">${esc(d.classification_status)}</td>
         </tr>`
       }).join('\n')
@@ -6470,6 +6497,9 @@ Return JSON only, no markdown:
       const totalEmailDocs = emailDocs.length
       const policiesViaEmail = emailDocs.filter(d => ['combined', 'declarations'].includes(d.document_type) && d.classification_status === 'classified').length
 
+      // ── Carrier filter options ──
+      const carrierOptions = uniqueCarriers.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')
+
       const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6478,33 +6508,58 @@ Return JSON only, no markdown:
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #0a0a1a; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-  nav { background: #111128; padding: 12px 24px; display: flex; align-items: center; gap: 24px; border-bottom: 1px solid #2a2a4a; position: sticky; top: 0; z-index: 10; }
-  nav .brand { font-size: 16px; font-weight: 700; color: #4ade80; }
-  nav a { color: #94a3b8; text-decoration: none; font-size: 13px; }
+  nav { background: #111128; padding: 14px 28px; display: flex; align-items: center; gap: 28px; border-bottom: 1px solid #2a2a4a; position: sticky; top: 0; z-index: 10; }
+  nav .brand { font-size: 17px; font-weight: 700; color: #4ade80; }
+  nav a { color: #94a3b8; text-decoration: none; font-size: 13px; transition: color 0.15s; }
   nav a:hover { color: #4ade80; }
-  .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
-  .stats { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
-  .stat-card { background: #111128; border-radius: 8px; padding: 16px 24px; border: 1px solid #2a2a4a; min-width: 160px; }
-  .stat-card .num { font-size: 28px; font-weight: 700; color: #4ade80; font-family: 'SF Mono', 'Fira Code', monospace; }
-  .stat-card .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
-  h2 { font-size: 16px; font-weight: 700; color: #4ade80; margin-bottom: 12px; margin-top: 32px; text-transform: uppercase; letter-spacing: 1px; }
-  .table-wrap { overflow-x: auto; margin-bottom: 32px; }
+  .container { max-width: 1480px; margin: 0 auto; padding: 28px; }
+
+  /* Stats cards */
+  .stats { display: flex; gap: 20px; margin-bottom: 36px; flex-wrap: wrap; }
+  .stat-card { background: #111128; border-radius: 10px; padding: 20px 28px; border: 1px solid #2a2a4a; min-width: 150px; flex: 1; }
+  .stat-card .num { font-size: 30px; font-weight: 700; color: #4ade80; font-family: 'SF Mono', 'Fira Code', monospace; }
+  .stat-card .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-top: 6px; }
+
+  /* Section headers */
+  .section-header { display: flex; align-items: baseline; gap: 12px; margin-top: 36px; margin-bottom: 14px; }
+  .section-header h2 { font-size: 15px; font-weight: 700; color: #4ade80; text-transform: uppercase; letter-spacing: 1px; margin: 0; }
+  .section-header .count { font-size: 12px; color: #64748b; font-family: 'SF Mono', 'Fira Code', monospace; }
+  .section-header select { background: #111128; color: #e0e0e0; border: 1px solid #2a2a4a; border-radius: 6px; padding: 4px 10px; font-size: 12px; font-family: 'SF Mono', 'Fira Code', monospace; margin-left: auto; cursor: pointer; }
+  .section-header select:focus { outline: none; border-color: #4ade80; }
+
+  /* Tables */
+  .table-wrap { overflow-x: auto; margin-bottom: 36px; border-radius: 8px; border: 1px solid #1e1e3a; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: 'SF Mono', 'Fira Code', monospace; }
-  th { text-align: left; padding: 8px 12px; background: #111128; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #2a2a4a; position: sticky; top: 48px; }
-  td { padding: 7px 12px; border-bottom: 1px solid #1a1a3a; white-space: nowrap; }
-  tr:nth-child(even) td { background: #0f0f24; }
+  th { text-align: left; padding: 10px 14px; background: #111128; color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 2px solid #2a2a4a; position: sticky; top: 52px; }
+  td { padding: 9px 14px; border-bottom: 1px solid #1a1a3a; white-space: nowrap; }
+  tr:nth-child(even) td { background: #0d0d22; }
   tr:hover td { background: #1a1a3a; }
+
+  /* Colors */
   .green { color: #4ade80; }
   .yellow { color: #fbbf24; }
   .red { color: #f87171; }
   .muted { color: #64748b; }
-  #sections { scroll-margin-top: 60px; }
-  h2[id] { scroll-margin-top: 60px; }
+  .highlight { color: #67e8f9; font-weight: 600; }
+
+  /* Column widths */
+  .date-col { min-width: 110px; max-width: 130px; }
+  .email-col { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+  .filename-col { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Badges */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .badge-green { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
+  .badge-yellow { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+  .badge-red { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+
+  /* Scroll targets */
+  h2[id], .section-header[id] { scroll-margin-top: 64px; }
 </style>
 </head>
 <body>
 <nav>
-  <span class="brand">🐾 Pet ClaimIQ Admin</span>
+  <span class="brand">Pet ClaimIQ Admin</span>
   <a href="#stats">Stats</a>
   <a href="#analyses">Analyses</a>
   <a href="#policies">Policies</a>
@@ -6516,23 +6571,33 @@ Return JSON only, no markdown:
     <div class="stat-card"><div class="num">${totalUsers}</div><div class="label">Total Users</div></div>
     <div class="stat-card"><div class="num">${totalAnalyses}</div><div class="label">Analyses (last 50)</div></div>
     <div class="stat-card"><div class="num">${recentAnalyses}</div><div class="label">Analyses (30d)</div></div>
-    <div class="stat-card"><div class="num">${totalPolicies}</div><div class="label">Policies Uploaded</div></div>
+    <div class="stat-card"><div class="num">${totalPolicies}</div><div class="label">Policies</div></div>
     <div class="stat-card"><div class="num">${activeUsers.length}</div><div class="label">Active Users (30d)</div></div>
-    <div class="stat-card"><div class="num">${totalEmailDocs}</div><div class="label">Docs Received</div></div>
+    <div class="stat-card"><div class="num">${totalEmailDocs}</div><div class="label">Docs Emailed</div></div>
     <div class="stat-card"><div class="num">${policiesViaEmail}</div><div class="label">Policies via Email</div></div>
   </div>
 
-  <h2 id="analyses">Recent Analyses</h2>
+  <div class="section-header" id="analyses">
+    <h2>Recent Analyses</h2>
+    <span class="count">(${totalAnalyses})</span>
+    <select id="carrierFilter" onchange="filterByCarrier()">
+      <option value="">All Carriers</option>
+      ${carrierOptions}
+    </select>
+  </div>
   <div class="table-wrap">
-  <table>
+  <table id="analysesTable">
     <thead><tr>
-      <th>Date</th><th>User</th><th>Pet</th><th>Carrier</th><th>Visit Type</th><th>Total Bill</th><th>Covered</th><th>Excluded</th><th>Reimb Est</th><th>Confidence</th>
+      <th>Date</th><th>User</th><th>Policy</th><th>Visit Type</th><th>Total Bill</th><th>Covered</th><th>Excluded</th><th>Reimb Est</th><th>Confidence</th><th>Status</th>
     </tr></thead>
     <tbody>${analysisRows || '<tr><td colspan="10" class="muted">No analyses yet</td></tr>'}</tbody>
   </table>
   </div>
 
-  <h2 id="policies">Policy Uploads</h2>
+  <div class="section-header" id="policies">
+    <h2>Policy Uploads</h2>
+    <span class="count">(${totalPolicies})</span>
+  </div>
   <div class="table-wrap">
   <table>
     <thead><tr>
@@ -6542,7 +6607,10 @@ Return JSON only, no markdown:
   </table>
   </div>
 
-  <h2 id="emaildocs">Email-In Documents</h2>
+  <div class="section-header" id="emaildocs">
+    <h2>Email-In Documents</h2>
+    <span class="count">(${totalEmailDocs})</span>
+  </div>
   <div class="table-wrap">
   <table>
     <thead><tr>
@@ -6552,16 +6620,31 @@ Return JSON only, no markdown:
   </table>
   </div>
 
-  <h2 id="users">User Activity (Last 30 Days)</h2>
+  <div class="section-header" id="users">
+    <h2>User Activity (Last 30 Days)</h2>
+    <span class="count">(${activeUsers.length})</span>
+  </div>
   <div class="table-wrap">
   <table>
     <thead><tr>
-      <th>Email</th><th>Last Active</th><th>Analyses</th><th>Policies</th>
+      <th>Email</th><th>Last Active</th><th>Last Analysis</th><th>Analyses</th><th>Policies</th><th>Email Policies</th>
     </tr></thead>
-    <tbody>${userRows || '<tr><td colspan="4" class="muted">No active users</td></tr>'}</tbody>
+    <tbody>${userRows || '<tr><td colspan="6" class="muted">No active users</td></tr>'}</tbody>
   </table>
   </div>
 </div>
+
+<script>
+function filterByCarrier() {
+  const val = document.getElementById('carrierFilter').value.toLowerCase();
+  const rows = document.querySelectorAll('#analysesTable tbody tr');
+  rows.forEach(row => {
+    if (!val) { row.style.display = ''; return; }
+    const carrier = (row.getAttribute('data-carrier') || '').toLowerCase();
+    row.style.display = carrier === val ? '' : 'none';
+  });
+}
+</script>
 </body>
 </html>`
 
