@@ -6209,7 +6209,7 @@ Return JSON only, no markdown:
       // ── Fetch all data in parallel ──
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
-      const [analysesRes, policiesRes, usersRes, appealsRes] = await Promise.all([
+      const [analysesRes, policiesRes, usersRes, appealsRes, emailDocsRes] = await Promise.all([
         supabase.from('pciq_analyses')
           .select('id, user_id, policy_id, clinic_name, service_date, total_bill, estimated_reimbursement, line_items, created_at')
           .order('created_at', { ascending: false })
@@ -6224,12 +6224,17 @@ Return JSON only, no markdown:
           .select('*')
           .order('created_at', { ascending: false })
           .limit(20),
+        supabase.from('pciq_email_documents')
+          .select('id, user_id, email_from, filename, document_type, classification_status, extracted_data, created_at')
+          .order('created_at', { ascending: false })
+          .limit(50),
       ])
 
       const analyses = analysesRes.data || []
       const policies = policiesRes.data || []
       const users = usersRes.data || []
       const appeals = appealsRes.data || []
+      const emailDocs = emailDocsRes.data || []
 
       // Build user email lookup
       const userMap = {}
@@ -6319,11 +6324,33 @@ Return JSON only, no markdown:
         </tr>`
       }).join('\n')
 
+      // ── Build email-in document rows ──
+      const typeColors = { combined: 'green', declarations: 'green', policy_terms: 'green', eob: 'yellow', vet_bill: 'yellow', irrelevant: 'red' }
+      const statusColors = { classified: 'green', pending: 'yellow', failed: 'red' }
+      const emailDocRows = emailDocs.map(d => {
+        const ext = d.extracted_data || {}
+        const dtype = d.document_type || 'pending'
+        const typeColor = typeColors[dtype] || 'muted'
+        const statusColor = statusColors[d.classification_status] || 'muted'
+        return `<tr>
+          <td>${esc(fmtDate(d.created_at))}</td>
+          <td>${esc(d.email_from)}</td>
+          <td>${esc(d.filename)}</td>
+          <td class="${typeColor}">${esc(dtype)}</td>
+          <td>${esc(ext.confidence)}</td>
+          <td>${esc(ext.carrier_name)}</td>
+          <td>${esc(ext.pet_name)}</td>
+          <td class="${statusColor}">${esc(d.classification_status)}</td>
+        </tr>`
+      }).join('\n')
+
       // ── Summary stats ──
       const totalAnalyses = analyses.length
       const totalPolicies = policies.length
       const totalUsers = users.length
       const recentAnalyses = analyses.filter(a => a.created_at >= thirtyDaysAgo).length
+      const totalEmailDocs = emailDocs.length
+      const policiesViaEmail = emailDocs.filter(d => ['combined', 'declarations'].includes(d.document_type) && d.classification_status === 'classified').length
 
       const html = `<!DOCTYPE html>
 <html lang="en">
@@ -6350,6 +6377,7 @@ Return JSON only, no markdown:
   tr:nth-child(even) td { background: #0f0f24; }
   tr:hover td { background: #1a1a3a; }
   .green { color: #4ade80; }
+  .yellow { color: #fbbf24; }
   .red { color: #f87171; }
   .muted { color: #64748b; }
   #sections { scroll-margin-top: 60px; }
@@ -6362,6 +6390,7 @@ Return JSON only, no markdown:
   <a href="#stats">Stats</a>
   <a href="#analyses">Analyses</a>
   <a href="#policies">Policies</a>
+  <a href="#emaildocs">Email-In</a>
   <a href="#users">Users</a>
 </nav>
 <div class="container">
@@ -6371,6 +6400,8 @@ Return JSON only, no markdown:
     <div class="stat-card"><div class="num">${recentAnalyses}</div><div class="label">Analyses (30d)</div></div>
     <div class="stat-card"><div class="num">${totalPolicies}</div><div class="label">Policies Uploaded</div></div>
     <div class="stat-card"><div class="num">${activeUsers.length}</div><div class="label">Active Users (30d)</div></div>
+    <div class="stat-card"><div class="num">${totalEmailDocs}</div><div class="label">Docs Received</div></div>
+    <div class="stat-card"><div class="num">${policiesViaEmail}</div><div class="label">Policies via Email</div></div>
   </div>
 
   <h2 id="analyses">Recent Analyses</h2>
@@ -6390,6 +6421,16 @@ Return JSON only, no markdown:
       <th>Date</th><th>User</th><th>Carrier</th><th>Pet</th><th>Species</th><th>Breed</th><th>Deductible</th><th>Reimb Rate</th><th>Annual Limit</th>
     </tr></thead>
     <tbody>${policyRows || '<tr><td colspan="9" class="muted">No policies yet</td></tr>'}</tbody>
+  </table>
+  </div>
+
+  <h2 id="emaildocs">Email-In Documents</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th>Date</th><th>From</th><th>Filename</th><th>Type</th><th>Confidence</th><th>Carrier</th><th>Pet</th><th>Status</th>
+    </tr></thead>
+    <tbody>${emailDocRows || '<tr><td colspan="8" class="muted">No email documents yet</td></tr>'}</tbody>
   </table>
   </div>
 
