@@ -25,6 +25,7 @@ import { getMissingRequiredFields, getRequiredFieldsForInsurer } from './lib/cla
 import { formatPhoneToE164 } from './utils/phoneUtils.js'
 import { Jimp } from 'jimp'
 import rateLimit from 'express-rate-limit'
+import { Webhook } from 'svix'
 
 // Test Jimp availability at startup
 try {
@@ -87,7 +88,13 @@ app.use(cors({
   ],
   credentials: true
 }))
-app.use(express.json({ limit: '1mb' }))
+app.use(express.json({
+  limit: '1mb',
+  verify: (req, _res, buf) => {
+    // Preserve raw body buffer for Svix webhook signature verification
+    req.rawBody = buf
+  }
+}))
 
 // Rate limiter for public signup endpoint (prevents spam attacks)
 const signupLimiter = rateLimit({
@@ -5994,6 +6001,25 @@ Return JSON only, no markdown:
   // via the Resend API, and stores them in Supabase Storage + pciq_email_documents.
   app.post('/api/webhook/email-in', async (req, res) => {
     const tag = '[email-in]'
+
+    // ── Svix / Resend webhook signature verification ──
+    const webhookSecret = process.env.RESEND_WEBHOOK_SECRET
+    if (webhookSecret) {
+      try {
+        const wh = new Webhook(webhookSecret)
+        wh.verify(req.rawBody, {
+          'svix-id': req.headers['svix-id'],
+          'svix-timestamp': req.headers['svix-timestamp'],
+          'svix-signature': req.headers['svix-signature'],
+        })
+      } catch (err) {
+        console.log(`${tag} Webhook signature verification failed:`, err.message)
+        return res.status(401).json({ error: 'Webhook signature verification failed' })
+      }
+    } else {
+      console.log(`${tag} WARNING: RESEND_WEBHOOK_SECRET not set — skipping signature verification`)
+    }
+
     try {
       const payload = req.body
       if (!payload || payload.type !== 'email.received') {
