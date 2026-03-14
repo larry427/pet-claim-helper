@@ -6543,9 +6543,9 @@ Return JSON only, no markdown:
   .section-header select:focus { outline: none; border-color: #58a6ff; box-shadow: 0 0 0 3px rgba(88,166,255,0.15); }
 
   /* ── Tables ── */
-  .table-wrap { overflow-x: auto; margin-bottom: 48px; border-radius: 12px; border: 1px solid #21262d; background: #0d1117; }
+  .table-wrap { overflow: visible; margin-bottom: 48px; border-radius: 12px; border: 1px solid #21262d; background: #0d1117; }
   table { width: 100%; border-collapse: collapse; }
-  th { text-align: left; padding: 12px 16px; background: #0d1117; color: #484f58; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1px solid #21262d; position: sticky; top: 56px; z-index: 5; font-family: inherit; }
+  th { text-align: left; padding: 12px 16px; background: #0d1117; color: #484f58; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1px solid #21262d; font-family: inherit; }
   th.r { text-align: right; }
   th.c { text-align: center; }
   td { padding: 0 16px; height: 46px; vertical-align: middle; font-size: 14px; white-space: nowrap; border: none; }
