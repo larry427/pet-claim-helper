@@ -5957,7 +5957,7 @@ Return JSON only, no markdown:
 
     if (existing && existing.length > 0) {
       console.log(`${tag} Policy already exists for ${f.carrier_name} — skipping auto-save`)
-      return false
+      return 'exists'
     }
 
     const policyRow = {
@@ -6007,7 +6007,13 @@ Return JSON only, no markdown:
     let subject = ''
     let html = ''
 
-    if (completeness.status === 'complete' && policySaved) {
+    if (completeness.status === 'complete' && policySaved === 'exists') {
+      // ── Scenario 4: Complete — policy already exists ──
+      subject = `Your ${carrier} policy is already saved`
+      html = wrapper(`<p>We received your <strong>${carrier}</strong> documents and everything looks good. Your policy for <strong>${pet}</strong> is already set up in Pet ClaimIQ — no changes needed.</p>
+        <p>You're ready to analyze vet bills.</p>`)
+
+    } else if (completeness.status === 'complete' && policySaved) {
       // ── Scenario 1: Complete — policy saved ──
       subject = `Your ${carrier} policy for ${pet} has been saved`
       html = wrapper(`
@@ -6286,8 +6292,10 @@ Return JSON only, no markdown:
 
       if (completeness.status === 'complete') {
         policySaved = await autoSavePolicy(userId, completeness)
-        if (policySaved) {
+        if (policySaved === true) {
           console.log(`${tag} 🎉 Policy auto-saved for ${userData.email}`)
+        } else if (policySaved === 'exists') {
+          console.log(`${tag} Policy already exists for ${userData.email} — skipping save`)
         }
       }
 
