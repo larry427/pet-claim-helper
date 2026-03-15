@@ -6415,7 +6415,7 @@ Return JSON only, no markdown:
       const fmtDate = d => {
         if (!d) return '—'
         const dt = new Date(d)
-        return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+        return dt.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
       }
 
       // ── Build analyses rows ──
