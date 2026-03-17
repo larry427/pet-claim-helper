@@ -3694,7 +3694,7 @@ Return ONLY this JSON object:
       return stage1Result
   }
 
-  const pciqRunStage2 = async ({ openai, tag, stage1Result, policyFileContents, policyTextBackup, savedPolicy }) => {
+  const pciqRunStage2 = async ({ openai, tag, stage1Result, policyFileContents, policyTextBackup, savedPolicy, vetBillTextBackup }) => {
       // STEP 4 — Build saved-policy context string for Stage 2 prompt
       let savedPolicyContext = ''
       if (savedPolicy) {
@@ -3954,6 +3954,49 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         }
       }
 
+      // ── Pet name mismatch check: vet bill pet vs policy pet ──
+      let petMismatchWarning = null
+      const billPetName = (stage1Result.petInfo?.name || '').trim()
+      const policyPetName = (savedPolicy?.pet_name || '').trim()
+      if (billPetName && policyPetName) {
+        const billLower = billPetName.toLowerCase()
+        const policyLower = policyPetName.toLowerCase()
+        if (billLower !== policyLower) {
+          // Fuzzy: check if one name contains the other (handles nicknames like "Bella" vs "Isabella")
+          const isSubstring = billLower.length >= 2 && policyLower.length >= 2 &&
+            (policyLower.includes(billLower) || billLower.includes(policyLower))
+          if (!isSubstring) {
+            petMismatchWarning = `The pet on this vet bill (${billPetName}) doesn't match the pet on your policy (${policyPetName}). Make sure you selected the right policy.`
+            console.log(`${tag} ⚠ Pet name mismatch: bill="${billPetName}" policy="${policyPetName}"`)
+          }
+        }
+      }
+
+      // ── Carrier mismatch check: carrier name detected in vet bill vs policy carrier ──
+      let carrierMismatchWarning = null
+      const policyCarrier = (savedPolicy?.carrier || '').trim()
+      if (policyCarrier && Array.isArray(vetBillTextBackup) && vetBillTextBackup.length > 0) {
+        const knownCarriers = ['Healthy Paws', 'Pumpkin', 'Odie', 'Figo', 'Embrace', 'Nationwide', 'Pets Best', 'ASPCA', 'Trupanion', 'Lemonade', 'Spot', 'MetLife', 'Fetch']
+        // Only check the first ~500 chars of text backup (header area) for confident detection
+        const headerText = vetBillTextBackup.join('\n').substring(0, 500)
+        const policyCarrierLower = policyCarrier.toLowerCase()
+        for (const carrier of knownCarriers) {
+          const carrierLower = carrier.toLowerCase()
+          if (headerText.toLowerCase().includes(carrierLower) && !policyCarrierLower.includes(carrierLower)) {
+            carrierMismatchWarning = `This document appears to reference ${carrier} but you're analyzing against your ${policyCarrier} policy. Make sure you selected the right policy.`
+            console.log(`${tag} ⚠ Carrier mismatch: detected="${carrier}" policy="${policyCarrier}"`)
+            break
+          }
+        }
+      }
+
+      // ── Build combined warnings array for the app ──
+      const serverWarnings = [
+        ...(s2a.eligibilityWarnings || []),
+        ...(petMismatchWarning ? [petMismatchWarning] : []),
+        ...(carrierMismatchWarning ? [carrierMismatchWarning] : []),
+      ]
+
       const mobileResponse = {
         estimated_reimbursement: maxReimbursement,
         total_bill: s2a.totalBill || stage1Result.totalBill || 0,
@@ -3989,7 +4032,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
           if (stage2Result.completeness === 'partial') return 'Medium'
           return 'Low' // bill_only or no policy
         })(),
-        eligibility_warnings: s2a.eligibilityWarnings || [],
+        eligibility_warnings: serverWarnings.length ? serverWarnings : [],
         date_eligibility_warning: dateEligibilityWarning,
         carrier: savedPolicy?.carrier || s2p.carrier || null,
         deductible_total: deductible,
@@ -4211,6 +4254,7 @@ IMPORTANT: Use numbers not strings for amounts. Return ONLY the JSON object.`
           policyFileContents: policyData.fileContents,
           policyTextBackup: policyData.textBackup,
           savedPolicy,
+          vetBillTextBackup: billData.textBackup,
         })
 
         // ── Route 3: Compare coverage analysis with EOB payment ──
@@ -4815,7 +4859,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
 
       // STEP 3 — Run Stage 1 + Stage 2 via shared helpers
       const stage1Result = await pciqRunStage1({ openai, tag, vetBillFileContents, vetBillTextBackup })
-      const mobileResponse = await pciqRunStage2({ openai, tag, stage1Result, policyFileContents, policyTextBackup, savedPolicy })
+      const mobileResponse = await pciqRunStage2({ openai, tag, stage1Result, policyFileContents, policyTextBackup, savedPolicy, vetBillTextBackup })
 
       console.log(`${tag} ✅ Complete:`, {
         total_bill: mobileResponse.total_bill,
