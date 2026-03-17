@@ -4013,7 +4013,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         visit_type: stage1Result.visitType || null,
         clinic_name: stage1Result.clinicInfo?.name || null,   // Stage 1 only — null is OK
         visit_date: stage1Result.clinicInfo?.date || null,     // Stage 1 only — null is OK
-        pet_name: stage1Result.petInfo?.name || savedPolicy?.pet_name || null,
+        pet_name: savedPolicy?.pet_name || stage1Result.petInfo?.name || null,
         // Stage 2 / policy fields
         confidence: (() => {
           // Server-side confidence override — don't trust GPT's confidence assessment
