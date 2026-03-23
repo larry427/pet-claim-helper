@@ -3997,6 +3997,126 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         ...(carrierMismatchWarning ? [carrierMismatchWarning] : []),
       ]
 
+      // ── Plain-English Summary Generation ──
+      const summaryLineItems = (s2a.lineItems || []).map(item => ({
+        description: item.description,
+        amount: item.amount,
+        covered: item.covered ?? false,
+        reason: item.reason || '',
+      }))
+      const summaryPetName = savedPolicy?.pet_name || stage1Result.petInfo?.name || 'Your pet'
+      const summaryCarrier = savedPolicy?.carrier || s2p.carrier || 'your insurance'
+      const summaryClinic = stage1Result.clinicInfo?.name || 'the vet'
+      const summaryDate = (() => {
+        const raw = stage1Result.clinicInfo?.date
+        if (!raw) return 'a recent visit'
+        const d = new Date(raw + 'T00:00:00')
+        return isNaN(d.getTime()) ? raw : d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      })()
+      const summaryTotalBill = (s2a.totalBill || stage1Result.totalBill || 0)
+      const summaryRate = rateRaw || 0
+      const summaryRateWhole = Math.round(summaryRate)
+      const summaryRateDec = summaryRate / 100
+      const summaryDeductible = deductible
+      const fmt$ = n => `$${Math.max(0, n).toFixed(2)}`
+      const isCoinsFirst = /healthy\s*paws|fetch/i.test(summaryCarrier)
+
+      const coveredItems = summaryLineItems.filter(i => i.covered)
+      const excludedItems = summaryLineItems.filter(i => !i.covered)
+      const wellnessReasons = ['wellness', 'preventive', 'routine', 'exam', 'vaccine', 'vaccination', 'annual']
+      const isWellnessExclusion = r => wellnessReasons.some(w => (r || '').toLowerCase().includes(w))
+      const allExcludedAreWellness = excludedItems.length > 0 && excludedItems.every(i => isWellnessExclusion(i.reason))
+      const visitType = (stage1Result.visitType || '').toLowerCase()
+
+      let summaryScenario = 'SICK_PARTIAL'
+      if (visitType.includes('wellness') || (excludedItems.length === summaryLineItems.length && allExcludedAreWellness)) {
+        summaryScenario = 'WELLNESS_ALL_EXCLUDED'
+      } else if (coveredItems.length === summaryLineItems.length && coveredItems.length > 0) {
+        summaryScenario = 'SICK_ALL_COVERED'
+      } else if (excludedItems.length === summaryLineItems.length) {
+        summaryScenario = 'SICK_NONE_COVERED'
+      } else if (coveredItems.length > 0 && excludedItems.some(i => isWellnessExclusion(i.reason)) && excludedItems.length > 0) {
+        summaryScenario = 'MIXED'
+      }
+
+      const joinNames = items => {
+        const names = items.map(i => i.description)
+        if (names.length === 0) return ''
+        if (names.length === 1) return names[0]
+        return names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]
+      }
+
+      const buildMathSentences = () => {
+        if (!summaryRate || totalCovered <= 0) return ''
+        let reimbHigh, reimbLow
+        if (isCoinsFirst) {
+          reimbHigh = totalCovered * summaryRateDec
+          reimbLow = (totalCovered * summaryRateDec) - summaryDeductible
+        } else {
+          reimbHigh = totalCovered * summaryRateDec
+          reimbLow = (totalCovered - summaryDeductible) * summaryRateDec
+        }
+        reimbHigh = Math.round(Math.max(0, reimbHigh) * 100) / 100
+        reimbLow = Math.round(Math.max(0, reimbLow) * 100) / 100
+
+        let sentences = `If your ${fmt$(summaryDeductible)} deductible is already met: ${fmt$(reimbHigh)} estimated reimbursement.`
+        if (summaryDeductible > 0) {
+          if (reimbLow > 0) {
+            sentences += ` If your full deductible still applies: ${fmt$(reimbLow)} estimated reimbursement.`
+          } else {
+            sentences += ` If your full deductible still applies: $0.00 — your deductible has not yet been met on this visit. Once your annual deductible is satisfied, future eligible claims will reimburse at your ${summaryRateWhole}%.`
+          }
+        }
+        return sentences
+      }
+
+      const plainReason = r => {
+        if (!r) return 'it is not covered under your policy'
+        const lower = r.toLowerCase()
+        if (lower.includes('wellness') || lower.includes('preventive') || lower.includes('routine')) return 'it is considered a routine/wellness item'
+        if (lower.includes('pre-existing') || lower.includes('preexisting')) return 'it is related to a pre-existing condition'
+        if (lower.includes('waiting')) return 'it falls within the waiting period'
+        if (lower.includes('breed') || lower.includes('hereditary')) return 'it is a breed-specific or hereditary exclusion'
+        if (lower.includes('cosmetic') || lower.includes('elective')) return 'it is considered an elective or cosmetic procedure'
+        if (lower.includes('food') || lower.includes('supplement') || lower.includes('diet')) return 'food and supplements are not covered'
+        if (lower.includes('waste') || lower.includes('disposal')) return 'waste disposal fees are not covered'
+        return r.length > 80 ? 'it is not covered under your policy' : r.toLowerCase()
+      }
+
+      let summaryText = ''
+      switch (summaryScenario) {
+        case 'WELLNESS_ALL_EXCLUDED':
+          summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} was a routine wellness visit. Your ${summaryCarrier} plan covers accidents and illness but does not include preventive or routine care. The ${joinNames(excludedItems)} on this bill are all considered wellness items under your policy. Estimated reimbursement: $0.00. If ${summaryPetName} has a sick visit or injury, that's when your ${summaryCarrier} coverage kicks in.`
+          break
+        case 'SICK_ALL_COVERED':
+          summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} was an illness/injury visit. Every item on this ${fmt$(summaryTotalBill)} bill is covered under your ${summaryCarrier} plan. ${buildMathSentences()}`
+          break
+        case 'SICK_PARTIAL': {
+          const excDetails = excludedItems.map(i => `The ${i.description} (${fmt$(i.amount)}) is excluded because ${plainReason(i.reason)}.`).join(' ')
+          summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} was an illness/injury visit. Of the ${fmt$(summaryTotalBill)} total, ${fmt$(totalCovered)} is covered under your ${summaryCarrier} plan. ${excDetails} ${buildMathSentences()}`
+          break
+        }
+        case 'SICK_NONE_COVERED': {
+          const primaryReason = excludedItems.length > 0 ? plainReason(excludedItems[0].reason) : 'these services are not eligible'
+          const guidance = (() => {
+            const r = (excludedItems[0]?.reason || '').toLowerCase()
+            if (r.includes('wellness') || r.includes('preventive')) return `If ${summaryPetName} has a sick visit or injury, that's when your coverage kicks in.`
+            if (r.includes('pre-existing') || r.includes('preexisting')) return 'Coverage may apply to new, unrelated conditions.'
+            if (r.includes('waiting')) return 'Once the waiting period ends, similar services will be eligible.'
+            return `Coverage applies to eligible accidents and illnesses under your ${summaryCarrier} plan.`
+          })()
+          summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} included services that are not eligible for coverage under your ${summaryCarrier} plan. The primary reason: ${primaryReason}. Estimated reimbursement: $0.00. ${guidance}`
+          break
+        }
+        case 'MIXED': {
+          const wellnessExcluded = excludedItems.filter(i => isWellnessExclusion(i.reason))
+          const excludedAmt = excludedItems.reduce((s, i) => s + (i.amount || 0), 0)
+          summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} included both routine and illness-related items. The wellness items (${joinNames(wellnessExcluded.length > 0 ? wellnessExcluded : excludedItems)}) are not covered under your ${summaryCarrier} plan — that's ${fmt$(excludedAmt)} excluded. The illness-related items (${joinNames(coveredItems)}) are covered — that's ${fmt$(totalCovered)} eligible. ${buildMathSentences()}`
+          break
+        }
+      }
+      console.log(`${tag} Summary scenario: ${summaryScenario}`)
+
       const mobileResponse = {
         estimated_reimbursement: maxReimbursement,
         total_bill: s2a.totalBill || stage1Result.totalBill || 0,
@@ -4014,6 +4134,8 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         clinic_name: stage1Result.clinicInfo?.name || null,   // Stage 1 only — null is OK
         visit_date: stage1Result.clinicInfo?.date || null,     // Stage 1 only — null is OK
         pet_name: savedPolicy?.pet_name || stage1Result.petInfo?.name || null,
+        summary: summaryText,
+        summary_scenario: summaryScenario,
         // Stage 2 / policy fields
         confidence: (() => {
           // Server-side confidence override — don't trust GPT's confidence assessment
