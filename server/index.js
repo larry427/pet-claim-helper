@@ -4098,16 +4098,36 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         return result
       }
 
+      // Smart item list: name items if ≤3, otherwise show count + total
+      const itemList = (items, label) => {
+        if (items.length <= 3) return joinNames(items)
+        const total = items.reduce((s, i) => s + (i.amount || 0), 0)
+        return `${items.length} items totaling ${fmt$(total)}`
+      }
+
       let summaryText = ''
       switch (summaryScenario) {
-        case 'WELLNESS_ALL_EXCLUDED':
-          summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} was a routine wellness visit. Your ${summaryCarrier} plan covers accidents and illness but does not include preventive or routine care. The ${joinNames(excludedItems)} on this bill are all considered wellness items under your policy. Estimated reimbursement: $0.00. If ${summaryPetName} has a sick visit or injury, that's when your ${summaryCarrier} coverage kicks in.`
+        case 'WELLNESS_ALL_EXCLUDED': {
+          const wellnessDesc = excludedItems.length <= 3
+            ? `The ${joinNames(excludedItems)} on this bill are considered wellness or preventive care under your ${summaryCarrier} plan.`
+            : `All ${excludedItems.length} items on this bill are considered wellness or preventive care under your ${summaryCarrier} plan.`
+          summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} was a routine wellness visit. Your ${summaryCarrier} plan covers accidents and illness but does not include preventive or routine care. ${wellnessDesc} Estimated reimbursement: $0.00. If ${summaryPetName} has a sick visit or injury, that's when your ${summaryCarrier} coverage kicks in.`
           break
+        }
         case 'SICK_ALL_COVERED':
           summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} was an illness/injury visit. Every item on this ${fmt$(summaryTotalBill)} bill is covered under your ${summaryCarrier} plan. ${buildMathSentences()}`
           break
         case 'SICK_PARTIAL': {
-          const excDetails = excludedItems.map(i => `The ${i.description} (${fmt$(i.amount)}) is excluded because ${plainReason(i.reason)}.`).join(' ')
+          let excDetails
+          if (excludedItems.length === 1) {
+            excDetails = `The ${excludedItems[0].description} (${fmt$(excludedItems[0].amount)}) is excluded because ${plainReason(excludedItems[0].reason)}.`
+          } else if (excludedItems.length <= 3) {
+            excDetails = excludedItems.map(i => `the ${i.description} (${fmt$(i.amount)})`).join(', ').replace(/, ([^,]+)$/, ' and $1')
+            excDetails = `The ${excDetails.slice(4)} are excluded.`
+          } else {
+            const exclAmt = excludedItems.reduce((s, i) => s + (i.amount || 0), 0)
+            excDetails = `${excludedItems.length} items totaling ${fmt$(exclAmt)} are excluded under your policy.`
+          }
           summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} was an illness/injury visit. Of the ${fmt$(summaryTotalBill)} total, ${fmt$(totalCovered)} is covered under your ${summaryCarrier} plan. ${excDetails} ${buildMathSentences()}`
           break
         }
@@ -4125,8 +4145,15 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         }
         case 'MIXED': {
           const wellnessExcluded = excludedItems.filter(i => isWellnessExclusion(i.reason, i.description))
+          const mixedExcItems = wellnessExcluded.length > 0 ? wellnessExcluded : excludedItems
           const excludedAmt = excludedItems.reduce((s, i) => s + (i.amount || 0), 0)
-          summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} included both routine and illness-related items. The wellness items (${joinNames(wellnessExcluded.length > 0 ? wellnessExcluded : excludedItems)}) are not covered under your ${summaryCarrier} plan — that's ${fmt$(excludedAmt)} excluded. The illness-related items (${joinNames(coveredItems)}) are covered — that's ${fmt$(totalCovered)} eligible. ${buildMathSentences()}`
+          const wellnessDesc = mixedExcItems.length <= 3
+            ? `The wellness items (${joinNames(mixedExcItems)}) are not covered under your ${summaryCarrier} plan`
+            : `${mixedExcItems.length} items totaling ${fmt$(excludedAmt)} are wellness or preventive care and are not covered`
+          const coveredDesc = coveredItems.length <= 3
+            ? `The illness-related items (${joinNames(coveredItems)}) are covered`
+            : `${coveredItems.length} items totaling ${fmt$(totalCovered)} are illness-related and covered`
+          summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} included both routine and illness-related items. ${wellnessDesc} — that's ${fmt$(excludedAmt)} excluded. ${coveredDesc} — that's ${fmt$(totalCovered)} eligible. ${buildMathSentences()}`
           break
         }
       }
