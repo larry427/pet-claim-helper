@@ -4023,9 +4023,15 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
 
       const coveredItems = summaryLineItems.filter(i => i.covered)
       const excludedItems = summaryLineItems.filter(i => !i.covered)
-      const wellnessReasons = ['wellness', 'preventive', 'routine', 'exam', 'vaccine', 'vaccination', 'annual']
-      const isWellnessExclusion = r => wellnessReasons.some(w => (r || '').toLowerCase().includes(w))
-      const allExcludedAreWellness = excludedItems.length > 0 && excludedItems.every(i => isWellnessExclusion(i.reason))
+      const wellnessReasons = ['wellness', 'preventive', 'routine', 'vaccine', 'vaccination', 'annual checkup', 'annual wellness', 'parasite screening', 'fecal test', 'heartworm test']
+      const isWellnessExclusion = (r, desc) => {
+        const reasonLower = (r || '').toLowerCase()
+        const descLower = (desc || '').toLowerCase()
+        // "exam" alone is NOT wellness — many carriers exclude exam fees on ALL visit types
+        // Only count as wellness if reason explicitly says wellness/preventive/routine
+        return wellnessReasons.some(w => reasonLower.includes(w) || descLower.includes(w))
+      }
+      const allExcludedAreWellness = excludedItems.length > 0 && excludedItems.every(i => isWellnessExclusion(i.reason, i.description))
       const visitType = (stage1Result.visitType || '').toLowerCase()
 
       let summaryScenario = 'SICK_PARTIAL'
@@ -4035,7 +4041,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         summaryScenario = 'SICK_ALL_COVERED'
       } else if (excludedItems.length === summaryLineItems.length) {
         summaryScenario = 'SICK_NONE_COVERED'
-      } else if (coveredItems.length > 0 && excludedItems.some(i => isWellnessExclusion(i.reason)) && excludedItems.length > 0) {
+      } else if (coveredItems.length > 0 && excludedItems.some(i => isWellnessExclusion(i.reason, i.description)) && excludedItems.length > 0) {
         summaryScenario = 'MIXED'
       }
 
@@ -4109,7 +4115,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
           break
         }
         case 'MIXED': {
-          const wellnessExcluded = excludedItems.filter(i => isWellnessExclusion(i.reason))
+          const wellnessExcluded = excludedItems.filter(i => isWellnessExclusion(i.reason, i.description))
           const excludedAmt = excludedItems.reduce((s, i) => s + (i.amount || 0), 0)
           summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} included both routine and illness-related items. The wellness items (${joinNames(wellnessExcluded.length > 0 ? wellnessExcluded : excludedItems)}) are not covered under your ${summaryCarrier} plan — that's ${fmt$(excludedAmt)} excluded. The illness-related items (${joinNames(coveredItems)}) are covered — that's ${fmt$(totalCovered)} eligible. ${buildMathSentences()}`
           break
@@ -4461,6 +4467,8 @@ IMPORTANT: Use numbers not strings for amounts. Return ONLY the JSON object.`
           eob_insurer_eligible_amount: r3EobResult.totalAllowed || null,
           eob_corrected_reimbursement: correctedReimbursement,
           eob_storage_path: eob_storage_path,
+          summary: coverageResult.summary || null,
+          summary_scenario: coverageResult.summary_scenario || null,
         }
 
         const { data: savedAnalysis, error: saveError } = await supabase
