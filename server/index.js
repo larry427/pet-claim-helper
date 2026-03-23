@@ -4078,7 +4078,11 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
 
       const plainReason = r => {
         if (!r) return 'it is not covered under your policy'
-        const lower = r.toLowerCase()
+        // Strip "Excluded — ", "Excluded - ", "excluded:" etc. prefixes
+        let cleaned = r.replace(/^excluded\s*[-—–:]\s*/i, '').trim()
+        // Strip trailing carrier policy boilerplate like "under healthy paws policy"
+        cleaned = cleaned.replace(/\s+under\s+\S+(\s+\S+)?\s+policy\.?$/i, '').trim()
+        const lower = cleaned.toLowerCase()
         if (lower.includes('wellness') || lower.includes('preventive') || lower.includes('routine')) return 'it is considered a routine/wellness item'
         if (lower.includes('pre-existing') || lower.includes('preexisting')) return 'it is related to a pre-existing condition'
         if (lower.includes('waiting')) return 'it falls within the waiting period'
@@ -4086,7 +4090,12 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         if (lower.includes('cosmetic') || lower.includes('elective')) return 'it is considered an elective or cosmetic procedure'
         if (lower.includes('food') || lower.includes('supplement') || lower.includes('diet')) return 'food and supplements are not covered'
         if (lower.includes('waste') || lower.includes('disposal')) return 'waste disposal fees are not covered'
-        return r.length > 80 ? 'it is not covered under your policy' : r.toLowerCase()
+        if (cleaned.length > 80) return 'it is not covered under your policy'
+        // Lowercase the first char for sentence flow ("is excluded because exam fees...")
+        let result = cleaned.charAt(0).toLowerCase() + cleaned.slice(1)
+        // Remove trailing period — the template adds punctuation
+        result = result.replace(/\.+$/, '')
+        return result
       }
 
       let summaryText = ''
