@@ -4122,6 +4122,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         }
       }
       console.log(`${tag} Summary scenario: ${summaryScenario}`)
+      console.log(`${tag} Summary text:`, summaryText)
 
       const mobileResponse = {
         estimated_reimbursement: maxReimbursement,
