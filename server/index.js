@@ -5939,17 +5939,17 @@ RULES:
       const classificationPrompt = `You are analyzing a document that was emailed to a pet insurance analysis service. Classify this document into ONE of these categories:
 
 - DECLARATIONS: A pet insurance declarations page or schedule of benefits. Contains specific policyholder details: pet name, deductible amount, reimbursement percentage, annual limit, effective dates, policy number. Usually 1-3 pages.
-- POLICY_TERMS: A pet insurance policy booklet or terms document. Contains coverage rules, exclusions, waiting periods, definitions, what is and isn't covered. Usually 10-30+ pages. Does NOT contain the specific dollar amounts for this policyholder's deductible/reimbursement.
+- POLICY_TERMS: A pet insurance policy booklet or terms document. Contains coverage rules, exclusions, waiting periods, definitions, what is and isn't covered. Usually 10-30+ pages. Does NOT contain the specific dollar amounts for this policyholder's deductible/reimbursement. IMPORTANT: Endorsements, riders, amendments, and supplementary coverage documents (e.g., "Preventive Care Endorsement", "Wellness Rider", "Policy Amendment") are POLICY_TERMS — they modify coverage terms and are needed for accurate analysis. Do NOT classify endorsements as IRRELEVANT.
 - COMBINED: A single document that contains BOTH the declarations/schedule AND the full policy terms/exclusions. Some carriers (like Pumpkin) send everything in one PDF.
 - EOB: An Explanation of Benefits from an insurance company showing claim payment details. Contains claim numbers, amounts paid, denied items, applied to deductible.
 - VET_BILL: A veterinary invoice or receipt showing services performed and charges.
-- IRRELEVANT: Not a pet insurance document. Could be car insurance, a marketing brochure, a receipt for something unrelated, or any other non-pet-insurance document.
+- IRRELEVANT: Not a pet insurance document. Could be car insurance, a marketing brochure, a receipt for something unrelated, or any other non-pet-insurance document. Do NOT classify pet insurance endorsements, riders, or amendments as IRRELEVANT — those are POLICY_TERMS.
 
 DOCUMENT TEXT:
 ${pdfText || '(No text extracted — see attached image)'}
 
 Also extract these fields if you can find them (return null for any you cannot find):
-- carrier_name: The insurance company name (use consumer-facing brand name, not underwriting entity). Brand mappings: "Westchester Fire Insurance Company" = "Healthy Paws", "United States Fire Insurance Company" = "Pumpkin", "American Pet Insurance Company" = "Fetch", "Independence American Insurance Company" = "Figo", "National Casualty Company" = "Nationwide Pet Insurance".
+- carrier_name: The insurance company name (use consumer-facing brand name, not underwriting entity). Brand mappings: "Westchester Fire Insurance Company" = "Healthy Paws", "United States Fire Insurance Company" = "Pumpkin", "American Pet Insurance Company" = "Fetch", "Independence American Insurance Company" = "Figo", "National Casualty Company" = "Nationwide Pet Insurance", "Cimarron Insurance Company" = "Kanguro", "Kanguro Insurance LLC" = "Kanguro". IMPORTANT: Look for the consumer-facing brand name in logos, headers, footers, and watermarks — not just the underwriting entity. If you see a brand logo or "administered by [Brand]", use the brand name. Always return a carrier_name if ANY insurance company name appears in the document — never return null if you can identify one.
 - pet_name, policy_number, species (dog or cat), breed
 - deductible: Annual deductible amount (number only)
 - reimbursement_rate: Percentage the INSURER pays (number only, e.g. 80 not 0.80). CRITICAL: If carrier is Nationwide, "co-insurance" means the OWNER's share — subtract from 100. If carrier is Figo (newer form "IAIC FPI POL"), use the "Reimbursement Percentage" not the "Coinsurance".
@@ -6085,7 +6085,8 @@ Return JSON only, no markdown:
   }
 
   // Check if a user has enough documents to build a complete policy
-  const checkPolicyCompleteness = async (userId) => {
+  // currentBatchIds: optional array of doc IDs from the most recent email — their carrier takes priority
+  const checkPolicyCompleteness = async (userId, currentBatchIds = []) => {
     const tag = '[email-in/completeness]'
 
     const { data: docs, error } = await supabase
@@ -6103,8 +6104,10 @@ Return JSON only, no markdown:
     let has_policy_terms = false
     let has_combined = false
     let carrier_name = null
+    let batchCarrier = null // carrier from the current email batch (highest priority)
     // Merge extracted fields from all docs — later docs override earlier for same fields
     const merged = {}
+    const batchIdSet = new Set(currentBatchIds.map(id => String(id)))
 
     for (const doc of docs) {
       const dtype = (doc.document_type || '').toUpperCase()
@@ -6120,7 +6123,16 @@ Return JSON only, no markdown:
           merged[key] = data[key]
         }
       }
+      // Track carrier from current batch separately — it takes priority
+      if (data.carrier_name && batchIdSet.has(String(doc.id)) && !batchCarrier) {
+        batchCarrier = data.carrier_name
+      }
       if (data.carrier_name && !carrier_name) carrier_name = data.carrier_name
+    }
+    // Current batch carrier always wins over older docs
+    if (batchCarrier) {
+      carrier_name = batchCarrier
+      merged.carrier_name = batchCarrier
     }
 
     let status = 'no_policy_docs'
@@ -6160,16 +6172,19 @@ Return JSON only, no markdown:
       return false
     }
 
-    // Check for duplicate — don't save if this carrier+pet already exists
-    const { data: existing } = await supabase
+    // Check for duplicate — match on carrier AND pet name (user may have multiple carriers)
+    let existsQuery = supabase
       .from('pciq_policies')
       .select('id')
       .eq('user_id', userId)
       .ilike('carrier', `%${f.carrier_name}%`)
-      .limit(1)
+    if (f.pet_name) {
+      existsQuery = existsQuery.ilike('pet_name', `%${f.pet_name}%`)
+    }
+    const { data: existing } = await existsQuery.limit(1)
 
     if (existing && existing.length > 0) {
-      console.log(`${tag} Policy already exists for ${f.carrier_name} — skipping auto-save`)
+      console.log(`${tag} Policy already exists for ${f.carrier_name} + ${f.pet_name || 'unknown pet'} — skipping auto-save`)
       return 'exists'
     }
 
@@ -6222,15 +6237,13 @@ Return JSON only, no markdown:
 
     if (completeness.status === 'complete' && policySaved === 'exists') {
       // ── Scenario 4: Complete — policy already exists ──
-      subject = `Your ${carrier} policy is already saved`
-      html = wrapper(`<p>We received your <strong>${carrier}</strong> documents and everything looks good. Your policy for <strong>${pet}</strong> is already set up in Pet ClaimIQ — no changes needed.</p>
-        <p>You're ready to analyze vet bills.</p>`)
+      subject = `${pet}'s ${carrier} policy is up to date`
+      html = wrapper(`<p>We received your <strong>${carrier}</strong> documents. <strong>${pet}</strong>'s policy is already in Pet ClaimIQ and up to date — you're ready to analyze vet bills.</p>`)
 
     } else if (completeness.status === 'complete' && policySaved) {
       // ── Scenario 1: Complete — policy saved ──
-      subject = `Your ${carrier} policy for ${pet} has been saved`
-      html = wrapper(`
-        <p>We received your insurance documents and saved your policy. Here's what we found:</p>
+      subject = `${pet}'s ${carrier} policy is ready`
+      html = wrapper(`<p>We received your <strong>${carrier}</strong> documents and set up <strong>${pet}</strong>'s policy in Pet ClaimIQ. You're ready to analyze vet bills.</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0;">
           <tr><td style="padding:6px 0;color:#6b7280;width:120px;">Carrier</td><td style="padding:6px 0;font-weight:600;">${carrier}</td></tr>
           <tr><td style="padding:6px 0;color:#6b7280;">Pet</td><td style="padding:6px 0;font-weight:600;">${pet}</td></tr>
@@ -6238,8 +6251,7 @@ Return JSON only, no markdown:
           ${f.reimbursement_rate != null ? `<tr><td style="padding:6px 0;color:#6b7280;">Reimbursement</td><td style="padding:6px 0;font-weight:600;">${f.reimbursement_rate}%</td></tr>` : ''}
           ${f.annual_limit != null ? `<tr><td style="padding:6px 0;color:#6b7280;">Annual Limit</td><td style="padding:6px 0;font-weight:600;">$${Number(f.annual_limit).toLocaleString()}</td></tr>` : ''}
           ${f.effective_date ? `<tr><td style="padding:6px 0;color:#6b7280;">Effective</td><td style="padding:6px 0;font-weight:600;">${f.effective_date}${f.expiration_date ? ' to ' + f.expiration_date : ''}</td></tr>` : ''}
-        </table>
-        <p>Open Pet ClaimIQ to see your policy and analyze a vet bill.</p>`)
+        </table>`)
 
     } else if (completeness.status === 'partial') {
       // ── Scenario 2: Partial — missing documents ──
@@ -6500,7 +6512,8 @@ Return JSON only, no markdown:
       }
 
       // ── Stage 3: Check completeness and auto-save if ready ──
-      const completeness = await checkPolicyCompleteness(userId)
+      const currentBatchIds = stored.map(d => d.id)
+      const completeness = await checkPolicyCompleteness(userId, currentBatchIds)
       let policySaved = false
 
       if (completeness.status === 'complete') {
