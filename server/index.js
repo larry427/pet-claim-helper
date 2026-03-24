@@ -4157,6 +4157,9 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
           break
         }
       }
+      if (summaryText) {
+        summaryText += ' This estimate does not account for pre-existing conditions. Pet ClaimIQ is an independent coverage analysis tool, not an adjuster or insurance advisor.'
+      }
       console.log(`${tag} Summary scenario: ${summaryScenario}`)
 
       const mobileResponse = {
