@@ -3907,6 +3907,94 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         }
       }
 
+      // ── Wellness Endorsement Override ──
+      // If this is a wellness visit AND the policy has a preventive care endorsement,
+      // override GPT's blanket exclusions and apply endorsement category math instead.
+      const wellnessEndorsement = savedPolicy?.wellness_endorsement || null
+      let wellnessEndorsementApplied = false
+      let wellnessEndorsementReimbursement = 0
+
+      if (wellnessEndorsement?.has_endorsement && (stage1Result.visitType || '').toUpperCase() === 'WELLNESS_VISIT' && Array.isArray(s2a.lineItems)) {
+        console.log(`${tag} Wellness endorsement detected — applying endorsement math`)
+        const endorseRate = (wellnessEndorsement.reimbursement_rate || 0) / 100
+        const categories = wellnessEndorsement.categories || {}
+
+        // Map line items to endorsement categories by description keywords
+        const catMap = [
+          { cat: 'wellness_exam', keywords: ['exam', 'consultation', 'office visit', 'physical'] },
+          { cat: 'vaccines', keywords: ['vaccine', 'vaccination', 'rabies', 'distemper', 'bordetella', 'leptospirosis', 'lyme', 'parvo', 'dapp', 'dhpp', 'fvrcp'] },
+          { cat: 'fecal_parasite_exam', keywords: ['fecal', 'parasite exam', 'parasite screen', 'fecal float', 'ova and parasite'] },
+          { cat: 'heartworm_test', keywords: ['heartworm test', 'heartworm screen', '4dx', 'hw test'] },
+          { cat: 'bloodwork', keywords: ['blood', 'cbc', 'chemistry', 'blood panel', 'blood work', 'bloodwork', 'metabolic panel'] },
+          { cat: 'flea_tick_heartworm_meds', keywords: ['flea', 'tick', 'heartworm prev', 'simparica', 'nexgard', 'heartgard', 'bravecto', 'interceptor', 'sentinel', 'revolution', 'seresto', 'advantage', 'frontline', 'credelio'] },
+          { cat: 'deworming', keywords: ['deworm', 'dewormer', 'pyrantel', 'panacur', 'fenbendazole', 'drontal'] },
+          { cat: 'routine_hygiene', keywords: ['nail trim', 'dental clean', 'dental prophy', 'grooming', 'ear clean', 'teeth clean', 'anal gland'] },
+        ]
+
+        // Track how much of each category limit has been used
+        const catUsed = {}
+        let endorseTotalCovered = 0
+        let endorseTotalExcluded = 0
+
+        for (const item of s2a.lineItems) {
+          const descLower = (item.description || '').toLowerCase()
+          const amt = item.amount || 0
+
+          // Find matching endorsement category
+          let matchedCat = null
+          for (const { cat, keywords } of catMap) {
+            if (keywords.some(kw => descLower.includes(kw))) {
+              matchedCat = cat
+              break
+            }
+          }
+
+          if (matchedCat && categories[matchedCat]) {
+            const catConfig = categories[matchedCat]
+            const catLimit = catConfig.limit || 0
+            const used = catUsed[matchedCat] || 0
+            const remaining = Math.max(0, catLimit - used)
+
+            if (remaining > 0) {
+              const eligible = Math.min(amt, remaining)
+              const reimbursement = Math.round(eligible * endorseRate * 100) / 100
+              const overCap = Math.max(0, amt - remaining)
+
+              catUsed[matchedCat] = used + eligible
+              endorseTotalCovered += eligible
+              wellnessEndorsementReimbursement += reimbursement
+
+              item.covered = true
+              item.reason = `Covered (Wellness Endorsement) — ${matchedCat.replace(/_/g, ' ')} category, up to $${catLimit} at ${wellnessEndorsement.reimbursement_rate}%, no deductible`
+
+              if (overCap > 0) {
+                endorseTotalExcluded += overCap
+                item.reason += `. $${eligible.toFixed(2)} eligible, $${overCap.toFixed(2)} exceeds category cap.`
+              }
+            } else {
+              // Category limit already exhausted
+              item.covered = false
+              item.reason = `Excluded — ${matchedCat.replace(/_/g, ' ')} category limit ($${catConfig.limit}) already reached`
+              endorseTotalExcluded += amt
+            }
+          } else {
+            // No matching endorsement category — stays excluded
+            if (!item.covered) {
+              item.reason = item.reason || 'Not covered under wellness endorsement'
+              endorseTotalExcluded += amt
+            }
+          }
+        }
+
+        // Recalculate totals
+        s2a.totalCovered = Math.round(endorseTotalCovered * 100) / 100
+        s2a.totalExcluded = Math.round(endorseTotalExcluded * 100) / 100
+        wellnessEndorsementReimbursement = Math.round(wellnessEndorsementReimbursement * 100) / 100
+        wellnessEndorsementApplied = true
+
+        console.log(`${tag} Wellness endorsement result: covered=$${s2a.totalCovered} excluded=$${s2a.totalExcluded} reimbursement=$${wellnessEndorsementReimbursement}`)
+      }
+
       const totalCovered = s2a.totalCovered || 0
       const rateRaw = (savedPolicy?.reimbursement_rate ?? s2p.reimbursementRate) || null
       const deductible = (savedPolicy?.deductible ?? s2p.deductible) || 0
@@ -3923,7 +4011,10 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
       })
 
       let maxReimbursement = s2a.maxReimbursement || 0
-      if (totalCovered > 0 && rateRaw) {
+      if (wellnessEndorsementApplied) {
+        // Endorsement: no deductible, pre-calculated reimbursement from category math
+        maxReimbursement = wellnessEndorsementReimbursement
+      } else if (totalCovered > 0 && rateRaw) {
         const rate = rateRaw / 100
         maxReimbursement = mathOrder === 'deductible-first'
           ? (totalCovered - deductible) * rate
@@ -3932,12 +4023,14 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
       }
 
       // STEP 7 — Map to mobile response shape
-      const shouldFile = s2a.shouldFile ?? false
+      const shouldFile = wellnessEndorsementApplied ? (wellnessEndorsementReimbursement > 0) : (s2a.shouldFile ?? false)
       const recommendation = shouldFile ? 'file' : 'skip'
 
-      const reimbursementIfDeductibleMet = (totalCovered > 0 && rateRaw)
-        ? Math.round(totalCovered * (rateRaw / 100) * 100) / 100
-        : 0
+      const reimbursementIfDeductibleMet = wellnessEndorsementApplied
+        ? wellnessEndorsementReimbursement
+        : (totalCovered > 0 && rateRaw)
+          ? Math.round(totalCovered * (rateRaw / 100) * 100) / 100
+          : 0
 
       // ── Date eligibility check: service date vs policy effective date ──
       let dateEligibilityWarning = null
@@ -4035,7 +4128,9 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
       const visitType = (stage1Result.visitType || '').toLowerCase()
 
       let summaryScenario = 'SICK_PARTIAL'
-      if (visitType.includes('wellness') || (excludedItems.length === summaryLineItems.length && allExcludedAreWellness)) {
+      if (wellnessEndorsementApplied) {
+        summaryScenario = 'WELLNESS_ENDORSEMENT_COVERED'
+      } else if (visitType.includes('wellness') || (excludedItems.length === summaryLineItems.length && allExcludedAreWellness)) {
         summaryScenario = 'WELLNESS_ALL_EXCLUDED'
       } else if (coveredItems.length === summaryLineItems.length && coveredItems.length > 0) {
         summaryScenario = 'SICK_ALL_COVERED'
@@ -4107,6 +4202,20 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
 
       let summaryText = ''
       switch (summaryScenario) {
+        case 'WELLNESS_ENDORSEMENT_COVERED': {
+          const endorseRate = wellnessEndorsement?.reimbursement_rate || 70
+          const coveredDesc = coveredItems.length <= 3
+            ? `${joinNames(coveredItems)} are covered under your Preventive Care Endorsement`
+            : `${coveredItems.length} items totaling ${fmt$(totalCovered)} are covered under your Preventive Care Endorsement`
+          let excDesc = ''
+          if (excludedItems.length > 0) {
+            excDesc = excludedItems.length <= 3
+              ? ` The ${joinNames(excludedItems)} ${excludedItems.length === 1 ? 'is' : 'are'} not covered by the endorsement.`
+              : ` ${excludedItems.length} items totaling ${fmt$(s2a.totalExcluded || 0)} are not covered by the endorsement.`
+          }
+          summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} was a routine wellness visit. Your ${summaryCarrier} Preventive Care Endorsement covers eligible wellness items at ${endorseRate}% with no deductible, subject to per-category annual limits. ${coveredDesc} — estimated reimbursement: ${fmt$(wellnessEndorsementReimbursement)}.${excDesc}`
+          break
+        }
         case 'WELLNESS_ALL_EXCLUDED': {
           const wellnessDesc = excludedItems.length <= 3
             ? `The ${joinNames(excludedItems)} on this bill are considered wellness or preventive care under your ${summaryCarrier} plan.`
