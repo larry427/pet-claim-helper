@@ -6597,11 +6597,8 @@ Return JSON only, no markdown:
             continue
           }
 
-          // Get public URL
-          const { data: urlData } = supabase.storage
-            .from('policy-documents')
-            .getPublicUrl(storagePath)
-          const fileUrl = urlData?.publicUrl || storagePath
+          // Store the storage path directly (bucket is private — no public URLs)
+          const fileUrl = storagePath
 
           // Insert record into pciq_email_documents
           const { data: insertData, error: insertErr } = await supabase.from('pciq_email_documents').insert({
