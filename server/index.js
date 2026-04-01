@@ -220,7 +220,7 @@ const startServer = async () => {
           console.error('[extract-pdf] pdfjs extraction error', e)
           throw e
         }
-        completion = await openai.chat.completions.create({
+        completion = await openai.chat.completions.create({ store: false,
           model: 'gpt-4o',
           messages: [
             {
@@ -233,7 +233,7 @@ const startServer = async () => {
         })
       } else {
         // Image path (send as image_url)
-        completion = await openai.chat.completions.create({
+        completion = await openai.chat.completions.create({ store: false,
           model: 'gpt-4o',
           messages: [
             {
@@ -342,7 +342,7 @@ IMPORTANT:
 - If a field is not visible or cannot be determined, use null
 - Return ONLY valid JSON with no additional text or explanations.`
 
-      const completion = await openai.chat.completions.create({
+      const completion = await openai.chat.completions.create({ store: false,
         model: 'gpt-4o',
         messages: [
           {
@@ -1330,7 +1330,7 @@ app.post('/api/webhook/ghl-signup', signupLimiter, async (req, res) => {
     if (!context) return null
 
     try {
-      const completion = await openai.chat.completions.create({
+      const completion = await openai.chat.completions.create({ store: false,
         model: 'gpt-4o-mini',
         messages: [
           {
@@ -3012,7 +3012,7 @@ Return ONLY this JSON object:
           vetBillFiles: vetBillFileContents.length
         })
 
-        const stage1Completion = await openai.chat.completions.create({
+        const stage1Completion = await openai.chat.completions.create({ store: false,
           model: 'gpt-4o',
           messages: [
             {
@@ -3309,7 +3309,7 @@ IMPORTANT:
           visitType: stage1Result.visitType
         })
 
-        const stage2Completion = await openai.chat.completions.create({
+        const stage2Completion = await openai.chat.completions.create({ store: false,
           model: 'gpt-4o',
           messages: [
             {
@@ -3647,7 +3647,7 @@ Return ONLY this JSON object:
 
       console.log(`${tag} Stage 1: Extracting vet bill...`, { files: vetBillFileContents.length })
 
-      const stage1Completion = await openai.chat.completions.create({
+      const stage1Completion = await openai.chat.completions.create({ store: false,
         model: 'gpt-4o',
         messages: [
           { role: 'system', content: 'You are a veterinary invoice parser. Extract data accurately and return valid JSON only.' },
@@ -3883,7 +3883,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         visitType: stage1Result.visitType
       })
 
-      const stage2Completion = await openai.chat.completions.create({
+      const stage2Completion = await openai.chat.completions.create({ store: false,
         model: 'gpt-4o',
         messages: [
           { role: 'system', content: 'You are a pet insurance coverage analyst. Provide accurate analysis. Always return valid JSON.' },
@@ -4519,7 +4519,7 @@ Return ONLY this JSON object:
 IMPORTANT: Use numbers not strings for amounts. Return ONLY the JSON object.`
 
         console.log(`${tag} Route 3 Stage 2: Extracting EOB data...`)
-        const r3Stage2Completion = await openai.chat.completions.create({
+        const r3Stage2Completion = await openai.chat.completions.create({ store: false,
           model: 'gpt-4o',
           messages: [
             { role: 'system', content: 'You are an insurance EOB parser. Extract data accurately and return valid JSON only.' },
@@ -4885,7 +4885,7 @@ IMPORTANT: Use numbers not strings for amounts. Return ONLY the JSON object.`
 
         console.log(`${tag} EOB Stage 1: Extracting EOB data...`, { files: eobFileContents.length })
 
-        const eobStage1Completion = await openai.chat.completions.create({
+        const eobStage1Completion = await openai.chat.completions.create({ store: false,
           model: 'gpt-4o',
           messages: [
             { role: 'system', content: 'You are an insurance EOB parser. Extract data accurately and return valid JSON only.' },
@@ -5023,7 +5023,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
           hasSavedPolicy: !!savedPolicy
         })
 
-        const eobStage2Completion = await openai.chat.completions.create({
+        const eobStage2Completion = await openai.chat.completions.create({ store: false,
           model: 'gpt-4o',
           messages: [
             { role: 'system', content: 'You are a pet insurance claims reviewer. Analyze denials carefully and return valid JSON.' },
@@ -5314,7 +5314,7 @@ Return ONLY this JSON object:
 
 IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
 
-      const completion = await openai.chat.completions.create({
+      const completion = await openai.chat.completions.create({ store: false,
         model: 'gpt-4o',
         messages: [
           { role: 'system', content: 'You are a pet insurance policy extraction specialist. Extract data accurately and return valid JSON only.' },
@@ -5597,7 +5597,7 @@ Rules:
             { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Data}` } },
           ]
 
-      const completion = await openai.chat.completions.create({
+      const completion = await openai.chat.completions.create({ store: false,
         model: 'gpt-4o',
         temperature: 0,
         max_tokens: 2000,
@@ -5976,7 +5976,7 @@ RULES:
 - Keep the entire letter under ${eobDisputedItems.length > 0 ? '400' : '250'} words
 - Write it as if you have sent hundreds of these and know exactly what gets results`
 
-      const completion = await openai.chat.completions.create({
+      const completion = await openai.chat.completions.create({ store: false,
         model: 'gpt-4o',
         temperature: 0,
         max_tokens: 2000,
@@ -6095,7 +6095,7 @@ Also extract these fields if you can find them (return null for any you cannot f
 Respond in JSON only, no markdown, no backticks:
 {"classification":"DECLARATIONS|POLICY_TERMS|COMBINED|EOB|VET_BILL|IRRELEVANT","confidence":"high|medium|low","carrier_name":null,"pet_name":null,"policy_number":null,"deductible":null,"reimbursement_rate":null,"annual_limit":null,"effective_date":null,"expiration_date":null,"species":null,"breed":null,"math_order":null,"notes":"Brief description of what this document contains"}`
 
-      const completion = await openai.chat.completions.create({
+      const completion = await openai.chat.completions.create({ store: false,
         model: 'gpt-4o',
         messages: [
           { role: 'system', content: 'You are a pet insurance document classifier. Return valid JSON only.' },
@@ -6169,7 +6169,7 @@ Extract these fields (return null for any not found):
 Return JSON only, no markdown:
 {"deductible":null,"reimbursement_rate":null,"annual_limit":null,"policy_number":null,"effective_date":null,"expiration_date":null,"pet_name":null,"species":null,"breed":null}`
 
-            const fallbackCompletion = await openai.chat.completions.create({
+            const fallbackCompletion = await openai.chat.completions.create({ store: false,
               model: 'gpt-4o',
               messages: [
                 { role: 'system', content: 'Extract policy numbers from the document. Return valid JSON only.' },
