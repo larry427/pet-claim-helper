@@ -6401,9 +6401,18 @@ Return JSON only, no markdown:
   }
 
   // ─── Email-In Webhook (Resend Inbound) ─────────────────────────────────────
+  // Rate limiter for Resend email webhook
+  const emailWebhookLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 30, // 30 requests per IP per minute
+    message: { ok: false, error: 'Too many requests, please try again later' },
+    standardHeaders: true,
+    legacyHeaders: false
+  })
+
   // Receives inbound emails at *@docs.petclaimhelper.com, downloads attachments
   // via the Resend API, and stores them in Supabase Storage + pciq_email_documents.
-  app.post('/api/webhook/email-in', async (req, res) => {
+  app.post('/api/webhook/email-in', emailWebhookLimiter, async (req, res) => {
     const tag = '[email-in]'
 
     // ── Resend webhook signature verification (Svix HMAC-SHA256) ──
