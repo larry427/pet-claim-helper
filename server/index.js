@@ -6727,6 +6727,11 @@ body{background:#0b0e14;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFo
         if (!html) return;
         sessionStorage.setItem('pciq_admin_key', key);
         document.getElementById('loginBox').style.display = 'none';
+        // Reset body flex centering from login page so dashboard renders full-width
+        document.body.style.display = 'block';
+        document.body.style.alignItems = '';
+        document.body.style.justifyContent = '';
+        document.body.style.minHeight = '';
         var d = document.getElementById('dashboard');
         d.style.display = '';
         d.innerHTML = html;
