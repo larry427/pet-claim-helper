@@ -6687,7 +6687,6 @@ body{background:#0b0e14;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFo
 .login-box button{width:100%;background:#238636;color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:background 0.15s}
 .login-box button:hover{background:#2ea043}
 .login-box .error{color:#da6771;font-size:12px;margin-top:8px;display:none}
-#dashboard{display:none}
 </style></head><body>
 <div class="login-box" id="loginBox">
   <h1>Pet ClaimIQ Admin</h1>
@@ -6698,7 +6697,6 @@ body{background:#0b0e14;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFo
     <div class="error" id="loginError">Invalid key. Try again.</div>
   </form>
 </div>
-<div id="dashboard"></div>
 <script>
 (function() {
   var stored = sessionStorage.getItem('pciq_admin_key');
@@ -6718,7 +6716,6 @@ body{background:#0b0e14;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFo
           sessionStorage.removeItem('pciq_admin_key');
           document.getElementById('loginError').style.display = 'block';
           document.getElementById('loginBox').style.display = '';
-          document.getElementById('dashboard').style.display = 'none';
           return null;
         }
         return r.text();
@@ -6726,21 +6723,10 @@ body{background:#0b0e14;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFo
       .then(function(html) {
         if (!html) return;
         sessionStorage.setItem('pciq_admin_key', key);
-        document.getElementById('loginBox').style.display = 'none';
-        // Reset body flex centering from login page so dashboard renders full-width
-        document.body.style.display = 'block';
-        document.body.style.alignItems = '';
-        document.body.style.justifyContent = '';
-        document.body.style.minHeight = '';
-        var d = document.getElementById('dashboard');
-        d.style.display = '';
-        d.innerHTML = html;
-        // Execute inline scripts in the injected HTML
-        d.querySelectorAll('script').forEach(function(s) {
-          var ns = document.createElement('script');
-          ns.textContent = s.textContent;
-          s.parentNode.replaceChild(ns, s);
-        });
+        // Replace entire page with dashboard HTML — avoids all CSS conflicts
+        document.open();
+        document.write(html);
+        document.close();
       });
   }
 })();
@@ -6936,7 +6922,13 @@ body{background:#0b0e14;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFo
 
       const emptyRow = (cols, msg) => `<tr class="empty-row"><td colspan="${cols}">${msg}</td></tr>`
 
-      const html = `<style>
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pet ClaimIQ — Admin</title>
+<style>
   /* ── Reset & Base ── */
   *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
   html { font-size: 15px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
@@ -7016,6 +7008,8 @@ body{background:#0b0e14;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFo
   /* ── Scroll targets ── */
   .section-header[id] { scroll-margin-top: 72px; }
 </style>
+</head>
+<body>
 <nav>
   <span class="brand">Pet ClaimIQ</span>
   <div class="nav-links">
@@ -7104,7 +7098,9 @@ function filterByCarrier() {
     row.style.display = (row.dataset.carrier || '').toLowerCase() === val ? '' : 'none';
   });
 }
-</script>`
+</script>
+</body>
+</html>`
 
       res.setHeader('Content-Type', 'text/html')
       return res.send(html)
