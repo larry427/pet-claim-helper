@@ -96,6 +96,20 @@ app.use(express.json({
   }
 }))
 
+// ── File validation helper (magic bytes + size) ──
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+const validateFileBuffer = (buffer, filename) => {
+  if (!buffer || buffer.length === 0) return { valid: false, reason: 'empty', message: 'File is empty.' }
+  if (buffer.length > MAX_FILE_SIZE) return { valid: false, reason: 'size', message: `File too large (${(buffer.length / 1024 / 1024).toFixed(1)}MB). Maximum file size is 10MB.` }
+  // Magic bytes check
+  const isPdf = buffer.length >= 5 && buffer.slice(0, 5).toString('ascii') === '%PDF-'
+  const isJpeg = buffer.length >= 3 && buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF
+  const isPng = buffer.length >= 4 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47
+  if (!isPdf && !isJpeg && !isPng) return { valid: false, reason: 'format', message: 'Unsupported file format. Please upload a PDF or image file (JPG, PNG).' }
+  const detectedType = isPdf ? 'pdf' : isJpeg ? 'jpeg' : 'png'
+  return { valid: true, detectedType }
+}
+
 // Rate limiter for public signup endpoint (prevents spam attacks)
 const signupLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -125,7 +139,7 @@ app.get('/api/health', (_req, res) => {
 const startServer = async () => {
  
   // File upload (memory storage)
-  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } })
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
 
   // PDF/Image extraction via OpenAI Vision (server-side)
   app.post('/api/extract-pdf', upload.single('file'), async (req, res) => {
@@ -151,8 +165,14 @@ const startServer = async () => {
       if (!file) {
         return res.status(400).json({ ok: false, error: 'No file provided. Use multipart/form-data with field name "file".' })
       }
+      // Validate file format and size
+      const fileCheck = validateFileBuffer(file.buffer, file.originalname)
+      if (!fileCheck.valid) {
+        console.log(`[extract-pdf] Rejected ${file.originalname} — ${fileCheck.reason}: ${fileCheck.message}`)
+        return res.status(fileCheck.reason === 'size' ? 413 : 400).json({ ok: false, error: fileCheck.message })
+      }
       // eslint-disable-next-line no-console
-      console.log('[extract-pdf] upload info', { mimetype: file.mimetype, size: file.buffer?.length })
+      console.log('[extract-pdf] upload info', { mimetype: file.mimetype, size: file.buffer?.length, detected: fileCheck.detectedType })
       const mime = file.mimetype || 'application/octet-stream'
       const base64 = file.buffer.toString('base64')
       const dataUrl = `data:${mime};base64,${base64}`
@@ -285,7 +305,13 @@ const startServer = async () => {
       if (!file) {
         return res.status(400).json({ ok: false, error: 'No file provided. Use multipart/form-data with field name "file".' })
       }
-      console.log('[extract-receipt] upload info', { mimetype: file.mimetype, size: file.buffer?.length })
+      // Validate file format and size
+      const fileCheck = validateFileBuffer(file.buffer, file.originalname)
+      if (!fileCheck.valid) {
+        console.log(`[extract-receipt] Rejected ${file.originalname} — ${fileCheck.reason}: ${fileCheck.message}`)
+        return res.status(fileCheck.reason === 'size' ? 413 : 400).json({ ok: false, error: fileCheck.message })
+      }
+      console.log('[extract-receipt] upload info', { mimetype: file.mimetype, size: file.buffer?.length, detected: fileCheck.detectedType })
 
       const mime = file.mimetype || 'application/octet-stream'
       if (!mime.startsWith('image/')) {
@@ -6544,6 +6570,13 @@ Return JSON only, no markdown:
           // Skip files under 50KB (likely signatures/inline images)
           if (fileSizeBytes < 50 * 1024) {
             console.log(`${tag} Skipping ${att.filename} — too small (${fileSizeBytes} bytes)`)
+            continue
+          }
+
+          // Validate file format (magic bytes) and size
+          const validation = validateFileBuffer(fileBuffer, att.filename)
+          if (!validation.valid) {
+            console.log(`${tag} Rejected ${att.filename} — ${validation.reason}: ${validation.message}`)
             continue
           }
 
