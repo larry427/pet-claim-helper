@@ -3096,6 +3096,11 @@ function MainApp() {
                           Filed {filedDateStr}
                         </div>
                       )}
+                      {c.odie_claim_number && (
+                        <div className="text-xs text-slate-500 dark:text-slate-500 font-mono pl-[52px]">
+                          Odie Claim: {c.odie_claim_number}
+                        </div>
+                      )}
 
                       {/* Line 6: Reimbursement (paid only) */}
                       {isPaid && (
@@ -3142,7 +3147,11 @@ function MainApp() {
                           )}
                         </button>
                       )}
-                      {isSubmitted && (
+                      {isSubmitted && c.submitted_via_api ? (
+                        <span className="px-4 py-2 rounded-xl text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                          {c.odie_claim_status ? `Status: ${c.odie_claim_status}` : 'Submitted via API'}
+                        </span>
+                      ) : isSubmitted && (
                         <button
                           type="button"
                           className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white transition-all"

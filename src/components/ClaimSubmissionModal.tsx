@@ -625,7 +625,7 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
             ) : (
               <>
                 <span>📄</span>
-                Preview Claim Form PDF
+                {pet?.odie_connected ? 'Review Claim Details' : 'Preview Claim Form PDF'}
               </>
             )}
           </button>
@@ -637,28 +637,49 @@ export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSu
         {/* What Will Happen */}
         <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl p-6 mb-6">
           <h3 className="font-semibold text-gray-800 dark:text-white mb-3">What will happen:</h3>
-          <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-            <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400 mt-0.5">1.</span>
-              <span>Generate professional claim form PDF with all details</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400 mt-0.5">2.</span>
-              <span>Email claim form to <strong>{insurer}</strong> at their claims processing address</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400 mt-0.5">3.</span>
-              <span>Send you a copy (BCC) so you have a record</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400 mt-0.5">4.</span>
-              <span>Update claim status to "Submitted" in your dashboard</span>
-            </li>
-          </ul>
+          {pet?.odie_connected ? (
+            <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+              <li className="flex items-start gap-2">
+                <span className="text-blue-600 dark:text-blue-400 mt-0.5">1.</span>
+                <span>Send your claim details directly to {insurer}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-600 dark:text-blue-400 mt-0.5">2.</span>
+                <span>Upload your vet bill to {insurer}'s system</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-600 dark:text-blue-400 mt-0.5">3.</span>
+                <span>You'll receive a confirmation with your claim number</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-600 dark:text-blue-400 mt-0.5">4.</span>
+                <span>Track your claim status in your dashboard</span>
+              </li>
+            </ul>
+          ) : (
+            <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+              <li className="flex items-start gap-2">
+                <span className="text-blue-600 dark:text-blue-400 mt-0.5">1.</span>
+                <span>Generate professional claim form PDF with all details</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-600 dark:text-blue-400 mt-0.5">2.</span>
+                <span>Email claim form to <strong>{insurer}</strong> at their claims processing address</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-600 dark:text-blue-400 mt-0.5">3.</span>
+                <span>Send you a copy (BCC) so you have a record</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-600 dark:text-blue-400 mt-0.5">4.</span>
+                <span>Update claim status to "Submitted" in your dashboard</span>
+              </li>
+            </ul>
+          )}
         </div>
 
-        {/* Test Mode Warning - Only show for demo accounts or non-production insurers */}
-        {isTestMode() && (
+        {/* Test Mode Warning - Only show for demo accounts or non-production insurers (not Odie API) */}
+        {isTestMode() && !pet?.odie_connected && (
           <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-lg p-4 mb-6">
             <div className="flex items-start gap-3">
               <span className="text-2xl">🧪</span>
