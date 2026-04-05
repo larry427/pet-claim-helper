@@ -30,6 +30,7 @@ interface ClaimSubmissionModalProps {
 }
 
 export default function ClaimSubmissionModal({ claim, pet, userId, onClose, onSuccess }: ClaimSubmissionModalProps) {
+  console.log('[ClaimSubmissionModal] Pet data:', { odie_connected: pet?.odie_connected, name: pet?.name, insurance_company: pet?.insurance_company })
   const [step, setStep] = useState<'validating' | 'collect-missing-fields' | 'confirm' | 'submitting' | 'success' | 'error' | 'missing-data'>('validating')
   const [messageId, setMessageId] = useState<string | null>(null)
   const [submittedViaOdie, setSubmittedViaOdie] = useState(false)

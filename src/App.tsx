@@ -2982,6 +2982,7 @@ function MainApp() {
                 })()
                 // ── Derived card values ──────────────────────────────────────────
                 const isNewlyCreated = c.id === createdClaimId
+                if (c.odie_claim_number || c.submitted_via_api) console.log('[VetBillCard] Odie claim:', { id: c.id, odie_claim_number: c.odie_claim_number, submitted_via_api: c.submitted_via_api, filing_status: c.filing_status })
                 const stRaw = String(c.filing_status || 'not_submitted').toLowerCase()
                 const st = stRaw === 'filed' ? 'submitted' : stRaw === 'not_filed' ? 'not_submitted' : stRaw
                 const isNotSubmitted = st === 'not_submitted'
