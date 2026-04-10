@@ -96,6 +96,22 @@ app.use(express.json({
   }
 }))
 
+// ── Security headers middleware ──
+app.use((req, res, next) => {
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Frame-Options', 'DENY')
+  res.setHeader('X-XSS-Protection', '0')
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+  // Admin dashboard needs inline styles + scripts; API routes use strict CSP
+  if (req.path.startsWith('/admin')) {
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'")
+  } else {
+    res.setHeader('Content-Security-Policy', "default-src 'self'")
+  }
+  next()
+})
+
 // ── File validation helper (magic bytes + size) ──
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const validateFileBuffer = (buffer, filename) => {
@@ -3114,8 +3130,13 @@ UNDERWRITER-TO-BRAND MAPPINGS (always use the brand name, never the underwriter)
 - "Westchester Fire Insurance Company" = "Healthy Paws"
 - "United States Fire Insurance Company" = "Pumpkin"
 - "American Pet Insurance Company" = "Fetch"
-- "Independence American Insurance Company" = "Figo"
 - "National Casualty Company" = "Nationwide Pet Insurance"
+- "Cimarron Insurance Company" = "Kanguro"
+- "Metropolitan General Insurance Company" = "MetLife"
+- "MetLife Pet Insurance Solutions" / "PetFirst Pet Insurance" = "MetLife"
+- "Independence American Insurance Company" — DISAMBIGUATE:
+  * PetFirst/MetLife branding or form ID "IAIC PFI POL" → "MetLife"
+  * Form ID "IAIC-PET-POL" or "IAIC FPI POL" or Figo branding → "Figo"
 
 STEP A — ASSESS COMPLETENESS:
 - "full": vet bill + enough policy info for complete analysis
@@ -3198,6 +3219,32 @@ Use ONLY the exclusions explicitly listed in the attached policy. Read both the 
 - If you see Pumpkin policy: exam fees ARE covered for sick/injury visits (look for examinations in covered benefits)
 - Apply all other carrier-specific exclusions found in the uploaded documents
 
+RULE 3M — METLIFE CARRIER RULES (apply when carrier is "MetLife"):
+MetLife has TWO underwriter forms with different rules:
+- MetGen = "Metropolitan General Insurance Company" (form PET21-01-V)
+- IAIC = "Independence American Insurance Company" (form IAIC PFI POL 1217, branded as PetFirst/MetLife — NOT Figo)
+Detect the underwriter from the policy header or form ID and apply the right rules:
+
+METLIFE RULE 1 — EXAM FEES: BOTH MetGen and IAIC cover exam fees on SICK/INJURY visits (both policies explicitly list exams under Benefits). On WELLNESS visits, exam fees remain excluded (RULE 1) unless preventive care coverage applies (see MetLife Rule 4).
+
+METLIFE RULE 2 — WASTE DISPOSAL: IAIC explicitly covers "Medical waste disposal" under Benefits. MetGen does not. See RULE 5B for the exception logic.
+
+METLIFE RULE 3 — MEDICATIONS:
+- MetGen: Covers all prescribed medications (Rx + OTC) dispensed by a vet.
+- IAIC: Covers medications only if dispensed by the vet or compounded under vet guidance. For vet bill line items (dispensed at clinic), both cover them.
+
+METLIFE RULE 4 — PREVENTIVE CARE:
+- MetGen: Preventive Care is INCLUDED in the base policy with regular deductible/rate applied. On WELLNESS visits with MetGen, preventive items are COVERED.
+- IAIC: Preventive Care is an OPTIONAL wellness add-on with per-category maximums (no deductible/rate applied). If policy has wellness endorsement, apply endorsement math. If not, preventive items are EXCLUDED.
+
+METLIFE RULE 5 — DEDUCTIBLE TYPE: MetGen = annual only. IAIC = annual OR per-incident as declared.
+
+METLIFE RULE 6 — DENTAL: Both cover emergency/injury dental. IAIC has strict pre-existing dental exclusions (periodontal, gingivitis, tartar, stomatitis, prophylactic cleaning, deep cleaning, deciduous teeth). MetGen follows standard rules.
+
+METLIFE RULE 7 — SUPPLEMENTS/FOOD:
+- IAIC: EXCLUDES natural supplements, vitamins, all foods, shampoo, conditioner, ear cleaner.
+- MetGen: COVERS prescription foods (vet-only prescription for covered condition) + holistic treatments prescribed by vet.
+
 RULE 4 — PRE-OP/POST-OP INHERITANCE:
 Pre-op items (bloodwork, exams, prep described as "pre-op", "pre-surgical", "pre-anesthetic"):
 - If the surgery is for a covered condition (illness/injury) → COVERED
@@ -3209,8 +3256,8 @@ Post-op items (medications, follow-ups, rechecks) inherit coverage from the orig
 RULE 5 — RADIOLOGY/SPECIALIST READS:
 Radiologist reads, radiologist consultations, and specialist interpretation of diagnostic images (x-ray, ultrasound, MRI, CT) are DIAGNOSTIC TESTS — not exam fees. Mark as COVERED citing diagnostic test coverage. Do not confuse specialist reads with veterinary exam fees.
 
-RULE 5B — WASTE DISPOSAL EXCLUSION (apply on ALL visit types):
-Medical Waste Disposal Fee, Hazardous Waste/Sharps Fee, Biohazard Disposal Fee, Sharps Disposal Fee, and any similar waste, sharps, or biohazard disposal charges are ALWAYS excluded. These are administrative clinic fees, not medical treatments, diagnostics, or medications. Exclude them on ALL visit types — wellness, sick, injury, surgery, and emergency. Reason: "Excluded — Administrative fee: waste/sharps disposal is a clinic operational cost, not a covered medical expense." Do NOT override this rule based on visit type or default coverage logic.
+RULE 5B — WASTE DISPOSAL:
+Medical Waste Disposal Fee, Hazardous Waste/Sharps Fee, Biohazard Disposal Fee, Sharps Disposal Fee, and any similar waste/sharps/biohazard disposal charges are EXCLUDED for ALL carriers EXCEPT MetLife IAIC. If carrier is "MetLife" AND underwriter is "Independence American Insurance Company", waste disposal is COVERED (explicitly listed as covered benefit item (l) "Medical waste disposal"). For all other carriers (including MetLife MetGen), exclude with reason: "Excluded — Administrative fee: waste/sharps disposal is a clinic operational cost, not a covered medical expense." Do NOT override this rule based on visit type or default coverage logic.
 
 RULE 6 — DEFAULT RULE:
 Pet insurance covers on an EXCLUSION basis. Everything medically necessary IS covered unless explicitly excluded.
@@ -3727,9 +3774,12 @@ Return ONLY this JSON object:
         savedPolicyContext = `
 SAVED POLICY PARAMETERS (from user's account — use these as ground truth when policy documents are absent or incomplete):
   Carrier: ${savedPolicy.carrier || 'Unknown'}
+  Underwriter: ${savedPolicy.underwriter || 'Unknown'}
   Pet Name: ${savedPolicy.pet_name || 'Unknown'}
   Species: ${savedPolicy.species || 'Unknown'}
   Deductible: $${savedPolicy.deductible ?? 'Unknown'}
+  Deductible Type: ${savedPolicy.deductible_type || 'annual'}
+  Per-Incident Limit: ${savedPolicy.per_incident_limit != null ? '$' + savedPolicy.per_incident_limit : 'None'}
   Reimbursement Rate: ${savedPolicy.reimbursement_rate != null ? savedPolicy.reimbursement_rate + '%' : 'Unknown'}
   Annual Limit: ${savedPolicy.annual_limit != null ? '$' + savedPolicy.annual_limit : 'Unknown'}
   Math Order: ${savedPolicy.math_order || 'Unknown'}
@@ -3750,6 +3800,9 @@ ${JSON.stringify(stage1Result, null, 2)}
 THE VISIT TYPE IS: ${stage1Result.visitType}
 This is FINAL and IMMUTABLE. Do not reconsider it under any circumstances.
 ${savedPolicyContext}
+THE UNDERWRITER IS: ${savedPolicy?.underwriter || 'unknown'}
+(This matters for MetLife carrier rules — see RULE 3M. It determines whether to apply MetGen or IAIC specific rules.)
+
 Policy documents are attached. Examine each one carefully.
 
 POLICY TEXT BACKUP (may be incomplete — always prefer attached documents):
@@ -3764,8 +3817,13 @@ UNDERWRITER-TO-BRAND MAPPINGS (always use the brand name, never the underwriter)
 - "Westchester Fire Insurance Company" = "Healthy Paws"
 - "United States Fire Insurance Company" = "Pumpkin"
 - "American Pet Insurance Company" = "Fetch"
-- "Independence American Insurance Company" = "Figo"
 - "National Casualty Company" = "Nationwide Pet Insurance"
+- "Cimarron Insurance Company" = "Kanguro"
+- "Metropolitan General Insurance Company" = "MetLife" (form PET21-01-V)
+- "MetLife Pet Insurance Solutions" / "PetFirst Pet Insurance" = "MetLife"
+- "Independence American Insurance Company" — DISAMBIGUATE:
+  * If header says "PetFirst Pet Insurance"/"MetLife" or form ID contains "IAIC PFI POL" → "MetLife"
+  * If form ID is "IAIC-PET-POL" or "IAIC FPI POL" or brand is Figo → "Figo"
 
 STEP A — ASSESS COMPLETENESS:
 - "full": vet bill + enough policy info for complete analysis
@@ -3808,12 +3866,43 @@ RULE 3 — CARRIER-SPECIFIC RULES: Use ONLY exclusions from the attached policy 
 - Pumpkin: exam fees covered for sick/injury visits
 - Apply all other carrier-specific exclusions found in uploaded documents only
 
+RULE 3M — METLIFE CARRIER RULES (apply when carrier is "MetLife"):
+MetLife has TWO underwriter forms with different rules. Use the underwriter value from saved policy parameters to determine which applies:
+- MetGen = "Metropolitan General Insurance Company" (form PET21-01-V)
+- IAIC = "Independence American Insurance Company" (form IAIC PFI POL 1217, branded as PetFirst/MetLife — NOT Figo)
+
+METLIFE RULE 1 — EXAM FEES: BOTH MetGen and IAIC cover exam fees on SICK/INJURY visits. IAIC explicitly lists "All examinations performed by a Veterinarian in the course of treating an otherwise eligible condition" under Benefits. MetGen explicitly lists "Exams performed by a Veterinary Provider, including primary, specialty and emergency exams" under What We Cover. On WELLNESS visits, exam fees remain excluded (RULE 1) unless preventive care coverage applies (see MetLife Rule 4).
+
+METLIFE RULE 2 — WASTE DISPOSAL: MetLife IAIC explicitly covers "Medical waste disposal" under Benefits item (l). MetLife MetGen does NOT explicitly list waste disposal as covered. See RULE 5B for the exception logic.
+
+METLIFE RULE 3 — MEDICATIONS:
+- MetGen: Covers all prescribed medications including over-the-counter items prescribed by a Veterinary Provider.
+- IAIC: Covers medications ONLY if dispensed directly by the veterinarian or compounded by a pharmacist under vet guidance. Items purchased from outside stores/pharmacies NOT covered.
+For items on a vet bill (dispensed at the clinic), both forms cover them.
+
+METLIFE RULE 4 — PREVENTIVE CARE:
+- MetGen: Preventive Care is INCLUDED in the base policy ("We also cover Preventive Care!"). Deductible and Reimbursement Percentage DO apply. On a WELLNESS_VISIT with carrier=MetLife and underwriter=Metropolitan General Insurance Company, preventive items are COVERED at regular policy math.
+- IAIC: Preventive Care is an OPTIONAL "Wellness Benefits" add-on with per-category maximums. Deductible and rate do NOT apply. If the policy has a wellness endorsement (wellness_endorsement field populated), apply endorsement math (same as Kanguro). If no endorsement, preventive items are EXCLUDED.
+
+METLIFE RULE 5 — DEDUCTIBLE TYPE: MetGen uses annual deductible only. IAIC can use annual OR per-incident as declared. Honor the deductible_type field from saved policy parameters.
+
+METLIFE RULE 6 — DENTAL:
+- Both: Emergency/injury dental is covered.
+- IAIC: Strict pre-existing dental exclusions (periodontal, gingivitis, tartar, stomatitis if present pre-policy). No prophylactic cleaning, deep cleaning, or deciduous tooth removal.
+- MetGen: Standard dental coverage rules apply (no MetGen-specific dental exclusions in base policy).
+For line-item classification: dental cleaning on a wellness visit = EXCLUDED on both forms. Emergency dental from an accident = COVERED on both.
+
+METLIFE RULE 7 — SUPPLEMENTS AND FOOD:
+- IAIC: EXCLUDES natural supplements, vitamins, all foods (prescribed or not), shampoo, conditioner, ear cleaner.
+- MetGen: COVERS prescription foods (vet-only with prescription for a covered illness/injury) AND holistic treatments prescribed by a vet (aromatherapy, herbal remedies, CBD oil).
+Classify these items based on the underwriter.
+
 RULE 4 — PRE-OP/POST-OP INHERITANCE: Pre/post-op items inherit coverage from the associated surgery.
 
 RULE 5 — RADIOLOGY/SPECIALIST READS: Radiologist reads of diagnostic images are DIAGNOSTIC TESTS, not exam fees. Mark as COVERED.
 
-RULE 5B — WASTE DISPOSAL EXCLUSION (apply on ALL visit types):
-Medical Waste Disposal Fee, Hazardous Waste/Sharps Fee, Biohazard Disposal Fee, Sharps Disposal Fee, and any similar waste, sharps, or biohazard disposal charges are ALWAYS excluded. These are administrative clinic fees, not medical treatments, diagnostics, or medications. Exclude on ALL visit types. Reason: "Excluded — Administrative fee: waste/sharps disposal is a clinic operational cost, not a covered medical expense."
+RULE 5B — WASTE DISPOSAL:
+Medical Waste Disposal Fee, Hazardous Waste/Sharps Fee, Biohazard Disposal Fee, Sharps Disposal Fee, and any similar waste/sharps/biohazard disposal charges are EXCLUDED for ALL carriers EXCEPT MetLife IAIC. If carrier is "MetLife" AND underwriter is "Independence American Insurance Company", waste disposal is COVERED (explicitly listed as covered benefit item (l) "Medical waste disposal"). For all other carriers (including MetLife MetGen), exclude with reason: "Excluded — Administrative fee: waste/sharps disposal is a clinic operational cost, not a covered medical expense."
 
 RULE 6 — DEFAULT: Pet insurance covers on an EXCLUSION basis. Medically necessary treatment IS covered unless explicitly excluded. Default to COVERED, not UNKNOWN.
 
@@ -4026,6 +4115,9 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
       const deductible = (savedPolicy?.deductible ?? s2p.deductible) || 0
       const annualLimit = (savedPolicy?.annual_limit ?? s2p.annualLimit) || null
       const mathOrder = (savedPolicy?.math_order ?? s2p.mathOrder) || 'reimbursement-first'
+      const underwriter = savedPolicy?.underwriter || null
+      const deductibleType = savedPolicy?.deductible_type || 'annual'
+      const perIncidentLimit = savedPolicy?.per_incident_limit || null
 
       // ── Diagnostic: show where each policy value came from ──
       console.log(`${tag} Policy value sources:`, {
@@ -4350,6 +4442,9 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
           || (s2p.filingDeadline ? parseInt(s2p.filingDeadline) : null) || null,
         math_order: mathOrder,
         annual_limit: annualLimit,
+        underwriter,
+        deductible_type: deductibleType,
+        per_incident_limit: perIncidentLimit,
       }
 
       return mobileResponse
@@ -5256,7 +5351,7 @@ POLICY DOCUMENT TEXT:
 ${policyText || '(No text extracted — see attached image)'}
 
 EXTRACTION RULES:
-1. REIMBURSEMENT RATE: Look for "Co-Insurance", "Coinsurance %", "Reimbursement Rate", "Insurer Pays". Return as plain integer (80 means 80%). Do NOT return 0.80.
+1. REIMBURSEMENT RATE: Look for "Co-Insurance", "Coinsurance %", "Reimbursement Rate", "Reimbursement Percentage", "Covered Percentage", "Insurer Pays". Return as plain integer (80 means 80%). Do NOT return 0.80.
    CRITICAL CO-INSURANCE CONVERSION — different carriers use "co-insurance" differently. You MUST apply the correct conversion:
    - Nationwide Pet Insurance: "Co-insurance" means the OWNER's share. Convert by subtracting from 100%. Example: "10% co-insurance" → reimbursement_rate = 90. Example: "20% co-insurance" → reimbursement_rate = 80.
    - Odie: "Co-Insurance" means the INSURER's share. Use the number directly. Example: "70% Co-Insurance" → reimbursement_rate = 70.
@@ -5273,13 +5368,28 @@ EXTRACTION RULES:
    - Figo has a Diminishing Deductible feature (deductible drops $50/year for claim-free years). Extract the current deductible value from the Declarations Page regardless.
    - Figo optional riders (Wellness, Rehab/Physical Therapy, Holistic/Alternative Care & Behavioral Problems) are ONLY active if shown on the Declarations Page. If absent, include them in the exclusions array.
 2. ANNUAL DEDUCTIBLE: Look for "Annual Deductible", "Deductible", "Per Policy Period Deductible", "Per Incident Deductible". Return as plain number (no $ sign).
-3. ANNUAL LIMIT: Look for "Annual Limit", "Policy Maximum", "Annual Maximum". Return as plain number or null if unlimited.
+3. ANNUAL LIMIT: Look for "Annual Limit", "Policy Maximum", "Annual Maximum", "Annual Maximum Benefit", "Policy Limit". Return as plain number or null if unlimited.
+3A. PER-INCIDENT LIMIT (optional): Some policies cap how much they'll pay per individual incident/condition. Look for "Covered Incident Limit", "Per Incident Limit", "Per Condition Limit". Return as a number, or null if not found. This is SEPARATE from the annual limit.
+3B. DEDUCTIBLE TYPE: Does the deductible apply once per year (annual) or once per incident/condition (per-incident)? Look for language like "per incident", "per condition" near the deductible definition. If stated as annual, or if there's only one deductible with no per-incident language, return "annual". If per-incident, return "per_incident". Return null if unclear.
 4. CARRIER: Use consumer-facing brand name (e.g., "Healthy Paws" not "Westchester Fire Insurance Company"). Brand mappings:
    - "Westchester Fire Insurance Company" = "Healthy Paws"
    - "United States Fire Insurance Company" = "Pumpkin"
    - "American Pet Insurance Company" = "Fetch"
-   - "Independence American Insurance Company" = "Figo"
    - "National Casualty Company" = "Nationwide Pet Insurance"
+   - "Cimarron Insurance Company" = "Kanguro"
+   - "Kanguro Insurance LLC" = "Kanguro"
+   - "Metropolitan General Insurance Company" = "MetLife"
+   - "MetLife Pet Insurance Solutions" = "MetLife"
+   - "PetFirst Pet Insurance" = "MetLife"
+   - "Independence American Insurance Company" — DISAMBIGUATE: both MetLife and Figo use IAIC as underwriter.
+     * If header says "PetFirst Pet Insurance" or "MetLife" OR form ID contains "IAIC PFI POL" → "MetLife"
+     * If form ID is "IAIC-PET-POL" (older Figo) or "IAIC FPI POL" (newer Figo) → "Figo"
+     * If in doubt but you see "Figo" brand/logo → "Figo"; if you see "MetLife"/"PetFirst" → "MetLife"
+4A. UNDERWRITER: Look for the actual insurance company name, often at the very top of the policy or on the cover page. This is the legal entity, not the brand. Common examples: "Independence American Insurance Company", "Metropolitan General Insurance Company", "Westchester Fire Insurance Company", "Cimarron Insurance Company". Return exactly as printed, or null if not found.
+4B. METLIFE-SPECIFIC LABELS (use these variants when carrier is MetLife):
+   - Reimbursement rate labels: MetGen uses "Covered Percentage"; IAIC uses "Reimbursement Percentage"
+   - Annual limit labels: MetGen uses "Policy Limit" (applies across all pets combined); IAIC uses "Annual Maximum Benefit" (per-pet)
+   - Per-incident cap (IAIC only): "Covered Incident Limit" — this is separate from the annual max
 5. PET NAME: from declarations page.
 6. SPECIES: "dog" or "cat" (lowercase).
 7. BREED: from declarations page or null.
@@ -5297,10 +5407,13 @@ EXTRACTION RULES:
 Return ONLY this JSON object:
 {
   "carrier": string | null,
+  "underwriter": string | null,
   "pet_name": string | null,
   "species": "dog" | "cat" | null,
   "breed": string | null,
   "deductible": number | null,
+  "deductible_type": "annual" | "per_incident" | null,
+  "per_incident_limit": number | null,
   "reimbursement_rate": number | null,
   "annual_limit": number | null,
   "math_order": "reimbursement_first" | "deductible_first" | null,
@@ -5359,6 +5472,18 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
           const original = extracted.reimbursement_rate
           extracted.reimbursement_rate = 100 - original
           console.log(`${tag} ⚠ Co-insurance safety net: ${extracted.carrier} ${original}% → ${extracted.reimbursement_rate}% reimbursement rate`)
+        }
+      }
+
+      // Default deductible_type to 'annual' if not specified (most carriers)
+      if (!extracted.deductible_type) extracted.deductible_type = 'annual'
+
+      // Carrier-specific filing deadline defaults (only if GPT didn't find one)
+      if (!extracted.filing_deadline_days) {
+        const carrierLower = (extracted.carrier || '').toLowerCase()
+        const deadlineDefaults = { metlife: 90 }
+        for (const [key, days] of Object.entries(deadlineDefaults)) {
+          if (carrierLower.includes(key)) { extracted.filing_deadline_days = days; break }
         }
       }
 
@@ -6084,16 +6209,19 @@ DOCUMENT TEXT:
 ${pdfText || '(No text extracted — see attached image)'}
 
 Also extract these fields if you can find them (return null for any you cannot find):
-- carrier_name: The insurance company name (use consumer-facing brand name, not underwriting entity). Brand mappings: "Westchester Fire Insurance Company" = "Healthy Paws", "United States Fire Insurance Company" = "Pumpkin", "American Pet Insurance Company" = "Fetch", "Independence American Insurance Company" = "Figo", "National Casualty Company" = "Nationwide Pet Insurance", "Cimarron Insurance Company" = "Kanguro", "Kanguro Insurance LLC" = "Kanguro". IMPORTANT: Look for the consumer-facing brand name in logos, headers, footers, and watermarks — not just the underwriting entity. If you see a brand logo or "administered by [Brand]", use the brand name. Always return a carrier_name if ANY insurance company name appears in the document — never return null if you can identify one.
+- carrier_name: The insurance company name (use consumer-facing brand name, not underwriting entity). Brand mappings: "Westchester Fire Insurance Company" = "Healthy Paws", "United States Fire Insurance Company" = "Pumpkin", "American Pet Insurance Company" = "Fetch", "National Casualty Company" = "Nationwide Pet Insurance", "Cimarron Insurance Company" = "Kanguro", "Kanguro Insurance LLC" = "Kanguro", "Metropolitan General Insurance Company" = "MetLife", "MetLife Pet Insurance Solutions" = "MetLife", "PetFirst Pet Insurance" = "MetLife". DISAMBIGUATION for "Independence American Insurance Company" (used by both MetLife and Figo): if header/form says "PetFirst Pet Insurance" or form ID contains "IAIC PFI POL" → "MetLife"; if form ID is "IAIC-PET-POL" or "IAIC FPI POL" or brand is Figo → "Figo". IMPORTANT: Look for the consumer-facing brand name in logos, headers, footers, and watermarks — not just the underwriting entity. If you see a brand logo or "administered by [Brand]", use the brand name. Always return a carrier_name if ANY insurance company name appears in the document — never return null if you can identify one.
+- underwriter: The actual insurance company legal entity name (e.g., "Independence American Insurance Company", "Metropolitan General Insurance Company", "Westchester Fire Insurance Company"), or null if not found. This is different from carrier_name (which is the consumer brand).
 - pet_name, policy_number, species (dog or cat), breed
 - deductible: Annual deductible amount (number only)
-- reimbursement_rate: Percentage the INSURER pays (number only, e.g. 80 not 0.80). CRITICAL: If carrier is Nationwide, "co-insurance" means the OWNER's share — subtract from 100. If carrier is Figo (newer form "IAIC FPI POL"), use the "Reimbursement Percentage" not the "Coinsurance".
-- annual_limit: Annual coverage limit (number only, or null if unlimited)
+- deductible_type: "annual" (applies once per year) or "per_incident" (applies per condition). If unclear, return "annual".
+- per_incident_limit: Some policies cap payment per incident (e.g., IAIC "Covered Incident Limit"). Number only, or null.
+- reimbursement_rate: Percentage the INSURER pays (number only, e.g. 80 not 0.80). CRITICAL: If carrier is Nationwide, "co-insurance" means the OWNER's share — subtract from 100. If carrier is Figo (newer form "IAIC FPI POL"), use the "Reimbursement Percentage" not the "Coinsurance". For MetLife: MetGen form uses "Covered Percentage", IAIC form uses "Reimbursement Percentage".
+- annual_limit: Annual coverage limit (number only, or null if unlimited). MetGen uses "Policy Limit" (across all pets combined); IAIC uses "Annual Maximum Benefit" (per-pet).
 - effective_date, expiration_date: YYYY-MM-DD format
 - math_order: "reimbursement_first" if percentage applied before deductible, "deductible_first" if deductible subtracted before percentage, null if unknown
 
 Respond in JSON only, no markdown, no backticks:
-{"classification":"DECLARATIONS|POLICY_TERMS|COMBINED|EOB|VET_BILL|IRRELEVANT","confidence":"high|medium|low","carrier_name":null,"pet_name":null,"policy_number":null,"deductible":null,"reimbursement_rate":null,"annual_limit":null,"effective_date":null,"expiration_date":null,"species":null,"breed":null,"math_order":null,"notes":"Brief description of what this document contains"}`
+{"classification":"DECLARATIONS|POLICY_TERMS|COMBINED|EOB|VET_BILL|IRRELEVANT","confidence":"high|medium|low","carrier_name":null,"underwriter":null,"pet_name":null,"policy_number":null,"deductible":null,"deductible_type":null,"per_incident_limit":null,"reimbursement_rate":null,"annual_limit":null,"effective_date":null,"expiration_date":null,"species":null,"breed":null,"math_order":null,"notes":"Brief description of what this document contains"}`
 
       const completion = await openai.chat.completions.create({ store: false,
         model: 'gpt-4o',
@@ -6253,7 +6381,7 @@ Return JSON only, no markdown:
       if (dtype === 'COMBINED') has_combined = true
 
       // Merge fields — prefer non-null values
-      for (const key of ['carrier_name', 'pet_name', 'policy_number', 'deductible', 'reimbursement_rate', 'annual_limit', 'effective_date', 'expiration_date', 'species', 'breed', 'math_order']) {
+      for (const key of ['carrier_name', 'underwriter', 'pet_name', 'policy_number', 'deductible', 'deductible_type', 'per_incident_limit', 'reimbursement_rate', 'annual_limit', 'effective_date', 'expiration_date', 'species', 'breed', 'math_order']) {
         if (data[key] != null && merged[key] == null) {
           merged[key] = data[key]
         }
@@ -6336,9 +6464,12 @@ Return JSON only, no markdown:
       expiration_date: f.expiration_date || null,
       math_order: f.math_order || null,
       policy_number: f.policy_number || null,
+      underwriter: f.underwriter || null,
+      deductible_type: f.deductible_type || 'annual',
+      per_incident_limit: f.per_incident_limit || null,
       policy_text: `Auto-extracted from emailed policy documents for ${f.carrier_name}.`,
       exclusions: null,
-      filing_deadline_days: null,
+      filing_deadline_days: ((f.carrier_name || '').toLowerCase().includes('metlife')) ? 90 : null,
       storage_path: null,
     }
 
