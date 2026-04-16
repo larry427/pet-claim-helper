@@ -4465,15 +4465,17 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         return res.status(401).json({ error: 'Invalid or expired token' })
       }
 
-      const { storage_path, doc_type, policy_id, bill_storage_path, eob_storage_path } = req.body || {}
+      const { storage_path, storage_paths, doc_type, policy_id, bill_storage_path, eob_storage_path } = req.body || {}
       const user_id = user.id
 
       if (doc_type === 'both') {
         if (!bill_storage_path || !eob_storage_path) {
           return res.status(400).json({ error: 'bill_storage_path and eob_storage_path are required for doc_type "both"' })
         }
-      } else if (!storage_path || !doc_type) {
-        return res.status(400).json({ error: 'storage_path and doc_type are required' })
+      } else if (!storage_path && (!Array.isArray(storage_paths) || storage_paths.length === 0)) {
+        return res.status(400).json({ error: 'storage_path or storage_paths[] is required' })
+      } else if (!doc_type) {
+        return res.status(400).json({ error: 'doc_type is required' })
       }
       if (!['bill', 'eob', 'both'].includes(doc_type)) {
         return res.status(400).json({ error: 'doc_type must be "bill", "eob", or "both"' })
@@ -4482,7 +4484,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         return res.status(500).json({ error: 'OpenAI API key not configured' })
       }
 
-      console.log(`${tag} Request: doc_type=${doc_type} has_policy=${!!policy_id}`)
+      console.log(`${tag} Request: doc_type=${doc_type} has_policy=${!!policy_id} pages=${Array.isArray(storage_paths) ? storage_paths.length : storage_path ? 1 : 0}`)
 
       // STEP 0 — Fetch saved policy from DB (if provided)
       let savedPolicy = null
@@ -4807,24 +4809,47 @@ IMPORTANT: Use numbers not strings for amounts. Return ONLY the JSON object.`
       // END ROUTE 3 — Routes 1 & 2 continue below
       // ═══════════════════════════════════════════════════════════════
 
-      // STEP 1 — Download from Supabase Storage
-      const { data: blob, error: downloadError } = await supabase.storage
-        .from('pciq-policies')
-        .download(storage_path)
+      // STEP 1 — Download from Supabase Storage (supports single or multi-page)
+      // Resolve the list of paths to download
+      const allPaths = (Array.isArray(storage_paths) && storage_paths.length > 0)
+        ? storage_paths
+        : storage_path ? [storage_path] : []
 
-      if (downloadError) {
-        console.error(`${tag} Download error:`, downloadError.message)
-        return res.status(500).json({ error: downloadError.message })
+      if (allPaths.length === 0 && doc_type !== 'eob') {
+        return res.status(400).json({ error: 'No storage paths provided' })
       }
 
-      const fileBuffer = Buffer.from(await blob.arrayBuffer())
-      const fileName = storage_path.split('/').pop() || 'document.pdf'
-      const mimeType = fileName.toLowerCase().endsWith('.pdf') ? 'application/pdf'
-        : /\.(jpe?g)$/i.test(fileName) ? 'image/jpeg'
-        : fileName.toLowerCase().endsWith('.png') ? 'image/png'
-        : 'application/pdf'
+      console.log(`${tag} Downloading ${allPaths.length} file(s) for doc_type=${doc_type}`)
 
-      console.log(`${tag} Downloaded:`, { fileName, bytes: fileBuffer.length, mimeType })
+      // Download all files
+      const downloadedFiles = []
+      for (const path of allPaths) {
+        const { data: blob, error: downloadError } = await supabase.storage
+          .from('pciq-policies')
+          .download(path)
+
+        if (downloadError) {
+          console.error(`${tag} Download error for ${path}:`, downloadError.message)
+          return res.status(500).json({ error: downloadError.message })
+        }
+
+        const buf = Buffer.from(await blob.arrayBuffer())
+        const name = path.split('/').pop() || 'document.pdf'
+        const mime = name.toLowerCase().endsWith('.pdf') ? 'application/pdf'
+          : /\.(jpe?g)$/i.test(name) ? 'image/jpeg'
+          : name.toLowerCase().endsWith('.png') ? 'image/png'
+          : 'application/pdf'
+        const isPdf = mime === 'application/pdf' || name.toLowerCase().endsWith('.pdf')
+
+        downloadedFiles.push({ buf, name, mime, isPdf, path })
+        console.log(`${tag} Downloaded:`, { name, bytes: buf.length, mime, page: downloadedFiles.length })
+      }
+
+      // For backwards compat: reference first file for legacy code paths
+      const fileBuffer = downloadedFiles[0]?.buf
+      const fileName = downloadedFiles[0]?.name || 'document.pdf'
+      const mimeType = downloadedFiles[0]?.mime || 'application/pdf'
+      const isFilePdf = downloadedFiles[0]?.isPdf ?? true
 
       // STEP 2 — Build file content arrays based on doc_type
       const vetBillFileContents = []
@@ -4832,23 +4857,21 @@ IMPORTANT: Use numbers not strings for amounts. Return ONLY the JSON object.`
       const policyFileContents = []
       const policyTextBackup = []
 
-      const isFilePdf = mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')
-
-      const addFile = async (contentsArr, textArr, label) => {
-        if (isFilePdf) {
-          contentsArr.push(pciqPdfToFileInput(fileBuffer, fileName))
-          const text = await pciqExtractPdfText(fileBuffer, fileName)
-          textArr.push(`=== ${label} (text backup) ===\n${text}`)
-        } else {
-          contentsArr.push({ type: 'image_url', image_url: { url: pciqToDataUrl(fileBuffer, mimeType), detail: 'high' } })
-        }
-      }
-
       // 'bill'  → vet bill only; inject saved policy PDF if available
       // 'eob'   → EOB-only pipeline (returns early in Route 2 above)
       // 'both'  → returns early in Route 3 above — never reaches here
       if (doc_type === 'bill') {
-        await addFile(vetBillFileContents, vetBillTextBackup, 'VET BILL')
+        // Add ALL downloaded files (supports multi-page vet bills)
+        for (const file of downloadedFiles) {
+          if (file.isPdf) {
+            vetBillFileContents.push(pciqPdfToFileInput(file.buf, file.name))
+            const text = await pciqExtractPdfText(file.buf, file.name)
+            vetBillTextBackup.push(`=== VET BILL page ${downloadedFiles.indexOf(file) + 1} (text backup) ===\n${text}`)
+          } else {
+            vetBillFileContents.push({ type: 'image_url', image_url: { url: pciqToDataUrl(file.buf, file.mime), detail: 'high' } })
+          }
+        }
+        console.log(`${tag} Built ${vetBillFileContents.length} vet bill file content(s) from ${downloadedFiles.length} page(s)`)
         // Inject saved policy PDF if the user's policy has one stored
         if (savedPolicy?.storage_path) {
           const { data: policyBlob, error: policyDlErr } = await supabase.storage
