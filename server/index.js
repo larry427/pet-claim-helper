@@ -3134,8 +3134,10 @@ UNDERWRITER-TO-BRAND MAPPINGS (always use the brand name, never the underwriter)
 - "Cimarron Insurance Company" = "Kanguro"
 - "Metropolitan General Insurance Company" = "MetLife"
 - "MetLife Pet Insurance Solutions" / "PetFirst Pet Insurance" = "MetLife"
-- "Independence American Insurance Company" — DISAMBIGUATE:
-  * PetFirst/MetLife branding or form ID "IAIC PFI POL" → "MetLife"
+- "Hartville Pet Insurance" = "Hartville"
+- "Independence American Insurance Company" — DISAMBIGUATE (three-way):
+  * Form ID "PET-P-20000-OH-1024" or Hartville branding → "Hartville"
+  * Form ID "IAIC PFI POL" or PetFirst/MetLife branding → "MetLife"
   * Form ID "IAIC-PET-POL" or "IAIC FPI POL" or Figo branding → "Figo"
 
 STEP A — ASSESS COMPLETENESS:
@@ -3244,6 +3246,24 @@ METLIFE RULE 6 — DENTAL: Both cover emergency/injury dental. IAIC has strict p
 METLIFE RULE 7 — SUPPLEMENTS/FOOD:
 - IAIC: EXCLUDES natural supplements, vitamins, all foods, shampoo, conditioner, ear cleaner.
 - MetGen: COVERS prescription foods (vet-only prescription for covered condition) + holistic treatments prescribed by vet.
+
+RULE 3H — HARTVILLE CARRIER RULES (apply when carrier is "Hartville"):
+Hartville is underwritten by Independence American Insurance Company (form PET-P-20000-OH-1024). Hartville sells both Accident & Illness policies and ACCIDENT-ONLY policies. The coverage_type value (from saved policy parameters) determines which rules apply.
+
+HARTVILLE RULE 1 — ACCIDENT-ONLY COVERAGE TYPE: If coverage_type is "accident_only", this policy covers ONLY injuries resulting from accidents. ALL illness, disease, sickness, chronic conditions, congenital, hereditary, orthopedic, and ligament/knee conditions are EXCLUDED.
+- If the visit is an illness/sick visit: ALL line items EXCLUDED with reason "Excluded — Accident-only policy does not cover illness or disease."
+- If the visit is a confirmed accident/injury (keywords: trauma, laceration, fracture, broken bone, hit by car, foreign body, poisoning, burn, fall, bite wound): apply HARTVILLE RULE 2 below.
+- If ambiguous with no clear accident keywords: default to EXCLUDED for accident-only policies.
+
+HARTVILLE RULE 2 — ACCIDENT-ONLY LINE ITEM CLASSIFICATION (confirmed accident visit only):
+COVERED: Exam fees, consultation fees, lab tests, bloodwork, surgery, hospitalization, anesthesia, X-rays/MRI/CT/ultrasound, prescription medications, IV fluids, medical supplies (bandages, casts, splints, e-collars), fracture treatment, accident-related tooth extractions, stem cell/alternative therapy for accident injury, poison control consultation, one-time microchip, prescription food for covered accident condition, supplements for covered accident condition, accident-related end of life.
+EXCLUDED (always on Hartville accident-only): all illness/disease, chronic conditions, congenital/hereditary, orthopedic (unless fracture from accident), ligament/knee conditions, pre-existing, cosmetic/elective, breeding/pregnancy, boarding, grooming, training, dental cleanings (unless from accident), preventive care, house call fees, admin/records fees, non-medical supplies.
+
+HARTVILLE RULE 3 — ACCIDENT & ILLNESS COVERAGE TYPE: If coverage_type is "accident_illness", apply standard rules. Deductible-first math. Exam fees covered on sick/injury visits.
+
+HARTVILLE RULE 4 — MATH: Deductible-first. (Covered − Deductible) × Rate = Payout.
+
+HARTVILLE RULE 5 — WASTE DISPOSAL: Hartville does NOT explicitly cover medical waste disposal. Apply standard RULE 5B exclusion.
 
 RULE 4 — PRE-OP/POST-OP INHERITANCE:
 Pre-op items (bloodwork, exams, prep described as "pre-op", "pre-surgical", "pre-anesthetic"):
@@ -3775,6 +3795,7 @@ Return ONLY this JSON object:
 SAVED POLICY PARAMETERS (from user's account — use these as ground truth when policy documents are absent or incomplete):
   Carrier: ${savedPolicy.carrier || 'Unknown'}
   Underwriter: ${savedPolicy.underwriter || 'Unknown'}
+  Coverage Type: ${savedPolicy.coverage_type || 'accident_illness'}
   Pet Name: ${savedPolicy.pet_name || 'Unknown'}
   Species: ${savedPolicy.species || 'Unknown'}
   Deductible: $${savedPolicy.deductible ?? 'Unknown'}
@@ -3801,7 +3822,9 @@ THE VISIT TYPE IS: ${stage1Result.visitType}
 This is FINAL and IMMUTABLE. Do not reconsider it under any circumstances.
 ${savedPolicyContext}
 THE UNDERWRITER IS: ${savedPolicy?.underwriter || 'unknown'}
-(This matters for MetLife carrier rules — see RULE 3M. It determines whether to apply MetGen or IAIC specific rules.)
+THE COVERAGE TYPE IS: ${savedPolicy?.coverage_type || 'accident_illness'}
+(Underwriter matters for MetLife rules — see RULE 3M.)
+(Coverage type matters for Hartville — see RULE 3H. If coverage_type is "accident_only", the policy does NOT cover illness and ALL non-accident items must be excluded.)
 
 Policy documents are attached. Examine each one carefully.
 
@@ -3821,9 +3844,11 @@ UNDERWRITER-TO-BRAND MAPPINGS (always use the brand name, never the underwriter)
 - "Cimarron Insurance Company" = "Kanguro"
 - "Metropolitan General Insurance Company" = "MetLife" (form PET21-01-V)
 - "MetLife Pet Insurance Solutions" / "PetFirst Pet Insurance" = "MetLife"
-- "Independence American Insurance Company" — DISAMBIGUATE:
-  * If header says "PetFirst Pet Insurance"/"MetLife" or form ID contains "IAIC PFI POL" → "MetLife"
-  * If form ID is "IAIC-PET-POL" or "IAIC FPI POL" or brand is Figo → "Figo"
+- "Hartville Pet Insurance" = "Hartville"
+- "Independence American Insurance Company" — DISAMBIGUATE (three-way):
+  * Form ID "PET-P-20000-OH-1024" or Hartville branding → "Hartville"
+  * Form ID "IAIC PFI POL" or PetFirst/MetLife branding → "MetLife"
+  * Form ID "IAIC-PET-POL" or "IAIC FPI POL" or Figo branding → "Figo"
 
 STEP A — ASSESS COMPLETENESS:
 - "full": vet bill + enough policy info for complete analysis
@@ -3896,6 +3921,50 @@ METLIFE RULE 7 — SUPPLEMENTS AND FOOD:
 - IAIC: EXCLUDES natural supplements, vitamins, all foods (prescribed or not), shampoo, conditioner, ear cleaner.
 - MetGen: COVERS prescription foods (vet-only with prescription for a covered illness/injury) AND holistic treatments prescribed by a vet (aromatherapy, herbal remedies, CBD oil).
 Classify these items based on the underwriter.
+
+RULE 3H — HARTVILLE CARRIER RULES (apply when carrier is "Hartville"):
+Hartville is underwritten by Independence American Insurance Company (form PET-P-20000-OH-1024). Hartville sells both Accident & Illness policies and ACCIDENT-ONLY policies. The coverage_type field from saved policy parameters tells you which this policy is.
+
+HARTVILLE RULE 1 — ACCIDENT-ONLY COVERAGE TYPE: If coverage_type is "accident_only", this policy covers ONLY injuries resulting from accidents. ALL illness, disease, sickness, chronic conditions, congenital, hereditary, orthopedic, and ligament/knee conditions are EXCLUDED.
+- If the visit is an illness/sick visit (visitType=WELLNESS_VISIT, or Stage 1 description mentions illness/infection/disease/condition without accident/injury): ALL line items are EXCLUDED with reason "Excluded — Accident-only policy does not cover illness or disease. Hartville accident-only plans only cover injuries from accidents."
+- If the visit is an accident/injury visit (visitType=SICK_INJURY_VISIT AND Stage 1 description clearly mentions accident, trauma, laceration, bite, fracture, broken bone, hit by car, foreign body ingestion, poisoning, burn, fall): classify line items per HARTVILLE RULE 2 below.
+- If ambiguous: look at Stage 1 lineItems for keywords suggesting accident — "emergency", "trauma", "laceration", "fracture", "broken", "bite wound", "laceration repair", "foreign body removal". If no accident keywords present, default to EXCLUDED for accident-only policies.
+
+HARTVILLE RULE 2 — ACCIDENT-ONLY LINE ITEM CLASSIFICATION (only when visit is confirmed accident):
+COVERED (on accident-related visit only):
+- Exam fees, consultation fees (on confirmed accident visit)
+- Veterinary treatment, lab tests, bloodwork (accident-related)
+- Surgery, hospitalization, anesthesia (accident-related)
+- X-rays, MRI, CT scans, ultrasound (accident-related)
+- Prescription medications (FDA approved, prescribed by vet)
+- IV fluids, medications
+- Medical supplies (bandages, casts, splints, e-collars)
+- Broken bones, fracture treatment
+- Tooth extractions from accident
+- Stem cell therapy, alternative therapy for accident injury
+- Poison control consultation fees
+- Microchip implantation (one-time)
+- Prescription foods (only if treating covered accident condition)
+- Supplements (only if treating covered accident condition)
+- End of life expenses (accident-related)
+EXCLUDED on Hartville accident-only (regardless of visit type):
+- ALL illness, disease, chronic conditions
+- Congenital anomalies, hereditary disorders
+- Orthopedic conditions (unless directly from accident — broken bones OK)
+- Ligament/knee conditions (classified as illness by Hartville)
+- Pre-existing conditions
+- Cosmetic/elective procedures
+- Breeding/pregnancy, boarding, grooming, training
+- Dental cleanings (unless treating accident injury)
+- Preventive care (no endorsement on accident-only plan)
+- House call fees, admin fees, medical records fees
+- Non-medical supplies
+
+HARTVILLE RULE 3 — ACCIDENT & ILLNESS COVERAGE TYPE: If coverage_type is "accident_illness", apply standard accident & illness rules. Standard deductible-first math applies. Exam fees covered on sick/injury visits.
+
+HARTVILLE RULE 4 — MATH: Deductible-first. (Covered − Deductible) × Rate = Payout.
+
+HARTVILLE RULE 5 — WASTE DISPOSAL: Hartville (even though underwritten by IAIC) does NOT explicitly cover medical waste disposal the way MetLife IAIC does. Apply RULE 5B standard exclusion for Hartville.
 
 RULE 4 — PRE-OP/POST-OP INHERITANCE: Pre/post-op items inherit coverage from the associated surgery.
 
@@ -4118,6 +4187,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
       const underwriter = savedPolicy?.underwriter || null
       const deductibleType = savedPolicy?.deductible_type || 'annual'
       const perIncidentLimit = savedPolicy?.per_incident_limit || null
+      const coverageType = savedPolicy?.coverage_type || 'accident_illness'
 
       // ── Diagnostic: show where each policy value came from ──
       console.log(`${tag} Policy value sources:`, {
@@ -4445,6 +4515,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         underwriter,
         deductible_type: deductibleType,
         per_incident_limit: perIncidentLimit,
+        coverage_type: coverageType,
       }
 
       return mobileResponse
@@ -5404,15 +5475,23 @@ EXTRACTION RULES:
    - "Metropolitan General Insurance Company" = "MetLife"
    - "MetLife Pet Insurance Solutions" = "MetLife"
    - "PetFirst Pet Insurance" = "MetLife"
-   - "Independence American Insurance Company" — DISAMBIGUATE: both MetLife and Figo use IAIC as underwriter.
-     * If header says "PetFirst Pet Insurance" or "MetLife" OR form ID contains "IAIC PFI POL" → "MetLife"
-     * If form ID is "IAIC-PET-POL" (older Figo) or "IAIC FPI POL" (newer Figo) → "Figo"
-     * If in doubt but you see "Figo" brand/logo → "Figo"; if you see "MetLife"/"PetFirst" → "MetLife"
+   - "Hartville Pet Insurance" = "Hartville"
+   - "Independence American Insurance Company" — DISAMBIGUATE: MetLife, Figo, AND Hartville all use IAIC as underwriter. Three-way distinction:
+     * Form ID "PET-P-20000-OH-1024" OR "Hartville" branding/logo → "Hartville"
+     * Form ID "IAIC PFI POL" OR "PetFirst Pet Insurance"/"MetLife" branding → "MetLife"
+     * Form ID "IAIC-PET-POL" (older) or "IAIC FPI POL" (newer) or "Figo" branding → "Figo"
+     * If in doubt: look for the consumer brand logo/name — the correct answer is always the brand name, never "Independence American"
 4A. UNDERWRITER: Look for the actual insurance company name, often at the very top of the policy or on the cover page. This is the legal entity, not the brand. Common examples: "Independence American Insurance Company", "Metropolitan General Insurance Company", "Westchester Fire Insurance Company", "Cimarron Insurance Company". Return exactly as printed, or null if not found.
 4B. METLIFE-SPECIFIC LABELS (use these variants when carrier is MetLife):
    - Reimbursement rate labels: MetGen uses "Covered Percentage"; IAIC uses "Reimbursement Percentage"
    - Annual limit labels: MetGen uses "Policy Limit" (applies across all pets combined); IAIC uses "Annual Maximum Benefit" (per-pet)
    - Per-incident cap (IAIC only): "Covered Incident Limit" — this is separate from the annual max
+4C. COVERAGE TYPE: Determine whether this policy covers accidents and illnesses, or accidents only.
+   - Look for phrases like "Accident Only Coverage", "Accident Only Plan", "Accident Coverage" (without "& Illness"), or an explicit line on the declarations page stating "Coverage Type: Accident Only"
+   - If accident only → return "accident_only"
+   - If the policy explicitly covers illnesses or says "Accident & Illness" / "Accident and Illness" → return "accident_illness"
+   - Default when unclear: "accident_illness" (most pet insurance policies cover both)
+   - Hartville is frequently accident-only (form PET-P-20000-OH-1024). Always check Hartville policies carefully.
 5. PET NAME: from declarations page.
 6. SPECIES: "dog" or "cat" (lowercase).
 7. BREED: from declarations page or null.
@@ -5431,6 +5510,7 @@ Return ONLY this JSON object:
 {
   "carrier": string | null,
   "underwriter": string | null,
+  "coverage_type": "accident_only" | "accident_illness" | null,
   "pet_name": string | null,
   "species": "dog" | "cat" | null,
   "breed": string | null,
@@ -5501,10 +5581,13 @@ IMPORTANT: Return ONLY the JSON object. Numbers must be numbers, not strings.`
       // Default deductible_type to 'annual' if not specified (most carriers)
       if (!extracted.deductible_type) extracted.deductible_type = 'annual'
 
+      // Default coverage_type to 'accident_illness' if not specified (most policies cover both)
+      if (!extracted.coverage_type) extracted.coverage_type = 'accident_illness'
+
       // Carrier-specific filing deadline defaults (only if GPT didn't find one)
       if (!extracted.filing_deadline_days) {
         const carrierLower = (extracted.carrier || '').toLowerCase()
-        const deadlineDefaults = { metlife: 90 }
+        const deadlineDefaults = { metlife: 90, hartville: 90 }
         for (const [key, days] of Object.entries(deadlineDefaults)) {
           if (carrierLower.includes(key)) { extracted.filing_deadline_days = days; break }
         }
@@ -6232,8 +6315,9 @@ DOCUMENT TEXT:
 ${pdfText || '(No text extracted — see attached image)'}
 
 Also extract these fields if you can find them (return null for any you cannot find):
-- carrier_name: The insurance company name (use consumer-facing brand name, not underwriting entity). Brand mappings: "Westchester Fire Insurance Company" = "Healthy Paws", "United States Fire Insurance Company" = "Pumpkin", "American Pet Insurance Company" = "Fetch", "National Casualty Company" = "Nationwide Pet Insurance", "Cimarron Insurance Company" = "Kanguro", "Kanguro Insurance LLC" = "Kanguro", "Metropolitan General Insurance Company" = "MetLife", "MetLife Pet Insurance Solutions" = "MetLife", "PetFirst Pet Insurance" = "MetLife". DISAMBIGUATION for "Independence American Insurance Company" (used by both MetLife and Figo): if header/form says "PetFirst Pet Insurance" or form ID contains "IAIC PFI POL" → "MetLife"; if form ID is "IAIC-PET-POL" or "IAIC FPI POL" or brand is Figo → "Figo". IMPORTANT: Look for the consumer-facing brand name in logos, headers, footers, and watermarks — not just the underwriting entity. If you see a brand logo or "administered by [Brand]", use the brand name. Always return a carrier_name if ANY insurance company name appears in the document — never return null if you can identify one.
+- carrier_name: The insurance company name (use consumer-facing brand name, not underwriting entity). Brand mappings: "Westchester Fire Insurance Company" = "Healthy Paws", "United States Fire Insurance Company" = "Pumpkin", "American Pet Insurance Company" = "Fetch", "National Casualty Company" = "Nationwide Pet Insurance", "Cimarron Insurance Company" = "Kanguro", "Kanguro Insurance LLC" = "Kanguro", "Metropolitan General Insurance Company" = "MetLife", "MetLife Pet Insurance Solutions" = "MetLife", "PetFirst Pet Insurance" = "MetLife", "Hartville Pet Insurance" = "Hartville". DISAMBIGUATION for "Independence American Insurance Company" (used by MetLife, Figo, AND Hartville): form ID "PET-P-20000-OH-1024" or Hartville branding → "Hartville"; form ID "IAIC PFI POL" or PetFirst/MetLife branding → "MetLife"; form ID "IAIC-PET-POL" or "IAIC FPI POL" or Figo branding → "Figo". IMPORTANT: Look for the consumer-facing brand name in logos, headers, footers, and watermarks — not just the underwriting entity. If you see a brand logo or "administered by [Brand]", use the brand name. Always return a carrier_name if ANY insurance company name appears in the document — never return null if you can identify one.
 - underwriter: The actual insurance company legal entity name (e.g., "Independence American Insurance Company", "Metropolitan General Insurance Company", "Westchester Fire Insurance Company"), or null if not found. This is different from carrier_name (which is the consumer brand).
+- coverage_type: "accident_only" if the policy covers accidents only (look for "Accident Only", "Accident Coverage" without "& Illness"), or "accident_illness" if it covers both accidents and illnesses (the common case). Default to "accident_illness" when unclear. Hartville policies (form PET-P-20000-OH-1024) are frequently accident-only — always check Hartville carefully.
 - pet_name, policy_number, species (dog or cat), breed
 - deductible: Annual deductible amount (number only)
 - deductible_type: "annual" (applies once per year) or "per_incident" (applies per condition). If unclear, return "annual".
@@ -6244,7 +6328,7 @@ Also extract these fields if you can find them (return null for any you cannot f
 - math_order: "reimbursement_first" if percentage applied before deductible, "deductible_first" if deductible subtracted before percentage, null if unknown
 
 Respond in JSON only, no markdown, no backticks:
-{"classification":"DECLARATIONS|POLICY_TERMS|COMBINED|EOB|VET_BILL|IRRELEVANT","confidence":"high|medium|low","carrier_name":null,"underwriter":null,"pet_name":null,"policy_number":null,"deductible":null,"deductible_type":null,"per_incident_limit":null,"reimbursement_rate":null,"annual_limit":null,"effective_date":null,"expiration_date":null,"species":null,"breed":null,"math_order":null,"notes":"Brief description of what this document contains"}`
+{"classification":"DECLARATIONS|POLICY_TERMS|COMBINED|EOB|VET_BILL|IRRELEVANT","confidence":"high|medium|low","carrier_name":null,"underwriter":null,"coverage_type":null,"pet_name":null,"policy_number":null,"deductible":null,"deductible_type":null,"per_incident_limit":null,"reimbursement_rate":null,"annual_limit":null,"effective_date":null,"expiration_date":null,"species":null,"breed":null,"math_order":null,"notes":"Brief description of what this document contains"}`
 
       const completion = await openai.chat.completions.create({ store: false,
         model: 'gpt-4o',
@@ -6404,7 +6488,7 @@ Return JSON only, no markdown:
       if (dtype === 'COMBINED') has_combined = true
 
       // Merge fields — prefer non-null values
-      for (const key of ['carrier_name', 'underwriter', 'pet_name', 'policy_number', 'deductible', 'deductible_type', 'per_incident_limit', 'reimbursement_rate', 'annual_limit', 'effective_date', 'expiration_date', 'species', 'breed', 'math_order']) {
+      for (const key of ['carrier_name', 'underwriter', 'coverage_type', 'pet_name', 'policy_number', 'deductible', 'deductible_type', 'per_incident_limit', 'reimbursement_rate', 'annual_limit', 'effective_date', 'expiration_date', 'species', 'breed', 'math_order']) {
         if (data[key] != null && merged[key] == null) {
           merged[key] = data[key]
         }
@@ -6488,11 +6572,16 @@ Return JSON only, no markdown:
       math_order: f.math_order || null,
       policy_number: f.policy_number || null,
       underwriter: f.underwriter || null,
+      coverage_type: f.coverage_type || 'accident_illness',
       deductible_type: f.deductible_type || 'annual',
       per_incident_limit: f.per_incident_limit || null,
       policy_text: `Auto-extracted from emailed policy documents for ${f.carrier_name}.`,
       exclusions: null,
-      filing_deadline_days: ((f.carrier_name || '').toLowerCase().includes('metlife')) ? 90 : null,
+      filing_deadline_days: (() => {
+        const cn = (f.carrier_name || '').toLowerCase()
+        if (cn.includes('metlife') || cn.includes('hartville')) return 90
+        return null
+      })(),
       storage_path: null,
     }
 
