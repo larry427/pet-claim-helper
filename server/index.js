@@ -6279,7 +6279,8 @@ RULES:
       let fileContents = []
       let pdfText = ''
       if (isPdf) {
-        // Extract first 5 pages for classification (declarations info often on pages 4-5)
+        // Extract text (for context) AND send the PDF file directly so GPT can see the actual document.
+        // This handles scanned/image-based PDFs where pdfjs text extraction yields little content.
         try {
           const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(fileBuffer) }).promise
           const maxPages = Math.min(pdf.numPages, 5)
@@ -6290,11 +6291,14 @@ RULES:
             pieces.push((content.items || []).map(it => it.str || '').join(' '))
           }
           pdfText = pieces.join('\n\n')
-          console.log(`${tag} Extracted ${maxPages}/${pdf.numPages} pages from ${filename} (${pdfText.length} chars)`)
+          console.log(`${tag} Extracted ${maxPages}/${pdf.numPages} pages from ${filename} (${pdfText.length} chars text)`)
         } catch (pdfErr) {
-          console.error(`${tag} PDF extraction failed for ${filename}:`, pdfErr.message)
-          return null
+          console.error(`${tag} PDF text extraction failed for ${filename} (will still send PDF to GPT):`, pdfErr.message)
         }
+        // ALWAYS send the PDF itself to GPT so it can read the actual document,
+        // not just our text extraction. This is the fix for image-based/scanned PDFs
+        // that produced null fields and caused stale data contamination from prior docs.
+        fileContents.push(pciqPdfToFileInput(fileBuffer, filename))
       } else {
         // Image — send as image_url
         const mimeGuess = /\.(jpe?g)$/i.test(filename) ? 'image/jpeg' : 'image/png'
@@ -6455,7 +6459,9 @@ Return JSON only, no markdown:
   }
 
   // Check if a user has enough documents to build a complete policy
-  // currentBatchIds: optional array of doc IDs from the most recent email — their carrier takes priority
+  // currentBatchIds: array of doc IDs from the current email batch.
+  // CRITICAL: merge is SCOPED to current batch + older docs matching the batch's carrier.
+  // Prevents old extracted_data from unrelated policies contaminating the current extraction.
   const checkPolicyCompleteness = async (userId, currentBatchIds = []) => {
     const tag = '[email-in/completeness]'
 
@@ -6470,16 +6476,39 @@ Return JSON only, no markdown:
       return { status: 'no_policy_docs', has_declarations: false, has_policy_terms: false, has_combined: false, carrier_name: null, missing: [], extracted_fields: {} }
     }
 
+    const batchIdSet = new Set(currentBatchIds.map(id => String(id)))
+
+    // Step 1: Identify the current batch's carrier
+    const batchDocs = docs.filter(d => batchIdSet.has(String(d.id)))
+    let batchCarrier = null
+    for (const doc of batchDocs) {
+      const c = doc.extracted_data?.carrier_name
+      if (c) { batchCarrier = String(c).toLowerCase().trim(); break }
+    }
+
+    // Step 2: Build scoped doc list
+    //   - Always include docs from the current batch
+    //   - Include older docs ONLY if their carrier matches the batch carrier (multi-email uploads of same policy)
+    //   - Exclude older docs from different carriers (prevents stale data contamination)
+    const scopedDocs = (currentBatchIds.length === 0)
+      ? docs  // backwards compat when called without batch context
+      : docs.filter(doc => {
+          if (batchIdSet.has(String(doc.id))) return true
+          if (!batchCarrier) return false  // no carrier yet — only trust current batch
+          const docCarrier = doc.extracted_data?.carrier_name
+          if (!docCarrier) return false  // skip docs with no carrier — can't verify match
+          return String(docCarrier).toLowerCase().trim() === batchCarrier
+        })
+
+    console.log(`${tag} Scoped ${scopedDocs.length}/${docs.length} docs (batch carrier: ${batchCarrier || 'unknown'})`)
+
     let has_declarations = false
     let has_policy_terms = false
     let has_combined = false
     let carrier_name = null
-    let batchCarrier = null // carrier from the current email batch (highest priority)
-    // Merge extracted fields from all docs — later docs override earlier for same fields
     const merged = {}
-    const batchIdSet = new Set(currentBatchIds.map(id => String(id)))
 
-    for (const doc of docs) {
+    for (const doc of scopedDocs) {
       const dtype = (doc.document_type || '').toUpperCase()
       const data = doc.extracted_data || {}
 
@@ -6487,22 +6516,13 @@ Return JSON only, no markdown:
       if (dtype === 'POLICY_TERMS') has_policy_terms = true
       if (dtype === 'COMBINED') has_combined = true
 
-      // Merge fields — prefer non-null values
+      // Merge fields — prefer non-null values (first non-null wins due to DESC order)
       for (const key of ['carrier_name', 'underwriter', 'coverage_type', 'pet_name', 'policy_number', 'deductible', 'deductible_type', 'per_incident_limit', 'reimbursement_rate', 'annual_limit', 'effective_date', 'expiration_date', 'species', 'breed', 'math_order']) {
         if (data[key] != null && merged[key] == null) {
           merged[key] = data[key]
         }
       }
-      // Track carrier from current batch separately — it takes priority
-      if (data.carrier_name && batchIdSet.has(String(doc.id)) && !batchCarrier) {
-        batchCarrier = data.carrier_name
-      }
       if (data.carrier_name && !carrier_name) carrier_name = data.carrier_name
-    }
-    // Current batch carrier always wins over older docs
-    if (batchCarrier) {
-      carrier_name = batchCarrier
-      merged.carrier_name = batchCarrier
     }
 
     let status = 'no_policy_docs'
