@@ -4408,7 +4408,15 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
           const wellnessDesc = excludedItems.length <= 3
             ? `The ${joinNames(excludedItems)} on this bill are considered wellness or preventive care under your ${summaryCarrier} plan.`
             : `All ${excludedItems.length} items on this bill are considered wellness or preventive care under your ${summaryCarrier} plan.`
-          summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} was a routine wellness visit. Your ${summaryCarrier} plan covers accidents and illness but does not include preventive or routine care. ${wellnessDesc} Estimated reimbursement: $0.00. If ${summaryPetName} has a sick visit or injury, that's when your ${summaryCarrier} coverage kicks in.`
+          {
+            const baseCoverage = coverageType === 'accident_only'
+              ? `Your ${summaryCarrier} accident-only plan covers injuries from accidents only — it does not cover illness or preventive care.`
+              : `Your ${summaryCarrier} plan covers accidents and illness but does not include preventive or routine care.`
+            const kicksIn = coverageType === 'accident_only'
+              ? `If ${summaryPetName} has an injury from an accident, that's when your ${summaryCarrier} coverage kicks in.`
+              : `If ${summaryPetName} has a sick visit or injury, that's when your ${summaryCarrier} coverage kicks in.`
+            summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} was a routine wellness visit. ${baseCoverage} ${wellnessDesc} Estimated reimbursement: $0.00. ${kicksIn}`
+          }
           break
         }
         case 'SICK_ALL_COVERED':
@@ -4432,9 +4440,15 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
           const primaryReason = excludedItems.length > 0 ? plainReason(excludedItems[0].reason) : 'these services are not eligible'
           const guidance = (() => {
             const r = (excludedItems[0]?.reason || '').toLowerCase()
-            if (r.includes('wellness') || r.includes('preventive')) return `If ${summaryPetName} has a sick visit or injury, that's when your coverage kicks in.`
+            const sickHint = coverageType === 'accident_only'
+              ? `If ${summaryPetName} has an injury from an accident, that's when your coverage kicks in.`
+              : `If ${summaryPetName} has a sick visit or injury, that's when your coverage kicks in.`
+            if (r.includes('wellness') || r.includes('preventive')) return sickHint
             if (r.includes('pre-existing') || r.includes('preexisting')) return 'Coverage may apply to new, unrelated conditions.'
             if (r.includes('waiting')) return 'Once the waiting period ends, similar services will be eligible.'
+            if (r.includes('accident-only') || r.includes('illness') || coverageType === 'accident_only') {
+              return `Coverage applies to eligible injuries from accidents only under your ${summaryCarrier} plan. Illness and disease are not covered on accident-only policies.`
+            }
             return `Coverage applies to eligible accidents and illnesses under your ${summaryCarrier} plan.`
           })()
           summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} included services that are not eligible for coverage under your ${summaryCarrier} plan. The primary reason: ${primaryReason}. Estimated reimbursement: $0.00. ${guidance}`
