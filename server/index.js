@@ -4179,7 +4179,31 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         console.log(`${tag} Wellness endorsement result: covered=$${s2a.totalCovered} excluded=$${s2a.totalExcluded} reimbursement=$${wellnessEndorsementReimbursement}`)
       }
 
-      const totalCovered = s2a.totalCovered || 0
+      // ── Code-computed totals (single source of truth) ──
+      // Derive covered/excluded totals from the per-item classifications GPT returned.
+      // GPT's own aggregate fields (s2a.totalCovered, s2a.totalExcluded, s2a.maxReimbursement) are
+      // IGNORED here — they can drift from the per-item array within a single response (see Remi
+      // CBD case: GPT marked CBD covered in lineItems but counted its $45 in totalExcluded).
+      // Both the card and the narrative now read from these computed values → cannot disagree.
+      const _lineItems = s2a.lineItems || []
+      const totalCovered  = Math.round(_lineItems.filter(i => i.covered === true ).reduce((s, i) => s + (i.amount || 0), 0) * 100) / 100
+      const totalExcluded = Math.round(_lineItems.filter(i => i.covered !== true).reduce((s, i) => s + (i.amount || 0), 0) * 100) / 100
+
+      // Reconciliation diagnostic — flags GPT extraction/classification gaps.
+      // Still proceeds with the per-item classification; just logs the discrepancy.
+      const _expectedBillTotal = s2a.totalBill || stage1Result.totalBill || 0
+      const _itemsSum = Math.round((totalCovered + totalExcluded) * 100) / 100
+      if (_expectedBillTotal > 0 && Math.abs(_itemsSum - _expectedBillTotal) > 0.01) {
+        console.warn(`${tag} ⚠ Line items don't reconcile to bill total: items_sum=$${_itemsSum.toFixed(2)} bill_total=$${_expectedBillTotal.toFixed(2)} diff=$${(_itemsSum - _expectedBillTotal).toFixed(2)}`)
+      }
+      // Also flag drift between GPT's aggregates and code-computed (purely diagnostic):
+      if (s2a.totalCovered != null && Math.abs((s2a.totalCovered || 0) - totalCovered) > 0.01) {
+        console.warn(`${tag} ⚠ GPT totalCovered ($${(s2a.totalCovered || 0).toFixed(2)}) disagrees with code-computed ($${totalCovered.toFixed(2)}). Using code-computed.`)
+      }
+      if (s2a.totalExcluded != null && Math.abs((s2a.totalExcluded || 0) - totalExcluded) > 0.01) {
+        console.warn(`${tag} ⚠ GPT totalExcluded ($${(s2a.totalExcluded || 0).toFixed(2)}) disagrees with code-computed ($${totalExcluded.toFixed(2)}). Using code-computed.`)
+      }
+
       const rateRaw = (savedPolicy?.reimbursement_rate ?? s2p.reimbursementRate) || null
       const deductible = (savedPolicy?.deductible ?? s2p.deductible) || 0
       const annualLimit = (savedPolicy?.annual_limit ?? s2p.annualLimit) || null
@@ -4198,7 +4222,10 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         savedPolicyPresent: !!savedPolicy,
       })
 
-      let maxReimbursement = s2a.maxReimbursement || 0
+      // Reimbursement math — computed from the code-computed totalCovered above.
+      // No longer falls back to GPT's s2a.maxReimbursement; if rate is missing or totalCovered is 0,
+      // reimbursement is 0 (which is correct — can't compute a check without a rate or covered items).
+      let maxReimbursement = 0
       if (wellnessEndorsementApplied) {
         // Endorsement: no deductible, pre-calculated reimbursement from category math
         maxReimbursement = wellnessEndorsementReimbursement
@@ -4399,7 +4426,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
           if (excludedItems.length > 0) {
             excDesc = excludedItems.length <= 3
               ? ` The ${joinNames(excludedItems)} ${excludedItems.length === 1 ? 'is' : 'are'} not covered by the endorsement.`
-              : ` ${excludedItems.length} items totaling ${fmt$(s2a.totalExcluded || 0)} are not covered by the endorsement.`
+              : ` ${excludedItems.length} items totaling ${fmt$(totalExcluded)} are not covered by the endorsement.`
           }
           summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} was a routine wellness visit. Your ${summaryCarrier} Preventive Care Endorsement covers eligible wellness items at ${endorseRate}% with no deductible, subject to per-category annual limits. ${coveredDesc} — estimated reimbursement: ${fmt$(wellnessEndorsementReimbursement)}.${excDesc}`
           break
@@ -4517,7 +4544,7 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
         deductible_used: 0,
         reimbursement_rate: rateRaw,
         covered_total: totalCovered,
-        excluded_total: s2a.totalExcluded || 0,
+        excluded_total: totalExcluded,
         estimated_reimbursement_if_deductible_met: reimbursementIfDeductibleMet,
         estimated_reimbursement_actual: maxReimbursement,
         should_file: shouldFile,
