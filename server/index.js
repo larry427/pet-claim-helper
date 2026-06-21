@@ -3243,8 +3243,8 @@ METLIFE RULE 5 — DEDUCTIBLE TYPE: MetGen = annual only. IAIC = annual OR per-i
 
 METLIFE RULE 6 — DENTAL: Both cover emergency/injury dental. IAIC has strict pre-existing dental exclusions (periodontal, gingivitis, tartar, stomatitis, prophylactic cleaning, deep cleaning, deciduous teeth). MetGen follows standard rules.
 
-METLIFE RULE 7 — SUPPLEMENTS/FOOD:
-- IAIC: EXCLUDES natural supplements, vitamins, all foods, shampoo, conditioner, ear cleaner.
+METLIFE RULE 7A — SUPPLEMENTS/FOOD:
+- IAIC: EXCLUDES natural supplements, vitamins, all foods (prescribed or not), shampoo, conditioner, ear cleaner.
 - MetGen: COVERS prescription foods (vet-only prescription for covered condition) + holistic treatments prescribed by vet.
 
 RULE 3H — HARTVILLE CARRIER RULES (apply when carrier is "Hartville"):
@@ -3286,6 +3286,7 @@ Default to COVERED, not UNKNOWN, for legitimate illness/injury treatment items.
 
 RULE 7 — PRESCRIPTION DIET FOR COVERED CONDITIONS:
 If a prescription diet or prescription pet food is prescribed by a veterinarian to treat a specific COVERED condition (e.g., post-surgical GI recovery diet after intestinal surgery, renal diet for diagnosed kidney disease), it IS covered. Only exclude prescription diets when they are for general health maintenance, weight loss, prevention, or when there is no underlying covered condition being treated. When a prescription diet appears on a bill alongside a covered surgery or covered illness treatment, default to COVERED unless the policy explicitly excludes ALL prescription foods with no exception for covered conditions. Pumpkin policy explicitly covers "Prescription pet food to treat a covered condition." Odie and most carriers follow similar logic.
+PRECEDENCE: A carrier-specific rule that explicitly excludes all foods/supplements for a given underwriter (e.g., METLIFE RULE 7A for the IAIC underwriter — "all foods (prescribed or not)") OVERRIDES this generic prescription-diet rule for that carrier; prescription food is then EXCLUDED. For every carrier WITHOUT such a carrier-specific food exclusion, this generic rule applies unchanged and prescription food prescribed for a covered condition remains COVERED.
 
 RULE 8 — E-COLLAR / ELIZABETHAN COLLAR:
 An Elizabethan collar (e-collar, cone) provided as part of post-surgical care or to prevent a pet from interfering with treatment of a covered condition is a MEDICAL SUPPLY, not a non-medical supply. It is functionally equivalent to bandages, casts, and splints — it protects a surgical site or wound. Mark as COVERED when prescribed or provided in connection with a covered procedure. Only exclude if the e-collar is sold as a standalone retail item unrelated to any covered treatment.
@@ -3917,7 +3918,7 @@ METLIFE RULE 6 — DENTAL:
 - MetGen: Standard dental coverage rules apply (no MetGen-specific dental exclusions in base policy).
 For line-item classification: dental cleaning on a wellness visit = EXCLUDED on both forms. Emergency dental from an accident = COVERED on both.
 
-METLIFE RULE 7 — SUPPLEMENTS AND FOOD:
+METLIFE RULE 7A — SUPPLEMENTS AND FOOD:
 - IAIC: EXCLUDES natural supplements, vitamins, all foods (prescribed or not), shampoo, conditioner, ear cleaner.
 - MetGen: COVERS prescription foods (vet-only with prescription for a covered illness/injury) AND holistic treatments prescribed by a vet (aromatherapy, herbal remedies, CBD oil).
 Classify these items based on the underwriter.
@@ -3975,7 +3976,9 @@ Medical Waste Disposal Fee, Hazardous Waste/Sharps Fee, Biohazard Disposal Fee, 
 
 RULE 6 — DEFAULT: Pet insurance covers on an EXCLUSION basis. Medically necessary treatment IS covered unless explicitly excluded. Default to COVERED, not UNKNOWN.
 
-RULE 7 — PRESCRIPTION DIET: Covered when prescribed to treat a specific covered condition.
+RULE 7 — PRESCRIPTION DIET FOR COVERED CONDITIONS:
+If a prescription diet or prescription pet food is prescribed by a veterinarian to treat a specific COVERED condition (e.g., post-surgical GI recovery diet after intestinal surgery, renal diet for diagnosed kidney disease), it IS covered. Only exclude prescription diets when they are for general health maintenance, weight loss, prevention, or when there is no underlying covered condition being treated. When a prescription diet appears on a bill alongside a covered surgery or covered illness treatment, default to COVERED unless the policy explicitly excludes ALL prescription foods with no exception for covered conditions. Pumpkin policy explicitly covers "Prescription pet food to treat a covered condition." Odie and most carriers follow similar logic.
+PRECEDENCE: A carrier-specific rule that explicitly excludes all foods/supplements for a given underwriter (e.g., METLIFE RULE 7A for the IAIC underwriter — "all foods (prescribed or not)") OVERRIDES this generic prescription-diet rule for that carrier; prescription food is then EXCLUDED. For every carrier WITHOUT such a carrier-specific food exclusion, this generic rule applies unchanged and prescription food prescribed for a covered condition remains COVERED.
 
 RULE 8 — E-COLLAR: Covered as a medical supply when provided as part of post-surgical care for a covered procedure.
 
