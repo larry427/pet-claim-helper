@@ -4485,16 +4485,17 @@ IMPORTANT: Use numbers not strings for amounts. reimbursementRate must be an int
           break
         }
         case 'MIXED': {
-          const wellnessExcluded = excludedItems.filter(i => isWellnessExclusion(i.reason, i.description))
-          const mixedExcItems = wellnessExcluded.length > 0 ? wellnessExcluded : excludedItems
+          // Describe the FULL excluded set so the named items always match the excluded dollar total.
+          // (Previously narrowed to the wellness-classified subset but pinned the full total next to it,
+          // misattributing the entire excluded amount to a single wellness item.)
           const excludedAmt = excludedItems.reduce((s, i) => s + (i.amount || 0), 0)
-          const wellnessDesc = mixedExcItems.length <= 3
-            ? `The wellness items (${joinNames(mixedExcItems)}) are not covered under your ${summaryCarrier} plan`
-            : `${mixedExcItems.length} items totaling ${fmt$(excludedAmt)} are wellness or preventive care and are not covered`
+          const excludedDesc = excludedItems.length <= 3
+            ? `The ${joinNames(excludedItems)} ${excludedItems.length === 1 ? 'is' : 'are'} not covered under your ${summaryCarrier} plan`
+            : `${excludedItems.length} items are not covered under your ${summaryCarrier} plan`
           const coveredDesc = coveredItems.length <= 3
             ? `The illness-related items (${joinNames(coveredItems)}) are covered`
             : `${coveredItems.length} items totaling ${fmt$(totalCovered)} are illness-related and covered`
-          summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} included both routine and illness-related items. ${wellnessDesc} — that's ${fmt$(excludedAmt)} excluded. ${coveredDesc} — that's ${fmt$(totalCovered)} eligible. ${buildMathSentences()}`
+          summaryText = `${summaryPetName}'s visit to ${summaryClinic} on ${summaryDate} included both routine and illness-related items. ${excludedDesc} — that's ${fmt$(excludedAmt)} excluded. ${coveredDesc} — that's ${fmt$(totalCovered)} eligible. ${buildMathSentences()}`
           break
         }
       }
