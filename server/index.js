@@ -2980,6 +2980,7 @@ WELLNESS_VISIT — majority of items are routine or preventive:
 - Heartworm testing
 - Dental cleaning (routine, not accident-related)
 - Nail trim, ear cleaning, anal gland expression
+- Elective / non-therapeutic surgery with no medical indication (routine spay, neuter, declaw, ear crop, tail dock)
 
 SICK_INJURY_VISIT — primary purpose is diagnosing or treating illness or injury:
 - Diagnostic tests for specific symptoms (bloodwork, x-rays, urinalysis for a condition)
@@ -2990,6 +2991,8 @@ SICK_INJURY_VISIT — primary purpose is diagnosing or treating illness or injur
 - Follow-up for ongoing condition
 
 MIXED VISITS: Classify by PRIMARY purpose. If a sick pet also gets a vaccine during the visit, it is still a SICK_INJURY_VISIT if the main reason was illness treatment.
+
+ELECTIVE SURGERY IS NOT A SICK/INJURY VISIT: An elective or non-therapeutic surgery with NO documented medical indication — routine spay/neuter, declaw, ear crop, tail dock — does NOT make the visit a SICK_INJURY_VISIT. A routine spay or neuter bill (including its pre-op bloodwork, anesthesia, and pain medication) with no illness, injury, symptom, complaint, or diagnosis noted is a WELLNESS_VISIT (routine/preventive). Classify a surgery visit as SICK_INJURY_VISIT ONLY when the surgery treats a documented illness or injury (e.g., cryptorchidism, testicular or mammary tumor, pyometra, fracture, foreign-body removal).
 
 LINE ITEM CATEGORIES — assign one per item:
 - "vaccination" — any vaccine
@@ -3207,13 +3210,15 @@ POLICY EFFECTIVE DATE:
 STEP C — DETERMINE COVERAGE FOR EACH LINE ITEM:
 Apply these rules in ORDER. Do not skip any rule.
 
+PRECEDENCE (READ FIRST — governs every rule below): Categorical exclusions OVERRIDE the generic coverage grants. Categorical exclusions: preventive/vaccination care; elective or cosmetic procedures (RULE 4); "not medically necessary" grooming/hygiene; preventive care WITHOUT a documented occurrence (RULE 2); waste/administrative disposal (RULE 5B); and any carrier-specific categorical exclusion stated in the policy. Generic coverage grants: RULE 4 pre/post-op inheritance for covered surgeries, and RULE 6 default-to-covered. When a line item matches BOTH a grant and a categorical exclusion, the EXCLUSION WINS — do not default it to covered — UNLESS the exclusion's own stated condition is satisfied (a documented illness, injury, or occurrence drives the item, or a wellness endorsement applies). An elective surgery (e.g., a routine spay/neuter) is EXCLUDED even though surgery is normally covered.
+
 RULE 1 — EXAM FEE RULE (apply FIRST, before anything else):
 The visit type from Stage 1 is "${stage1Result.visitType}".
 - WELLNESS_VISIT → any exam fee, office visit fee, or consultation fee is EXCLUDED regardless of what the policy declarations say. Reason: "Excluded — Wellness visit: exam fees are only covered for sick/injury visits, not routine checkups"
 - SICK_INJURY_VISIT → exam fee follows carrier-specific rules (RULE 3)
 
-RULE 2 — WELLNESS/PREVENTIVE EXCLUSION:
-Items categorized as "vaccination" or "preventive" in the Stage 1 lineItems are EXCLUDED. These are not covered by accident/illness policies regardless of carrier.
+RULE 2 — WELLNESS/PREVENTIVE EXCLUSION (occurrence-conditional):
+Items categorized as "vaccination" in the Stage 1 lineItems are EXCLUDED on accident/illness policies regardless of carrier (subject to any carrier preventive-care coverage or wellness endorsement). Items categorized as "preventive", and any routine/preventive care delivered WITHOUT an occurrence — no signs or symptoms observed, recorded in the medical record, or detectable on exam — are EXCLUDED even when the item type (exam, general-health diagnostics/labs, medication, or elective surgery such as spay/neuter) would otherwise be covered, UNLESS a wellness endorsement applies. OCCURRENCE-CONDITIONAL: if the bill or documents show a documented illness, injury, complaint, symptom, or diagnosis driving the item, the occurrence condition is satisfied — do NOT exclude under this rule; the item follows normal coverage rules. This mirrors Pumpkin exclusion (t) ("Preventive care without an occurrence, including ... surgery, unless covered by an applicable endorsement").
 
 RULE 3 — CARRIER-SPECIFIC RULES (uploaded policy documents only — never assume):
 Use ONLY the exclusions explicitly listed in the attached policy. Read both the covered benefits section AND the exclusions list.
@@ -3669,6 +3674,7 @@ WELLNESS_VISIT — majority of items are routine or preventive:
 - Heartworm testing
 - Dental cleaning (routine, not accident-related)
 - Nail trim, ear cleaning, anal gland expression
+- Elective / non-therapeutic surgery with no medical indication (routine spay, neuter, declaw, ear crop, tail dock)
 
 SICK_INJURY_VISIT — primary purpose is diagnosing or treating illness or injury:
 - Diagnostic tests for specific symptoms (bloodwork, x-rays, urinalysis for a condition)
@@ -3679,6 +3685,8 @@ SICK_INJURY_VISIT — primary purpose is diagnosing or treating illness or injur
 - Follow-up for ongoing condition
 
 MIXED VISITS: Classify by PRIMARY purpose. If a sick pet also gets a vaccine during the visit, it is still a SICK_INJURY_VISIT if the main reason was illness treatment.
+
+ELECTIVE SURGERY IS NOT A SICK/INJURY VISIT: An elective or non-therapeutic surgery with NO documented medical indication — routine spay/neuter, declaw, ear crop, tail dock — does NOT make the visit a SICK_INJURY_VISIT. A routine spay or neuter bill (including its pre-op bloodwork, anesthesia, and pain medication) with no illness, injury, symptom, complaint, or diagnosis noted is a WELLNESS_VISIT (routine/preventive). Classify a surgery visit as SICK_INJURY_VISIT ONLY when the surgery treats a documented illness or injury (e.g., cryptorchidism, testicular or mammary tumor, pyometra, fracture, foreign-body removal).
 
 LINE ITEM CATEGORIES — assign one per item:
 - "vaccination" — any vaccine
@@ -3877,6 +3885,8 @@ POLICY EFFECTIVE DATE: return in YYYY-MM-DD format or null.
 STEP C — DETERMINE COVERAGE FOR EACH LINE ITEM:
 Apply these rules in ORDER:
 
+PRECEDENCE (READ FIRST — governs every rule below): Categorical exclusions OVERRIDE the generic coverage grants. The categorical exclusions are: preventive/vaccination care; elective or cosmetic procedures; "not medically necessary" grooming/hygiene; preventive care WITHOUT a documented occurrence (RULE 2D); waste/administrative disposal fees; and any carrier-specific categorical exclusion stated in the policy documents. The generic coverage grants are: RULE 4 (pre/post-op inheritance), RULE 2B (sick-visit "medically necessary" context), and RULE 6 (default-to-covered). When a line item matches BOTH a coverage grant and a categorical exclusion, the EXCLUSION WINS — do NOT default it to covered — UNLESS the exclusion's own stated condition is satisfied (a documented illness, injury, or occurrence drives the item, or a wellness endorsement applies). A surgical or high-cost item is NOT exempt: an elective surgery (e.g., a routine spay/neuter) is EXCLUDED even though "surgery" is normally a covered category.
+
 RULE 1 — EXAM FEE RULE: Visit type is "${stage1Result.visitType}".
 - WELLNESS_VISIT: any exam/office visit fee is EXCLUDED regardless of policy declarations
 - SICK_INJURY_VISIT: exam fee follows carrier-specific rules (RULE 3)
@@ -3890,6 +3900,8 @@ RULE 2B — VISIT-TYPE CONTEXT FOR AMBIGUOUS ITEMS: The visit has been classifie
 - If visit_type is SICK_INJURY_VISIT, SURGERY_VISIT, or EMERGENCY_VISIT: The same items should be classified according to standard policy coverage rules (diagnostic tests covered, prescribed medications covered, etc.) because the visit context implies they are medically necessary for a specific condition.
 
 RULE 2C — NOT MEDICALLY NECESSARY (cosmetic / grooming / hygiene): Items that are grooming, cosmetic, aesthetic, or routine hygiene and are not treating a diagnosed Illness or Injury — including nail trims, grooming, bathing, anal gland expression, and ear cleaning when not treating a diagnosed ear condition — are EXCLUDED under the policy's "Not Medically Necessary" provision. For such an item the reason label MUST read "Excluded — Not Medically Necessary" (NOT "preventive care" or "preventive"), and the source_quote MUST be the policy's not-related-to-an-Illness-or-Injury / Not-Medically-Necessary clause (for MetGen, the clause naming "anal gland expression, nail trims and grooming"). The reason category MUST match the clause you actually cite; never label a grooming/cosmetic/hygiene exclusion as "preventive."
+
+RULE 2D — PREVENTIVE CARE WITHOUT AN OCCURRENCE (occurrence-conditional — do NOT blanket-exclude): Routine or preventive care delivered when the pet has NO occurrence — no signs or symptoms of a condition observed by the owner or veterinarian, nothing recorded in the medical record, and nothing detectable on examination — is EXCLUDED even when the item type (physical exam, general-health diagnostics/labs, medication, or SURGERY such as an elective spay/neuter) would otherwise be covered, UNLESS a wellness endorsement applies. "Occurrence" means signs or symptoms of a condition observed, recorded in the medical record, or detectable on exam. OCCURRENCE-CONDITIONAL: if the bill or attached documents show a documented illness, injury, complaint, symptom, or diagnosis driving the item, the occurrence condition IS satisfied — do NOT exclude under this rule; the item follows normal coverage rules. This mirrors Pumpkin exclusion (t) ("Preventive care without an occurrence, including ... surgery, unless covered by an applicable endorsement") and the equivalent no-occurrence / elective language in other carriers' policies.
 
 RULE 3 — CARRIER-SPECIFIC RULES: Use ONLY exclusions from the attached policy documents.
 - Healthy Paws: exam fees always excluded (blanket exclusion)
@@ -3971,7 +3983,12 @@ HARTVILLE RULE 4 — MATH: Deductible-first. (Covered − Deductible) × Rate = 
 
 HARTVILLE RULE 5 — WASTE DISPOSAL: Hartville (even though underwritten by IAIC) does NOT explicitly cover medical waste disposal the way MetLife IAIC does. Apply RULE 5B standard exclusion for Hartville.
 
-RULE 4 — PRE-OP/POST-OP INHERITANCE: Pre/post-op items inherit coverage from the associated surgery.
+RULE 4 — PRE-OP/POST-OP INHERITANCE AND ELECTIVE-SURGERY EXCLUSION: First determine the coverage of the SURGERY itself, then inherit that verdict to its pre/post-op items.
+- ELECTIVE or COSMETIC surgery — spay/neuter, declaw, ear crop, tail dock, or any procedure with no documented medical indication — is EXCLUDED. Cite the policy's elective/cosmetic exclusion (and, where present, its preventive-care-without-occurrence exclusion — RULE 2D). Per the PRECEDENCE directive this OVERRIDES the default-covered grant.
+- Surgery that treats a DOCUMENTED illness or injury (e.g., cryptorchidism, testicular or mammary tumor, pyometra, fracture repair, foreign-body removal) — an occurrence is present — is COVERED as treatment of a covered condition.
+- If the surgery type is unknown but 2 or more contextual clues suggest an elective spay/neuter (pet under ~1-2 years, "pre-op blood panel" as the only substantive item, no illness/injury/symptom noted, a routine scheduled-surgery appointment) → EXCLUDED, explaining the likely elective procedure.
+- If the surgery type is genuinely undeterminable → Uncertain: "Pre-op work is only covered if the associated surgery treats a covered illness or injury; the surgery type cannot be determined from this bill."
+Pre-op and post-op items (pre-anesthetic bloodwork, anesthesia, monitoring, surgical supplies, pain medication, e-collar, follow-up rechecks) INHERIT the surgery's verdict — COVERED if the surgery is covered, EXCLUDED if the surgery is elective/excluded.
 
 RULE 5 — RADIOLOGY/SPECIALIST READS: Radiologist reads of diagnostic images are DIAGNOSTIC TESTS, not exam fees. Mark as COVERED.
 
